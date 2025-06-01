@@ -1,0 +1,56 @@
+name: recess
+description: "A challenge app with friends to lock coins on Solana"
+
+publish_to: 'none' 
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.7.0
+
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  flutter_screenutil: ^5.9.0  # For responsive design
+  google_fonts: ^6.1.0        # For custom fonts
+  provider: ^6.1.1            # For state management
+  solana: ^0.30.3             # Solana blockchain SDK
+  bip39: ^1.0.6               # For mnemonic generation
+  shared_preferences: ^2.2.2  # For local storage
+  flutter_secure_storage: ^9.0.0  # For secure storage
+  http: ^1.1.2                # For API requests
+  intl: ^0.19.0               # For date formatting
+  rive: ^0.13.20
+  privy_flutter: ^0.0.8
+  lottie: ^3.3.1
+  flutter_dotenv: ^5.2.1
+  flutter_otp_text_field: ^1.5.1+1
+  supabase_flutter: ^2.9.0
+
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^5.0.0
+
+
+flutter:
+
+
+  uses-material-design: true
+  assets:
+    - .env
+    - assets/images/
+    - assets/images/ai_gen/
+    - assets/images/ai_gen/logo/
+    - assets/images/ai_gen/profile_images/
+    - assets/images/ai_gen/whisk_animation_fallback/
+    - assets/images/open_sourced_design_inspiration/
+    - assets/images/open_sourced_design_inspiration/figma_community/onboarding/
+    - assets/images/open_sourced_design_inspiration/irfan/
+    - assets/animations/
+    - assets/animations/whisk_ai_generate/
+    - assets/animations/lottie/
