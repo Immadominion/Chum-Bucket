@@ -1,10 +1,13 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:recess/config/theme/app_theme.dart';
-import 'package:recess/screens/home/home.dart';
-import 'package:recess/screens/onboarding/onboarding_screen.dart';
-import 'package:recess/providers/onboarding_provider.dart';
+import 'package:provider/provider.dart';
+import 'package:chumbucket/config/theme/app_theme.dart';
+import 'package:chumbucket/screens/home/home.dart';
+import 'package:chumbucket/screens/onboarding/onboarding_screen.dart';
+import 'package:chumbucket/providers/onboarding_provider.dart';
+import 'package:chumbucket/providers/profile_provider.dart';
+import 'package:chumbucket/providers/auth_provider.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -22,33 +25,90 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void dispose() {
     _nameController.dispose();
     _bioController.dispose();
+    _loadUserProfile();
     super.dispose();
+  }
+
+  Future<void> _loadUserProfile() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final profileProvider = Provider.of<ProfileProvider>(
+      context,
+      listen: false,
+    );
+
+    final profile = await profileProvider.fetchUserProfile(
+      authProvider.currentUser!.id,
+    );
+
+    if (profile != null) {
+      setState(() {
+        _nameController.text = profile['full_name'] ?? '';
+        _bioController.text = profile['bio'] ?? '';
+      });
+    }
   }
 
   void _saveProfile() async {
     if (_formKey.currentState?.validate() ?? false) {
-      // Handle save logic
-      print('Name: ${_nameController.text}');
-      print('Bio: ${_bioController.text}');
+      // Show a loading indicator
+      setState(() {
+        // Optionally, you can add a loading state here
+      });
 
-      // Check if the user has viewed the onboarding screen before
-      final onboardingProvider = OnboardingProvider();
-      bool hasViewedOnboarding =
-          await onboardingProvider.isOnboardingCompleted();
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final profileProvider = Provider.of<ProfileProvider>(
+        context,
+        listen: false,
+      );
 
-      if (hasViewedOnboarding) {
-        // Navigate to Home Screen
-        WidgetsBinding.instance.addPostFrameCallback((_) {
+      final updates = {
+        'full_name': _nameController.text.trim(),
+        'bio': _bioController.text.trim(),
+      };
+
+      // Attempt to save the profile
+      final success = await profileProvider.updateUserProfile(
+        authProvider.currentUser!.id,
+        updates,
+      );
+
+      if (success) {
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile updated successfully')),
+        );
+
+        // Check if the user has viewed the onboarding screen
+        final onboardingProvider = OnboardingProvider();
+        bool hasViewedOnboarding =
+            await onboardingProvider.isOnboardingCompleted();
+
+        if (hasViewedOnboarding) {
+          // Navigate to Home Screen
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const HomeScreen()),
+            );
+          });
+        } else {
+          // Navigate to Onboarding Screen
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
+            MaterialPageRoute(builder: (_) => const OnboardingScreen()),
           );
-        });
+        }
       } else {
-        // Navigate to Onboarding Screen
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+        // Show error message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to update profile. Please try again.'),
+          ),
         );
       }
+
+      // Hide the loading indicator
+      setState(() {
+        // Optionally, you can remove the loading state here
+      });
     }
   }
 

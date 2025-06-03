@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:recess/screens/create_challenge_screen/widgets/description_input.dart';
-import 'package:recess/screens/create_challenge_screen/widgets/friend_avatar_section.dart';
-import 'package:recess/widgets/friend_avatar.dart';
+import 'package:chumbucket/screens/create_challenge_screen/widgets/description_input.dart';
+import 'package:chumbucket/screens/create_challenge_screen/widgets/friend_avatar_section.dart';
+import 'package:chumbucket/widgets/friend_avatar.dart';
 
 class BetAmountStep extends StatefulWidget {
   final String friendName;

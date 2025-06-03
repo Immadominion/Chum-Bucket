@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:recess/screens/home/widgets/challenge_button.dart';
-import 'package:recess/screens/home/widgets/empty_challenges.dart';
-import 'package:recess/screens/home/widgets/friends_grid.dart';
+import 'package:chumbucket/screens/home/widgets/challenge_button.dart';
+import 'package:chumbucket/screens/home/widgets/empty_challenges.dart';
+import 'package:chumbucket/screens/home/widgets/friends_grid.dart';
 
 class FriendsTab extends StatelessWidget {
   final VoidCallback createNewChallenge;

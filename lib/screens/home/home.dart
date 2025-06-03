@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:recess/screens/challenge_details_screen/challenge_details_screen.dart';
-import 'package:recess/screens/create_challenge_screen/create_challenge_screens.dart';
-import 'package:recess/screens/home/widgets/friends_tab.dart';
-import 'package:recess/screens/home/widgets/header.dart';
-import 'package:recess/screens/home/widgets/tab_bar.dart';
+import 'package:chumbucket/screens/challenge_details_screen/challenge_details_screen.dart';
+import 'package:chumbucket/screens/create_challenge_screen/create_challenge_screens.dart';
+import 'package:chumbucket/screens/home/widgets/friends_tab.dart';
+import 'package:chumbucket/screens/home/widgets/header.dart';
+import 'package:chumbucket/screens/home/widgets/tab_bar.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});

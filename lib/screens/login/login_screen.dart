@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:lottie/lottie.dart';
-import 'package:recess/screens/login/widgets/gmail_login_button.dart';
+import 'package:chumbucket/screens/login/widgets/gmail_login_button.dart';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});

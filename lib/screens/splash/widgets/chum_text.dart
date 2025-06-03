@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:recess/screens/splash/widgets/splash_animations.dart';
+import 'package:chumbucket/screens/splash/widgets/splash_animations.dart';
 
 class ChumTextLogo extends StatelessWidget {
   final SplashAnimations animations;

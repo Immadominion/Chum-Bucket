@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
-import 'package:recess/providers/onboarding_provider.dart';
-import 'package:recess/screens/onboarding/widgets/animated_onboarding_image.dart';
-import 'package:recess/screens/onboarding/widgets/onboarding_indicators.dart';
-import 'package:recess/screens/onboarding/widgets/question_button.dart';
+import 'package:chumbucket/providers/onboarding_provider.dart';
+import 'package:chumbucket/screens/onboarding/widgets/animated_onboarding_image.dart';
+import 'package:chumbucket/screens/onboarding/widgets/onboarding_indicators.dart';
+import 'package:chumbucket/screens/onboarding/widgets/question_button.dart';
 
 class OnboardingPageLayout extends StatelessWidget {
   final String illustration;

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:recess/providers/onboarding_provider.dart';
-import 'package:recess/screens/onboarding/widgets/onboarding_buttons.dart';
-import 'package:recess/screens/onboarding/widgets/onboarding_content_card.dart';
-import 'package:recess/screens/onboarding/widgets/onboarding_page_layout.dart';
+import 'package:chumbucket/providers/onboarding_provider.dart';
+import 'package:chumbucket/screens/onboarding/widgets/onboarding_buttons.dart';
+import 'package:chumbucket/screens/onboarding/widgets/onboarding_content_card.dart';
+import 'package:chumbucket/screens/onboarding/widgets/onboarding_page_layout.dart';
 
 class OnboardingPage extends StatefulWidget {
   final String title;

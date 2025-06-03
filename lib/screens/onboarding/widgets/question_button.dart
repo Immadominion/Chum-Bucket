@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:recess/config/theme/app_theme.dart';
-import 'package:recess/screens/onboarding/widgets/terms_and_conditions_dialog.dart';
+import 'package:chumbucket/config/theme/app_theme.dart';
+import 'package:chumbucket/screens/onboarding/widgets/terms_and_conditions_dialog.dart';
 
 class QuestionButton extends StatelessWidget {
   const QuestionButton({super.key});

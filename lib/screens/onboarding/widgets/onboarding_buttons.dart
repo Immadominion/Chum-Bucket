@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:recess/config/theme/app_theme.dart';
-import 'package:recess/screens/home/home.dart';
-import 'package:recess/screens/onboarding/widgets/onboarding_controller.dart';
+import 'package:chumbucket/config/theme/app_theme.dart';
+import 'package:chumbucket/screens/home/home.dart';
+import 'package:chumbucket/screens/onboarding/widgets/onboarding_controller.dart';
 
 class OnboardingButtons extends StatelessWidget {
   final bool isLastPage;

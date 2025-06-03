@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:recess/models/models.dart';
-import 'package:recess/screens/create_challenge_screen/widgets/action_button.dart';
+import 'package:chumbucket/models/models.dart';
+import 'package:chumbucket/screens/create_challenge_screen/widgets/action_button.dart';
 import 'package:rive/rive.dart';
 
 class ChallengeStateScreen extends StatefulWidget {

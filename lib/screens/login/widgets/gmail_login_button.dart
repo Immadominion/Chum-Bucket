@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:recess/config/theme/app_theme.dart';
-import 'package:recess/screens/login/email_input_screen.dart';
+import 'package:chumbucket/config/theme/app_theme.dart';
+import 'package:chumbucket/screens/login/email_input_screen.dart';
 
 class EmailLoginButton extends StatelessWidget {
   const EmailLoginButton({super.key});

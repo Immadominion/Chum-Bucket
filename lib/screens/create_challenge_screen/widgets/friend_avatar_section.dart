@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:recess/widgets/friend_avatar.dart';
+import 'package:chumbucket/widgets/friend_avatar.dart';
 
 class FriendAvatarSection extends StatelessWidget {
   final String friendName;

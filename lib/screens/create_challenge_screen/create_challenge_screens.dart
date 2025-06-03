@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
-import 'package:recess/models/models.dart';
-import 'package:recess/providers/wallet_provider.dart';
-import 'package:recess/screens/challenge_created_screen/challenge_created_screen.dart';
-import 'package:recess/screens/create_challenge_screen/widgets/action_button.dart';
-import 'package:recess/screens/create_challenge_screen/widgets/bet_amount_step.dart';
-import 'package:recess/screens/create_challenge_screen/widgets/description_step.dart';
-import 'package:recess/screens/create_challenge_screen/widgets/top_divider.dart';
+import 'package:chumbucket/models/models.dart';
+import 'package:chumbucket/providers/wallet_provider.dart';
+import 'package:chumbucket/screens/challenge_created_screen/challenge_created_screen.dart';
+import 'package:chumbucket/screens/create_challenge_screen/widgets/action_button.dart';
+import 'package:chumbucket/screens/create_challenge_screen/widgets/bet_amount_step.dart';
+import 'package:chumbucket/screens/create_challenge_screen/widgets/description_step.dart';
+import 'package:chumbucket/screens/create_challenge_screen/widgets/top_divider.dart';
 
 class CreateChallengeScreen extends StatefulWidget {
   final String friendName;

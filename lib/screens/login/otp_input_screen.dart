@@ -1,13 +1,11 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
-import 'package:recess/config/theme/app_theme.dart';
-import 'package:recess/providers/auth_provider.dart';
-import 'package:recess/screens/profile/edit_profile_screen.dart';
-import 'package:rive/rive.dart';
+import 'package:chumbucket/config/theme/app_theme.dart';
+import 'package:chumbucket/providers/auth_provider.dart';
+import 'package:chumbucket/screens/profile/edit_profile_screen.dart';
 import 'package:flutter_otp_text_field/flutter_otp_text_field.dart';
+import 'package:flutter/cupertino.dart';
 
 class OtpInputScreen extends StatefulWidget {
   final String email;
@@ -24,42 +22,9 @@ class _OtpInputScreenState extends State<OtpInputScreen> {
   String? _errorText;
   String _enteredOtp = '';
 
-  Artboard? _riveArtboard;
-  SMIInput<double>? _progressInput;
-  SMIInput<bool>? _isFinishedInput;
-  StateMachineController? _stateMachineController;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadRiveFile();
-  }
-
-  Future<void> _loadRiveFile() async {
-    final data = await rootBundle.load('assets/animations/original_bar.riv');
-    final file = RiveFile.import(data);
-    final artboard = file.mainArtboard;
-    var controller = StateMachineController.fromArtboard(
-      artboard,
-      'State Machine 1',
-    );
-    if (controller != null) {
-      _stateMachineController = controller;
-      artboard.addController(_stateMachineController!);
-      _progressInput = _stateMachineController!.findInput<double>('Number 1');
-      _isFinishedInput = _stateMachineController!.findInput<bool>(
-        'load finish',
-      );
-
-      _progressInput?.value = 60.0;
-    }
-    setState(() => _riveArtboard = artboard);
-  }
-
   @override
   void dispose() {
     _otpController.dispose();
-    _stateMachineController?.dispose();
     super.dispose();
   }
 
@@ -82,11 +47,7 @@ class _OtpInputScreenState extends State<OtpInputScreen> {
     );
 
     if (success && mounted) {
-      // Update progress animation
-      _progressInput?.value = 100.0;
-      _isFinishedInput?.value = true;
-
-      // Navigate after a short delay to show animation completion
+      // Navigate after a short delay
       Future.delayed(const Duration(milliseconds: 1500), () {
         if (mounted) {
           Navigator.of(context).pushReplacement(
@@ -130,29 +91,6 @@ class _OtpInputScreenState extends State<OtpInputScreen> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   SizedBox(height: 20.h),
-                  if (_riveArtboard != null)
-                    Column(
-                      children: [
-                        SizedBox(
-                          height: 150.h,
-                          width: double.infinity,
-                          child: Rive(
-                            artboard: _riveArtboard!,
-                            fit: BoxFit.contain,
-                          ),
-                        ),
-                        Text(
-                          "2 of 3",
-                          style: TextStyle(
-                            fontSize: 14.sp,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurface.withOpacity(0.7),
-                          ),
-                        ),
-                        SizedBox(height: 20.h),
-                      ],
-                    ),
                   Text(
                     "Enter code",
                     style: TextStyle(
@@ -177,18 +115,15 @@ class _OtpInputScreenState extends State<OtpInputScreen> {
                   SizedBox(height: 40.h),
                   OtpTextField(
                     numberOfFields: 6,
-                    borderColor:
-                        _errorText != null
-                            ? Colors.red
-                            : Theme.of(context).colorScheme.primary,
+                    borderColor: _errorText != null
+                        ? Colors.red
+                        : Theme.of(context).colorScheme.primary,
                     focusedBorderColor: Theme.of(context).colorScheme.primary,
                     cursorColor: Theme.of(context).colorScheme.primary,
                     showFieldAsBox: true,
                     fieldWidth: 40.w,
                     borderRadius: BorderRadius.circular(12.r),
-                    fillColor: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withOpacity(0.05),
+                    fillColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.05),
                     filled: true,
                     textStyle: TextStyle(
                       fontSize: 20.sp,
@@ -196,16 +131,17 @@ class _OtpInputScreenState extends State<OtpInputScreen> {
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
                     onCodeChanged: (code) {
-                      // Clear error when user starts typing again
                       if (_errorText != null) {
-                        setState(() {
-                          _errorText = null;
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          setState(() {
+                            _errorText = null;
+                          });
                         });
                       }
                     },
-                    onSubmit: (String code) {
+                    onSubmit: (String code) async {
                       _enteredOtp = code;
-                      _submitOtp();
+                      await Future.microtask(() => _submitOtp());
                     },
                   ),
                   SizedBox(height: 8.h),

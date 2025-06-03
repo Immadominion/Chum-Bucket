@@ -2,11 +2,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:recess/screens/login/login_screen.dart';
-import 'package:recess/screens/splash/widgets/chum_text.dart';
-import 'package:recess/screens/splash/widgets/splash_animations.dart';
-import 'package:recess/screens/splash/widgets/bucket.dart';
-import 'package:recess/screens/splash/widgets/splash_background_painter.dart'; // Added import
+import 'package:chumbucket/screens/login/login_screen.dart';
+import 'package:chumbucket/screens/splash/widgets/chum_text.dart';
+import 'package:chumbucket/screens/splash/widgets/splash_animations.dart';
+import 'package:chumbucket/screens/splash/widgets/bucket.dart';
+import 'package:chumbucket/screens/splash/widgets/splash_background_painter.dart'; // Added import
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});

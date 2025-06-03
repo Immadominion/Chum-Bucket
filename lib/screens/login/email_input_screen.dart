@@ -2,8 +2,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
-import 'package:recess/providers/auth_provider.dart';
-import 'package:recess/screens/login/otp_input_screen.dart';
+import 'package:chumbucket/providers/auth_provider.dart';
+import 'package:chumbucket/screens/login/otp_input_screen.dart';
 
 class EmailInputScreen extends StatefulWidget {
   const EmailInputScreen({super.key});

@@ -3,13 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
-import 'package:recess/config/theme/app_theme.dart';
-import 'package:recess/providers/onboarding_provider.dart';
-import 'package:recess/providers/wallet_provider.dart';
-import 'package:recess/screens/splash/splash_screen.dart';
+import 'package:chumbucket/config/theme/app_theme.dart';
+import 'package:chumbucket/providers/onboarding_provider.dart';
+import 'package:chumbucket/providers/profile_provider.dart';
+import 'package:chumbucket/providers/wallet_provider.dart';
+import 'package:chumbucket/screens/splash/splash_screen.dart';
 import 'package:rive/rive.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:recess/providers/auth_provider.dart';
+import 'package:chumbucket/providers/auth_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,6 +31,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => WalletProvider()),
         ChangeNotifierProvider(create: (_) => OnboardingProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => ProfileProvider()),
       ],
       child: const MyApp(),
     ),
@@ -47,7 +49,7 @@ class MyApp extends StatelessWidget {
       splitScreenMode: true,
       builder: (context, child) {
         return MaterialApp(
-          title: 'Recess',
+          title: 'chumbucket',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,
           home: const SplashScreen(),

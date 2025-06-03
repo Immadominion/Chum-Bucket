@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:recess/providers/onboarding_provider.dart';
-import 'package:recess/screens/home/home.dart';
-import 'package:recess/screens/onboarding/onboarding_screen.dart';
+import 'package:chumbucket/providers/onboarding_provider.dart';
+import 'package:chumbucket/screens/home/home.dart';
+import 'package:chumbucket/screens/onboarding/onboarding_screen.dart';
 
 class SplashNavigation {
   static Future<void> navigateToNextScreen(BuildContext context) async {

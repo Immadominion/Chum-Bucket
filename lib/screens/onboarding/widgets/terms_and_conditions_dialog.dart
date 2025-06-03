@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:recess/config/theme/app_theme.dart';
+import 'package:chumbucket/config/theme/app_theme.dart';
 
 class TermsAndConditionsDialog extends StatelessWidget {
   const TermsAndConditionsDialog({super.key});

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:recess/screens/home/widgets/friend_item.dart';
+import 'package:chumbucket/screens/home/widgets/friend_item.dart';
 
 class FriendsGrid extends StatelessWidget {
   final List<Map<String, String>> friends;

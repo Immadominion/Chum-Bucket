@@ -1,4 +1,4 @@
-package com.example.recess
+package com.example.chumbucket
 
 import io.flutter.embedding.android.FlutterActivity
 

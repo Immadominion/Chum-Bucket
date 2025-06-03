@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:recess/screens/login/login_screen.dart';
+import 'package:chumbucket/screens/login/login_screen.dart';
 
 /// Route names for login-related screens
 class LoginRoutes {

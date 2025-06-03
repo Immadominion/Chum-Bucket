@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:recess/config/theme/app_theme.dart';
-import 'package:recess/providers/onboarding_provider.dart';
-import 'package:recess/screens/onboarding/widgets/background_pattern_painter.dart';
-import 'package:recess/screens/onboarding/widgets/onboarding_controller.dart';
-import 'package:recess/screens/onboarding/widgets/onboarding_page.dart';
+import 'package:chumbucket/config/theme/app_theme.dart';
+import 'package:chumbucket/providers/onboarding_provider.dart';
+import 'package:chumbucket/screens/onboarding/widgets/background_pattern_painter.dart';
+import 'package:chumbucket/screens/onboarding/widgets/onboarding_controller.dart';
+import 'package:chumbucket/screens/onboarding/widgets/onboarding_page.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});

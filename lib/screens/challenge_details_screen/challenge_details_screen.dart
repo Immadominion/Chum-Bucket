@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:recess/config/theme/app_theme.dart';
-import 'package:recess/widgets/friend_avatar.dart';
-import 'package:recess/widgets/wavy_container.dart';
+import 'package:chumbucket/config/theme/app_theme.dart';
+import 'package:chumbucket/widgets/friend_avatar.dart';
+import 'package:chumbucket/widgets/wavy_container.dart';
 
 class ChallengeDetailsScreen extends StatefulWidget {
   final String friendName;
