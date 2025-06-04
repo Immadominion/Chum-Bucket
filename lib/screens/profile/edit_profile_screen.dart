@@ -1,3 +1,4 @@
+import 'dart:developer';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -20,12 +21,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _bioController = TextEditingController();
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Defer profile loading until after the build phase
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadUserProfile();
+    });
+  }
 
   @override
   void dispose() {
     _nameController.dispose();
     _bioController.dispose();
-    _loadUserProfile();
     super.dispose();
   }
 
@@ -40,19 +50,32 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       authProvider.currentUser!.id,
     );
 
-    if (profile != null) {
+    log('Fetched profile: $profile');
+
+    if (mounted) {
       setState(() {
-        _nameController.text = profile['full_name'] ?? '';
-        _bioController.text = profile['bio'] ?? '';
+        if (profile != null) {
+          _nameController.text = profile['full_name']?.toString() ?? '';
+          _bioController.text = profile['bio']?.toString() ?? '';
+        } else {
+          _nameController.text = '';
+          _bioController.text = '';
+        }
       });
+
+      // Show error only if there's an actual issue
+      if (profile == null && profileProvider.errorMessage != null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(profileProvider.errorMessage!)));
+      }
     }
   }
 
   void _saveProfile() async {
     if (_formKey.currentState?.validate() ?? false) {
-      // Show a loading indicator
       setState(() {
-        // Optionally, you can add a loading state here
+        _isLoading = true;
       });
 
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -66,49 +89,44 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         'bio': _bioController.text.trim(),
       };
 
-      // Attempt to save the profile
       final success = await profileProvider.updateUserProfile(
         authProvider.currentUser!.id,
         updates,
       );
 
-      if (success) {
-        // Show success message
+      if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Profile updated successfully')),
         );
 
-        // Check if the user has viewed the onboarding screen
         final onboardingProvider = OnboardingProvider();
         bool hasViewedOnboarding =
             await onboardingProvider.isOnboardingCompleted();
 
         if (hasViewedOnboarding) {
-          // Navigate to Home Screen
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const HomeScreen()),
-            );
-          });
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const HomeScreen()),
+          );
         } else {
-          // Navigate to Onboarding Screen
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const OnboardingScreen()),
           );
         }
-      } else {
-        // Show error message
+      } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to update profile. Please try again.'),
+          SnackBar(
+            content: Text(
+              profileProvider.errorMessage ?? 'Failed to update profile',
+            ),
           ),
         );
       }
 
-      // Hide the loading indicator
-      setState(() {
-        // Optionally, you can remove the loading state here
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -121,7 +139,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             CupertinoIcons.clear,
             color: Theme.of(context).colorScheme.primary,
           ),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () {
+            // Allow skipping profile setup, but navigate based on onboarding status
+            final onboardingProvider = OnboardingProvider();
+            onboardingProvider.isOnboardingCompleted().then((
+              hasViewedOnboarding,
+            ) {
+              if (hasViewedOnboarding) {
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => const HomeScreen()),
+                );
+              } else {
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+                );
+              }
+            });
+          },
         ),
         backgroundColor: Theme.of(context).colorScheme.surface,
         elevation: 0,
@@ -137,7 +171,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               children: [
                 SizedBox(height: 20.h),
                 Text(
-                  "Edit Profile",
+                  "Complete Your Profile",
                   style: TextStyle(
                     fontSize: 28.sp,
                     fontWeight: FontWeight.bold,
@@ -264,7 +298,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
                 const Spacer(),
                 GestureDetector(
-                  onTap: _saveProfile,
+                  onTap: _isLoading ? null : _saveProfile,
                   child: Container(
                     width: double.infinity,
                     padding: EdgeInsets.symmetric(vertical: 12.h),
@@ -273,14 +307,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       borderRadius: BorderRadius.circular(18.r),
                     ),
                     child: Center(
-                      child: Text(
-                        "Save",
-                        style: TextStyle(
-                          color: AppColors.buttonText,
-                          fontSize: 20.sp,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
+                      child:
+                          _isLoading
+                              ? const CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  AppColors.buttonText,
+                                ),
+                              )
+                              : Text(
+                                "Save",
+                                style: TextStyle(
+                                  color: AppColors.buttonText,
+                                  fontSize: 20.sp,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                     ),
                   ),
                 ),

@@ -5,6 +5,7 @@ import 'package:privy_flutter/privy_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:chumbucket/providers/base_change_notifier.dart'
     show BaseChangeNotifier, LoadingState;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthProvider extends BaseChangeNotifier {
   late final Privy _privy;
@@ -43,22 +44,31 @@ class AuthProvider extends BaseChangeNotifier {
   bool get isInitialized => _initialized;
   SupabaseClient get supabase => _supabase;
 
+  final String _loggedInKey = 'isLoggedIn';
+
+  Future<void> saveLoginState() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_loggedInKey, true);
+  }
+
+  Future<bool> isLoggedIn() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_loggedInKey) ?? false;
+  }
+
   Future<void> initialize() async {
-    if (_initialized) return;
+    if (_initialized) {
+      log('AuthProvider already initialized, skipping...');
+      return;
+    }
 
     return runAsync(() async {
       try {
-        // Initialize Supabase first
+        // Initialize Supabase (safe to call multiple times)
         await Supabase.initialize(
-          url: dotenv.env['SUPABASE_URL'] ?? '',
-          anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
+          url: dotenv.env['SUPABASE_URL']!,
+          anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
         );
-
-        print(
-          "===> ${dotenv.env['APP_CLIENT_ID']} and ${dotenv.env['APP_ID']} Secrets",
-        );
-
-        // Now it's safe to get the instance
         _supabase = Supabase.instance.client;
 
         // Then initialize Privy
@@ -71,6 +81,7 @@ class AuthProvider extends BaseChangeNotifier {
         }
 
         _initialized = true;
+        log('AuthProvider initialized successfully');
       } catch (e) {
         log('Failed to initialize Auth services: ${e.toString()}');
         rethrow;
@@ -147,32 +158,38 @@ class AuthProvider extends BaseChangeNotifier {
     }
   }
 
-  Future<void> _syncUserWithSupabase(PrivyUser privyUser) async {
+  Future<bool> _syncUserWithSupabase(PrivyUser privyUser) async {
     try {
-      // Set the current_privy_id in the database session
+      final emailAccount =
+          privyUser.linkedAccounts.firstWhere(
+                (account) => account is EmailAccount && account.type == 'email',
+                orElse:
+                    () => throw Exception('No email account found for user'),
+              )
+              as EmailAccount;
+      if (emailAccount.emailAddress.isEmpty) {
+        throw Exception('Email address is empty');
+      }
+      final email = emailAccount.emailAddress;
+
+      log('Syncing user with privy_id: ${privyUser.id}, email: $email');
+
+      // Call the stored procedure
       await _supabase.rpc(
-        'set_current_privy_id',
-        params: {'privy_id': privyUser.id},
+        'sync_user',
+        params: {'p_privy_id': privyUser.id, 'p_email': email},
       );
 
-      // Upsert user in Supabase
-      final response =
-          await _supabase
-              .from('users')
-              .upsert({
-                'privy_id': privyUser.id,
-                'email':
-                    privyUser.id, // Assuming email is stored in privyUser.id
-                'created_at': DateTime.now().toIso8601String(),
-                'updated_at': DateTime.now().toIso8601String(),
-              })
-              .select()
-              .single();
-
-      log('User synced with Supabase: $response');
+      log('User synced successfully');
+      return true;
     } catch (e) {
-      log('Error syncing user with Supabase: ${e.toString()}');
-      // Don't throw here - we don't want to break auth flow if DB sync fails
+      log('Error syncing user with Supabase: $e');
+      if (e is PostgrestException) {
+        log(
+          'Postgrest details: code=${e.code}, message=${e.message}, details=${e.details}',
+        );
+      }
+      throw Exception('Failed to sync user: $e');
     }
   }
 
@@ -293,11 +310,14 @@ class AuthProvider extends BaseChangeNotifier {
       try {
         await _privy.logout();
         _currentUser = null;
-        // Note: We don't sign out from Supabase as it's just used for data storage
+
+        // Clear login state
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove(_loggedInKey);
+
         log('User logged out successfully');
       } catch (e) {
         log('Error during logout: ${e.toString()}');
-        // Clear user anyway to prevent stuck state
         _currentUser = null;
         rethrow;
       }

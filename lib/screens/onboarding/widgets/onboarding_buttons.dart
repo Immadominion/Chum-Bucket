@@ -114,7 +114,7 @@ class OnboardingButtons extends StatelessWidget {
               width: 120.w, // Fixed width for consistent button size
               padding: EdgeInsets.symmetric(vertical: 16.h),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
+                color: Theme.of(context).colorScheme.primary,
                 borderRadius: BorderRadius.circular(18.r),
                 border: Border.all(
                   color: Theme.of(context).colorScheme.primary,

@@ -26,13 +26,10 @@ class OnboardingContentCard extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24.r),
         child: BackdropFilter(
-          filter: ImageFilter.blur(
-            sigmaX: 10,
-            sigmaY: 10,
-          ), // Reduced blur for better performance
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
             width: double.infinity,
-            height: compact ? 230.h : 260.h,
+            height: compact ? 270.h : 290.h,
             padding: EdgeInsets.all(26.w),
             decoration: BoxDecoration(
               color: AppColors.glassmorphismCard,
@@ -48,7 +45,7 @@ class OnboardingContentCard extends StatelessWidget {
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: 28.sp, // Increased font size
+                    fontSize: 28.sp,
                     fontWeight: FontWeight.bold,
                     color: AppColors.glassmorphismText,
                   ),
@@ -60,7 +57,7 @@ class OnboardingContentCard extends StatelessWidget {
                 Text(
                   description,
                   style: TextStyle(
-                    fontSize: 20.sp, // Increased font size
+                    fontSize: 19.sp,
                     color: AppColors.glassmorphismSecondaryText,
                   ),
                   textAlign: TextAlign.left,

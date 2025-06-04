@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:chumbucket/screens/home/home.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -7,6 +8,10 @@ import 'package:chumbucket/screens/splash/widgets/chum_text.dart';
 import 'package:chumbucket/screens/splash/widgets/splash_animations.dart';
 import 'package:chumbucket/screens/splash/widgets/bucket.dart';
 import 'package:chumbucket/screens/splash/widgets/splash_background_painter.dart'; // Added import
+import 'package:provider/provider.dart';
+import 'package:chumbucket/providers/auth_provider.dart';
+import 'package:chumbucket/providers/onboarding_provider.dart';
+import 'package:chumbucket/screens/onboarding/onboarding_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -58,19 +63,32 @@ class _SplashScreenState extends State<SplashScreen>
     // Hold the bucket and text logo
     await Future.delayed(const Duration(milliseconds: 400));
 
-    // Fade out and navigate
-    await _animations.fadeOutController.forward();
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder:
-            (context, animation, secondaryAnimation) => const LoginScreen(),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
-        transitionDuration: const Duration(milliseconds: 400),
-      ),
+    // Check login state and onboarding completion
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final onboardingProvider = Provider.of<OnboardingProvider>(
+      context,
+      listen: false,
     );
+
+    final isLoggedIn = await authProvider.isLoggedIn();
+    final hasCompletedOnboarding =
+        await onboardingProvider.isOnboardingCompleted();
+
+    if (isLoggedIn) {
+      if (hasCompletedOnboarding) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        );
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+        );
+      }
+    } else {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+      );
+    }
   }
 
   @override

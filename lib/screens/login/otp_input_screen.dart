@@ -1,8 +1,10 @@
+import 'package:chumbucket/screens/home/home.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/config/theme/app_theme.dart';
 import 'package:chumbucket/providers/auth_provider.dart';
+import 'package:chumbucket/providers/profile_provider.dart';
 import 'package:chumbucket/screens/profile/edit_profile_screen.dart';
 import 'package:flutter_otp_text_field/flutter_otp_text_field.dart';
 import 'package:flutter/cupertino.dart';
@@ -47,12 +49,32 @@ class _OtpInputScreenState extends State<OtpInputScreen> {
     );
 
     if (success && mounted) {
+      // Save login state
+      await authProvider.saveLoginState();
+
+      final profileProvider = Provider.of<ProfileProvider>(
+        context,
+        listen: false,
+      );
+      final profile = await profileProvider.fetchUserProfile(
+        authProvider.currentUser!.id,
+      );
+
       // Navigate after a short delay
       Future.delayed(const Duration(milliseconds: 1500), () {
         if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => EditProfileScreen()),
-          );
+          if (profile != null &&
+              profile['full_name']?.toString().trim().isNotEmpty == true) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => const HomeScreen()),
+            );
+          } else {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (context) => const EditProfileScreen(),
+              ),
+            );
+          }
         }
       });
     } else if (mounted) {
@@ -115,15 +137,18 @@ class _OtpInputScreenState extends State<OtpInputScreen> {
                   SizedBox(height: 40.h),
                   OtpTextField(
                     numberOfFields: 6,
-                    borderColor: _errorText != null
-                        ? Colors.red
-                        : Theme.of(context).colorScheme.primary,
+                    borderColor:
+                        _errorText != null
+                            ? Colors.red
+                            : Theme.of(context).colorScheme.primary,
                     focusedBorderColor: Theme.of(context).colorScheme.primary,
                     cursorColor: Theme.of(context).colorScheme.primary,
                     showFieldAsBox: true,
                     fieldWidth: 40.w,
                     borderRadius: BorderRadius.circular(12.r),
-                    fillColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.05),
+                    fillColor: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withOpacity(0.05),
                     filled: true,
                     textStyle: TextStyle(
                       fontSize: 20.sp,
