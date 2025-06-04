@@ -25,4 +25,12 @@ class OnboardingProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_onboardingCompletedKey) ?? false;
   }
+
+  Future<void> clearUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_onboardingCompletedKey);
+    _currentPage = 0;
+    _isLastPage = false;
+    notifyListeners();
+  }
 }

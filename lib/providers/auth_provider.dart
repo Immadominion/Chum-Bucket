@@ -6,6 +6,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:chumbucket/providers/base_change_notifier.dart'
     show BaseChangeNotifier, LoadingState;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:chumbucket/providers/profile_provider.dart';
+import 'package:chumbucket/providers/wallet_provider.dart';
 
 class AuthProvider extends BaseChangeNotifier {
   late final Privy _privy;
@@ -51,6 +53,13 @@ class AuthProvider extends BaseChangeNotifier {
     await prefs.setBool(_loggedInKey, true);
   }
 
+  /// Clears the saved login state
+  Future<void> clearLoginState() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_loggedInKey);
+    log('Cleared saved login state');
+  }
+
   Future<bool> isLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_loggedInKey) ?? false;
@@ -64,16 +73,39 @@ class AuthProvider extends BaseChangeNotifier {
 
     return runAsync(() async {
       try {
-        // Initialize Supabase (safe to call multiple times)
-        await Supabase.initialize(
-          url: dotenv.env['SUPABASE_URL']!,
-          anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
-        );
+        // Supabase already initialized in main.dart, just assign client
         _supabase = Supabase.instance.client;
 
         // Then initialize Privy
         await _privy.awaitReady();
         _currentUser = _privy.user;
+
+        // Check if we have saved login state but no current user
+        // This can happen if the app was closed and reopened
+        final wasLoggedIn = await isLoggedIn();
+        if (wasLoggedIn && _currentUser == null) {
+          log(
+            'Found saved login state but no active user, attempting to restore session...',
+          );
+          try {
+            // Try to refresh the authentication session
+            // The SDK might not have a direct refresh method, so we use what's available
+            await _privy.awaitReady(); // Re-initialize the SDK
+            _currentUser = _privy.user; // Check if user is still authenticated
+
+            if (_currentUser != null) {
+              log('Successfully restored user session after app restart');
+            } else {
+              log('Failed to restore user session, will need to login again');
+              // Clear the saved login state since it's invalid
+              await clearLoginState();
+            }
+          } catch (e) {
+            log('Error restoring authentication session: $e');
+            // Clear the saved login state since it's invalid
+            await clearLoginState();
+          }
+        }
 
         // If user is already logged in, sync with Supabase
         if (_currentUser != null) {
@@ -194,6 +226,13 @@ class AuthProvider extends BaseChangeNotifier {
   }
 
   Future<bool> sendEmailCode(String email) async {
+    if (!await hasInternetConnection()) {
+      setError(
+        "No internet connection. Please check your network and try again.",
+      );
+      return false;
+    }
+
     // Validate email format
     if (!_isValidEmail(email)) {
       setError("Please enter a valid email address");
@@ -242,6 +281,13 @@ class AuthProvider extends BaseChangeNotifier {
   }
 
   Future<bool> verifyEmailCode(String email, String code) async {
+    if (!await hasInternetConnection()) {
+      setError(
+        "No internet connection. Please check your network and try again.",
+      );
+      return false;
+    }
+
     // Validate inputs
     if (!_isValidEmail(email)) {
       setError("Please enter a valid email address");
@@ -279,6 +325,32 @@ class AuthProvider extends BaseChangeNotifier {
 
         // Sync with Supabase after successful login
         await _syncUserWithSupabase(_currentUser!);
+
+        // Assign and persist a profile picture for the user
+        final profileProvider = ProfileProvider();
+        final pfpPath = await profileProvider.getUserPfp(_currentUser!.id);
+
+        // Optionally update the profile in the database with the PFP
+        // This would require your database to have a column for storing the PFP path
+        // If you want to store it in the database, you can call:
+        // await profileProvider.updateUserProfileWithPfp(userId, {'full_name': name, 'bio': ''}, pfpPath);
+
+        // Fetch user profile and ensure it has the PFP included
+        await profileProvider.fetchUserProfileWithPfp(_currentUser!.id);
+
+        // Create wallet for the user immediately after successful login
+        // This ensures they have a wallet ready to use when they enter the app
+        try {
+          final walletProvider = WalletProvider();
+          await walletProvider.ensureWalletExists(this);
+          log('Wallet initialized during authentication');
+        } catch (e) {
+          log('Warning: Failed to initialize wallet during login: $e');
+          // Continue with login even if wallet fails
+        }
+
+        // Save login state
+        await saveLoginState();
 
         setSuccess();
         return true;
@@ -383,5 +455,13 @@ class AuthProvider extends BaseChangeNotifier {
       log('Error updating user profile: ${e.toString()}');
       return false;
     }
+  }
+
+  @override
+  Future<void> clearUserData() async {
+    await super.clearUserData();
+    _currentUser = null;
+    _initialized = false;
+    notifyListeners();
   }
 }

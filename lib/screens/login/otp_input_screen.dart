@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:chumbucket/config/theme/app_theme.dart';
 import 'package:chumbucket/providers/auth_provider.dart';
 import 'package:chumbucket/providers/profile_provider.dart';
+import 'package:chumbucket/providers/onboarding_provider.dart';
 import 'package:chumbucket/screens/profile/edit_profile_screen.dart';
 import 'package:flutter_otp_text_field/flutter_otp_text_field.dart';
 import 'package:flutter/cupertino.dart';
@@ -60,9 +61,22 @@ class _OtpInputScreenState extends State<OtpInputScreen> {
         authProvider.currentUser!.id,
       );
 
+      if (profile != null) {
+        // Save profile locally
+        await profileProvider.saveUserProfileLocally(profile);
+      }
+
       // Navigate after a short delay
-      Future.delayed(const Duration(milliseconds: 1500), () {
+      Future.delayed(const Duration(milliseconds: 1500), () async {
         if (mounted) {
+          // Set onboarding as completed for users who login
+          // This ensures users who have logged in won't see onboarding
+          final onboardingProvider = Provider.of<OnboardingProvider>(
+            context,
+            listen: false,
+          );
+          await onboardingProvider.completeOnboarding();
+
           if (profile != null &&
               profile['full_name']?.toString().trim().isNotEmpty == true) {
             Navigator.of(context).pushReplacement(
@@ -71,7 +85,8 @@ class _OtpInputScreenState extends State<OtpInputScreen> {
           } else {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(
-                builder: (context) => const EditProfileScreen(),
+                builder:
+                    (context) => const EditProfileScreen(showCancelIcon: false),
               ),
             );
           }

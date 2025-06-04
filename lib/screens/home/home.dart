@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:provider/provider.dart';
+import 'package:chumbucket/providers/auth_provider.dart';
+import 'package:chumbucket/providers/wallet_provider.dart';
 import 'package:chumbucket/screens/challenge_details_screen/challenge_details_screen.dart';
 import 'package:chumbucket/screens/create_challenge_screen/create_challenge_screens.dart';
 import 'package:chumbucket/screens/home/widgets/friends_tab.dart';
@@ -21,6 +24,37 @@ class _HomeScreenState extends State<HomeScreen>
   void initState() {
     super.initState();
     tabController = TabController(length: 2, vsync: this);
+
+    // Initialize wallet in the background when the app starts
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeAuthAndWallet();
+    });
+  }
+
+  // Initialize authentication and wallet in the background
+  Future<void> _initializeAuthAndWallet() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+      // Make sure auth is initialized
+      if (!authProvider.isInitialized) {
+        await authProvider.initialize();
+      }
+
+      // If authenticated, initialize the wallet
+      if (authProvider.isAuthenticated) {
+        final walletProvider = Provider.of<WalletProvider>(
+          context,
+          listen: false,
+        );
+        if (!walletProvider.isInitialized) {
+          await walletProvider.initializeWallet(context);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error initializing wallet in home screen: $e');
+      // Don't show errors to users here as this is background initialization
+    }
   }
 
   @override

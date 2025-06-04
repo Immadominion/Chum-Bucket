@@ -5,13 +5,14 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/config/theme/app_theme.dart';
 import 'package:chumbucket/screens/home/home.dart';
-import 'package:chumbucket/screens/onboarding/onboarding_screen.dart';
 import 'package:chumbucket/providers/onboarding_provider.dart';
 import 'package:chumbucket/providers/profile_provider.dart';
 import 'package:chumbucket/providers/auth_provider.dart';
 
 class EditProfileScreen extends StatefulWidget {
-  const EditProfileScreen({super.key});
+  final bool showCancelIcon;
+
+  const EditProfileScreen({super.key, this.showCancelIcon = true});
 
   @override
   State<EditProfileScreen> createState() => _EditProfileScreenState();
@@ -99,19 +100,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           const SnackBar(content: Text('Profile updated successfully')),
         );
 
-        final onboardingProvider = OnboardingProvider();
-        bool hasViewedOnboarding =
-            await onboardingProvider.isOnboardingCompleted();
+        final onboardingProvider = Provider.of<OnboardingProvider>(
+          context,
+          listen: false,
+        );
+        // Always mark onboarding as completed when user fills out profile
+        await onboardingProvider.completeOnboarding();
 
-        if (hasViewedOnboarding) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
-          );
-        } else {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const OnboardingScreen()),
-          );
-        }
+        // Go directly to home screen
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -134,29 +133,29 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: Icon(
-            CupertinoIcons.clear,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          onPressed: () {
-            // Allow skipping profile setup, but navigate based on onboarding status
-            final onboardingProvider = OnboardingProvider();
-            onboardingProvider.isOnboardingCompleted().then((
-              hasViewedOnboarding,
-            ) {
-              if (hasViewedOnboarding) {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (_) => const HomeScreen()),
-                );
-              } else {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (_) => const OnboardingScreen()),
-                );
-              }
-            });
-          },
-        ),
+        leading:
+            widget.showCancelIcon
+                ? IconButton(
+                  icon: Icon(
+                    CupertinoIcons.clear,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  onPressed: () async {
+                    // Allow skipping profile setup, but mark onboarding as completed
+                    final onboardingProvider = Provider.of<OnboardingProvider>(
+                      context,
+                      listen: false,
+                    );
+                    await onboardingProvider.completeOnboarding();
+
+                    if (mounted) {
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(builder: (_) => const HomeScreen()),
+                      );
+                    }
+                  },
+                )
+                : null,
         backgroundColor: Theme.of(context).colorScheme.surface,
         elevation: 0,
       ),

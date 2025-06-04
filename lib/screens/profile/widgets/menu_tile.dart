@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-class ProfileMenuTile extends StatelessWidget {
+class MenuTile extends StatelessWidget {
   final IconData icon;
   final String title;
   final String? subtitle;
@@ -10,7 +10,7 @@ class ProfileMenuTile extends StatelessWidget {
   final Color? iconColor;
   final bool isDanger;
 
-  const ProfileMenuTile({
+  const MenuTile({
     Key? key,
     required this.icon,
     required this.title,

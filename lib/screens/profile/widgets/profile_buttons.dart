@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/config/theme/app_theme.dart';
 
-class ProfileGradientButton extends StatelessWidget {
+class GradientButton extends StatelessWidget {
   final String text;
   final VoidCallback onPressed;
   final List<Color>? gradientColors;
   final IconData? icon;
 
-  const ProfileGradientButton({
+  const GradientButton({
     Key? key,
     required this.text,
     required this.onPressed,
@@ -31,9 +32,7 @@ class ProfileGradientButton extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: (gradientColors?.first ??
-                    Theme.of(context).colorScheme.primary)
-                .withAlpha(75),
+            color: (gradientColors?.first ?? AppColors.primary).withAlpha(75),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -76,12 +75,12 @@ class ProfileGradientButton extends StatelessWidget {
   }
 }
 
-class ProfileSecondaryButton extends StatelessWidget {
+class SecondaryButton extends StatelessWidget {
   final String text;
   final VoidCallback onPressed;
   final IconData? icon;
 
-  const ProfileSecondaryButton({
+  const SecondaryButton({
     Key? key,
     required this.text,
     required this.onPressed,

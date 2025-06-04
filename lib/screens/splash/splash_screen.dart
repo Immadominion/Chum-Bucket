@@ -7,11 +7,10 @@ import 'package:chumbucket/screens/login/login_screen.dart';
 import 'package:chumbucket/screens/splash/widgets/chum_text.dart';
 import 'package:chumbucket/screens/splash/widgets/splash_animations.dart';
 import 'package:chumbucket/screens/splash/widgets/bucket.dart';
-import 'package:chumbucket/screens/splash/widgets/splash_background_painter.dart'; // Added import
+import 'package:chumbucket/screens/splash/widgets/splash_background_painter.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/providers/auth_provider.dart';
 import 'package:chumbucket/providers/onboarding_provider.dart';
-import 'package:chumbucket/screens/onboarding/onboarding_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -74,16 +73,16 @@ class _SplashScreenState extends State<SplashScreen>
     final hasCompletedOnboarding =
         await onboardingProvider.isOnboardingCompleted();
 
+    debugPrint(
+      'Login status: $isLoggedIn, Onboarding completed: $hasCompletedOnboarding',
+    );
+
     if (isLoggedIn) {
-      if (hasCompletedOnboarding) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-        );
-      } else {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const OnboardingScreen()),
-        );
-      }
+      // If they're logged in, always go to HomeScreen regardless of onboarding status
+      // This ensures onboarding doesn't show repeatedly for existing users
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
+      );
     } else {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (context) => const LoginScreen()),

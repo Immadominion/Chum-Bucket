@@ -1,28 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:chumbucket/providers/auth_provider.dart';
 import 'package:chumbucket/providers/onboarding_provider.dart';
 import 'package:chumbucket/screens/home/home.dart';
-import 'package:chumbucket/screens/onboarding/onboarding_screen.dart';
+import 'package:chumbucket/screens/login/login_screen.dart';
 
 class SplashNavigation {
   static Future<void> navigateToNextScreen(BuildContext context) async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final onboardingProvider = Provider.of<OnboardingProvider>(
       context,
       listen: false,
     );
 
-    final bool isOnboardingCompleted =
-        await onboardingProvider.isOnboardingCompleted();
+    // Check if user is logged in
+    final bool isLoggedIn = await authProvider.isLoggedIn();
+
+    // Mark onboarding as completed for logged in users
+    if (isLoggedIn) {
+      await onboardingProvider.completeOnboarding();
+    }
 
     if (!context.mounted) return;
 
+    // Direct logged in users to home, others to login
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         pageBuilder:
             (context, animation, secondaryAnimation) =>
-                isOnboardingCompleted
-                    ? const HomeScreen()
-                    : const OnboardingScreen(),
+                isLoggedIn ? const HomeScreen() : const LoginScreen(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
         },

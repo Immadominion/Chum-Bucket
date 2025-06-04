@@ -1,7 +1,14 @@
+import 'package:chumbucket/screens/login/login_screen.dart';
+import 'package:chumbucket/screens/profile/edit_profile_screen.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/config/theme/app_theme.dart';
+import 'package:provider/provider.dart';
+import 'package:chumbucket/providers/profile_provider.dart';
+import 'package:chumbucket/providers/auth_provider.dart';
+import 'package:chumbucket/providers/wallet_provider.dart';
+import 'package:chumbucket/screens/profile/widgets/wallet_balance_card.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -16,6 +23,9 @@ class _ProfileScreenState extends State<ProfileScreen>
   late AnimationController _slideController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
+
+  String _username = 'Username';
+  String _bio = 'This is a short bio that describes the user.';
 
   @override
   void initState() {
@@ -46,6 +56,34 @@ class _ProfileScreenState extends State<ProfileScreen>
     // Start animations
     _fadeController.forward();
     _slideController.forward();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Load user profile
+      final profileProvider = Provider.of<ProfileProvider>(
+        context,
+        listen: false,
+      );
+      final profile = await profileProvider.getUserProfileFromLocal();
+
+      if (profile != null) {
+        setState(() {
+          _username = profile['full_name'] ?? 'Username';
+          _bio =
+              profile['bio'] ?? 'This is a short bio that describes the user.';
+        });
+      }
+
+      // Ensure wallet provider is initialized
+      final walletProvider = Provider.of<WalletProvider>(
+        context,
+        listen: false,
+      );
+
+      if (!walletProvider.isInitialized) {
+        // This will trigger wallet initialization if needed
+        walletProvider.refreshBalance();
+      }
+    });
   }
 
   @override
@@ -81,7 +119,17 @@ class _ProfileScreenState extends State<ProfileScreen>
         ],
       ),
       child: ElevatedButton(
-        onPressed: onPressed,
+        onPressed: () async {
+          final authProvider = Provider.of<AuthProvider>(
+            context,
+            listen: false,
+          );
+          await authProvider.clearUserData();
+
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+          );
+        },
         style: ElevatedButton.styleFrom(
           elevation: 0,
           backgroundColor: Colors.transparent,
@@ -309,11 +357,20 @@ class _ProfileScreenState extends State<ProfileScreen>
                                       ),
                                     ),
                                     SizedBox(height: 16.h),
-                                    _buildMenuTile(
-                                      icon: CupertinoIcons.creditcard,
-                                      title: "My Wallet",
-                                      subtitle: "qwer..aasd",
-                                      onTap: () {},
+                                    Consumer<WalletProvider>(
+                                      builder: (context, walletProvider, _) {
+                                        String displayAddress =
+                                            walletProvider.walletAddress != null
+                                                ? '${walletProvider.walletAddress!.substring(0, 4)}...${walletProvider.walletAddress!.substring(walletProvider.walletAddress!.length - 4)}'
+                                                : 'Loading...';
+
+                                        return _buildMenuTile(
+                                          icon: CupertinoIcons.creditcard,
+                                          title: "My Wallet",
+                                          subtitle: displayAddress,
+                                          onTap: () {},
+                                        );
+                                      },
                                     ),
                                     _buildMenuTile(
                                       icon: CupertinoIcons.star_fill,
@@ -381,167 +438,104 @@ class _ProfileScreenState extends State<ProfileScreen>
                         width: 1,
                       ),
                     ),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 40.w,
-                          backgroundColor: Theme.of(
-                            context,
-                          ).colorScheme.primary.withOpacity(0.1),
-                          child: Icon(
-                            CupertinoIcons.person_fill,
-                            size: 40.w,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                        SizedBox(width: 6.w),
-                        Flexible(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                "Username",
-                                style: TextStyle(
-                                  fontSize: 24.sp,
-                                  fontWeight: FontWeight.bold,
-                                  color:
-                                      Theme.of(context).colorScheme.onSurface,
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder:
+                                (context) => const EditProfileScreen(
+                                  showCancelIcon: true,
                                 ),
-                              ),
-                              SizedBox(
-                                width: 200.w,
-                                child: Text(
-                                  "This is a short bio that describes the user, too long? ellipsis",
-                                  textAlign: TextAlign.left,
-                                  maxLines: 2,
-                                  style: TextStyle(
-                                    fontSize: 16.sp,
-                                    color: Theme.of(
+                          ),
+                        );
+                      },
+                      child: Row(
+                        children: [
+                          FutureBuilder<String>(
+                            future:
+                                Provider.of<AuthProvider>(
+                                          context,
+                                          listen: false,
+                                        ).currentUser !=
+                                        null
+                                    ? Provider.of<ProfileProvider>(
                                       context,
-                                    ).colorScheme.onSurface.withAlpha(120),
-                                    fontWeight: FontWeight.w700,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  SizedBox(height: 24.h),
-
-                  Container(
-                    width: double.infinity,
-                    padding: EdgeInsets.all(24.w),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Theme.of(
-                            context,
-                          ).colorScheme.primary.withOpacity(0.05),
-                          Theme.of(
-                            context,
-                          ).colorScheme.primary.withOpacity(0.02),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(20.r),
-                      border: Border.all(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.primary.withOpacity(0.1),
-                        width: 1,
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: EdgeInsets.all(10.w),
-                              decoration: BoxDecoration(
-                                color: Theme.of(
+                                      listen: false,
+                                    ).getUserPfp(
+                                      Provider.of<AuthProvider>(
+                                        context,
+                                        listen: false,
+                                      ).currentUser!.id,
+                                    )
+                                    : Future.value(
+                                      'assets/images/ai_gen/profile_images/1.png',
+                                    ),
+                            builder: (context, snapshot) {
+                              return CircleAvatar(
+                                radius: 40.w,
+                                backgroundColor: Theme.of(
                                   context,
                                 ).colorScheme.primary.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12.r),
-                              ),
-                              child: Icon(
-                                CupertinoIcons.money_dollar,
-                                size: 20.sp,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                            ),
-                            SizedBox(width: 12.w),
-                            Column(
+                                backgroundImage:
+                                    snapshot.hasData
+                                        ? AssetImage(snapshot.data!)
+                                        : null,
+                                child:
+                                    !snapshot.hasData
+                                        ? Icon(
+                                          CupertinoIcons.person_fill,
+                                          size: 40.w,
+                                          color:
+                                              Theme.of(
+                                                context,
+                                              ).colorScheme.primary,
+                                        )
+                                        : null,
+                              );
+                            },
+                          ),
+                          SizedBox(width: 6.w),
+                          Flexible(
+                            child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  "Current Balance",
+                                  _username,
                                   style: TextStyle(
-                                    fontSize: 18.sp, // Increased font size
-                                    fontWeight:
-                                        FontWeight.w700, // Increased weight
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurface.withOpacity(0.6),
-                                  ),
-                                ),
-                                Text(
-                                  "\$1,000 USD",
-                                  style: TextStyle(
-                                    fontSize: 30.sp, // Increased font size
+                                    fontSize: 24.sp,
                                     fontWeight: FontWeight.bold,
                                     color:
                                         Theme.of(context).colorScheme.onSurface,
                                   ),
                                 ),
+                                SizedBox(
+                                  width: 200.w,
+                                  child: Text(
+                                    _bio,
+                                    textAlign: TextAlign.left,
+                                    maxLines: 2,
+                                    style: TextStyle(
+                                      fontSize: 16.sp,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurface.withAlpha(120),
+                                      fontWeight: FontWeight.w700,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
-                          ],
-                        ),
-                        SizedBox(height: 20.h),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildGradientButton(
-                                text: "Cash Out",
-                                onPressed: () {},
-                                icon: CupertinoIcons.arrow_up_circle,
-                                gradientColors: [
-                                  AppColors.gradientMiddle,
-                                  AppColors.gradientEnd,
-                                ],
-                              ),
-                            ),
-                            SizedBox(width: 12.w),
-                            Expanded(
-                              child: _buildSecondaryButton(
-                                text: "Add Cash",
-                                onPressed: () {},
-                                icon: CupertinoIcons.add_circled,
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 12.h),
-                        Text(
-                          "All funds are stored in Solana. Amount may fluctuate.",
-                          style: TextStyle(
-                            fontSize: 14.sp, // Increased font size
-                            fontWeight: FontWeight.w600, // Increased weight
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurface.withOpacity(0.5),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
+
+                  SizedBox(height: 24.h),
+
+                  // Wallet Balance Card
+                  const WalletBalanceCard(),
 
                   SizedBox(height: 330.h),
 

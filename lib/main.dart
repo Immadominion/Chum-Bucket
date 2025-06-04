@@ -11,6 +11,7 @@ import 'package:chumbucket/screens/splash/splash_screen.dart';
 import 'package:rive/rive.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:chumbucket/providers/auth_provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +24,17 @@ void main() async {
   } catch (e) {
     debugPrint("Warning: Failed to load .env file: $e");
     debugPrint("The app will continue with fallback values");
+  }
+
+  // Initialize Supabase
+  try {
+    await Supabase.initialize(
+      url: dotenv.env['SUPABASE_URL'] ?? '',
+      anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
+    );
+    debugPrint("Supabase initialized successfully");
+  } catch (e) {
+    debugPrint("Warning: Failed to initialize Supabase: $e");
   }
 
   runApp(
