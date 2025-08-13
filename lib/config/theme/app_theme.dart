@@ -52,7 +52,7 @@ class AppTheme {
           padding: const EdgeInsets.symmetric(vertical: 16),
         ),
       ),
-      tabBarTheme: TabBarTheme(
+      tabBarTheme: TabBarThemeData(
         labelColor: AppColors.primary,
         unselectedLabelColor: AppColors.secondaryText,
         indicatorSize: TabBarIndicatorSize.tab,
@@ -60,7 +60,7 @@ class AppTheme {
           borderSide: BorderSide(color: AppColors.primary, width: 2.0),
         ),
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: AppColors.card,
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

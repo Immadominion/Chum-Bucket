@@ -23,7 +23,7 @@ dependencies:
   http: ^1.1.2                # For API requests
   intl: ^0.19.0               # For date formatting
   rive: ^0.13.20
-  privy_flutter: ^0.0.8
+  privy_flutter: ^0.2.0
   lottie: ^3.3.1
   flutter_dotenv: ^5.2.1
   flutter_otp_text_field: ^1.5.1+1
