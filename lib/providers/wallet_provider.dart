@@ -5,25 +5,38 @@ import 'package:privy_flutter/privy_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/providers/auth_provider.dart';
 import 'package:chumbucket/providers/base_change_notifier.dart';
+import 'package:chumbucket/services/challenge_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class WalletProvider extends BaseChangeNotifier {
   final solana.SolanaClient _client = solana.SolanaClient(
-    rpcUrl: Uri.parse('https://api.devnet.solana.com'),
-    websocketUrl: Uri.parse('wss://api.devnet.solana.com'),
+    rpcUrl: Uri.parse(
+      dotenv.env['SOLANA_RPC_URL'] ?? 'https://api.devnet.solana.com',
+    ),
+    websocketUrl: Uri.parse(
+      dotenv.env['SOLANA_WS_URL'] ?? 'wss://api.devnet.solana.com',
+    ),
   );
 
   String? _walletAddress;
   double _balance = 0.0;
   bool _isInitialized = false;
   EmbeddedSolanaWallet? _embeddedWallet;
+  ChallengeService? _challengeService;
 
   String? get walletAddress => _walletAddress;
   double get balance => _balance;
   bool get isInitialized => _isInitialized;
   EmbeddedSolanaWallet? get embeddedWallet => _embeddedWallet;
+  ChallengeService? get challengeService => _challengeService;
 
   WalletProvider() {
-    // Initialization will be triggered when needed
+    // Initialize ChallengeService
+    _challengeService = ChallengeService(
+      supabase: Supabase.instance.client,
+      solanaClient: _client,
+    );
   }
 
   /// Initializes the wallet by fetching the Privy embedded wallet for the current user.
@@ -164,15 +177,23 @@ class WalletProvider extends BaseChangeNotifier {
     }
   }
 
-  /// Creates a Solana transaction (placeholder implementation)
+  /// Creates a challenge using the ChallengeService
   Future<bool> createChallenge({
+    required String friendEmail,
     required String friendAddress,
     required double amount,
     required String challengeDescription,
     required int durationDays,
+    required String creatorPrivyId,
   }) async {
     if (_walletAddress == null) {
       log('No wallet address available for creating challenge');
+      return false;
+    }
+
+    if (_challengeService == null) {
+      log('ChallengeService not initialized');
+      setError("Service not initialized. Please restart the app.");
       return false;
     }
 
@@ -187,26 +208,59 @@ class WalletProvider extends BaseChangeNotifier {
           return false;
         }
 
-        log('Creating challenge with: $friendAddress for $amount SOL');
+        log('Creating challenge with: $friendEmail for $amount SOL');
         log('Challenge: $challengeDescription for $durationDays days');
 
-        // Placeholder for Solana program interaction
-        // You'll need to implement the actual Solana program calls here
+        // Use ChallengeService to create the challenge
+        final challenge = await _challengeService!.createChallenge(
+          title:
+              challengeDescription.length > 50
+                  ? '${challengeDescription.substring(0, 47)}...'
+                  : challengeDescription,
+          description: challengeDescription,
+          amountInSol: amount,
+          creatorId: creatorPrivyId,
+          member1Address: _walletAddress!,
+          member2Address:
+              friendAddress, // Or platform address, depending on your logic
+          participantEmail: friendEmail,
+          expiresAt: DateTime.now().add(Duration(days: durationDays)),
+        );
 
-        // Example steps:
-        // 1. Create a PDA for the challenge
-        // 2. Build transaction
-        // 3. Sign with embedded wallet
-        // 4. Send transaction
+        log('Challenge created successfully with ID: ${challenge.id}');
 
-        // For now, simulate success
-        await Future.delayed(const Duration(seconds: 1));
+        // Get fee breakdown for logging
+        final feeBreakdown = _challengeService!.getFeeBreakdown(amount);
+        log(
+          'Fee breakdown: Winner gets ${feeBreakdown['winnerAmount']} SOL, '
+          'Platform fee: ${feeBreakdown['platformFee']} SOL '
+          '(${feeBreakdown['feePercentage']?.toStringAsFixed(1)}%)',
+        );
+
         return true;
       } catch (e) {
         log('Error creating challenge: $e');
+        setError("Failed to create challenge: ${e.toString()}");
         return false;
       }
     }, resetToIdle: true);
+  }
+
+  /// Get fee breakdown for a challenge amount
+  Map<String, double> getFeeBreakdown(double amount) {
+    return _challengeService?.getFeeBreakdown(amount) ??
+        {
+          'total_amount': amount,
+          'platform_fee': 0.0,
+          'winner_amount': amount,
+          'fee_percentage': 0.0,
+        };
+  }
+
+  /// Get platform fee statistics
+  Future<Map<String, dynamic>> getPlatformFeeStats() async {
+    if (_challengeService == null) return {};
+    return await _challengeService!.getFeeStatistics();
   }
 
   /// Request an airdrop of SOL to the wallet (only works on devnet/testnet)
@@ -329,6 +383,13 @@ class WalletProvider extends BaseChangeNotifier {
       // Fetch initial balance
       await _fetchBalance();
       _isInitialized = true;
+
+      // Initialize ChallengeService
+      _challengeService = ChallengeService(
+        supabase: Supabase.instance.client,
+        solanaClient: _client,
+      );
+
       notifyListeners();
     } catch (e) {
       log('Error ensuring wallet exists: $e');

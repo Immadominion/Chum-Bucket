@@ -30,7 +30,20 @@ dependencies:
   supabase_flutter: ^2.9.0
   connectivity_plus: ^6.1.4
   qr_flutter: ^4.1.0
-  # reown_appkit: ^1.2.0
+  
+  # Enhanced networking for multisig
+  dio: ^5.4.0             # Better HTTP client
+  retry: ^3.1.2           # Retry failed transactions
+  
+  # Enhanced crypto utilities
+  hex: ^0.2.0            # Hex encoding utilities
+  convert: ^3.1.1        # Additional conversion utilities
+  
+  # Real-time features
+  flutter_local_notifications: ^17.2.3
+  
+  # JSON manipulation for Solana transactions
+  json_annotation: ^4.8.1
 
 
 dev_dependencies:
@@ -38,6 +51,8 @@ dev_dependencies:
     sdk: flutter
 
   flutter_lints: ^5.0.0
+  json_serializable: ^6.7.1
+  build_runner: ^2.4.7
 
 
 flutter:

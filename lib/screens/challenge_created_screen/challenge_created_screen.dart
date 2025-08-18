@@ -258,6 +258,13 @@ class _ChallengeStateScreenState extends State<ChallengeStateScreen> {
           color: Colors.orange,
           buttonDescription: "Challenge has been cancelled",
         );
+      case ChallengeStatus.expired:
+        return _ChallengeStatusData(
+          title: "Challenge Expired",
+          message: "This challenge has expired.",
+          color: Colors.orange,
+          buttonDescription: "Challenge has expired",
+        );
     }
   }
 
@@ -300,6 +307,8 @@ class _ChallengeStateScreenState extends State<ChallengeStateScreen> {
         return _buildStatusAnimation(Icons.cancel_outlined, Colors.red, false);
       case ChallengeStatus.pending:
         return _buildStatusAnimation(Icons.hourglass_top, Colors.amber, true);
+      case ChallengeStatus.expired:
+        return _buildStatusAnimation(Icons.access_time, Colors.orange, false);
     }
   }
 
