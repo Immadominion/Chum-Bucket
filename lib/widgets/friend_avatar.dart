@@ -14,7 +14,7 @@ class FriendAvatar extends StatelessWidget {
     required this.colorHex,
     required this.onTap,
     this.size = 90,
-    this.imagePath = 'ai_gen/profile_images/1.png',
+    this.imagePath = 'assets/images/ai_gen/profile_images/1.png',
   });
 
   Color _hexToColor(String hexString) {

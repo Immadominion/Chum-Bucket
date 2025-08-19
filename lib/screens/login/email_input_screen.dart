@@ -75,7 +75,7 @@ class _EmailInputScreenState extends State<EmailInputScreen> {
                   Text(
                     "Enter your email",
                     style: TextStyle(
-                      fontSize: 28.sp,
+                      fontSize: 26.sp, // Reduced from 28.sp
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
@@ -84,14 +84,14 @@ class _EmailInputScreenState extends State<EmailInputScreen> {
                   Text(
                     "We'll use this to create your account",
                     style: TextStyle(
-                      fontSize: 20.sp,
+                      fontSize: 18.sp, // Reduced from 20.sp
                       fontWeight: FontWeight.w700,
                       color: Theme.of(
                         context,
                       ).colorScheme.onSurface.withAlpha(120),
                     ),
                   ),
-                  SizedBox(height: 40.h),
+                  SizedBox(height: 32.h), // Reduced from 40.h
                   TextFormField(
                     controller: _emailController,
                     decoration: InputDecoration(

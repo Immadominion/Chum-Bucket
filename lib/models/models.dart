@@ -109,6 +109,7 @@ class Challenge {
 enum ChallengeStatus {
   pending,
   accepted,
+  funded,
   completed,
   failed,
   cancelled,
@@ -122,6 +123,7 @@ class PlatformFee {
   final String transactionSignature;
   final DateTime collectedAt;
   final double feePercentage;
+  final String platformWalletAddress;
 
   PlatformFee({
     required this.id,
@@ -130,6 +132,7 @@ class PlatformFee {
     required this.transactionSignature,
     required this.collectedAt,
     required this.feePercentage,
+    required this.platformWalletAddress,
   });
 
   factory PlatformFee.fromJson(Map<String, dynamic> json) {
@@ -140,6 +143,7 @@ class PlatformFee {
       transactionSignature: json['transaction_signature'] as String,
       collectedAt: DateTime.parse(json['collected_at'] as String),
       feePercentage: (json['fee_percentage'] as num).toDouble(),
+      platformWalletAddress: json['platform_wallet_address'] as String,
     );
   }
 
@@ -151,6 +155,7 @@ class PlatformFee {
       'transaction_signature': transactionSignature,
       'collected_at': collectedAt.toIso8601String(),
       'fee_percentage': feePercentage,
+      'platform_wallet_address': platformWalletAddress,
     };
   }
 }

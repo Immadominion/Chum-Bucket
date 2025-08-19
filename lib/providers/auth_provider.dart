@@ -328,7 +328,7 @@ class AuthProvider extends BaseChangeNotifier {
 
         // Assign and persist a profile picture for the user
         final profileProvider = ProfileProvider();
-        final pfpPath = await profileProvider.getUserPfp(_currentUser!.id);
+        await profileProvider.getUserPfp(_currentUser!.id);
 
         // Optionally update the profile in the database with the PFP
         // This would require your database to have a column for storing the PFP path

@@ -127,6 +127,7 @@ class _ChallengeStateScreenState extends State<ChallengeStateScreen> {
 
     switch (widget.status) {
       case ChallengeStatus.accepted:
+      case ChallengeStatus.funded:
       case ChallengeStatus.completed:
         _successTrigger?.fire();
         break;
@@ -135,25 +136,9 @@ class _ChallengeStateScreenState extends State<ChallengeStateScreen> {
         _failTrigger?.fire();
         break;
       case ChallengeStatus.pending:
-      default:
+      case ChallengeStatus.expired:
         _pendingTrigger?.fire();
         break;
-    }
-  }
-
-  void _onRiveInit(Artboard artboard) {
-    _controller = StateMachineController.fromArtboard(
-      artboard,
-      'Fetching status',
-    );
-    if (_controller != null) {
-      artboard.addController(_controller!);
-      _failTrigger = _controller!.findSMI('Fetching failed');
-      _successTrigger = _controller!.findSMI('Fetching successful');
-      _pendingTrigger = _controller!.findSMI('pending');
-
-      // Trigger the appropriate animation based on status
-      _triggerAnimation();
     }
   }
 
@@ -228,6 +213,13 @@ class _ChallengeStateScreenState extends State<ChallengeStateScreen> {
           color: Colors.green,
           buttonDescription: "Your challenge is ready to go",
         );
+      case ChallengeStatus.funded:
+        return _ChallengeStatusData(
+          title: "Challenge Funded!",
+          message: "Your challenge has been funded and is now live.",
+          color: Colors.blue,
+          buttonDescription: "Your challenge is now funded and active",
+        );
       case ChallengeStatus.pending:
         return _ChallengeStatusData(
           title: "Creating Challenge...",
@@ -296,6 +288,7 @@ class _ChallengeStateScreenState extends State<ChallengeStateScreen> {
     // Fallback animations based on status
     switch (widget.status) {
       case ChallengeStatus.accepted:
+      case ChallengeStatus.funded:
       case ChallengeStatus.completed:
         return _buildStatusAnimation(
           Icons.check_circle_outline_rounded,
@@ -320,10 +313,12 @@ class _ChallengeStateScreenState extends State<ChallengeStateScreen> {
                 tween: Tween(begin: 0.0, end: 1.0),
                 duration: const Duration(milliseconds: 800),
                 builder: (context, value, child) {
+                  // Ensure opacity is always between 0.0 and 1.0
+                  final clampedValue = value.clamp(0.0, 1.0);
                   return Transform.scale(
-                    scale: 0.8 + (value * 0.2),
+                    scale: 0.8 + (clampedValue * 0.2),
                     child: Opacity(
-                      opacity: value,
+                      opacity: clampedValue,
                       child: Icon(icon, size: 120, color: color),
                     ),
                   );

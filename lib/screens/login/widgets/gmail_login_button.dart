@@ -27,7 +27,8 @@ class EmailLoginButton extends StatelessWidget {
     return GestureDetector(
       onTap: () => _handleGmailLogin(context),
       child: Container(
-        width: 330.w, // Fixed width for consistent button size
+        width: double.infinity, // Full width instead of fixed 330.w
+        constraints: BoxConstraints(maxWidth: 330.w, minWidth: 280.w),
         padding: EdgeInsets.symmetric(vertical: 12.h),
         margin: EdgeInsets.symmetric(horizontal: 6.h),
         decoration: BoxDecoration(
@@ -42,7 +43,7 @@ class EmailLoginButton extends StatelessWidget {
               "Continue with Email",
               style: TextStyle(
                 color: AppColors.buttonText,
-                fontSize: 20.sp,
+                fontSize: 18.sp, // Reduced from 20.sp for smaller screens
                 fontWeight: FontWeight.w700,
               ),
               textAlign: TextAlign.center,

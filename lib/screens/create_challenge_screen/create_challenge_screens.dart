@@ -3,7 +3,6 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/models/models.dart';
 import 'package:chumbucket/providers/wallet_provider.dart';
-import 'package:chumbucket/providers/auth_provider.dart';
 import 'package:chumbucket/screens/challenge_created_screen/challenge_created_screen.dart';
 import 'package:chumbucket/screens/create_challenge_screen/widgets/action_button.dart';
 import 'package:chumbucket/screens/create_challenge_screen/widgets/bet_amount_step.dart';
@@ -79,7 +78,6 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
     });
 
     final walletProvider = Provider.of<WalletProvider>(context, listen: false);
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final description = _descriptionController.text;
 
     // First navigate to the pending state screen
@@ -105,7 +103,6 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
         amount: _betAmount,
         challengeDescription: description,
         durationDays: 7,
-        creatorPrivyId: authProvider.currentUser?.id ?? '',
       );
 
       if (mounted) {

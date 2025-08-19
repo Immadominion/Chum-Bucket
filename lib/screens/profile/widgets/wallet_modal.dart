@@ -175,7 +175,7 @@ class _WalletModalState extends State<WalletModal> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          walletProvider.displayAddress,
+                          walletProvider.displayAddress ?? 'No Address',
                           style: TextStyle(
                             fontSize: 16.sp,
                             fontWeight: FontWeight.w600,

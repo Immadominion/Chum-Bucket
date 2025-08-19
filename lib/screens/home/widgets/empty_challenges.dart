@@ -1,18 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-
-
 class EmptyChallenges extends StatelessWidget {
   const EmptyChallenges({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Column(
+      mainAxisSize: MainAxisSize.min, // Use minimum space needed
       children: [
-        _buildEmptyChallengeContainer(),
-        SizedBox(height: 16.h),
-        _buildEmptyChallengeContainer(),
+        Flexible(
+          // Make containers flexible
+          child: _buildEmptyChallengeContainer(),
+        ),
+        SizedBox(height: 12.h), // Reduced from 16.h
+        Flexible(
+          // Make containers flexible
+          child: _buildEmptyChallengeContainer(),
+        ),
       ],
     );
   }
@@ -20,7 +25,7 @@ class EmptyChallenges extends StatelessWidget {
   Widget _buildEmptyChallengeContainer() {
     return Container(
       width: double.infinity,
-      height: 80.h,
+      height: 70.h, // Reduced from 80.h
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,

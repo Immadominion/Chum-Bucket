@@ -131,7 +131,7 @@ class _OtpInputScreenState extends State<OtpInputScreen> {
                   Text(
                     "Enter code",
                     style: TextStyle(
-                      fontSize: 28.sp,
+                      fontSize: 26.sp, // Reduced from 28.sp
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
@@ -142,14 +142,14 @@ class _OtpInputScreenState extends State<OtpInputScreen> {
                     maxLines: 2,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 18.sp,
+                      fontSize: 16.sp, // Reduced from 18.sp
                       fontWeight: FontWeight.w700,
                       color: Theme.of(
                         context,
                       ).colorScheme.onSurface.withAlpha(120),
                     ),
                   ),
-                  SizedBox(height: 40.h),
+                  SizedBox(height: 32.h), // Reduced from 40.h
                   OtpTextField(
                     numberOfFields: 6,
                     borderColor:

@@ -8,6 +8,8 @@ import 'package:chumbucket/screens/create_challenge_screen/create_challenge_scre
 import 'package:chumbucket/screens/home/widgets/friends_tab.dart';
 import 'package:chumbucket/screens/home/widgets/header.dart';
 import 'package:chumbucket/screens/home/widgets/tab_bar.dart';
+import 'package:chumbucket/services/local_friends_service.dart';
+import 'package:chumbucket/services/local_database_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,6 +21,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   late TabController tabController;
+  int _friendsRefreshKey = 0; // Key to force FriendsTab refresh
 
   @override
   void initState() {
@@ -66,6 +69,19 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Chum Bucket'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          // Debug: Clear Database Button
+          IconButton(
+            icon: const Icon(Icons.delete_forever),
+            onPressed: () => _showClearDatabaseDialog(),
+            tooltip: 'Clear Database (Debug)',
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: 16.w),
@@ -73,13 +89,16 @@ class _HomeScreenState extends State<HomeScreen>
             children: [
               friendsChallengeScreenHeader(context),
               SizedBox(height: 20.h),
-              FriendsChallengeScreenTabBar(tabController),
+              FriendsChallengeScreenTabBar(tabController: tabController),
               SizedBox(height: 10.h),
               Expanded(
                 child: TabBarView(
                   controller: tabController,
                   children: [
                     FriendsTab(
+                      key: ValueKey(
+                        _friendsRefreshKey,
+                      ), // Force rebuild when friends change
                       createNewChallenge: createNewChallenge,
                       onFriendSelected: onFriendSelected,
                       buildViewMoreItem: buildViewMoreItem,
@@ -95,7 +114,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget buildViewMoreItem(BuildContext context) {
+  Widget buildViewMoreItem(BuildContext context, int remainingCount) {
     return Column(
       children: [
         Container(
@@ -107,7 +126,7 @@ class _HomeScreenState extends State<HomeScreen>
           ),
           child: Center(
             child: Text(
-              '+12',
+              '+$remainingCount',
               style: TextStyle(
                 fontSize: 16.sp,
                 fontWeight: FontWeight.w600,
@@ -134,7 +153,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  void onFriendSelected(String name) async {
+  void onFriendSelected(String name, String walletAddress) async {
     // Determine avatar color based on name
     String avatarColor = _getAvatarColorForFriend(name);
 
@@ -145,7 +164,7 @@ class _HomeScreenState extends State<HomeScreen>
             (context) => CreateChallengeScreen(
               friendName: name,
               friendAddress:
-                  'solana_address_placeholder', // In a real app, this would come from your friend database
+                  walletAddress, // Now using real wallet address from local database
               friendAvatarColor: avatarColor,
             ),
       ),
@@ -170,44 +189,64 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void createNewChallenge() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      showDialog(
-        context: context,
-        builder:
-            (context) => AlertDialog(
-              title: const Text('Add New Friend'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    decoration: const InputDecoration(labelText: 'Friend Name'),
-                  ),
-                  SizedBox(height: 10.h),
-                  TextField(
-                    decoration: const InputDecoration(
-                      labelText: 'Solana Address',
-                    ),
-                  ),
-                ],
+    showDialog(
+      context: context,
+      builder:
+          (context) => _AddFriendDialog(
+            onFriendAdded: () {
+              // Refresh the friends tab by changing the key
+              setState(() {
+                _friendsRefreshKey++;
+              });
+            },
+          ),
+    );
+  }
+
+  void _showClearDatabaseDialog() {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Clear Database'),
+            content: const Text(
+              'This will delete ALL data including friends, challenges, and other records. This action cannot be undone.\n\nAre you sure?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-                TextButton(
-                  onPressed: () {
+              TextButton(
+                onPressed: () async {
+                  try {
+                    await LocalDatabaseService.clearAllData();
+                    Navigator.pop(context);
+                    setState(() {
+                      _friendsRefreshKey++;
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Database cleared successfully!'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  } catch (e) {
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Friend added!')),
+                      SnackBar(
+                        content: Text('Error clearing database: $e'),
+                        backgroundColor: Colors.red,
+                      ),
                     );
-                  },
-                  child: const Text('Add'),
-                ),
-              ],
-            ),
-      );
-    });
+                  }
+                },
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Clear Database'),
+              ),
+            ],
+          ),
+    );
   }
 
   String _getAvatarColorForFriend(String name) {
@@ -221,5 +260,121 @@ class _HomeScreenState extends State<HomeScreen>
     };
 
     return colorMap[name] ?? '#FFBE55'; // Default to first color if not found
+  }
+}
+
+// Add Friend Dialog Widget
+class _AddFriendDialog extends StatefulWidget {
+  final VoidCallback onFriendAdded;
+
+  const _AddFriendDialog({required this.onFriendAdded});
+
+  @override
+  State<_AddFriendDialog> createState() => _AddFriendDialogState();
+}
+
+class _AddFriendDialogState extends State<_AddFriendDialog> {
+  final _nameController = TextEditingController();
+  final _addressController = TextEditingController();
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _addressController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _addFriend() async {
+    final name = _nameController.text.trim();
+    final address = _addressController.text.trim();
+
+    if (name.isEmpty || address.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill in all fields')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+
+      if (currentUser == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Add friend to local database
+      await LocalFriendsService.addFriend(
+        userPrivyId: currentUser.id,
+        friendName: name,
+        friendWalletAddress: address,
+      );
+
+      widget.onFriendAdded(); // Refresh the friends list
+      Navigator.pop(context);
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$name added as friend!')));
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error adding friend: $e')));
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Add New Friend'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _nameController,
+              enabled: !_isLoading,
+              decoration: const InputDecoration(
+                labelText: 'Friend Name',
+                hintText: 'Enter friend\'s name',
+              ),
+            ),
+            SizedBox(height: 10.h),
+            TextField(
+              controller: _addressController,
+              enabled: !_isLoading,
+              decoration: const InputDecoration(
+                labelText: 'Solana Address',
+                hintText: 'Enter valid Solana wallet address',
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isLoading ? null : () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: _isLoading ? null : _addFriend,
+          child:
+              _isLoading
+                  ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                  : const Text('Add'),
+        ),
+      ],
+    );
   }
 }

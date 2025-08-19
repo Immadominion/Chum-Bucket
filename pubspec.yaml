@@ -16,7 +16,7 @@ dependencies:
   flutter_screenutil: ^5.9.0  # For responsive design
   google_fonts: ^6.1.0        # For custom fonts
   provider: ^6.1.1            # For state management
-  solana: ^0.30.3             # Solana blockchain SDK
+  solana: ^0.31.2+1           # Updated Solana blockchain SDK
   bip39: ^1.0.6               # For mnemonic generation
   shared_preferences: ^2.2.2  # For local storage
   flutter_secure_storage: ^9.0.0  # For secure storage
@@ -30,6 +30,15 @@ dependencies:
   supabase_flutter: ^2.9.0
   connectivity_plus: ^6.1.4
   qr_flutter: ^4.1.0
+  
+  # Local Database for Development
+  sqflite: ^2.3.0        # SQLite database for local development
+  path: ^1.8.3           # For database path management
+  uuid: ^4.5.1           # For generating unique IDs
+  
+  # Squads Multisig Integration - Updated to complete SDK
+  squads_multisig:
+    path: ../Squads_Dart_SDK
   
   # Enhanced networking for multisig
   dio: ^5.4.0             # Better HTTP client

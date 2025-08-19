@@ -8,6 +8,7 @@ import 'package:chumbucket/screens/login/login_screen.dart';
 import 'package:chumbucket/screens/profile/widgets/menu_tile.dart';
 import 'package:chumbucket/screens/profile/widgets/profile_buttons.dart';
 import 'package:chumbucket/screens/profile/widgets/wallet_modal.dart';
+import '../../database_test_screen.dart';
 
 class SettingsBottomSheet extends StatefulWidget {
   const SettingsBottomSheet({Key? key}) : super(key: key);
@@ -80,6 +81,19 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
             subtitle: "Get help when you need it",
             onTap: () {},
             iconColor: Colors.blue,
+          ),
+          MenuTile(
+            icon: CupertinoIcons.hammer_fill,
+            title: "Database Test",
+            subtitle: "Test local SQLite database",
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const DatabaseTestScreen(),
+                ),
+              );
+            },
+            iconColor: Colors.purple,
           ),
           MenuTile(
             icon: CupertinoIcons.delete_solid,
