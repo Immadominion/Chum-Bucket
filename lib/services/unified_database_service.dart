@@ -43,7 +43,7 @@ class UnifiedDatabaseService {
     required String member2Address,
     DateTime? expiresAt,
     String? participantEmail,
-    String? multisigAddress,
+    String? escrowAddress,
     String? vaultAddress,
     required double platformFee,
     required double winnerAmount,
@@ -61,7 +61,7 @@ class UnifiedDatabaseService {
         createdAt: DateTime.now(),
         expiresAt: expiresAt ?? DateTime.now().add(const Duration(days: 7)),
         status: ChallengeStatus.pending,
-        multisigAddress: multisigAddress,
+        multisigAddress: escrowAddress,
         vaultAddress: vaultAddress,
       );
 

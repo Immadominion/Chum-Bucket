@@ -98,7 +98,7 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
 
     try {
       final success = await walletProvider.createChallenge(
-        friendEmail: widget.friendAddress, // Using address as email for now
+        friendEmail: widget.friendAddress, 
         friendAddress: widget.friendAddress,
         amount: _betAmount,
         challengeDescription: description,

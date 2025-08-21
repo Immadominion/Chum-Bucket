@@ -457,6 +457,9 @@ class AuthProvider extends BaseChangeNotifier {
     }
   }
 
+  /// Get the Privy instance for embedded wallet access
+  Privy get privyInstance => _privy;
+
   @override
   Future<void> clearUserData() async {
     await super.clearUserData();

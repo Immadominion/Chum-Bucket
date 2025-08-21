@@ -8,12 +8,10 @@ import 'package:provider/provider.dart';
 import 'package:chumbucket/providers/auth_provider.dart';
 import 'package:chumbucket/providers/base_change_notifier.dart';
 import 'package:chumbucket/services/challenge_service.dart';
-import 'package:chumbucket/services/multisig_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-class WalletProvider extends BaseChangeNotifier
-    implements WalletSigningInterface {
+class WalletProvider extends BaseChangeNotifier {
   final solana.SolanaClient _client = solana.SolanaClient(
     rpcUrl: Uri.parse(
       dotenv.env['SOLANA_RPC_URL'] ?? 'https://api.devnet.solana.com',
@@ -47,12 +45,10 @@ class WalletProvider extends BaseChangeNotifier
     _challengeService = ChallengeService(
       supabase: Supabase.instance.client,
       solanaClient: _client,
-      walletProvider: this,
     );
   }
 
   /// Signs and sends a transaction using Privy wallet message signing
-  @override
   Future<String?> signAndSendTransaction(List<int> transactionBytes) async {
     if (_embeddedWallet == null) {
       log('No embedded wallet available for signing and sending transaction');
@@ -71,42 +67,96 @@ class WalletProvider extends BaseChangeNotifier
       // Convert transaction bytes to Uint8List for processing
       final txBytes = Uint8List.fromList(transactionBytes);
 
-      // Step 1: Use Privy to sign the transaction message
-      // In Solana, transactions are messages that need to be signed
+      // Extract the number of required signatures from the message header (legacy format)
+      // Message header layout: [numRequiredSignatures, numReadonlySigned, numReadonlyUnsigned, ...]
+      if (txBytes.isEmpty) {
+        log('❌ Transaction bytes are empty');
+        return null;
+      }
+      final numRequiredSignatures = txBytes[0];
+      log(
+        'Message header indicates $numRequiredSignatures required signature(s)',
+      );
+
+      if (numRequiredSignatures == 0) {
+        log('❌ Invalid message: requires 0 signatures');
+        return null;
+      }
+
+      // Step 1: Use Privy to sign the transaction message (compiled message bytes)
       log('📝 Signing transaction message with Privy wallet...');
 
-      // Convert transaction bytes to base64 string for message signing
       final transactionBase64 = base64Encode(txBytes);
-
       final signatureResult = await _embeddedWallet!.provider.signMessage(
         transactionBase64,
       );
 
       if (signatureResult is Success<String>) {
-        final signature = signatureResult.value;
+        final signatureBase64 = signatureResult.value;
+        Uint8List signatureBytes;
+        try {
+          signatureBytes = base64Decode(signatureBase64);
+        } catch (e) {
+          log('❌ Could not decode signature from base64: $e');
+          return null;
+        }
+
         log(
-          '✅ Transaction signed successfully with signature: ${signature.substring(0, 8)}...',
+          '✅ Message signed. Signature length: ${signatureBytes.length} bytes',
         );
 
-        // Step 2: Send the transaction to Solana network
-        log('📡 Sending transaction to Solana network...');
+        if (signatureBytes.length != 64) {
+          log(
+            '❌ Invalid signature length: ${signatureBytes.length}. Expected 64 bytes',
+          );
+          return null;
+        }
 
+        if (numRequiredSignatures > 1) {
+          // Transaction requires multiple signatures, but only one is available
+          log(
+            '❌ Message requires $numRequiredSignatures signatures, but only one signature is available',
+          );
+          log(
+            '   This transaction cannot be sent without all required signatures',
+          );
+          return null;
+        }
+
+        // Step 2: Construct the legacy transaction wire format:
+        // tx = shortvec(num signatures) || signatures (each 64 bytes) || compiled message bytes
+        log('🔧 Constructing signed transaction bytes (legacy wire format)...');
+
+        final builder = BytesBuilder();
+        builder.add(_shortVecEncode(1)); // one signature
+        builder.add(signatureBytes);
+        builder.add(txBytes);
+
+        final signedTxBytes = builder.toBytes();
+        final signedTxBase64 = base64Encode(signedTxBytes);
+        log('Constructed signed tx length: ${signedTxBytes.length} bytes');
+
+        // Step 3: Send the signed transaction to Solana network
+        log('📡 Sending signed transaction to Solana network...');
         try {
-          // Use SolanaClient to send the transaction
           final txSignature = await _client.rpcClient.sendTransaction(
-            base64Encode(txBytes),
+            signedTxBase64,
             preflightCommitment: solana.Commitment.confirmed,
           );
 
-          log('🎉 Transaction sent successfully to network: $txSignature');
+          log('🎉 Transaction sent: $txSignature');
+          log(
+            '🔗 Explorer: https://explorer.solana.com/tx/$txSignature?cluster=devnet',
+          );
           return txSignature;
         } catch (sendError) {
-          log('❌ Failed to send transaction to network: $sendError');
-          // Return the Privy signature for debugging purposes
-          return signature;
+          log('❌ Failed to send signed transaction: $sendError');
+          return null;
         }
       } else if (signatureResult is Failure) {
-        log('❌ Failed to sign transaction: ${signatureResult.toString()}');
+        log(
+          '❌ Failed to sign message with Privy: ${signatureResult.toString()}',
+        );
         return null;
       }
 
@@ -116,6 +166,95 @@ class WalletProvider extends BaseChangeNotifier
       log('❌ Error in signAndSendTransaction: $e');
       return null;
     }
+  }
+
+  /// Signs and sends a transaction with cosigners: Privy wallet first, then local cosigners
+  Future<String?> signAndSendTransactionWithCosigners({
+    required List<int> transactionBytes,
+    required List<solana.Ed25519HDKeyPair> cosigners,
+  }) async {
+    if (_embeddedWallet == null) {
+      log('No embedded wallet available for signing and sending transaction');
+      return null;
+    }
+
+    try {
+      final txBytes = Uint8List.fromList(transactionBytes);
+      if (txBytes.isEmpty) return null;
+      final numRequiredSignatures = txBytes[0];
+      log(
+        'Message requires $numRequiredSignatures signatures. Cosigners provided: ${cosigners.length}',
+      );
+
+      // First signature from Privy embedded wallet (fee payer)
+      final transactionBase64 = base64Encode(txBytes);
+      final signatureResult = await _embeddedWallet!.provider.signMessage(
+        transactionBase64,
+      );
+      if (signatureResult is! Success<String>) {
+        log('❌ Privy signing failed');
+        return null;
+      }
+      final feePayerSig = base64Decode(signatureResult.value);
+      if (feePayerSig.length != 64) {
+        log('❌ Invalid fee payer signature length');
+        return null;
+      }
+
+      // Cosigner signatures (local, deterministic createKey etc.)
+      final coSigs = <Uint8List>[];
+      for (final kp in cosigners) {
+        final sig = await kp.sign(txBytes);
+        coSigs.add(Uint8List.fromList(sig.bytes));
+      }
+
+      if (1 + coSigs.length < numRequiredSignatures) {
+        log(
+          '❌ Not enough signatures. Needed: $numRequiredSignatures, have: ${1 + coSigs.length}',
+        );
+        return null;
+      }
+
+      // Construct signed transaction: shortvec(count) || sigs (fee payer first) || message
+      final builder = BytesBuilder();
+      final sigCount = numRequiredSignatures; // send exactly the required count
+      builder.add(_shortVecEncode(sigCount));
+      builder.add(feePayerSig);
+
+      for (var i = 0; i < sigCount - 1; i++) {
+        builder.add(coSigs[i]);
+      }
+
+      builder.add(txBytes);
+
+      final signedTx = base64Encode(builder.toBytes());
+      final txSignature = await _client.rpcClient.sendTransaction(
+        signedTx,
+        preflightCommitment: solana.Commitment.confirmed,
+      );
+      log('🎉 Transaction sent: $txSignature');
+      return txSignature;
+    } catch (e) {
+      log('❌ Error in signAndSendTransactionWithCosigners: $e');
+      return null;
+    }
+  }
+
+  // Encodes an integer using Solana's shortvec format (compact-u16)
+  List<int> _shortVecEncode(int value) {
+    final out = <int>[];
+    var v = value;
+    while (true) {
+      var elem = v & 0x7f;
+      v >>= 7;
+      if (v == 0) {
+        out.add(elem);
+        break;
+      } else {
+        out.add(elem | 0x80);
+      }
+    }
+    return out;
   }
 
   // Add other methods here as needed...
@@ -160,46 +299,65 @@ class WalletProvider extends BaseChangeNotifier
       }
 
       log('Setting up wallet for user: ${user.id}');
-      
-      // Extract the Solana wallet from Privy's linked accounts
-      final solanaWallets = user.linkedAccounts.where(
-        (account) => account.type == 'solanaWallet',
-      );
 
-      if (solanaWallets.isNotEmpty) {
-        final solanaWallet = solanaWallets.first;
-        log('Found Solana wallet: ${solanaWallet.runtimeType}');
-        
-        // Try to get the address using reflection/dynamic access
-        try {
-          // Convert to string and parse the address using regex
-          final walletString = solanaWallet.toString();
-          log('Wallet string representation: $walletString');
-          
-          // Look for Solana address pattern (base58 encoded, 32-44 characters)
-          final addressRegex = RegExp(r'[1-9A-HJ-NP-Za-km-z]{32,44}');
-          final match = addressRegex.firstMatch(walletString);
-          
-          if (match != null) {
-            final extractedAddress = match.group(0);
-            if (extractedAddress != null && extractedAddress.length >= 32) {
-              _walletAddress = extractedAddress;
-              log('✅ Real Solana wallet extracted: $_walletAddress');
+      // Get embedded Solana wallets directly from the user object (new API)
+      if (user.embeddedSolanaWallets.isNotEmpty) {
+        final embeddedWallet = user.embeddedSolanaWallets.first;
+        _embeddedWallet = embeddedWallet;
+        _walletAddress = embeddedWallet.address;
+
+        log('✅ Found embedded Solana wallet: ${embeddedWallet.address}');
+        log('✅ Embedded wallet configured for signing');
+      } else {
+        log('❌ No embedded Solana wallets found on user');
+
+        // Try to create a new embedded wallet if none exists
+        log('🔄 Attempting to create new embedded Solana wallet...');
+        final createResult = await user.createSolanaWallet();
+
+        if (createResult is Success<EmbeddedSolanaWallet>) {
+          _embeddedWallet = createResult.value;
+          _walletAddress = createResult.value.address;
+          log('✅ Created new embedded Solana wallet: ${_walletAddress}');
+        } else if (createResult is Failure) {
+          log(
+            '❌ Failed to create embedded Solana wallet: ${createResult.toString()}',
+          );
+
+          // Fallback to extracting from linked accounts if available
+          final solanaWallets = user.linkedAccounts.where(
+            (account) => account.type == 'solanaWallet',
+          );
+
+          if (solanaWallets.isNotEmpty) {
+            final solanaWallet = solanaWallets.first;
+            log(
+              'Found Solana wallet in linked accounts: ${solanaWallet.runtimeType}',
+            );
+
+            // Try to extract address from linked account
+            if (solanaWallet is EmbeddedSolanaWalletAccount) {
+              _walletAddress = solanaWallet.address;
+              log('✅ Extracted address from linked account: $_walletAddress');
             }
           }
-        } catch (e) {
-          log('Error extracting wallet address: $e');
         }
       }
-      
+
       if (_walletAddress == null) {
-        log('⚠️  Could not extract Solana wallet, using fallback');
-        // Use the known address from the logs as fallback
-        _walletAddress = '6ttmyZ186qWhrvPaCFmpMK4hSvpjnp938VFu6jFf94D';
-        log('Using known wallet address: $_walletAddress');
+        log('⚠️  Could not extract Solana wallet address');
+        throw Exception('No Solana wallet found in user account');
       }
 
       log('Wallet configured: $_walletAddress');
+      log('Embedded wallet available: ${_embeddedWallet != null}');
+
+      if (_embeddedWallet == null) {
+        log(
+          '⚠️  WARNING: No embedded wallet found - transaction signing will fail',
+        );
+        log('   This means Privy wallet integration needs to be completed');
+      }
     } catch (e) {
       log('Error ensuring wallet exists: $e');
       rethrow;
@@ -266,11 +424,26 @@ class WalletProvider extends BaseChangeNotifier
         member2Address: friendAddress,
         expiresAt: DateTime.now().add(Duration(days: durationDays)),
         participantEmail: friendEmail,
+        transactionSigner: (transactionBytes, challengeKeypair) async {
+          // Sign and send the transaction using the embedded wallet with cosigners
+          log(
+            '🔑 Wallet provider signing challenge transaction with cosigners...',
+          );
+          final signature = await signAndSendTransactionWithCosigners(
+            transactionBytes: transactionBytes,
+            cosigners: [challengeKeypair],
+          );
+          if (signature == null) {
+            throw Exception('Failed to sign and send challenge transaction');
+          }
+          log('✅ Transaction signed and sent: $signature');
+          return signature;
+        },
       );
 
       setSuccess();
       log('✅ Challenge created successfully: ${challenge.id}');
-      log('- Multisig: ${challenge.multisigAddress}');
+      log('- Escrow Address: ${challenge.multisigAddress}');
       log('- Vault: ${challenge.vaultAddress}');
       log('- Platform Fee: ${challenge.platformFee} SOL');
       log('- Winner Amount: ${challenge.winnerAmount} SOL');

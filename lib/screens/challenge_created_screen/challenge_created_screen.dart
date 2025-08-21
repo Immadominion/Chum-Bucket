@@ -189,6 +189,18 @@ class _ChallengeStateScreenState extends State<ChallengeStateScreen> {
               ),
             ],
             const SizedBox(height: 32),
+            // Show receipt button for successful challenges
+            if (widget.status == ChallengeStatus.accepted ||
+                widget.status == ChallengeStatus.funded) ...[
+              ActionButton(
+                text: "View Receipt",
+                isLoading: false,
+                onPressed: () => _showReceiptDialog(context),
+                description: "Digital proof of your challenge",
+                isSecondStep: false,
+              ),
+              const SizedBox(height: 16),
+            ],
             ActionButton(
               text: "Return to Home",
               isLoading: false,
@@ -326,6 +338,151 @@ class _ChallengeStateScreenState extends State<ChallengeStateScreen> {
                 curve: Curves.elasticOut,
               )
               : Icon(icon, size: 120, color: color),
+    );
+  }
+
+  void _showReceiptDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Challenge Receipt',
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildReceiptRow('Status', 'Created Successfully'),
+                      const Divider(),
+                      _buildReceiptRow(
+                        'Challenge ID',
+                        'Sample Challenge ID',
+                      ),
+                      const Divider(),
+                      _buildReceiptRow(
+                        'Escrow Address',
+                        'Sample Escrow Address',
+                      ),
+                      const Divider(),
+                      _buildReceiptRow(
+                        'Transaction',
+                        'Sample Transaction Hash',
+                      ),
+                      const Divider(),
+                      _buildReceiptRow('Amount', '0.2 SOL'),
+                      const Divider(),
+                      _buildReceiptRow('Platform Fee', '0.002 SOL'),
+                      const Divider(),
+                      _buildReceiptRow('Winner Amount', '0.198 SOL'),
+                      const Divider(),
+                      _buildReceiptRow(
+                        'Created',
+                        DateTime.now().toString().split('.')[0],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          // Copy transaction ID to clipboard
+                          Clipboard.setData(
+                            const ClipboardData(
+                              text: 'Sample Transaction Hash',
+                            ),
+                          );
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Transaction ID copied!'),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.copy),
+                        label: const Text('Copy Transaction'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          // Open Solana Explorer
+                          // You can implement this with url_launcher package
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Opening Solana Explorer...'),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.open_in_new),
+                        label: const Text('View on Explorer'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildReceiptRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

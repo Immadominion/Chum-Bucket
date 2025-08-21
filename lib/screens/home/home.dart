@@ -8,6 +8,7 @@ import 'package:chumbucket/screens/create_challenge_screen/create_challenge_scre
 import 'package:chumbucket/screens/home/widgets/friends_tab.dart';
 import 'package:chumbucket/screens/home/widgets/header.dart';
 import 'package:chumbucket/screens/home/widgets/tab_bar.dart';
+import 'package:chumbucket/screens/home/widgets/empty_challenges.dart';
 import 'package:chumbucket/services/local_friends_service.dart';
 import 'package:chumbucket/services/local_database_service.dart';
 
@@ -22,6 +23,7 @@ class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   late TabController tabController;
   int _friendsRefreshKey = 0; // Key to force FriendsTab refresh
+  int _challengesRefreshKey = 0; // Key to force challenges refresh
 
   @override
   void initState() {
@@ -145,10 +147,261 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget buildPendingTab() {
-    return Center(
-      child: Text(
-        'No pending challenges',
-        style: TextStyle(fontSize: 16.sp, color: Colors.grey),
+    return Consumer<WalletProvider>(
+      key: ValueKey(_challengesRefreshKey), // Force rebuild when key changes
+      builder: (context, walletProvider, child) {
+        // Temporarily return challenges directly to test UI
+        return FutureBuilder<List<dynamic>>(
+          future: _getChallenges(walletProvider),
+          builder: (context, snapshot) {
+            print('🔍 Challenges tab state: ${snapshot.connectionState}');
+            print('🔍 Has data: ${snapshot.hasData}');
+            print('🔍 Data: ${snapshot.data}');
+
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              print('🔍 Showing shimmer...');
+              return _buildShimmerChallenges();
+            } else if (snapshot.hasError) {
+              print('🔍 Error: ${snapshot.error}');
+              return Center(
+                child: Text(
+                  'Error loading challenges: ${snapshot.error}',
+                  style: TextStyle(fontSize: 16.sp, color: Colors.red),
+                ),
+              );
+            } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              print('🔍 No data, showing empty state');
+              return const EmptyChallenges();
+            } else {
+              print('🔍 Showing ${snapshot.data!.length} challenges');
+              return _buildChallengesList(snapshot.data!);
+            }
+          },
+        );
+      },
+    );
+  }
+
+  Future<List<dynamic>> _getChallenges(WalletProvider walletProvider) async {
+    try {
+      // Get the current user's ID for filtering challenges
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+
+      if (currentUser == null || walletProvider.challengeService == null) {
+        print('🔍 No user or challenge service available');
+        return [];
+      }
+
+      print('🔍 Fetching challenges from database for user: ${currentUser.id}');
+
+      // Get challenges from the challenge service
+      // This will fetch from the local database which should contain challenges
+      // that were created via the Anchor program
+      final challenges = await walletProvider.challengeService!.getChallenges(
+        userId: currentUser.id,
+      );
+
+      print('🔍 Found ${challenges.length} challenges from database');
+
+      // Convert Challenge objects to maps for the UI
+      final challengesList =
+          challenges.map((challenge) {
+            return {
+              'id': challenge.id,
+              'friendName': challenge.participantEmail ?? 'Unknown',
+              'amount': challenge.amount, // This is the correct property name
+              'description': challenge.description,
+              'status': challenge.status.toString().split('.').last,
+              'createdAt': challenge.createdAt,
+              'escrowAddress':
+                  challenge
+                      .multisigAddress, // This is the correct property name
+              'vaultAddress': challenge.vaultAddress,
+              'platformFee': challenge.platformFee,
+              'winnerAmount': challenge.winnerAmount,
+            };
+          }).toList();
+
+      return challengesList;
+    } catch (e) {
+      print('🔍 Error fetching challenges: $e');
+      // Return empty list on error rather than throwing
+      return [];
+    }
+  }
+
+  Widget _buildShimmerChallenges() {
+    return ListView.builder(
+      padding: EdgeInsets.all(16.w),
+      itemCount: 3,
+      itemBuilder: (context, index) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: 12.h),
+          child: _buildShimmerChallengeCard(),
+        );
+      },
+    );
+  }
+
+  Widget _buildShimmerChallengeCard() {
+    return Container(
+      width: double.infinity,
+      height: 80.h,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12.r),
+        color: Colors.transparent,
+      ),
+      child: Stack(
+        children: [
+          // Base gradient
+          Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFF5F5F5), Color(0xFFE8E8E8)],
+              ),
+              borderRadius: BorderRadius.circular(12.r),
+            ),
+          ),
+          // Shimmer animation
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: -1.0, end: 2.0),
+            duration: const Duration(milliseconds: 1500),
+            builder: (context, value, child) {
+              return Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12.r),
+                  gradient: LinearGradient(
+                    begin: Alignment(value - 1.0, 0.0),
+                    end: Alignment(value, 0.0),
+                    colors: const [
+                      Colors.transparent,
+                      Colors.white24,
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              );
+            },
+            onEnd: () {
+              // Restart animation
+              if (mounted) {
+                setState(() {});
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChallengesList(List<dynamic> challenges) {
+    return ListView.builder(
+      padding: EdgeInsets.all(16.w),
+      itemCount: challenges.length,
+      itemBuilder: (context, index) {
+        final challenge = challenges[index];
+        return Padding(
+          padding: EdgeInsets.only(bottom: 12.h),
+          child: _buildChallengeCard(challenge),
+        );
+      },
+    );
+  }
+
+  Widget _buildChallengeCard(Map<String, dynamic> challenge) {
+    return Container(
+      padding: EdgeInsets.all(16.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Friend avatar
+          Container(
+            width: 48.w,
+            height: 48.w,
+            decoration: BoxDecoration(
+              color: const Color(0xFF6E6EFF),
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                challenge['friendName'][0].toUpperCase(),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          SizedBox(width: 12.w),
+          // Challenge details
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  challenge['friendName'],
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  challenge['description'],
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    color: Colors.grey.shade600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          // Amount and status
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${challenge['amount']} SOL',
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF6E6EFF),
+                ),
+              ),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 2.h),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade100,
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+                child: Text(
+                  challenge['status'],
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    color: Colors.orange.shade700,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -171,6 +424,14 @@ class _HomeScreenState extends State<HomeScreen>
     );
 
     if (result != null && mounted) {
+      // Refresh challenges tab since a new challenge was created
+      setState(() {
+        _challengesRefreshKey++;
+      });
+
+      // Switch to challenges tab to show the new challenge
+      tabController.animateTo(1);
+
       // If the challenge was created, open the challenge details screen
       Navigator.push(
         context,

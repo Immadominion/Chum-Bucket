@@ -23,7 +23,7 @@ dependencies:
   http: ^1.1.2                # For API requests
   intl: ^0.19.0               # For date formatting
   rive: ^0.13.20
-  privy_flutter: ^0.2.0
+  privy_flutter: ^0.3.0
   lottie: ^3.3.1
   flutter_dotenv: ^5.2.1
   flutter_otp_text_field: ^1.5.1+1
@@ -35,10 +35,11 @@ dependencies:
   sqflite: ^2.3.0        # SQLite database for local development
   path: ^1.8.3           # For database path management
   uuid: ^4.5.1           # For generating unique IDs
-  
-  # Squads Multisig Integration - Updated to complete SDK
-  squads_multisig:
-    path: ../Squads_Dart_SDK
+
+dependency_overrides:
+  # Override coral_xyz to use local path version instead of hosted
+  coral_xyz:
+    path: ../dart-coral-xyz
   
   # Enhanced networking for multisig
   dio: ^5.4.0             # Better HTTP client
