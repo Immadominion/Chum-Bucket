@@ -17,6 +17,10 @@ dependencies:
   google_fonts: ^6.1.0        # For custom fonts
   provider: ^6.1.1            # For state management
   solana: ^0.31.2+1           # Updated Solana blockchain SDK
+  coral_xyz: 
+    path: ../dart-coral-xyz      # Local path to coral_xyz package
+  sns_sdk: 
+    path: ../sns-sdk/dart      # Local path to coral_xyz package
   bip39: ^1.0.6               # For mnemonic generation
   shared_preferences: ^2.2.2  # For local storage
   flutter_secure_storage: ^9.0.0  # For secure storage
@@ -35,13 +39,14 @@ dependencies:
   sqflite: ^2.3.0        # SQLite database for local development
   path: ^1.8.3           # For database path management
   uuid: ^4.5.1           # For generating unique IDs
+  phosphor_flutter: ^2.1.0
+  screenshot: ^3.0.0
+  share_plus: ^11.1.0
+  path_provider: ^2.1.5
+  pdf: ^3.11.3
 
 dependency_overrides:
-  # Override coral_xyz to use local path version instead of hosted
-  coral_xyz:
-    path: ../dart-coral-xyz
-  
-  # Enhanced networking for multisig
+  # Enhanced networking
   dio: ^5.4.0             # Better HTTP client
   retry: ^3.1.2           # Retry failed transactions
   
@@ -71,6 +76,8 @@ flutter:
   uses-material-design: true
   assets:
     - .env
+    - assets/chumbucket_escrow_idl.json
+    - assets/idl/
     - assets/images/
     - assets/images/ai_gen/
     - assets/images/ai_gen/logo/
