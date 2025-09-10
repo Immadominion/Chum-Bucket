@@ -68,12 +68,17 @@ class OverlappingProfileAvatars extends StatelessWidget {
                 ),
               ),
               SizedBox(height: 8.h),
-              Text(
-                friendDisplayName,
-                style: TextStyle(
-                  fontSize: 16.sp,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black,
+              SizedBox(
+                width: 95.w,
+                child: Text(
+                  friendDisplayName,
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  maxLines: 1,
                 ),
               ),
             ],

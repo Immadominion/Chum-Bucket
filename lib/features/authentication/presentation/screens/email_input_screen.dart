@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
 import 'package:chumbucket/features/authentication/presentation/screens/otp_input_screen.dart';
+import 'package:chumbucket/shared/widgets/widgets.dart';
 
 class EmailInputScreen extends StatefulWidget {
   const EmailInputScreen({super.key});
@@ -92,44 +93,10 @@ class _EmailInputScreenState extends State<EmailInputScreen> {
                     ),
                   ),
                   SizedBox(height: 32.h), // Reduced from 40.h
-                  TextFormField(
+                  StandardTextField(
                     controller: _emailController,
-                    decoration: InputDecoration(
-                      hintText: "your@email.com",
-                      hintStyle: TextStyle(
-                        fontSize: 22.sp,
-                        fontWeight: FontWeight.w700,
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withOpacity(0.5),
-                      ),
-                      filled: true,
-                      fillColor: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withOpacity(0.05),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12.r),
-                        borderSide: BorderSide.none,
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12.r),
-                        borderSide: BorderSide.none,
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12.r),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 16.w,
-                        vertical: 14.h,
-                      ),
-                    ),
+                    hintText: "your@email.com",
                     keyboardType: TextInputType.emailAddress,
-                    style: TextStyle(
-                      fontSize: 22.sp,
-                      fontWeight: FontWeight.w700,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter your email';

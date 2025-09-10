@@ -5,9 +5,9 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenges_preview.dart';
-
 import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
 import 'package:chumbucket/shared/services/local_friends_service.dart';
+import 'package:chumbucket/shared/widgets/widgets.dart';
 
 class FriendsTab extends StatefulWidget {
   final VoidCallback createNewChallenge;
@@ -119,7 +119,7 @@ class _FriendsTabState extends State<FriendsTab> {
         }
 
         if (isLoading) {
-          return const Center(child: CircularProgressIndicator());
+          return const LoadingIndicator(message: 'Loading friends...');
         }
 
         return SingleChildScrollView(

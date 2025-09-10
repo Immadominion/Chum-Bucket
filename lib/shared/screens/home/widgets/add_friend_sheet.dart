@@ -8,6 +8,7 @@ import 'package:chumbucket/shared/services/local_friends_service.dart';
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
 import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
+import 'package:chumbucket/shared/widgets/widgets.dart';
 
 class AddFriendSheet extends StatefulWidget {
   final VoidCallback onFriendAdded;
@@ -295,16 +296,10 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
                   ),
                   SizedBox(height: 8.h),
                   // Cancel button styled like "Failed to complete"
-                  TextButton(
+                  TertiaryActionButton(
+                    text: 'Cancel',
                     onPressed: _isLoading ? null : () => Navigator.pop(context),
-                    child: Text(
-                      'Cancel',
-                      style: TextStyle(
-                        fontSize: 17.sp,
-                        color: const Color(0xFFFF5A76),
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    textColor: const Color(0xFFFF5A76),
                   ),
                 ],
               ),
