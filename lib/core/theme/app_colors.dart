@@ -4,11 +4,11 @@ library app_colors;
 import 'package:flutter/material.dart';
 
 class AppColors {
-  /// Primary brand colors
-  static const Color primary = Color(0xFF6366F1); // Indigo
+  /// Primary brand colors - Chum Bucket Red
+  static const Color primary = Color(0xFFFF3355); // Your brand red #FF3355
   static const Color onPrimary = Color(0xFFFFFFFF);
-  static const Color primaryContainer = Color(0xFFE0E7FF);
-  static const Color onPrimaryContainer = Color(0xFF1E1B3E);
+  static const Color primaryContainer = Color(0xFFFFE5E9);
+  static const Color onPrimaryContainer = Color(0xFF3E1114);
 
   /// Secondary colors
   static const Color secondary = Color(0xFF10B981); // Emerald
@@ -99,28 +99,28 @@ class AppColors {
   static const Color challengeFailed = Color(0xFFEF4444); // Red
   static const Color challengeExpired = Color(0xFF6B7280); // Gray
 
-  /// Gradient colors
+  /// Special colors with transparency
+  static const Color scrim = Color(0x80000000);
+  static const Color barrier = Color(0x80000000);
+
+  /// Gradient colors based on primary
   static const LinearGradient primaryGradient = LinearGradient(
-    colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+    colors: [
+      Color(0xFFFF3355), // Your brand red
+      Color(0xFFFF4466), // Slightly lighter variant
+    ],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
-  static const LinearGradient successGradient = LinearGradient(
-    colors: [Color(0xFF10B981), Color(0xFF059669)],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  );
+  /// Accessibility colors
+  static const Color focusOutline = Color(
+    0xFFFF3355,
+  ); // Same as primary for consistency
+  static const Color selectedBackground = Color(
+    0x1AFF3355,
+  ); // 10% opacity of primary
 
-  static const LinearGradient warningGradient = LinearGradient(
-    colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  );
-
-  static const LinearGradient errorGradient = LinearGradient(
-    colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  );
+  /// Private constructor to prevent instantiation
+  AppColors._();
 }

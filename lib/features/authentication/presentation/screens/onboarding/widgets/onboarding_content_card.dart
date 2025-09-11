@@ -1,7 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:chumbucket/config/theme/app_theme.dart';
 
 class OnboardingContentCard extends StatelessWidget {
   final String title;
@@ -23,53 +22,41 @@ class OnboardingContentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return FadeTransition(
       opacity: fadeAnimation,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24.r),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            width: double.infinity,
-            height: compact ? 270.h : 290.h,
-            padding: EdgeInsets.all(26.w),
-            decoration: BoxDecoration(
-              color: AppColors.glassmorphismCard,
-              borderRadius: BorderRadius.circular(24.r),
-              border: Border.all(
-                color: AppColors.glassmorphismBorder,
-                width: 1,
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 20.w),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: compact ? 24.sp : 28.sp,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
+                height: 1.2,
               ),
+              textAlign: TextAlign.left,
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 28.sp,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.glassmorphismText,
-                  ),
-                  textAlign: TextAlign.left,
-                ),
 
-                SizedBox(height: 16.h),
+            SizedBox(height: compact ? 16.h : 20.h),
 
-                Text(
-                  description,
-                  style: TextStyle(
-                    fontSize: 19.sp,
-                    color: AppColors.glassmorphismSecondaryText,
-                  ),
-                  textAlign: TextAlign.left,
-                ),
-
-                SizedBox(height: 24.h),
-
-                // Buttons
-                buttonsWidget,
-              ],
+            Text(
+              description,
+              style: TextStyle(
+                fontSize: compact ? 16.sp : 18.sp,
+                color: Colors.grey.shade600,
+                height: 1.4,
+                fontWeight: FontWeight.w400,
+              ),
+              textAlign: TextAlign.left,
             ),
-          ),
+
+            SizedBox(height: compact ? 24.h : 32.h),
+
+            // Buttons
+            buttonsWidget,
+          ],
         ),
       ),
     );

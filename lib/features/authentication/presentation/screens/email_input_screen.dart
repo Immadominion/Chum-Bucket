@@ -1,10 +1,11 @@
+import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
 import 'package:chumbucket/features/authentication/presentation/screens/otp_input_screen.dart';
-import 'package:chumbucket/shared/widgets/widgets.dart';
+import 'package:chumbucket/shared/widgets/themed_text_field.dart';
 
 class EmailInputScreen extends StatefulWidget {
   const EmailInputScreen({super.key});
@@ -75,8 +76,7 @@ class _EmailInputScreenState extends State<EmailInputScreen> {
                   SizedBox(height: 20.h),
                   Text(
                     "Enter your email",
-                    style: TextStyle(
-                      fontSize: 26.sp, // Reduced from 28.sp
+                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
@@ -84,18 +84,18 @@ class _EmailInputScreenState extends State<EmailInputScreen> {
                   SizedBox(height: 8.h),
                   Text(
                     "We'll use this to create your account",
-                    style: TextStyle(
-                      fontSize: 18.sp, // Reduced from 20.sp
-                      fontWeight: FontWeight.w700,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
                       color: Theme.of(
                         context,
-                      ).colorScheme.onSurface.withAlpha(120),
+                      ).colorScheme.onSurface.withValues(alpha: 0.7),
                     ),
                   ),
                   SizedBox(height: 32.h), // Reduced from 40.h
-                  StandardTextField(
+                  ThemedTextField(
                     controller: _emailController,
                     hintText: "your@email.com",
+                    labelText: "Email Address",
                     keyboardType: TextInputType.emailAddress,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -110,42 +110,10 @@ class _EmailInputScreenState extends State<EmailInputScreen> {
                   SizedBox(height: 30.h),
                   Consumer<AuthProvider>(
                     builder: (context, authProvider, _) {
-                      return GestureDetector(
-                        onTap: authProvider.isLoading ? null : _submitEmail,
-                        child: Container(
-                          width: double.infinity,
-                          padding: EdgeInsets.symmetric(vertical: 12.h),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primary,
-                            borderRadius: BorderRadius.circular(18.r),
-                          ),
-                          child: Center(
-                            child:
-                                authProvider.isLoading
-                                    ? SizedBox(
-                                      height: 24.h,
-                                      width: 24.h,
-                                      child: CircularProgressIndicator(
-                                        color:
-                                            Theme.of(
-                                              context,
-                                            ).colorScheme.onPrimaryContainer,
-                                        strokeWidth: 2.5,
-                                      ),
-                                    )
-                                    : Text(
-                                      "Continue",
-                                      style: TextStyle(
-                                        color:
-                                            Theme.of(
-                                              context,
-                                            ).colorScheme.onPrimaryContainer,
-                                        fontSize: 20.sp,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                          ),
-                        ),
+                      return ChallengeButton(
+                        createNewChallenge:
+                            () => authProvider.isLoading ? null : _submitEmail,
+                        label: "Continue",
                       );
                     },
                   ),

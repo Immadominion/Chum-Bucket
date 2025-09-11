@@ -44,6 +44,7 @@ dependencies:
   share_plus: ^11.1.0
   path_provider: ^2.1.5
   pdf: ^3.11.3
+  audioplayers: ^6.1.0    # Audio player for background music
 
 dependency_overrides:
   # Enhanced networking
@@ -89,3 +90,4 @@ flutter:
     - assets/animations/
     - assets/animations/whisk_ai_generate/
     - assets/animations/lottie/
+    - assets/audio/

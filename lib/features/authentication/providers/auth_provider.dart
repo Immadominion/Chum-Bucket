@@ -61,6 +61,17 @@ class AuthProvider extends BaseChangeNotifier {
   }
 
   Future<bool> isLoggedIn() async {
+    // First check if Privy has an authenticated user
+    if (_initialized && _currentUser != null) {
+      // If Privy shows user as authenticated, ensure our local state matches
+      final prefs = await SharedPreferences.getInstance();
+      if (!(prefs.getBool(_loggedInKey) ?? false)) {
+        await saveLoginState();
+      }
+      return true;
+    }
+
+    // Fallback to checking saved login state
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_loggedInKey) ?? false;
   }

@@ -9,6 +9,3 @@ export 'app_components/app_avatar.dart';
 export 'app_components/status_display.dart';
 export 'app_components/app_headers.dart';
 export 'app_components/list_items.dart';
-
-// Optimized performance widgets
-export 'optimized/optimized.dart';

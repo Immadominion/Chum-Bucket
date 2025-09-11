@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_dimensions.dart';
 
 /// Standard loading indicator
@@ -13,6 +12,8 @@ class LoadingIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -21,7 +22,7 @@ class LoadingIndicator extends StatelessWidget {
             width: size ?? 24.w,
             height: size ?? 24.h,
             child: CircularProgressIndicator(
-              color: color ?? AppColors.primary,
+              color: color ?? colorScheme.primary,
               strokeWidth: 2.5,
             ),
           ),
@@ -31,7 +32,7 @@ class LoadingIndicator extends StatelessWidget {
               message!,
               style: TextStyle(
                 fontSize: 14.sp,
-                color: AppColors.onSurfaceVariant,
+                color: colorScheme.onSurfaceVariant,
               ),
               textAlign: TextAlign.center,
             ),
@@ -59,15 +60,17 @@ class LoadingOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Stack(
       children: [
         child,
         if (isLoading)
           Container(
-            color: overlayColor ?? Colors.black.withOpacity(0.3),
+            color: overlayColor ?? colorScheme.scrim.withValues(alpha: 0.3),
             child: LoadingIndicator(
               message: loadingMessage,
-              color: Colors.white,
+              color: colorScheme.onSurface,
             ),
           ),
       ],
@@ -119,6 +122,8 @@ class _ShimmerPlaceholderState extends State<ShimmerPlaceholder>
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return AnimatedBuilder(
       animation: _animation,
       builder: (context, child) {
@@ -138,9 +143,9 @@ class _ShimmerPlaceholderState extends State<ShimmerPlaceholder>
                 (_animation.value + 1.0).clamp(0.0, 1.0),
               ],
               colors: [
-                AppColors.surfaceVariant,
-                AppColors.surfaceVariant.withOpacity(0.5),
-                AppColors.surfaceVariant,
+                colorScheme.surfaceContainerHighest,
+                colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                colorScheme.surfaceContainerHighest,
               ],
             ),
           ),

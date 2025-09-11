@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:chumbucket/config/theme/app_theme.dart';
-import 'package:chumbucket/shared/screens/home/home.dart';
+import 'package:chumbucket/features/authentication/presentation/screens/login_screen.dart';
 import 'package:chumbucket/features/authentication/presentation/screens/onboarding/widgets/onboarding_controller.dart';
 
 class OnboardingButtons extends StatelessWidget {
@@ -20,73 +19,33 @@ class OnboardingButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        // Back button (hidden on first page)
-        if (currentPage > 0)
-          Expanded(
-            child: GestureDetector(
-              onTap: () {
-                print("Back button tapped");
-                // Go to previous page
-                final controller = OnboardingPageController.of(context);
-                if (controller != null) {
-                  controller.previousPage();
-                }
-                // Update the provider (fallback)
-                if (currentPage > 0) {
-                  onSetCurrentPage(currentPage - 1);
-                }
-              },
-              child: Container(
-                padding: EdgeInsets.symmetric(vertical: 16.h),
-                child: Text(
-                  "Back",
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
-                    fontSize: 16.sp,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
+        // Primary action button (Next/Get Started)
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16.r),
+            gradient: const LinearGradient(
+              colors: [Color(0xFFFF5A76), Color(0xFFFF3355)],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
             ),
-          ),
-
-        // Skip button (only shown when there is no back button)
-        if (!isLastPage && currentPage == 0)
-          Expanded(
-            child: GestureDetector(
-              onTap: () {
-                print("Skip button tapped");
-                onCompleteOnboarding();
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (_) => const HomeScreen()),
-                );
-              },
-              child: Container(
-                padding: EdgeInsets.symmetric(vertical: 16.h),
-                child: Text(
-                  "Skip",
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
-                    fontSize: 16.sp,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFF3355).withAlpha(75),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
               ),
-            ),
+            ],
           ),
-
-        Expanded(
-          flex: isLastPage ? 2 : 1,
-          child: GestureDetector(
-            onTap: () {
+          child: ElevatedButton(
+            onPressed: () {
               if (isLastPage) {
                 onCompleteOnboarding();
                 Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (_) => const HomeScreen()),
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
                 );
               } else {
                 // Use the controller to navigate to next page
@@ -110,28 +69,86 @@ class OnboardingButtons extends StatelessWidget {
                 }
               }
             },
-            child: Container(
-              width: 120.w, // Fixed width for consistent button size
-              padding: EdgeInsets.symmetric(vertical: 16.h),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary,
-                borderRadius: BorderRadius.circular(18.r),
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.primary,
-                  width: 1,
-                ),
+            style: ElevatedButton.styleFrom(
+              elevation: 0,
+              backgroundColor: Colors.transparent,
+              shadowColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16.r),
               ),
-              child: Text(
-                isLastPage ? "Get Started" : "Next",
-                style: TextStyle(
-                  color: AppColors.buttonText,
-                  fontSize: 16.sp,
-                  fontWeight: FontWeight.w600,
-                ),
-                textAlign: TextAlign.center,
+              padding: EdgeInsets.symmetric(vertical: 16.h),
+            ),
+            child: Text(
+              isLastPage ? "Get Started" : "Next",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16.sp,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),
+        ),
+
+        SizedBox(height: 12.h),
+
+        // Secondary actions row (Back/Skip)
+        Row(
+          children: [
+            // Back button (shown from page 2 onwards)
+            if (currentPage > 0)
+              Expanded(
+                child: TextButton(
+                  onPressed: () {
+                    print("Back button tapped");
+                    // Go to previous page
+                    final controller = OnboardingPageController.of(context);
+                    if (controller != null) {
+                      controller.previousPage();
+                    }
+                    // Update the provider (fallback)
+                    if (currentPage > 0) {
+                      onSetCurrentPage(currentPage - 1);
+                    }
+                  },
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.symmetric(vertical: 12.h),
+                  ),
+                  child: Text(
+                    "Back",
+                    style: TextStyle(
+                      color: const Color(0xFFFF3355),
+                      fontSize: 16.sp,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+
+            // Skip button (only shown on first page)
+            if (!isLastPage && currentPage == 0)
+              Expanded(
+                child: TextButton(
+                  onPressed: () {
+                    print("Skip button tapped");
+                    onCompleteOnboarding();
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    );
+                  },
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.symmetric(vertical: 12.h),
+                  ),
+                  child: Text(
+                    "Skip",
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 16.sp,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ],
     );

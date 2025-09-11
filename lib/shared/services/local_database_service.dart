@@ -572,4 +572,47 @@ class LocalDatabaseService {
       rethrow;
     }
   }
+
+  // Get all challenges (for migration purposes)
+  static Future<List<Challenge>> getAllChallenges() async {
+    try {
+      final db = await database;
+      final results = await db.query(
+        _challengesTable,
+        orderBy: 'created_at DESC',
+      );
+
+      return results.map((row) {
+        return Challenge(
+          id: row['id'] as String,
+          creatorId: row['creator_privy_id'] as String,
+          participantId: row['participant_privy_id'] as String?,
+          participantEmail: row['participant_email'] as String?,
+          title: row['title'] as String,
+          description: row['description'] as String,
+          amount: row['amount_sol'] as double,
+          platformFee: row['platform_fee_sol'] as double? ?? 0.0,
+          winnerAmount: row['winner_amount_sol'] as double,
+          createdAt: DateTime.parse(row['created_at'] as String),
+          expiresAt: DateTime.parse(row['expires_at'] as String),
+          completedAt:
+              row['completed_at'] != null
+                  ? DateTime.parse(row['completed_at'] as String)
+                  : null,
+          status: ChallengeStatus.values.firstWhere(
+            (e) => e.toString().split('.').last == row['status'],
+            orElse: () => ChallengeStatus.pending,
+          ),
+          escrowAddress: row['multisig_address'] as String?,
+          vaultAddress: row['vault_address'] as String?,
+          winnerId: row['winner_privy_id'] as String?,
+          transactionSignature: row['transaction_signature'] as String?,
+          feeTransactionSignature: row['fee_transaction_signature'] as String?,
+        );
+      }).toList();
+    } catch (e) {
+      dev.log('Error getting all challenges: $e');
+      return [];
+    }
+  }
 }

@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/features/authentication/presentation/screens/login_screen.dart';
+import 'package:chumbucket/features/authentication/presentation/screens/onboarding/onboarding_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
 import 'package:chumbucket/features/authentication/providers/onboarding_provider.dart';
@@ -69,6 +70,13 @@ class _SplashScreenState extends State<SplashScreen>
       listen: false,
     );
 
+    // Ensure AuthProvider is initialized before checking login status
+    if (!authProvider.isInitialized) {
+      debugPrint('Initializing AuthProvider...');
+      await authProvider.initialize();
+      debugPrint('AuthProvider initialized');
+    }
+
     final isLoggedIn = await authProvider.isLoggedIn();
     final hasCompletedOnboarding =
         await onboardingProvider.isOnboardingCompleted();
@@ -84,9 +92,17 @@ class _SplashScreenState extends State<SplashScreen>
         MaterialPageRoute(builder: (context) => const HomeScreen()),
       );
     } else {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-      );
+      // For new users, check if onboarding has been completed
+      if (hasCompletedOnboarding) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+        );
+      } else {
+        // Show onboarding for first-time users
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+        );
+      }
     }
   }
 

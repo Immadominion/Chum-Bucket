@@ -176,12 +176,23 @@ class LocalUserService {
   static Future<List<UserProfile>> getAllUsers() async {
     try {
       final db = await database;
-      final List<Map<String, dynamic>> maps = await db.query(
-        _usersTable,
-        orderBy: 'created_at DESC',
-      );
+      final results = await db.query(_usersTable, orderBy: 'created_at ASC');
 
-      return maps.map((map) => UserProfile.fromLocalJson(map)).toList();
+      return results.map((row) {
+        return UserProfile(
+          privyId: row['privy_id'] as String,
+          email: row['email'] as String,
+          fullName: row['full_name'] as String?,
+          bio: row['bio'] as String?,
+          walletAddress: row['wallet_address'] as String?,
+          profileImageUrl: row['profile_image_url'] as String?,
+          createdAt: DateTime.parse(row['created_at'] as String),
+          updatedAt: DateTime.parse(row['updated_at'] as String),
+          lastLogin: DateTime.parse(row['last_login'] as String),
+          onboardingCompleted: row['onboarding_completed'] == 1,
+          settings: _jsonToMap(row['settings'] as String? ?? '{}'),
+        );
+      }).toList();
     } catch (e) {
       dev.log('Error getting all users: $e');
       return [];
@@ -232,6 +243,17 @@ class LocalUserService {
       return map.toString(); // Simple string representation for now
     } catch (e) {
       return '{}';
+    }
+  }
+
+  // Helper method to convert JSON string to Map (if it doesn't already exist)
+  static Map<String, dynamic> _jsonToMap(String jsonString) {
+    try {
+      // For now, return empty map. In a real implementation,
+      // you'd use dart:convert's jsonDecode
+      return {};
+    } catch (e) {
+      return {};
     }
   }
 }

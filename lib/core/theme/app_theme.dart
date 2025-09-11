@@ -9,15 +9,20 @@ import 'app_dimensions.dart';
 class AppTheme {
   /// Light theme configuration
   static ThemeData get lightTheme {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: AppColors.primary,
+      brightness: Brightness.light,
+    );
+
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
 
       // Color scheme
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.primary,
-        brightness: Brightness.light,
-      ),
+      colorScheme: colorScheme,
+
+      // Text theme with proper colors
+      textTheme: AppTextStyles.textThemeWithColorScheme(colorScheme),
 
       // Primary colors
       primaryColor: AppColors.primary,
@@ -127,15 +132,20 @@ class AppTheme {
 
   /// Dark theme configuration
   static ThemeData get darkTheme {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: AppColors.primary,
+      brightness: Brightness.dark,
+    );
+
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
 
       // Color scheme
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.primary,
-        brightness: Brightness.dark,
-      ),
+      colorScheme: colorScheme,
+
+      // Text theme with proper colors
+      textTheme: AppTextStyles.textThemeWithColorScheme(colorScheme),
 
       // Primary colors
       primaryColor: AppColors.primary,

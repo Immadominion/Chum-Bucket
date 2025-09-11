@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import 'package:chumbucket/features/authentication/providers/onboarding_provider.dart';
 import 'package:chumbucket/features/authentication/presentation/screens/onboarding/widgets/animated_onboarding_image.dart';
 import 'package:chumbucket/features/authentication/presentation/screens/onboarding/widgets/onboarding_indicators.dart';
-import 'package:chumbucket/features/authentication/presentation/screens/onboarding/widgets/question_button.dart';
 
 class OnboardingPageLayout extends StatelessWidget {
   final String illustration;
@@ -36,54 +35,45 @@ class OnboardingPageLayout extends StatelessWidget {
           // Use available height for calculations instead of screen height
           final availableHeight = constraints.maxHeight;
 
-          return Column(
-            children: [
-              SizedBox(height: 12.h), // Reduced top padding
-              // Question button at top
-              const QuestionButton(),
+          return Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 20.h),
+            child: Column(
+              children: [
+                SizedBox(height: availableHeight * 0.05),
 
-              SizedBox(height: availableHeight * 0.02), // Reduced spacing
-              // Illustration takes about 38% of available height (reduced from 40%)
-              SizedBox(
-                height: availableHeight * 0.38,
-                child: ScaleTransition(
-                  scale: scaleAnimation,
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 24.w),
-                    child: AnimatedOnboardingImage(
-                      illustration: illustration,
-                      isAnimated: isAnimated,
-                      fallback: fallback,
+                // Illustration takes about 30% of available height
+                SizedBox(
+                  height: availableHeight * 0.30,
+                  child: ScaleTransition(
+                    scale: scaleAnimation,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 20.w),
+                      child: AnimatedOnboardingImage(
+                        illustration: illustration,
+                        isAnimated: isAnimated,
+                        fallback: fallback,
+                      ),
                     ),
                   ),
                 ),
-              ),
 
-              SizedBox(height: availableHeight * 0.03), // Reduced spacing
-              // Content card with buttons - use Flexible to prevent overflow
-              Flexible(
-                flex: 5,
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 24.w),
-                  child: contentCard,
+                SizedBox(height: availableHeight * 0.05),
+
+                // Content card - use Expanded to fill available space
+                Expanded(child: contentCard),
+
+                SizedBox(height: 20.h),
+
+                // Page indicators at bottom
+                Consumer<OnboardingProvider>(
+                  builder: (context, onboardingProvider, _) {
+                    return OnboardingPageIndicators(
+                      currentPage: onboardingProvider.currentPage,
+                    );
+                  },
                 ),
-              ),
-
-              Expanded(
-                flex: 1,
-                child: SizedBox(),
-              ), // Push indicators to bottom with equal spacing
-              // Page indicators now at bottom of the page
-              Consumer<OnboardingProvider>(
-                builder: (context, onboardingProvider, _) {
-                  return OnboardingPageIndicators(
-                    currentPage: onboardingProvider.currentPage,
-                  );
-                },
-              ),
-              Expanded(flex: 1, child: SizedBox()),
-              // Increased bottom padding for better spacing
-            ],
+              ],
+            ),
           );
         },
       ),

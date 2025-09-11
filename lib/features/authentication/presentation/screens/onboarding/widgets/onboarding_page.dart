@@ -81,14 +81,11 @@ class _OnboardingPageState extends State<OnboardingPage>
       builder: (context, onboardingProvider, _) {
         // Use MediaQuery to check screen size and adjust content if needed
         final screenHeight = MediaQuery.of(context).size.height;
-        final bool isSmallDevice = screenHeight < 700;
+        final bool isSmallDevice = screenHeight < 750; // Increased threshold
 
         return OnboardingContentCard(
           title: widget.title,
-          description:
-              isSmallDevice
-                  ? widget.description.split('.').first + '...'
-                  : widget.description,
+          description: widget.description,
           fadeAnimation: _fadeAnimation,
           buttonsWidget: OnboardingButtons(
             isLastPage: onboardingProvider.isLastPage,
