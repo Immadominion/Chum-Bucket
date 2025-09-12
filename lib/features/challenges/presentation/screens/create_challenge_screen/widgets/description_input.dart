@@ -54,6 +54,7 @@ class ChallengeInput extends StatelessWidget {
               FocusScope.of(context).unfocus();
             },
         decoration: InputDecoration(
+          filled: false,
           hintText: hintText,
           hintStyle: TextStyle(
             color: Colors.grey[350],
@@ -66,7 +67,7 @@ class ChallengeInput extends StatelessWidget {
         ),
         style: TextStyle(
           fontSize: fontSize.sp,
-          fontWeight: fontWeight,
+          fontWeight: FontWeight.bold,
           color: Colors.black,
         ),
         maxLines: maxLines,
@@ -91,11 +92,11 @@ class ChallengeBetAmountInput extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final NumberFormat _currencyFormat = NumberFormat.currency(
     symbol: '\$',
-    decimalDigits: 1,
+    decimalDigits: 3,
     locale: 'en_US',
   );
 
-ChallengeBetAmountInput({
+  ChallengeBetAmountInput({
     super.key,
     required this.controller,
     required this.onChanged,
@@ -132,7 +133,7 @@ ChallengeBetAmountInput({
         textAlign: TextAlign.center,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,1}')),
+          FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,3}')),
         ],
         textInputAction: TextInputAction.done,
         onChanged: (value) {
@@ -155,19 +156,21 @@ ChallengeBetAmountInput({
           FocusScope.of(context).unfocus();
         },
         decoration: InputDecoration(
+          filled: false,
           hintText: '0.5 SOL',
           hintStyle: TextStyle(
             color: Colors.grey[350],
             fontSize: 40.sp,
             fontWeight: FontWeight.bold,
           ),
+
           border: InputBorder.none,
           focusedBorder: InputBorder.none,
           enabledBorder: InputBorder.none,
         ),
         style: TextStyle(
           fontSize: 40.sp,
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w900,
           color: Colors.black,
         ),
         maxLines: 1,

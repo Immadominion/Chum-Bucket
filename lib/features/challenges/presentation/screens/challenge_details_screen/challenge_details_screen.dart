@@ -1,3 +1,4 @@
+import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/widgets/friend_avatar.dart';
@@ -43,9 +44,11 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
+       SnackBarUtils.showError(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+          title: 'Error',
+          subtitle: 'Error completing challenge: $e',
+        );
       }
     } finally {
       if (mounted) {
@@ -66,9 +69,11 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
+        SnackBarUtils.showError(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+          title: 'Error',
+          subtitle: 'Error marking challenge as failed: $e',
+        );
       }
     }
   }

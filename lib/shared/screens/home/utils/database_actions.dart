@@ -1,3 +1,4 @@
+import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:chumbucket/shared/services/local_database_service.dart';
 
@@ -21,18 +22,17 @@ class DatabaseActions {
                   try {
                     await LocalDatabaseService.clearAllData();
                     Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Database cleared successfully!'),
-                      ),
+                    SnackBarUtils.showInfo(
+                      context,
+                      title: 'Success',
+                      subtitle: 'Database cleared successfully!',
                     );
                   } catch (e) {
                     Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Error clearing database: $e'),
-                        backgroundColor: Colors.red,
-                      ),
+                    SnackBarUtils.showError(
+                      context,
+                      title: 'Error',
+                      subtitle: 'Failed to clear database: $e',
                     );
                   }
                 },

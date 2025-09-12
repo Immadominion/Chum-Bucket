@@ -1,3 +1,4 @@
+import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -262,14 +263,12 @@ class _WalletModalState extends State<WalletModal> {
       onTap: () {
         if (walletProvider.walletAddress != null) {
           Clipboard.setData(ClipboardData(text: walletProvider.walletAddress!));
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text("Wallet address copied to clipboard"),
-              backgroundColor: Colors.green.shade600,
-              duration: const Duration(seconds: 2),
-              behavior: SnackBarBehavior.floating,
-            ),
+          SnackBarUtils.showInfo(
+            context,
+            title: "Copied",
+            subtitle: "Wallet address copied to clipboard",
           );
+          Navigator.pop(context);
         }
       },
       child: Row(

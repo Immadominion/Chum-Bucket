@@ -97,9 +97,8 @@ class ChallengeService {
   static Map<String, double> getFeeBreakdown(double challengeAmount) {
     final platformFee = calculatePlatformFee(challengeAmount);
     final winnerAmount = challengeAmount - platformFee;
-    final feePercentage = challengeAmount > 0
-        ? (platformFee / challengeAmount)
-        : 0.0;
+    final feePercentage =
+        challengeAmount > 0 ? (platformFee / challengeAmount) : 0.0;
 
     return {
       'challengeAmount': challengeAmount,
@@ -163,6 +162,7 @@ class ChallengeService {
         vaultAddress: challengeAddress, // Use challenge address as identifier
         platformFee: platformFee,
         winnerAmount: winnerAmount,
+        challengeId: challengeAddress, // Use blockchain address as challenge ID
       );
 
       log('📝 Challenge created in database');

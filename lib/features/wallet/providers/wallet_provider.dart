@@ -3,6 +3,8 @@ import 'package:chumbucket/core/utils/app_logger.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:solana/solana.dart' as solana;
+import 'package:coral_xyz/coral_xyz_anchor.dart';
+import 'package:coral_xyz/src/types/transaction.dart' as coral_types;
 import 'package:privy_flutter/privy_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
@@ -12,6 +14,7 @@ import 'package:chumbucket/shared/models/models.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
+import 'package:chumbucket/features/wallet/data/privy_wallet.dart';
 
 class WalletProvider extends BaseChangeNotifier {
   // Create solana client for network operations
@@ -951,7 +954,7 @@ class WalletProvider extends BaseChangeNotifier {
   }
 
   /// Transfer SOL to another wallet address
-  Future<bool> transferSol({
+  Future<String?> transferSol({
     required String destinationAddress,
     required double amount,
     required BuildContext context,
@@ -962,7 +965,7 @@ class WalletProvider extends BaseChangeNotifier {
         tag: 'WalletProvider',
       );
       setError('Wallet not initialized');
-      return false;
+      return null;
     }
 
     try {
@@ -984,45 +987,156 @@ class WalletProvider extends BaseChangeNotifier {
         throw Exception('Insufficient balance for transfer');
       }
 
-      // Create a simple transfer using a basic approach
-      // For now, we'll use the requestAirdrop as a template but create a transfer instruction
-
-      // Convert amount to lamports
-      final lamports = (amount * 1000000000).round();
+      // Convert amount to lamports using the proper constant
+      final lamports = (amount * solana.lamportsPerSol).round();
 
       AppLogger.debug(
-        '💰 Transferring $lamports lamports to $destinationAddress',
+        '💰 Creating SOL transfer: $lamports lamports to $destinationAddress',
         tag: 'WalletProvider',
       );
 
-      // For now, let's simulate a successful transfer and show it works
-      // In a real implementation, this would use the coral-xyz library or raw Solana transaction building
-      await Future.delayed(
-        const Duration(seconds: 2),
-      ); // Simulate network delay
+      // Create actual Solana transaction
+      final transactionSignature = await _createAndSendSolanaTransaction(
+        destinationAddress: destinationAddress,
+        lamports: lamports,
+      );
 
-      // For demo purposes, we'll assume it succeeds 90% of the time
-      final random = DateTime.now().millisecondsSinceEpoch % 10;
-      if (random > 1) {
-        // 90% success rate
+      if (transactionSignature != null) {
         AppLogger.debug(
-          '✅ SOL transfer successful! (simulated)',
+          '✅ SOL transfer completed successfully with signature: $transactionSignature',
           tag: 'WalletProvider',
         );
 
         // Update local balance (subtract the transferred amount)
         _balance = (_balance - amount).clamp(0.0, double.infinity);
-        notifyListeners();
 
+        // Refresh balance from blockchain
+        await refreshBalance();
+
+        notifyListeners();
         setSuccess();
-        return true;
+        return transactionSignature;
       } else {
-        throw Exception('Transfer failed (simulated network error)');
+        throw Exception('Transfer failed');
       }
     } catch (e) {
       AppLogger.debug('❌ Error in SOL transfer: $e', tag: 'WalletProvider');
       setError('Transfer failed: $e');
-      return false;
+      return null;
+    }
+  }
+
+  /// Create and send an actual Solana transaction for SOL transfer
+  Future<String?> _createAndSendSolanaTransaction({
+    required String destinationAddress,
+    required int lamports,
+  }) async {
+    try {
+      AppLogger.debug(
+        '🔨 Building Solana transaction: $lamports lamports to $destinationAddress',
+        tag: 'WalletProvider',
+      );
+
+      // Parse source and destination public keys using coral_xyz
+      final sourcePublicKey = PublicKey.fromBase58(_walletAddress!);
+      final destinationPublicKey = PublicKey.fromBase58(destinationAddress);
+
+      AppLogger.debug('📡 Fetching latest blockhash...', tag: 'WalletProvider');
+      
+      // Get latest blockhash using solana client
+      final blockhashResponse = await _client.rpcClient.getLatestBlockhash();
+      final blockhash = blockhashResponse.value.blockhash;
+
+      AppLogger.debug('✅ Got blockhash: $blockhash', tag: 'WalletProvider');
+
+      // Create transfer instruction using coral_xyz SystemProgram
+      final transferInstruction = SystemProgram.transfer(
+        fromPubkey: sourcePublicKey,
+        toPubkey: destinationPublicKey,
+        lamports: lamports,
+      );
+
+      // Create the transaction using coral_xyz Transaction
+      final transaction = coral_types.Transaction(
+        feePayer: sourcePublicKey,
+        recentBlockhash: blockhash,
+        instructions: [transferInstruction],
+      );
+
+      AppLogger.debug('🔐 Signing transaction with Privy wallet...', tag: 'WalletProvider');
+
+      // Create PrivyWallet instance for signing
+      final privyWallet = PrivyWallet(
+        walletAddress: _walletAddress!,
+        embeddedWallet: _embeddedWallet!,
+      );
+
+      // Sign the transaction
+      final signedTransaction = await privyWallet.signTransaction(transaction);
+
+      AppLogger.debug('📡 Broadcasting transaction to network...', tag: 'WalletProvider');
+
+      // Serialize the signed transaction
+      final serializedTransaction = signedTransaction.serialize();
+
+      // Convert to base64 for RPC client
+      final transactionBase64 = base64Encode(serializedTransaction);
+
+      // Send the signed transaction to the network using solana client
+      final signature = await _client.rpcClient.sendTransaction(
+        transactionBase64,
+        preflightCommitment: solana.Commitment.confirmed,
+      );
+
+      AppLogger.debug(
+        '✅ Transaction sent successfully! Signature: $signature',
+        tag: 'WalletProvider',
+      );
+
+      // Wait for confirmation
+      AppLogger.debug('⏳ Waiting for transaction confirmation...', tag: 'WalletProvider');
+      
+      // Poll for transaction confirmation
+      var confirmed = false;
+      var attempts = 0;
+      const maxAttempts = 30; // 30 seconds timeout
+      
+      while (!confirmed && attempts < maxAttempts) {
+        try {
+          final statusResponse = await _client.rpcClient.getSignatureStatuses([signature]);
+          final status = statusResponse.value.first;
+          
+          if (status != null) {
+            if (status.err != null) {
+              throw Exception('Transaction failed: ${status.err}');
+            }
+            
+            if (status.confirmationStatus.name == 'confirmed' || 
+                status.confirmationStatus.name == 'finalized') {
+              confirmed = true;
+              break;
+            }
+          }
+        } catch (e) {
+          AppLogger.debug('Error checking transaction status: $e', tag: 'WalletProvider');
+        }
+        
+        attempts++;
+        await Future.delayed(const Duration(seconds: 1));
+      }
+
+      if (!confirmed) {
+        AppLogger.debug('⚠️ Transaction timeout, but signature was sent: $signature', tag: 'WalletProvider');
+        // Return signature even if we couldn't confirm - user can check explorer
+      } else {
+        AppLogger.debug('🎉 Transaction confirmed!', tag: 'WalletProvider');
+      }
+      
+      return signature;
+
+    } catch (e) {
+      AppLogger.debug('❌ Error creating/sending transaction: $e', tag: 'WalletProvider');
+      rethrow;
     }
   }
 

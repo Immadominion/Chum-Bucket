@@ -2,7 +2,6 @@ import 'package:chumbucket/shared/screens/home/widgets/friend_item.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-
 class FriendsGrid extends StatelessWidget {
   final List<Map<String, String>> friends;
   final Function(String) onFriendSelected;
@@ -35,7 +34,7 @@ class FriendsGrid extends StatelessWidget {
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
         crossAxisSpacing: 12.w,
-        childAspectRatio: 0.9,
+        childAspectRatio: 1,
       ),
       itemCount: itemCount,
       itemBuilder: (context, index) {

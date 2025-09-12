@@ -1,3 +1,4 @@
+import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/shared/models/models.dart';
@@ -30,7 +31,7 @@ class ReceiptContentWidget extends StatelessWidget {
                 borderRadius: BorderRadius.circular(16.r),
                 image: const DecorationImage(
                   image: AssetImage(
-                    'assets/images/open_sourced_design_inspiration/3d-texture.jpg',
+                    'assets/images/open_sourced_design_inspiration/3d-texture.JPG',
                   ),
                   fit: BoxFit.cover,
                 ),
@@ -38,14 +39,6 @@ class ReceiptContentWidget extends StatelessWidget {
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16.r),
-                  gradient: LinearGradient(
-                    colors: [
-                      const Color(0xFFFF5A76).withOpacity(0.3),
-                      const Color(0xFFFF3355).withOpacity(0.2),
-                    ],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  ),
                 ),
                 child: _buildReceiptContent(),
               ),
@@ -107,9 +100,9 @@ class ReceiptContentWidget extends StatelessWidget {
                 child: Text(
                   'Powered by Chumbucket',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.7),
+                    color: AppColors.primary.withOpacity(0.8),
                     fontSize: 12.sp,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),

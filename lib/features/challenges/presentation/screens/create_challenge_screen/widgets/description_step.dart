@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/create_challenge_screen/widgets/description_input.dart';
 
-
 class ChallengeDescriptionStep extends StatefulWidget {
   final String friendName;
   final String friendAddress;
@@ -34,7 +33,7 @@ class _ChallengeDescriptionStepState extends State<ChallengeDescriptionStep> {
           'What is the challenge?',
           style: TextStyle(
             fontSize: 20.sp,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.bold,
             color: Colors.black,
           ),
         ),

@@ -26,8 +26,8 @@ class FriendAvatarSection extends StatelessWidget {
         ),
         SizedBox(height: 12.h),
         Text(
-          friendName,
-          style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600),
+          friendName[0].toUpperCase() + friendName.substring(1),
+          style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold),
         ),
       ],
     );

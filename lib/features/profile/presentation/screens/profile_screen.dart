@@ -1,3 +1,4 @@
+import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -81,97 +82,101 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  void _showWalletModal() {
-    // TODO: Implement wallet modal
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Wallet details coming soon')));
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: 16.w),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                mainAxisSize: MainAxisSize.max,
-                children: [
-                  SizedBox(height: 16.h),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: IntrinsicHeight(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          mainAxisSize: MainAxisSize.max,
+                          children: [
+                            SizedBox(height: 16.h),
 
-                  // Top navigation bar
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Settings button
-                      IconButton(
-                        onPressed: () => showProfileSettingsSheet(context),
-                        icon: Icon(
-                          PhosphorIcons.gearSix(),
-                          size: 30.w,
-                          color: const Color(0xFFFF5A76),
+                            // Top navigation bar
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                // Settings button
+                                IconButton(
+                                  onPressed:
+                                      () => showProfileSettingsSheet(context),
+                                  icon: Icon(
+                                    PhosphorIcons.gearSix(),
+                                    size: 30.w,
+                                    color: const Color(0xFFFF5A76),
+                                  ),
+                                ),
+
+                                // Close button
+                                IconButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  icon: PhosphorIcon(
+                                    PhosphorIcons.xCircle(),
+                                    size: 33.w,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            // Profile Header
+                            ProfileHeader(
+                              username: _username,
+                              bio: _bio,
+                              onEditProfile: _onEditProfile,
+                            ),
+
+                            SizedBox(height: 20.h),
+
+                            // Wallet Balance Card
+                            ProfileWalletCard(),
+                          ],
                         ),
-                      ),
 
-                      // Close button
-                      IconButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: PhosphorIcon(
-                          PhosphorIcons.xCircle(),
-                          size: 33.w,
-                          color: Colors.grey.shade600,
+                        Spacer(),
+
+                        // Footer
+                        Center(
+                          child: Text.rich(
+                            TextSpan(
+                              text: 'Chum Bucket v0.0.1 • ',
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey.shade500,
+                              ),
+                              children: [
+                                TextSpan(
+                                  text: 'Privacy Policy',
+                                  style: TextStyle(
+                                    fontSize: 14.sp,
+                                    height: 1.5,
+                                    color: const Color(0xFFFF5A76),
+                                    decoration: TextDecoration.underline,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-
-                  // SizedBox(height: 20.h),
-
-                  // Profile Header
-                  ProfileHeader(
-                    username: _username,
-                    bio: _bio,
-                    onEditProfile: _onEditProfile,
-                  ),
-
-                  SizedBox(height: 20.h),
-
-                  // Wallet Balance Card
-                  ProfileWalletCard(onTap: _showWalletModal),
-                ],
-              ),
-
-              Spacer(),
-
-              // Footer
-              Center(
-                child: Text.rich(
-                  TextSpan(
-                    text: 'Chum Bucket v0.0.1 • ',
-                    style: TextStyle(
-                      fontSize: 14.sp,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey.shade500,
+                      ],
                     ),
-                    children: [
-                      TextSpan(
-                        text: 'Privacy Policy',
-                        style: TextStyle(
-                          fontSize: 14.sp,
-                          height: 1.5,
-                          color: const Color(0xFFFF5A76),
-                          decoration: TextDecoration.underline,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
                   ),
                 ),
-              ),
-            ],
+              );
+            },
           ),
         ),
       ),

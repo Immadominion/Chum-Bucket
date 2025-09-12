@@ -1,8 +1,9 @@
+import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/shared/screens/home/home.dart';
+import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
-import 'package:chumbucket/config/theme/app_theme.dart';
 import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
 import 'package:chumbucket/features/profile/providers/profile_provider.dart';
 import 'package:chumbucket/features/authentication/providers/onboarding_provider.dart';
@@ -242,18 +243,16 @@ class _OtpInputScreenState extends State<OtpInputScreen> {
                                   );
 
                                   if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
+                                    SnackBarUtils.showInfo(
+                                      context,
+                                      title:
+                                          authProvider.errorMessage != null
+                                              ? 'Error'
+                                              : 'Success',
+                                      subtitle:
                                           authProvider.errorMessage != null
                                               ? authProvider.errorMessage!
                                               : 'New code sent to ${widget.email}',
-                                        ),
-                                        backgroundColor:
-                                            authProvider.errorMessage != null
-                                                ? Colors.red
-                                                : null,
-                                      ),
                                     );
                                   }
                                 },

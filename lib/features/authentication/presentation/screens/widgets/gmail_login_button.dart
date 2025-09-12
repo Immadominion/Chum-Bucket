@@ -1,6 +1,7 @@
+import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:chumbucket/config/theme/app_theme.dart';
 import 'package:chumbucket/features/authentication/presentation/screens/email_input_screen.dart';
 
 class EmailLoginButton extends StatelessWidget {
@@ -16,9 +17,11 @@ class EmailLoginButton extends StatelessWidget {
       ).push(MaterialPageRoute(builder: (_) => const EmailInputScreen()));
     } catch (error) {
       // Handle login errors
-      ScaffoldMessenger.of(
+      SnackBarUtils.showError(
         context,
-      ).showSnackBar(SnackBar(content: Text('Login failed: $error')));
+        title: 'Login Error',
+        subtitle: error.toString(),
+      );
     }
   }
 

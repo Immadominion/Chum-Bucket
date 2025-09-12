@@ -1,6 +1,7 @@
 import 'package:chumbucket/features/challenges/presentation/screens/create_challenge_screen/widgets/friend_avatar_section.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/create_challenge_screen/widgets/description_input.dart';
 import 'package:chumbucket/features/challenges/data/challenge_service.dart';
 
@@ -14,6 +15,7 @@ class BetAmountStep extends StatefulWidget {
   final double betAmount;
   final String description;
   final ValueChanged<double> onBetAmountChanged;
+  final VoidCallback? onBackPressed;
 
   BetAmountStep({
     super.key,
@@ -22,6 +24,7 @@ class BetAmountStep extends StatefulWidget {
     required this.betAmount,
     required this.description,
     required this.onBetAmountChanged,
+    this.onBackPressed,
   });
 
   @override
@@ -66,15 +69,18 @@ class _BetAmountStepState extends State<BetAmountStep> {
   Widget build(BuildContext context) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-
       children: [
-        Text(
-          'How much you want to bet',
-          style: TextStyle(
-            fontSize: 20.sp,
-            fontWeight: FontWeight.w600,
-            color: Colors.black,
-          ),
+        Column(
+          children: [
+            Text(
+              'How much you want to bet',
+              style: TextStyle(
+                fontSize: 20.sp,
+                fontWeight: FontWeight.w600,
+                color: Colors.black,
+              ),
+            ),
+          ],
         ),
         FriendAvatarSection(
           friendName: widget.friendName,

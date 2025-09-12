@@ -12,6 +12,9 @@ import 'package:chumbucket/features/authentication/presentation/screens/onboardi
 import 'package:provider/provider.dart';
 import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
 import 'package:chumbucket/features/authentication/providers/onboarding_provider.dart';
+import 'package:chumbucket/features/wallet/providers/wallet_provider.dart';
+import 'package:chumbucket/shared/services/efficient_sync_service.dart';
+import 'package:chumbucket/core/utils/app_logger.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -91,6 +94,9 @@ class _SplashScreenState extends State<SplashScreen>
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (context) => const HomeScreen()),
       );
+
+      // Trigger background sync for logged-in users to load challenges
+      _triggerInitialSync(authProvider);
     } else {
       // For new users, check if onboarding has been completed
       if (hasCompletedOnboarding) {
@@ -103,6 +109,44 @@ class _SplashScreenState extends State<SplashScreen>
           MaterialPageRoute(builder: (context) => const OnboardingScreen()),
         );
       }
+    }
+  }
+
+  // Trigger initial sync when user logs in to load challenges from blockchain
+  Future<void> _triggerInitialSync(AuthProvider authProvider) async {
+    try {
+      AppLogger.info('Triggering initial sync for logged-in user');
+
+      final currentUser = authProvider.currentUser;
+      if (currentUser == null || !mounted) return;
+
+      // Get wallet provider to get wallet address
+      final walletProvider = Provider.of<WalletProvider>(
+        context,
+        listen: false,
+      );
+
+      // Initialize wallet if not already done
+      if (!walletProvider.isInitialized && mounted) {
+        await walletProvider.initializeWallet(context);
+      }
+
+      final walletAddress = walletProvider.walletAddress;
+      if (walletAddress != null) {
+        // Trigger background sync without blocking navigation
+        EfficientSyncService.instance
+            .forceBlockchainSync(
+              userId: currentUser.id,
+              walletAddress: walletAddress,
+            )
+            .catchError((e) {
+              AppLogger.error('Initial sync failed: $e');
+              // Don't block navigation on sync failure
+            });
+      }
+    } catch (e) {
+      AppLogger.error('Error triggering initial sync: $e');
+      // Don't block navigation on errors
     }
   }
 

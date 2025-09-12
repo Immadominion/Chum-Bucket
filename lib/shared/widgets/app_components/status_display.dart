@@ -1,3 +1,4 @@
+import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/shared/models/models.dart';
@@ -187,8 +188,10 @@ class WalletAddressDisplay extends StatelessWidget {
 
   void _copyToClipboard(BuildContext context, String text) {
     // Implementation would use Clipboard.setData
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Address copied to clipboard')),
+    SnackBarUtils.showInfo(
+      context,
+      title: 'Copied',
+      subtitle: 'Address copied to clipboard',
     );
   }
 }

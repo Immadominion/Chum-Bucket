@@ -1,6 +1,6 @@
+import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:chumbucket/config/theme/app_theme.dart';
 import 'package:chumbucket/features/authentication/presentation/screens/onboarding/widgets/terms_and_conditions_dialog.dart';
 
 class QuestionButton extends StatelessWidget {

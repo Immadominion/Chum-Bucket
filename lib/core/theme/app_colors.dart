@@ -5,7 +5,8 @@ import 'package:flutter/material.dart';
 
 class AppColors {
   /// Primary brand colors - Chum Bucket Red
-  static const Color primary = Color(0xFFFF3355); // Your brand red #FF3355
+  static const Color primary = Color(0xFFFF3355); //  brand red #FF3355
+  static const Color lightPrimary = Color(0xFFFF5A76); // light red #FF5A76
   static const Color onPrimary = Color(0xFFFFFFFF);
   static const Color primaryContainer = Color(0xFFFFE5E9);
   static const Color onPrimaryContainer = Color(0xFF3E1114);
@@ -102,6 +103,28 @@ class AppColors {
   /// Special colors with transparency
   static const Color scrim = Color(0x80000000);
   static const Color barrier = Color(0x80000000);
+
+  static const card = Colors.white;
+  static const text = Colors.black;
+  static const secondaryText = Color(0xFF7C7C7C);
+  static const chipBackground = Color(0xFFE0E0FF);
+
+  // Glassmorphism colors
+  static const glassmorphismBackground = Color(0xFF1A1A2E);
+  static const glassmorphismCard = Color(0x40FFFFFF);
+  static const glassmorphismBorder = Color(0x30FFFFFF);
+  static const glassmorphismText = Colors.white;
+  static const glassmorphismSecondaryText = Color(0xB3FFFFFF);
+
+  // Gradient colors for background
+  static const gradientStart = Color(0xFF6366F1);
+  static const gradientMiddle = Color(0xFF8B5CF6);
+  static const gradientEnd = Color(0xFFEC4899);
+
+  // Button colors
+  static const buttonBackground = Color(0x40FFFFFF);
+  static const buttonText = Colors.white;
+  static const skipButtonText = Color(0x80FFFFFF);
 
   /// Gradient colors based on primary
   static const LinearGradient primaryGradient = LinearGradient(

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/shared/models/models.dart';
@@ -60,9 +61,20 @@ class ReceiptModal extends StatelessWidget {
                 Expanded(
                   child: Screenshot(
                     controller: screenshotController,
-                    child: ReceiptContentWidget(
-                      challenge: challenge,
-                      status: status,
+                    child: Container(
+                      // Remove any background color that might cause black space
+                      // Use intrinsic sizing to fit content exactly
+                      child: IntrinsicHeight(
+                        child: IntrinsicWidth(
+                          child: Container(
+                            // Your receipt content here
+                            child: ReceiptContentWidget(
+                              challenge: challenge,
+                              status: status,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -101,9 +113,11 @@ class ReceiptModal extends StatelessWidget {
     } catch (e) {
       Navigator.pop(context);
       if (context.mounted) {
-        ScaffoldMessenger.of(
+        SnackBarUtils.showError(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error sharing receipt: $e')));
+          title: 'Error',
+          subtitle: 'Error sharing receipt: $e',
+        );
       }
     }
   }
@@ -136,9 +150,11 @@ class ReceiptModal extends StatelessWidget {
     } catch (e) {
       Navigator.pop(context);
       if (context.mounted) {
-        ScaffoldMessenger.of(
+        SnackBarUtils.showError(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error creating PDF: $e')));
+          title: 'Error',
+          subtitle: 'Error creating PDF: $e',
+        );
       }
     }
   }

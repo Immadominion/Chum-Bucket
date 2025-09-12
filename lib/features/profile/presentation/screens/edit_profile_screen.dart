@@ -1,5 +1,6 @@
 import 'dart:developer';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
+import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -67,9 +68,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       // Show error only if there's an actual issue
       if (profile == null && profileProvider.errorMessage != null) {
-        ScaffoldMessenger.of(
+        SnackBarUtils.showError(
           context,
-        ).showSnackBar(SnackBar(content: Text(profileProvider.errorMessage!)));
+          title: 'Error',
+          subtitle: profileProvider.errorMessage!,
+        );
       }
     }
   }
@@ -97,8 +100,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       );
 
       if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile updated successfully')),
+        SnackBarUtils.showSuccess(
+          context,
+          title: 'Success',
+          subtitle: 'Profile updated successfully',
         );
 
         final onboardingProvider = Provider.of<OnboardingProvider>(
@@ -113,12 +118,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           MaterialPageRoute(builder: (_) => const HomeScreen()),
         );
       } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              profileProvider.errorMessage ?? 'Failed to update profile',
-            ),
-          ),
+        SnackBarUtils.showError(
+          context,
+          title: 'Error',
+          subtitle: profileProvider.errorMessage ?? 'Failed to update profile',
         );
       }
 

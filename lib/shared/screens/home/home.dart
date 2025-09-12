@@ -1,7 +1,8 @@
+import 'package:chumbucket/config/theme/app_theme.dart';
+import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/challenge_details_screen/challenge_details_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/core/utils/app_logger.dart';
 import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
@@ -14,6 +15,7 @@ import 'package:chumbucket/shared/screens/home/widgets/header.dart';
 import 'package:chumbucket/shared/screens/home/widgets/tab_bar.dart';
 import 'package:chumbucket/shared/screens/home/utils/home_utils.dart';
 import 'package:chumbucket/shared/services/efficient_sync_service.dart';
+import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -34,10 +36,44 @@ class _HomeScreenState extends State<HomeScreen>
     super.initState();
     tabController = TabController(length: 2, vsync: this);
 
-    // Initialize wallet in the background when the app starts
+    // Initialize wallet and load local challenges immediately
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeAuthAndWallet();
+      _loadLocalChallenges(); // Load challenges from database first
     });
+  }
+
+  // Load challenges from local database immediately (offline-first approach)
+  Future<void> _loadLocalChallenges() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+
+      if (currentUser != null) {
+        AppLogger.info(
+          'Loading challenges from local database for immediate display',
+        );
+
+        // Get challenges from local database first (instant UI)
+        await EfficientSyncService.instance.getChallenges(
+          userId: currentUser.id,
+          walletAddress: null, // Don't require wallet for local database access
+        );
+
+        // Force refresh of both tabs to show local challenges
+        if (mounted) {
+          setState(() {
+            _challengesRefreshKey++;
+            _friendsRefreshKey++;
+          });
+        }
+
+        AppLogger.info('Local challenges loaded successfully');
+      }
+    } catch (e) {
+      AppLogger.error('Error loading local challenges: $e');
+      // Don't block UI for local database errors
+    }
   }
 
   // Initialize authentication and wallet in the background
@@ -59,10 +95,54 @@ class _HomeScreenState extends State<HomeScreen>
         if (!walletProvider.isInitialized) {
           await walletProvider.initializeWallet(context);
         }
+
+        // After wallet is ready, try blockchain sync in background (don't block UI)
+        _tryBackgroundSync(authProvider, walletProvider);
       }
     } catch (e) {
       AppLogger.error('Error initializing wallet in home screen: $e');
       // Don't show errors to users here as this is background initialization
+    }
+  }
+
+  // Try blockchain sync in background without blocking UI
+  Future<void> _tryBackgroundSync(
+    AuthProvider authProvider,
+    WalletProvider walletProvider,
+  ) async {
+    try {
+      final currentUser = authProvider.currentUser;
+      final walletAddress = walletProvider.walletAddress;
+
+      if (currentUser != null && walletAddress != null) {
+        AppLogger.info('Attempting background blockchain sync');
+
+        // Try blockchain sync with timeout to prevent hanging
+        await EfficientSyncService.instance
+            .forceBlockchainSync(
+              userId: currentUser.id,
+              walletAddress: walletAddress,
+            )
+            .timeout(
+              const Duration(seconds: 10),
+              onTimeout: () {
+                AppLogger.info(
+                  'Background sync timed out - continuing with local data',
+                );
+              },
+            );
+
+        // Refresh UI if sync succeeded
+        if (mounted) {
+          setState(() {
+            _challengesRefreshKey++;
+            _friendsRefreshKey++;
+          });
+        }
+      }
+    } catch (e) {
+      AppLogger.error('Background sync failed (non-blocking): $e');
+      // Don't show errors to users - app works fine with local data
     }
   }
 
@@ -84,22 +164,41 @@ class _HomeScreenState extends State<HomeScreen>
       final currentUser = authProvider.currentUser;
 
       if (currentUser != null) {
+        // First, refresh local challenges immediately
+        await EfficientSyncService.instance.getChallenges(
+          userId: currentUser.id,
+          walletAddress: null, // Local database doesn't need wallet
+        );
+
+        // Then try blockchain sync with timeout
         String? address = walletProvider.walletAddress;
-        // If wallet not ready, try to initialize it so we can sync
         if (address == null && !walletProvider.isInitialized) {
           await walletProvider.initializeWallet(context);
           address = walletProvider.walletAddress;
         }
 
         if (address != null) {
-          await EfficientSyncService.instance.forceBlockchainSync(
-            userId: currentUser.id,
-            walletAddress: address,
-          );
+          await EfficientSyncService.instance
+              .forceBlockchainSync(
+                userId: currentUser.id,
+                walletAddress: address,
+              )
+              .timeout(
+                const Duration(seconds: 15),
+                onTimeout: () {
+                  AppLogger.info(
+                    'Pull-to-refresh sync timed out - showing local data',
+                  );
+                },
+              );
         }
       }
     } catch (e) {
       AppLogger.error('Home pull-to-refresh error: $e');
+      // Show user-friendly message only for pull-to-refresh failures
+      if (mounted) {
+        SnackBarUtils.showSyncError(context);
+      }
     } finally {
       if (mounted) setState(() => _isRefreshing = false);
     }
@@ -114,54 +213,53 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _onPullToRefresh,
-          color: Theme.of(context).primaryColor,
-          notificationPredicate: (_) => true, // Listen to nested scrollables
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.w),
-            child: Column(
-              children: [
-                homeScreenHeader(context),
-                SizedBox(height: 20.h),
-                HomeScreenTabBar(tabController: tabController),
-                SizedBox(height: 10.h),
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(24.r),
-                        topRight: Radius.circular(24.r),
-                      ),
-                    ),
-                    clipBehavior: Clip.hardEdge,
-                    child: TabBarView(
-                      controller: tabController,
-                      children: [
-                        FriendsTab(
-                          key: ValueKey(_friendsRefreshKey),
-                          createNewChallenge: createNewChallenge,
-                          onFriendSelected: onFriendSelected,
-                          buildViewMoreItem:
-                              (context, remainingCount) =>
-                                  HomeUtils.buildViewMoreItem(
-                                    context,
-                                    remainingCount,
-                                  ),
-                          onViewAllChallenges: () => tabController.animateTo(1),
-                          onMarkChallengeCompleted: _markChallengeCompleted,
-                        ),
-                        ChallengesTab(
-                          refreshKey: _challengesRefreshKey,
-                          onMarkChallengeCompleted: _markChallengeCompleted,
-                        ),
-                      ],
+      backgroundColor: AppColors.background,
+      body: RefreshIndicator(
+        onRefresh: _onPullToRefresh,
+        color: Theme.of(context).primaryColor,
+        notificationPredicate: (_) => true, // Listen to nested scrollables
+        child: Padding(
+          padding: EdgeInsets.only(left: 16.w, right: 16.w, top: 60.h),
+          child: Column(
+            children: [
+              homeScreenHeader(context),
+              SizedBox(height: 20.h),
+              HomeScreenTabBar(tabController: tabController),
+              SizedBox(height: 10.h),
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(24.r),
+                      topRight: Radius.circular(24.r),
                     ),
                   ),
+                  clipBehavior: Clip.hardEdge,
+                  child: TabBarView(
+                    controller: tabController,
+                    children: [
+                      FriendsTab(
+                        key: ValueKey(_friendsRefreshKey),
+                        createNewChallenge: createNewChallenge,
+                        onFriendSelected: onFriendSelected,
+                        buildViewMoreItem:
+                            (context, remainingCount) =>
+                                HomeUtils.buildViewMoreItem(
+                                  context,
+                                  remainingCount,
+                                ),
+                        onViewAllChallenges: () => tabController.animateTo(1),
+                        onMarkChallengeCompleted: _markChallengeCompleted,
+                      ),
+                      ChallengesTab(
+                        refreshKey: _challengesRefreshKey,
+                        onMarkChallengeCompleted: _markChallengeCompleted,
+                      ),
+                    ],
+                  ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -185,63 +283,7 @@ class _HomeScreenState extends State<HomeScreen>
     final walletProvider = Provider.of<WalletProvider>(context, listen: false);
 
     // Show enhanced loading state with branded styling
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Container(
-          padding: EdgeInsets.symmetric(vertical: 4.h),
-          child: Row(
-            children: [
-              Container(
-                width: 20.w,
-                height: 20.w,
-                padding: EdgeInsets.all(2.w),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(10.r),
-                ),
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              ),
-              SizedBox(width: 16.w),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      userWon ? 'Marking as Won...' : 'Marking as Lost...',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16.sp,
-                        color: Colors.white,
-                      ),
-                    ),
-                    SizedBox(height: 2.h),
-                    Text(
-                      'Processing challenge completion',
-                      style: TextStyle(
-                        fontSize: 13.sp,
-                        color: Colors.white.withOpacity(0.9),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        backgroundColor: const Color(0xFFFF5A76),
-        behavior: SnackBarBehavior.floating,
-        margin: EdgeInsets.all(16.w),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16.r),
-        ),
-        duration: Duration(seconds: 10), // Long duration, will be replaced
-        elevation: 8,
-      ),
-    );
+    SnackBarUtils.showChallengeLoading(context, isWinning: userWon);
 
     try {
       final success = await walletProvider.markChallengeCompleted(
@@ -251,7 +293,7 @@ class _HomeScreenState extends State<HomeScreen>
       );
 
       // Remove loading snackbar
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      SnackBarUtils.hide(context);
 
       if (success) {
         // Refresh both tabs so challenges list and friends preview update
@@ -261,191 +303,17 @@ class _HomeScreenState extends State<HomeScreen>
         });
 
         // Show enhanced success message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Container(
-              padding: EdgeInsets.symmetric(vertical: 4.h),
-              child: Row(
-                children: [
-                  Container(
-                    width: 20.w,
-                    height: 20.w,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(10.r),
-                    ),
-                    child: Icon(
-                      userWon
-                          ? PhosphorIcons.smileyWink()
-                          : PhosphorIcons.smileyMeh(),
-                      size: 16.w,
-                      color: Colors.green.shade600,
-                    ),
-                  ),
-                  SizedBox(width: 16.w),
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          userWon ? 'Challenge Won! 🎉' : 'Challenge Lost',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 16.sp,
-                            color: Colors.white,
-                          ),
-                        ),
-                        SizedBox(height: 2.h),
-                        Text(
-                          userWon
-                              ? 'Congratulations on your victory!'
-                              : 'Better luck next time!',
-                          style: TextStyle(
-                            fontSize: 13.sp,
-                            color: Colors.white.withOpacity(0.9),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            backgroundColor: Colors.green.shade600,
-            behavior: SnackBarBehavior.floating,
-            margin: EdgeInsets.all(16.w),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16.r),
-            ),
-            duration: Duration(seconds: 4),
-            elevation: 8,
-          ),
-        );
+        SnackBarUtils.showChallengeSuccess(context, userWon: userWon);
       } else {
         // Show enhanced error message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Container(
-              padding: EdgeInsets.symmetric(vertical: 4.h),
-              child: Row(
-                children: [
-                  Container(
-                    width: 20.w,
-                    height: 20.w,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(10.r),
-                    ),
-                    child: Icon(
-                      Icons.error_outline,
-                      size: 16.w,
-                      color: Colors.red.shade600,
-                    ),
-                  ),
-                  SizedBox(width: 16.w),
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Challenge Update Failed',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 16.sp,
-                            color: Colors.white,
-                          ),
-                        ),
-                        SizedBox(height: 2.h),
-                        Text(
-                          'Please try again in a moment',
-                          style: TextStyle(
-                            fontSize: 13.sp,
-                            color: Colors.white.withOpacity(0.9),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            backgroundColor: Colors.red.shade600,
-            behavior: SnackBarBehavior.floating,
-            margin: EdgeInsets.all(16.w),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16.r),
-            ),
-            duration: Duration(seconds: 4),
-            elevation: 8,
-          ),
-        );
+        SnackBarUtils.showChallengeError(context);
       }
     } catch (e) {
       // Remove loading snackbar
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      SnackBarUtils.hide(context);
 
       // Show enhanced error message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Container(
-            padding: EdgeInsets.symmetric(vertical: 4.h),
-            child: Row(
-              children: [
-                Container(
-                  width: 20.w,
-                  height: 20.w,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10.r),
-                  ),
-                  child: Icon(
-                    Icons.warning_outlined,
-                    size: 16.w,
-                    color: Colors.red.shade600,
-                  ),
-                ),
-                SizedBox(width: 16.w),
-                Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Connection Error',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16.sp,
-                          color: Colors.white,
-                        ),
-                      ),
-                      SizedBox(height: 2.h),
-                      Text(
-                        'Check your connection and try again',
-                        style: TextStyle(
-                          fontSize: 13.sp,
-                          color: Colors.white.withOpacity(0.9),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          backgroundColor: Colors.red.shade600,
-          behavior: SnackBarBehavior.floating,
-          margin: EdgeInsets.all(16.w),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16.r),
-          ),
-          duration: Duration(seconds: 4),
-          elevation: 8,
-        ),
-      );
+      SnackBarUtils.showChallengeError(context, errorMessage: e.toString());
     }
   }
 

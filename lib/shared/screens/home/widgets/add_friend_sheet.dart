@@ -1,3 +1,4 @@
+import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'dart:ui';
@@ -36,11 +37,10 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
     final addressInput = _addressController.text.trim();
 
     if (name.isEmpty || addressInput.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Please fill in all fields'),
-          backgroundColor: Colors.orange.shade600,
-        ),
+     SnackBarUtils.showError(
+        context,
+        title: 'Input Error',
+        subtitle: 'Please enter both name and wallet address/domain',
       );
       return;
     }
@@ -59,20 +59,18 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
       } else if (AddressNameResolver.isSolDomain(addressInput)) {
         walletAddress = await AddressNameResolver.resolveAddress(addressInput);
         if (walletAddress == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Could not resolve $addressInput to a wallet'),
-              backgroundColor: Colors.red.shade600,
-            ),
+          SnackBarUtils.showError(
+            context,
+            title: 'Resolution Error',
+            subtitle: 'Could not resolve $addressInput to a wallet',
           );
           return;
         }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Enter a valid wallet or .sol domain'),
-            backgroundColor: Colors.orange.shade600,
-          ),
+        SnackBarUtils.showError(
+          context,
+          title: 'Input Error',
+          subtitle: 'Enter a valid wallet or .sol domain',
         );
         return;
       }
@@ -86,18 +84,16 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
       widget.onFriendAdded();
       if (mounted) Navigator.pop(context);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$name added as friend!'),
-          backgroundColor: Colors.green.shade600,
-        ),
+      SnackBarUtils.showInfo(
+        context,
+        title: '$name added as friend!',
+        subtitle: 'You can now challenge them to duels',
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error adding friend: $e'),
-          backgroundColor: Colors.red.shade600,
-        ),
+      SnackBarUtils.showError(
+        context,
+        title: 'Error adding friend',
+        subtitle: e.toString(),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);

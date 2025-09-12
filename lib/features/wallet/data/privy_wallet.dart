@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:developer';
 import 'dart:typed_data';
 import 'package:coral_xyz/coral_xyz_anchor.dart';
+import 'package:coral_xyz/src/types/transaction.dart' as types;
 import 'package:privy_flutter/privy_flutter.dart';
 
 /// A dart-coral-xyz Wallet implementation that uses Privy for signing
@@ -26,9 +27,34 @@ class PrivyWallet implements Wallet {
     log('🔑 PrivyWallet: Signing transaction...');
 
     try {
-      // Note: Specific transaction handling temporarily simplified
-      log('✅ PrivyWallet: Transaction signed successfully');
-      return transaction;
+      // Check if this is a Transaction type that we can sign
+      if (transaction is types.Transaction) {
+        // Get the message bytes to sign
+        final messageBytes = transaction.compileMessage();
+
+        log(
+          '📝 PrivyWallet: Compiling transaction message (${messageBytes.length} bytes)',
+        );
+
+        // Sign the message bytes using Privy
+        final signature = await _signMessageBytes(messageBytes);
+
+        log(
+          '✅ PrivyWallet: Transaction message signed, adding signature to transaction',
+        );
+
+        // Add the signature to the transaction
+        transaction.addSignature(_publicKey, signature);
+
+        log('✅ PrivyWallet: Transaction signed successfully');
+        return transaction;
+      } else {
+        // For other transaction types, try to handle generically
+        log(
+          '⚠️ PrivyWallet: Unknown transaction type ${T.toString()}, returning as-is',
+        );
+        return transaction;
+      }
     } catch (e) {
       log('❌ PrivyWallet: Error signing transaction: $e');
       rethrow;

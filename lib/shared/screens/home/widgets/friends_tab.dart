@@ -54,7 +54,9 @@ class _FriendsTabState extends State<FriendsTab> {
     } else {
       // Otherwise, wait for auth to be ready
       print('FriendsTab: Waiting for auth to be ready...');
-      setState(() => isLoading = true);
+      if (mounted) {
+        setState(() => isLoading = true);
+      }
     }
   }
 
@@ -62,10 +64,12 @@ class _FriendsTabState extends State<FriendsTab> {
     if (hasAttemptedLoad) return; // Prevent multiple load attempts
 
     try {
-      setState(() {
-        isLoading = true;
-        hasAttemptedLoad = true;
-      });
+      if (mounted) {
+        setState(() {
+          isLoading = true;
+          hasAttemptedLoad = true;
+        });
+      }
       print('FriendsTab: Starting to load friends...');
 
       // Get current user
@@ -74,7 +78,9 @@ class _FriendsTabState extends State<FriendsTab> {
 
       if (currentUser == null) {
         print('FriendsTab: No current user found');
-        setState(() => isLoading = false);
+        if (mounted) {
+          setState(() => isLoading = false);
+        }
         return;
       }
 
@@ -95,15 +101,19 @@ class _FriendsTabState extends State<FriendsTab> {
         print('  - ${friend['name']} (${friend['walletAddress']})');
       }
 
-      setState(() {
-        friends = uiFriends;
-        isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          friends = uiFriends;
+          isLoading = false;
+        });
+      }
 
       print('FriendsTab: UI updated with ${friends.length} friends');
     } catch (e) {
       print('Error loading friends: $e');
-      setState(() => isLoading = false);
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
     }
   }
 
@@ -149,7 +159,7 @@ class _FriendsTabState extends State<FriendsTab> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    SizedBox(height: 15.h),
+                    // SizedBox(height: 8.h),
                     FriendsGrid(
                       friends: friends,
                       onFriendSelected: (friendName) {
@@ -201,7 +211,6 @@ class _FriendsTabState extends State<FriendsTab> {
                           vertical: 8.h,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
                           borderRadius: BorderRadius.circular(20.r),
                         ),
                         child: Row(

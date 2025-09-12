@@ -1,6 +1,6 @@
+import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:chumbucket/config/theme/app_theme.dart';
 
 class GradientButton extends StatelessWidget {
   final String text;

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:lottie/lottie.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
@@ -97,38 +98,36 @@ class _ChallengesTabState extends State<ChallengesTab> {
             if (challenges.isEmpty) {
               return SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                child: Container(
-                  padding: EdgeInsets.all(32.w),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(26.r),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.grey.withOpacity(0.2),
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const PhosphorIcon(
-                        PhosphorIconsRegular.trophy,
-                        size: 64,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(height: 80.h),
+                    LottieBuilder.asset(
+                      'assets/animations/lottie/done.json',
+                      width: 150.w,
+                      height: 150.w,
+                      fit: BoxFit.contain,
+                    ),
+
+                    SizedBox(height: 16.h),
+                    Text(
+                      'No challenges yet',
+                      style: TextStyle(
                         color: Colors.grey,
+                        fontSize: 18.sp,
+                        fontWeight: FontWeight.bold,
                       ),
-                      SizedBox(height: 16.h),
-                      const Text(
-                        'No challenges yet',
-                        style: TextStyle(color: Colors.grey),
+                    ),
+                    SizedBox(height: 8.h),
+                    Text(
+                      'Create your first challenge!',
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        color: Colors.grey,
+                        fontWeight: FontWeight.bold,
                       ),
-                      SizedBox(height: 8.h),
-                      Text(
-                        'Create your first challenge!',
-                        style: TextStyle(fontSize: 14.sp, color: Colors.grey),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               );
             }

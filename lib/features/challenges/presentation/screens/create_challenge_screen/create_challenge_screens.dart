@@ -8,6 +8,7 @@ import 'package:chumbucket/shared/models/models.dart';
 import 'package:chumbucket/features/wallet/providers/wallet_provider.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/challenge_created_screen.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/create_challenge_screen/widgets/bet_amount_step.dart';
+import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 
 class CreateChallengeScreen extends StatefulWidget {
   final String friendName;
@@ -39,16 +40,10 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
 
   void _nextStep() {
     if (_currentStep == 0 && _descriptionController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Please enter a challenge description',
-            style: TextStyle(
-              fontSize: 18.sp, // Increased font size
-              fontWeight: FontWeight.w600, // Increased weight
-            ),
-          ),
-        ),
+      SnackBarUtils.showError(
+        context,
+        title: 'Description Required',
+        subtitle: 'Please enter a challenge description',
       );
       return;
     }
@@ -58,17 +53,11 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
   }
 
   Future<void> _createChallenge() async {
-    if (_betAmount <= 0 && _currentStep == 1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Please enter a valid bet amount',
-            style: TextStyle(
-              fontSize: 18.sp, // Increased font size
-              fontWeight: FontWeight.w600, // Increased weight
-            ),
-          ),
-        ),
+    if (_betAmount < 0.05 && _currentStep == 1) {
+      SnackBarUtils.showError(
+        context,
+        title: 'Minimum Bet Required',
+        subtitle: 'Minimum bet amount is 0.05 SOL',
       );
       return;
     }
@@ -177,16 +166,15 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: _currentStep == 0,
+      canPop: true, // Allow popping
       onPopInvokedWithResult: (bool didPop, dynamic result) {
-        if (_currentStep != 0) {
+        if (!didPop && _currentStep != 0) {
           // If we're not on the first step, go back to it
           setState(() {
             _currentStep = 0;
           });
-        } else {
-          Navigator.of(context).maybePop();
         }
+        // If we're on the first step, allow normal navigation
       },
       child: GestureDetector(
         onTap: () {
@@ -244,8 +232,13 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
                                         onBetAmountChanged: (value) {
                                           setState(() {
                                             _betAmount = double.parse(
-                                              value.toStringAsFixed(1),
+                                              value.toStringAsFixed(3),
                                             );
+                                          });
+                                        },
+                                        onBackPressed: () {
+                                          setState(() {
+                                            _currentStep = 0;
                                           });
                                         },
                                       ),

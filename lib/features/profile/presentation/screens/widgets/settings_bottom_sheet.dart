@@ -9,6 +9,8 @@ import 'package:chumbucket/features/authentication/presentation/screens/login_sc
 import 'package:chumbucket/features/profile/presentation/screens/widgets/menu_tile.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_buttons.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/wallet_modal.dart';
+import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_settings_sheet.dart';
+import 'dart:ui';
 
 class SettingsBottomSheet extends StatefulWidget {
   const SettingsBottomSheet({Key? key}) : super(key: key);
@@ -56,16 +58,17 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
           Consumer<WalletProvider>(
             builder: (context, walletProvider, _) {
               return MenuTile(
-                icon: CupertinoIcons.creditcard,
-                title: "My Wallet",
+                icon: CupertinoIcons.square_arrow_up,
+                title: "Export Wallet",
                 subtitle:
                     walletProvider.walletAddress != null
-                        ? 'Tap to view with domain resolution' // User can tap to see full resolved address in modal
+                        ? 'Export or copy your wallet details' 
                         : 'Loading...',
-                onTap: () => _showMyWalletModal(context),
+                onTap: () => _showWalletExportWarning(context),
               );
             },
           ),
+          
           MenuTile(
             icon: CupertinoIcons.star_fill,
             title: "Rate Chum Bucket",
@@ -126,33 +129,25 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
     );
   }
 
-  void _showMyWalletModal(BuildContext context) {
-    // Get the wallet provider first to ensure it's available to the modal
-    final walletProvider = Provider.of<WalletProvider>(context, listen: false);
-
-    // Ensure we have the wallet address
-    if (walletProvider.walletAddress == null) {
-      walletProvider.refreshBalance();
-    }
-
+  void _showWalletExportWarning(BuildContext context) {
     // First close the settings sheet
     Navigator.of(context).pop();
 
     // Use a short delay to ensure the context is ready for the next modal
     Future.delayed(const Duration(milliseconds: 100), () {
-      // Then show the wallet modal
+      // Show wallet export warning sheet
       showModalBottomSheet(
         context: context,
         isScrollControlled: true,
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
-        ),
-        builder: (BuildContext modalContext) {
-          // Return the modal with an explicit provider to avoid context issues
-          return ChangeNotifierProvider<WalletProvider>.value(
-            value: walletProvider,
-            child: const WalletModal(),
+        backgroundColor: Colors.transparent,
+        barrierColor: Colors.black.withOpacity(0.5),
+        elevation: 0,
+        builder: (context) {
+          return BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0),
+            child: const SafeArea(
+              child: WalletExportWarningSheet(),
+            ),
           );
         },
       );

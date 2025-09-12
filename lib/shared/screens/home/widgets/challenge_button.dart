@@ -6,6 +6,8 @@ class ChallengeButton extends StatelessWidget {
   final String? label; // optional custom label
   final bool enabled; // allow disabling
   final bool isLoading; // optional loading state
+  final bool hasGradient; // optional gradient background
+  final bool blurRadius; // optional no blur radius
 
   const ChallengeButton({
     super.key,
@@ -13,6 +15,8 @@ class ChallengeButton extends StatelessWidget {
     this.label,
     this.enabled = true,
     this.isLoading = false,
+    this.hasGradient = true,
+    this.blurRadius = true,
   });
 
   @override
@@ -40,15 +44,20 @@ class ChallengeButton extends StatelessWidget {
       width: double.infinity,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16.r),
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFF5A76), Color(0xFFFF3355)],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
+        color:
+            hasGradient ? null : Theme.of(context).colorScheme.primaryContainer,
+        gradient:
+            hasGradient
+                ? const LinearGradient(
+                  colors: [Color(0xFFFF5A76), Color(0xFFFF3355)],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                )
+                : null,
         boxShadow: [
           BoxShadow(
             color: Theme.of(context).colorScheme.primary.withAlpha(75),
-            blurRadius: 8,
+            blurRadius: blurRadius ? 8 : 0,
             offset: const Offset(0, 4),
           ),
         ],
@@ -60,6 +69,7 @@ class ChallengeButton extends StatelessWidget {
           backgroundColor: Colors.transparent,
           disabledBackgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
+
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16.r),
           ),

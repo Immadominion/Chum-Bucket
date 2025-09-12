@@ -62,9 +62,9 @@ class ChallengeStatusWidget extends StatelessWidget {
       case ChallengeStatus.accepted:
       case ChallengeStatus.funded:
       case ChallengeStatus.completed:
-        // Use the done.json animation for completed challenges
+        // Use the success.json animation for completed challenges
         return Lottie.asset(
-          'assets/animations/lottie/done.json',
+          'assets/animations/lottie/success.json',
           width: 200.w,
           height: 200.w,
           fit: BoxFit.contain,

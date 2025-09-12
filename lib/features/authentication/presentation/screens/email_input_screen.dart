@@ -1,4 +1,5 @@
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
+import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -38,13 +39,11 @@ class _EmailInputScreenState extends State<EmailInputScreen> {
         ),
       );
     } else if (mounted && authProvider.errorMessage != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
+      SnackBarUtils.showError(
+        context,
+        title: 'Error',
+        subtitle:
             authProvider.errorMessage ?? 'Failed to send verification code',
-          ),
-          backgroundColor: Colors.red,
-        ),
       );
     }
   }

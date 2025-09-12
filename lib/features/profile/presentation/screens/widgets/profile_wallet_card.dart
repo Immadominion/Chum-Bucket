@@ -7,160 +7,152 @@ import 'package:chumbucket/core/utils/base_change_notifier.dart'
     show LoadingState;
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/wallet_modal.dart';
-import 'package:chumbucket/features/profile/presentation/screens/widgets/cash_out_modal.dart';
+import 'package:chumbucket/features/profile/presentation/screens/widgets/send_sol_sheet.dart';
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
 
 /// Redesigned wallet balance card following the app's design system
 class ProfileWalletCard extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const ProfileWalletCard({super.key, required this.onTap});
+  const ProfileWalletCard({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: EdgeInsets.all(20.w),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(26.r),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.2),
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header row with wallet icon and title
-            Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(8.w),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFFF5A76), Color(0xFFFF3355)],
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                    ),
-                    borderRadius: BorderRadius.circular(12.r),
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(20.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(26.r),
+        boxShadow: [
+          BoxShadow(color: Colors.grey.withOpacity(0.2), offset: Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header row with wallet icon and title
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(8.w),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFF5A76), Color(0xFFFF3355)],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
                   ),
-                  child: Icon(
-                    PhosphorIcons.wallet(),
-                    size: 20.w,
-                    color: Colors.white,
-                  ),
+                  borderRadius: BorderRadius.circular(12.r),
                 ),
-                SizedBox(width: 12.w),
-                Text(
-                  'Wallet Balance',
-                  style: TextStyle(
-                    fontSize: 18.sp,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black87,
-                  ),
+                child: Icon(
+                  PhosphorIcons.wallet(),
+                  size: 20.w,
+                  color: Colors.white,
                 ),
-              ],
-            ),
+              ),
+              SizedBox(width: 12.w),
+              Text(
+                'Wallet Balance',
+                style: TextStyle(
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
 
-            SizedBox(height: 16.h),
+          SizedBox(height: 16.h),
 
-            // Balance display
-            Consumer<WalletProvider>(
-              builder: (context, walletProvider, _) {
-                if (walletProvider.loadingState == LoadingState.loading) {
-                  return Row(
-                    children: [
-                      SizedBox(
-                        width: 20.w,
-                        height: 20.w,
-                        child: CircularProgressIndicator(
-                          color: const Color(0xFFFF5A76),
-                          strokeWidth: 2.w,
-                        ),
-                      ),
-                      SizedBox(width: 8.w),
-                      Text(
-                        'Loading...',
-                        style: TextStyle(
-                          fontSize: 28.sp,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.black54,
-                        ),
-                      ),
-                    ],
-                  );
-                }
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          // Balance display
+          Consumer<WalletProvider>(
+            builder: (context, walletProvider, _) {
+              if (walletProvider.loadingState == LoadingState.loading) {
+                return Row(
                   children: [
-                    // Main balance
+                    SizedBox(
+                      width: 20.w,
+                      height: 20.w,
+                      child: CircularProgressIndicator(
+                        color: const Color(0xFFFF5A76),
+                        strokeWidth: 2.w,
+                      ),
+                    ),
+                    SizedBox(width: 8.w),
                     Text(
-                      '${walletProvider.balance.toStringAsFixed(4)} SOL',
+                      'Loading...',
                       style: TextStyle(
                         fontSize: 28.sp,
                         fontWeight: FontWeight.w700,
-                        color: Colors.black87,
+                        color: Colors.black54,
                       ),
-                    ),
-                    SizedBox(height: 4.h),
-                    // Wallet address (shortened) and disclaimer
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (walletProvider.walletAddress != null)
-                          ResolvedAddressText(
-                            addressOrLabel: walletProvider.walletAddress!,
-                            style: TextStyle(
-                              fontSize: 14.sp,
-                              color: Colors.grey.shade600,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            maxLines: 1,
-                          ),
-                        SizedBox(height: 8.h),
-                        Text(
-                          "All funds are stored in Solana. Amount may fluctuate.",
-                          style: TextStyle(
-                            fontSize: 12.sp,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.grey.shade500,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    SizedBox(height: 20.h),
-
-                    // Action buttons
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ChallengeButton(
-                            createNewChallenge: () => showCashOutModal(context),
-                            label: 'Send SOL',
-                          ),
-                        ),
-                        SizedBox(width: 12.w),
-                        Expanded(
-                          child: _buildSecondaryButton(
-                            'Add SOL',
-                            () => showWalletModal(context),
-                          ),
-                        ),
-                      ],
                     ),
                   ],
                 );
-              },
-            ),
-          ],
-        ),
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Main balance
+                  Text(
+                    '${walletProvider.balance.toStringAsFixed(4)} SOL',
+                    style: TextStyle(
+                      fontSize: 28.sp,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  SizedBox(height: 4.h),
+                  // Wallet address (shortened) and disclaimer
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (walletProvider.walletAddress != null)
+                        ResolvedAddressText(
+                          addressOrLabel: walletProvider.walletAddress!,
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 1,
+                        ),
+                      SizedBox(height: 8.h),
+                      Text(
+                        "All funds are stored in Solana. Amount may fluctuate.",
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: 20.h),
+
+                  // Action buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ChallengeButton(
+                          createNewChallenge: () => showSendSolSheet(context),
+                          label: 'Withdraw',
+                        ),
+                      ),
+                      SizedBox(width: 12.w),
+                      Expanded(
+                        child: _buildSecondaryButton(
+                          'Add SOL',
+                          () => showWalletModal(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
       ),
     );
   }

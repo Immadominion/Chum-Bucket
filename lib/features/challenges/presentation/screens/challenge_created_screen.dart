@@ -57,6 +57,8 @@ class _ChallengeStateScreenState extends State<ChallengeStateScreen> {
                     child: ChallengeButton(
                       createNewChallenge: () => _showReceiptModal(context),
                       label: 'Share Receipt',
+                      hasGradient: false,
+                      blurRadius: false,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -69,6 +71,7 @@ class _ChallengeStateScreenState extends State<ChallengeStateScreen> {
                           context,
                         ).popUntil((route) => route.isFirst),
                     label: 'Done',
+                    blurRadius: false,
                   ),
                 ),
               ],
