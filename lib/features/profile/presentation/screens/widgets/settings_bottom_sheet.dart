@@ -1,4 +1,3 @@
-import 'package:chumbucket/shared/screens/database_test_screen.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -8,7 +7,6 @@ import 'package:chumbucket/features/wallet/providers/wallet_provider.dart';
 import 'package:chumbucket/features/authentication/presentation/screens/login_screen.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/menu_tile.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_buttons.dart';
-import 'package:chumbucket/features/profile/presentation/screens/widgets/wallet_modal.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_settings_sheet.dart';
 import 'dart:ui';
 

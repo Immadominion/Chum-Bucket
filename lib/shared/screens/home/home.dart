@@ -39,7 +39,7 @@ class _HomeScreenState extends State<HomeScreen>
     // Initialize wallet and load local challenges immediately
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeAuthAndWallet();
-      _loadLocalChallenges(); // Load challenges from database first
+      _onPullToRefresh(); // Load challenges from database first
     });
   }
 

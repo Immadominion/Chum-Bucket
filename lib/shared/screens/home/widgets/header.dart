@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:chumbucket/features/profile/presentation/screens/profile_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
 import 'package:chumbucket/features/profile/providers/profile_provider.dart';
+import 'package:chumbucket/features/wallet/providers/wallet_provider.dart';
+import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 
 Widget homeScreenHeader(BuildContext context) {
   return Padding(
@@ -80,13 +83,31 @@ Widget homeScreenHeader(BuildContext context) {
           ),
         ),
         Spacer(),
-        Text(
-          'Wallet',
-          style: TextStyle(
-            fontSize: 16.sp,
-            fontWeight: FontWeight.w600,
-            color: Colors.black,
-          ),
+        Consumer<WalletProvider>(
+          builder: (context, walletProvider, child) {
+            return GestureDetector(
+              onTap: () async {
+                if (walletProvider.walletAddress != null) {
+                  await Clipboard.setData(
+                    ClipboardData(text: walletProvider.walletAddress!),
+                  );
+                  SnackBarUtils.showSuccess(
+                    context,
+                    title: 'Copied!',
+                    subtitle: 'Wallet address copied to clipboard',
+                  );
+                }
+              },
+              child: Text(
+                'Wallet',
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
+                ),
+              ),
+            );
+          },
         ),
       ],
     ),

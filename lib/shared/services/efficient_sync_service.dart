@@ -633,6 +633,7 @@ class EfficientSyncService {
         'participant_email': challenge.participantEmail ?? '',
         'title': challenge.title,
         'description': challenge.description,
+        'amount': challenge.amount, // Fill the NOT NULL amount column
         'amount_sol': challenge.amount,
         'platform_fee_sol': challenge.platformFee,
         'winner_amount_sol': challenge.winnerAmount,
