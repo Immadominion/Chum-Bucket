@@ -1,3 +1,5 @@
+export 'wallet_export_result.dart';
+
 class Friend {
   final String id;
   final String name;

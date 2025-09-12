@@ -1,9 +1,11 @@
+import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import 'dart:ui';
 import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
@@ -11,6 +13,7 @@ import 'package:chumbucket/features/profile/presentation/screens/widgets/profile
 import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
 import 'package:chumbucket/features/authentication/presentation/screens/login_screen.dart';
 import 'package:chumbucket/features/wallet/providers/wallet_provider.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Settings modal sheet following the app's design conventions
 class ProfileSettingsSheet extends StatelessWidget {
@@ -142,10 +145,10 @@ class ProfileSettingsSheet extends StatelessWidget {
                                 title: 'My Wallet',
                                 subtitle:
                                     walletProvider.walletAddress != null
-                                        ? 'Manage your wallet settings'
+                                        ? 'Export your private key'
                                         : 'Loading...',
                                 iconColor: const Color(0xFFFF5A76),
-                                onTap: () => _showWalletManagementSheet(context),
+                                onTap: () => _showExportWarning(context),
                               );
                             },
                           ),
@@ -174,7 +177,7 @@ class ProfileSettingsSheet extends StatelessWidget {
                             isDanger: true,
                             onTap: () {},
                           ),
-                          
+
                           SizedBox(height: 16.h),
                         ],
                       ),
@@ -224,238 +227,18 @@ class ProfileSettingsSheet extends StatelessWidget {
     );
   }
 
-  /// Open Tawk.to support chat
-  void _openTawkToSupport(BuildContext context) async {
-    final url = Uri.parse('https://tawk.to/chat/68c3692a2d363c192cbaaea5/1j4tl5k2i');
-    
-    try {
-      if (await canLaunchUrl(url)) {
-        await launchUrl(url, mode: LaunchMode.externalApplication);
-      } else {
-        // Show error message if URL can't be launched
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Unable to open support chat. Please try again later.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      // Show error message on exception
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error opening support chat. Please try again later.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  /// Show wallet management options sheet
-  void _showWalletManagementSheet(BuildContext context) {
-    // TODO: Implement wallet management sheet
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withOpacity(0.5),
-      elevation: 0,
-      builder: (context) {
-        return BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0),
-          child: SafeArea(child: WalletManagementSheet()),
-        );
-      },
-    );
-  }
-}
-
-/// Wallet Management Sheet for wallet export/copy functionality
-class WalletManagementSheet extends StatelessWidget {
-  const WalletManagementSheet({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    // Calculate responsive height
-    final screenHeight = MediaQuery.of(context).size.height;
-    final maxHeight = screenHeight * 0.85;
-    final minHeight = 400.h;
-    final preferredHeight = 450.h;
-    final finalHeight = preferredHeight.clamp(minHeight, maxHeight);
-
-    return Container(
-      height: finalHeight,
-      margin: EdgeInsets.symmetric(horizontal: 12.w),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(43.r),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.15),
-            offset: const Offset(0, 8),
-            blurRadius: 24,
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          Column(
-            children: [
-              // Header with gradient background and wave
-              Container(
-                height: 200.h.clamp(160.h, maxHeight * 0.35),
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(43.r),
-                    topRight: Radius.circular(43.r),
-                  ),
-                ),
-                child: Stack(
-                  children: [
-                    // Gradient header
-                    Container(
-                      width: double.infinity,
-                      height: 200.h,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFFF5A76), Color(0xFFFF3355)],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                        ),
-                        borderRadius: BorderRadius.only(
-                          topLeft: Radius.circular(43.r),
-                          topRight: Radius.circular(43.r),
-                        ),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(height: 8.h),
-                          // Drag handle
-                          Container(
-                            width: 43.w,
-                            height: 3.2.h,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.3),
-                              borderRadius: BorderRadius.circular(2.r),
-                            ),
-                          ),
-                          SizedBox(height: 24.h),
-                          // Wallet icon
-                          Container(
-                            width: 60.w,
-                            height: 60.w,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(18.r),
-                            ),
-                            child: Icon(
-                              PhosphorIcons.wallet(),
-                              size: 32.w,
-                              color: Colors.white,
-                            ),
-                          ),
-                          SizedBox(height: 12.h),
-                          // Title
-                          Text(
-                            'My Wallet',
-                            style: TextStyle(
-                              fontSize: 24.sp,
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // White wavy section
-                    Positioned(
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      child: ClipPath(
-                        clipper: DetailedWaveClipper(),
-                        child: Container(height: 40.h, color: Colors.white),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          Positioned(
-            top: 120.h,
-            bottom: 0,
-            right: 0,
-            left: 0,
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(12.w, 0, 12.w, 0.h),
-              child: Column(
-                children: [
-                  // Menu items
-                  Consumer<WalletProvider>(
-                    builder: (context, walletProvider, _) {
-                      return ProfileMenuItem(
-                        icon: PhosphorIcons.copySimple(),
-                        title: 'Copy Wallet Address',
-                        subtitle: walletProvider.displayAddress ?? 'Loading...',
-                        iconColor: Colors.blue,
-                        onTap:
-                            () => _copyWalletAddress(context, walletProvider),
-                      );
-                    },
-                  ),
-
-                  ProfileMenuItem(
-                    icon: PhosphorIcons.download(),
-                    title: 'Export Wallet',
-                    subtitle: 'Export your secret phrase',
-                    iconColor: Colors.orange,
-                    onTap: () => _showExportWarning(context),
-                  ),
-
-                  const Spacer(),
-
-                  // Close button
-                  ChallengeButton(
-                    createNewChallenge: () => Navigator.pop(context),
-                    label: 'Close',
-                    hasGradient: false,
-                  ),
-
-                  SizedBox(height: 8.h),
-                ],
-              ),
-            ),
-          ),
-        ],
+  /// Open Tawk.to support chat in-app
+  void _openTawkToSupport(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const InAppSupportScreen(),
+        fullscreenDialog: true,
       ),
     );
   }
 
-  void _copyWalletAddress(BuildContext context, WalletProvider walletProvider) {
-    if (walletProvider.walletAddress != null) {
-      Clipboard.setData(ClipboardData(text: walletProvider.walletAddress!));
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Wallet address copied to clipboard'),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          margin: EdgeInsets.all(16.w),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8.r),
-          ),
-        ),
-      );
-    }
-  }
+  /// Wallet Management Sheet for wallet export/copy functionality
 
   void _showExportWarning(BuildContext context) {
     Navigator.pop(context); // Close current sheet
@@ -476,8 +259,16 @@ class WalletManagementSheet extends StatelessWidget {
 }
 
 /// Warning sheet for wallet export
-class WalletExportWarningSheet extends StatelessWidget {
+class WalletExportWarningSheet extends StatefulWidget {
   const WalletExportWarningSheet({super.key});
+
+  @override
+  State<WalletExportWarningSheet> createState() =>
+      _WalletExportWarningSheetState();
+}
+
+class _WalletExportWarningSheetState extends State<WalletExportWarningSheet> {
+  bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -485,7 +276,7 @@ class WalletExportWarningSheet extends StatelessWidget {
     final screenHeight = MediaQuery.of(context).size.height;
     final maxHeight = screenHeight * 0.85;
     final minHeight = 350.h;
-    final preferredHeight = 400.h;
+    final preferredHeight = 500.h;
     final finalHeight = preferredHeight.clamp(minHeight, maxHeight);
 
     return Container(
@@ -548,23 +339,16 @@ class WalletExportWarningSheet extends StatelessWidget {
                           ),
                           SizedBox(height: 24.h),
                           // Warning icon
-                          Container(
-                            width: 60.w,
-                            height: 60.w,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(18.r),
-                            ),
-                            child: Icon(
-                              PhosphorIcons.warning(),
-                              size: 32.w,
-                              color: Colors.white,
-                            ),
+                          Icon(
+                            PhosphorIcons.smileyNervous(),
+                            size: 80.w,
+                            color: AppColors.challengeFailed,
                           ),
+
                           SizedBox(height: 12.h),
                           // Title
                           Text(
-                            'Export Wallet?',
+                            'Export Wallet 💀',
                             style: TextStyle(
                               fontSize: 24.sp,
                               color: Colors.white,
@@ -591,7 +375,7 @@ class WalletExportWarningSheet extends StatelessWidget {
             ],
           ),
           Positioned(
-            top: 100.h,
+            top: 160.h,
             bottom: 0,
             right: 0,
             left: 0,
@@ -623,11 +407,46 @@ class WalletExportWarningSheet extends StatelessWidget {
                   const Spacer(),
 
                   // Action buttons
-                  ChallengeButton(
-                    createNewChallenge: () => _showExportNotAvailable(context),
-                    label: 'Export Wallet',
-                    hasGradient: true,
-                  ),
+                  _isLoading
+                      ? Container(
+                        width: double.infinity,
+                        height: 56.h,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFFF5A76), Color(0xFFFF3355)],
+                          ),
+                          borderRadius: BorderRadius.circular(28.r),
+                        ),
+                        child: Center(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                              SizedBox(width: 12.w),
+                              Text(
+                                'Exporting...',
+                                style: TextStyle(
+                                  fontSize: 17.sp,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                      : ChallengeButton(
+                        createNewChallenge: _attemptWalletExport,
+                        label: 'Export Wallet',
+                        hasGradient: true,
+                      ),
 
                   SizedBox(height: 8.h),
 
@@ -653,8 +472,73 @@ class WalletExportWarningSheet extends StatelessWidget {
     );
   }
 
-  void _showExportNotAvailable(BuildContext context) {
-    Navigator.pop(context); // Close warning sheet
+  Future<void> _attemptWalletExport() async {
+    if (_isLoading) return;
+
+    Navigator.pop(context);
+    SnackBarUtils.showInfo(
+      context,
+      title: 'Coming Soon...',
+      subtitle: 'This feature is under development.',
+    );
+
+    //TODO: Work on wallet export functionality
+    // setState(() {
+    //   _isLoading = true;
+    // });
+
+    // try {
+    //   final walletProvider = Provider.of<WalletProvider>(
+    //     context,
+    //     listen: false,
+    //   );
+
+    //   final walletAddress = walletProvider.walletAddress;
+    //   if (walletAddress == null) {
+    //     throw Exception('No wallet address available');
+    //   }
+
+    //   // Simulate wallet export attempt (since Privy may not allow direct export)
+    //   await Future.delayed(const Duration(seconds: 2));
+
+    //   if (!mounted) return;
+
+    //   // For now, show that full export is not available but address can be copied
+    //   Navigator.pop(context);
+    //   await Future.delayed(const Duration(milliseconds: 100));
+
+    //   if (mounted) {
+    //     _showWalletCopyOptions(context);
+    //   }
+    // } catch (e) {
+    //   if (!mounted) return;
+
+    //   ScaffoldMessenger.of(context).showSnackBar(
+    //     SnackBar(
+    //       content: Text('Export failed: $e'),
+    //       backgroundColor: Colors.red,
+    //     ),
+    //   );
+
+    //   // Close current sheet and show address copy as fallback
+    //   Navigator.pop(context);
+    //   await Future.delayed(const Duration(milliseconds: 100));
+
+    //   if (mounted) {
+    //     _showWalletCopyOptions(context);
+    //   }
+    // } finally {
+    //   if (mounted) {
+    //     setState(() {
+    //       _isLoading = false;
+    //     });
+    //   }
+    // }
+  }
+
+  void _showWalletCopyOptions(BuildContext context) {
+    final walletProvider = Provider.of<WalletProvider>(context, listen: false);
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -664,9 +548,221 @@ class WalletExportWarningSheet extends StatelessWidget {
       builder: (context) {
         return BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0),
-          child: const SafeArea(child: WalletExportNotAvailableSheet()),
+          child: SafeArea(
+            child: WalletCopySheet(
+              walletAddress:
+                  walletProvider.walletAddress ?? 'No address available',
+            ),
+          ),
         );
       },
+    );
+  }
+}
+
+/// Sheet for copying wallet address (alternative to full export)
+class WalletCopySheet extends StatelessWidget {
+  final String walletAddress;
+
+  const WalletCopySheet({super.key, required this.walletAddress});
+
+  @override
+  Widget build(BuildContext context) {
+    // Calculate responsive height
+    final screenHeight = MediaQuery.of(context).size.height;
+    final maxHeight = screenHeight * 0.85;
+    final minHeight = 350.h;
+    final preferredHeight = 550.h;
+    final finalHeight = preferredHeight.clamp(minHeight, maxHeight);
+
+    return Container(
+      height: finalHeight,
+      margin: EdgeInsets.symmetric(horizontal: 12.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(43.r),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.15),
+            offset: const Offset(0, 8),
+            blurRadius: 24,
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Column(
+            children: [
+              // Header with gradient background and wave
+              Container(
+                height: 180.h.clamp(140.h, maxHeight * 0.35),
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(43.r),
+                    topRight: Radius.circular(43.r),
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    // Success gradient header
+                    Container(
+                      width: double.infinity,
+                      height: 180.h,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Colors.green, Colors.teal],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(43.r),
+                          topRight: Radius.circular(43.r),
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(height: 8.h),
+                          // Drag handle
+                          Container(
+                            width: 43.w,
+                            height: 3.2.h,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.3),
+                              borderRadius: BorderRadius.circular(2.r),
+                            ),
+                          ),
+                          SizedBox(height: 24.h),
+                          // Copy icon
+                          Icon(
+                            PhosphorIcons.copy(),
+                            size: 80.w,
+                            color: Colors.white,
+                          ),
+                          SizedBox(height: 12.h),
+                          // Title
+                          Text(
+                            'Wallet Address',
+                            style: TextStyle(
+                              fontSize: 24.sp,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // White wavy section
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: ClipPath(
+                        clipper: DetailedWaveClipper(),
+                        child: Container(height: 40.h, color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          Positioned(
+            top: 160.h,
+            bottom: 0,
+            right: 0,
+            left: 0,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(24.w, 0, 24.w, 24.h),
+              child: Column(
+                children: [
+                  SizedBox(height: 20.h),
+                  Text(
+                    'Your Wallet Address',
+                    style: TextStyle(
+                      fontSize: 18.sp,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: 16.h),
+
+                  // Wallet address display
+                  Container(
+                    padding: EdgeInsets.all(16.w),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(12.r),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: SelectableText(
+                      walletAddress,
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        fontFamily: 'monospace',
+                        color: Colors.black87,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+
+                  SizedBox(height: 16.h),
+
+                  Text(
+                    'Full wallet export is not available through the mobile app for security reasons. You can copy your address above.',
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      color: Colors.grey.shade600,
+                      height: 1.4,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
+                  const Spacer(),
+
+                  // Copy button
+                  ChallengeButton(
+                    createNewChallenge: () async {
+                      await Clipboard.setData(
+                        ClipboardData(text: walletAddress),
+                      );
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Wallet address copied to clipboard'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
+                    },
+                    label: 'Copy Address',
+                    hasGradient: false,
+                  ),
+
+                  SizedBox(height: 8.h),
+
+                  // Close button
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(
+                      'Close',
+                      style: TextStyle(
+                        fontSize: 17.sp,
+                        color: const Color(0xFFFF5A76),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 8.h),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -681,7 +777,7 @@ class WalletExportNotAvailableSheet extends StatelessWidget {
     final screenHeight = MediaQuery.of(context).size.height;
     final maxHeight = screenHeight * 0.85;
     final minHeight = 350.h;
-    final preferredHeight = 400.h;
+    final preferredHeight = 500.h;
     final finalHeight = preferredHeight.clamp(minHeight, maxHeight);
 
     return Container(
@@ -744,18 +840,10 @@ class WalletExportNotAvailableSheet extends StatelessWidget {
                           ),
                           SizedBox(height: 24.h),
                           // Info icon
-                          Container(
-                            width: 60.w,
-                            height: 60.w,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(18.r),
-                            ),
-                            child: Icon(
-                              PhosphorIcons.info(),
-                              size: 32.w,
-                              color: Colors.white,
-                            ),
+                          Icon(
+                            PhosphorIcons.info(),
+                            size: 80.w,
+                            color: Colors.white,
                           ),
                           SizedBox(height: 12.h),
                           // Title
@@ -787,7 +875,7 @@ class WalletExportNotAvailableSheet extends StatelessWidget {
             ],
           ),
           Positioned(
-            top: 100.h,
+            top: 160.h,
             bottom: 0,
             right: 0,
             left: 0,
@@ -830,6 +918,65 @@ class WalletExportNotAvailableSheet extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// In-app support screen using WebView
+class InAppSupportScreen extends StatefulWidget {
+  const InAppSupportScreen({super.key});
+
+  @override
+  State<InAppSupportScreen> createState() => _InAppSupportScreenState();
+}
+
+class _InAppSupportScreenState extends State<InAppSupportScreen> {
+  bool _isLoading = true;
+  late String tawkToUrl;
+  @override
+  void initState() {
+    super.initState();
+    tawkToUrl = dotenv.env['TAWK_TO_URL'] ?? '';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          'Talk To Support',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24.sp),
+        ),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: Stack(
+        children: [
+          WebView(
+            initialUrl: tawkToUrl,
+            javascriptMode: JavascriptMode.unrestricted,
+            onPageStarted: (String url) {
+              setState(() {
+                _isLoading = true;
+              });
+            },
+            onPageFinished: (String url) {
+              setState(() {
+                _isLoading = false;
+              });
+            },
+          ),
+          if (_isLoading)
+            const Center(
+              child: CircularProgressIndicator(color: Color(0xFFFF5A76)),
+            ),
         ],
       ),
     );

@@ -62,13 +62,13 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                 title: "Export Wallet",
                 subtitle:
                     walletProvider.walletAddress != null
-                        ? 'Export or copy your wallet details' 
+                        ? 'Export or copy your wallet details'
                         : 'Loading...',
                 onTap: () => _showWalletExportWarning(context),
               );
             },
           ),
-          
+
           MenuTile(
             icon: CupertinoIcons.star_fill,
             title: "Rate Chum Bucket",
@@ -145,9 +145,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
         builder: (context) {
           return BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0),
-            child: const SafeArea(
-              child: WalletExportWarningSheet(),
-            ),
+            child: const SafeArea(child: WalletExportWarningSheet()),
           );
         },
       );

@@ -1042,7 +1042,7 @@ class WalletProvider extends BaseChangeNotifier {
       final destinationPublicKey = PublicKey.fromBase58(destinationAddress);
 
       AppLogger.debug('📡 Fetching latest blockhash...', tag: 'WalletProvider');
-      
+
       // Get latest blockhash using solana client
       final blockhashResponse = await _client.rpcClient.getLatestBlockhash();
       final blockhash = blockhashResponse.value.blockhash;
@@ -1063,7 +1063,10 @@ class WalletProvider extends BaseChangeNotifier {
         instructions: [transferInstruction],
       );
 
-      AppLogger.debug('🔐 Signing transaction with Privy wallet...', tag: 'WalletProvider');
+      AppLogger.debug(
+        '🔐 Signing transaction with Privy wallet...',
+        tag: 'WalletProvider',
+      );
 
       // Create PrivyWallet instance for signing
       final privyWallet = PrivyWallet(
@@ -1074,7 +1077,10 @@ class WalletProvider extends BaseChangeNotifier {
       // Sign the transaction
       final signedTransaction = await privyWallet.signTransaction(transaction);
 
-      AppLogger.debug('📡 Broadcasting transaction to network...', tag: 'WalletProvider');
+      AppLogger.debug(
+        '📡 Broadcasting transaction to network...',
+        tag: 'WalletProvider',
+      );
 
       // Serialize the signed transaction
       final serializedTransaction = signedTransaction.serialize();
@@ -1094,48 +1100,61 @@ class WalletProvider extends BaseChangeNotifier {
       );
 
       // Wait for confirmation
-      AppLogger.debug('⏳ Waiting for transaction confirmation...', tag: 'WalletProvider');
-      
+      AppLogger.debug(
+        '⏳ Waiting for transaction confirmation...',
+        tag: 'WalletProvider',
+      );
+
       // Poll for transaction confirmation
       var confirmed = false;
       var attempts = 0;
       const maxAttempts = 30; // 30 seconds timeout
-      
+
       while (!confirmed && attempts < maxAttempts) {
         try {
-          final statusResponse = await _client.rpcClient.getSignatureStatuses([signature]);
+          final statusResponse = await _client.rpcClient.getSignatureStatuses([
+            signature,
+          ]);
           final status = statusResponse.value.first;
-          
+
           if (status != null) {
             if (status.err != null) {
               throw Exception('Transaction failed: ${status.err}');
             }
-            
-            if (status.confirmationStatus.name == 'confirmed' || 
+
+            if (status.confirmationStatus.name == 'confirmed' ||
                 status.confirmationStatus.name == 'finalized') {
               confirmed = true;
               break;
             }
           }
         } catch (e) {
-          AppLogger.debug('Error checking transaction status: $e', tag: 'WalletProvider');
+          AppLogger.debug(
+            'Error checking transaction status: $e',
+            tag: 'WalletProvider',
+          );
         }
-        
+
         attempts++;
         await Future.delayed(const Duration(seconds: 1));
       }
 
       if (!confirmed) {
-        AppLogger.debug('⚠️ Transaction timeout, but signature was sent: $signature', tag: 'WalletProvider');
+        AppLogger.debug(
+          '⚠️ Transaction timeout, but signature was sent: $signature',
+          tag: 'WalletProvider',
+        );
         // Return signature even if we couldn't confirm - user can check explorer
       } else {
         AppLogger.debug('🎉 Transaction confirmed!', tag: 'WalletProvider');
       }
-      
-      return signature;
 
+      return signature;
     } catch (e) {
-      AppLogger.debug('❌ Error creating/sending transaction: $e', tag: 'WalletProvider');
+      AppLogger.debug(
+        '❌ Error creating/sending transaction: $e',
+        tag: 'WalletProvider',
+      );
       rethrow;
     }
   }
