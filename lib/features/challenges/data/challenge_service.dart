@@ -32,11 +32,8 @@ class ChallengeService {
   ChallengeService({required SupabaseClient supabase}) : _supabase = supabase {
     _realtimeService = RealtimeService(supabase: _supabase);
 
-    // Initialize unified database service
-    UnifiedDatabaseService.configure(
-      mode: DatabaseMode.local, // Use local SQLite for development
-      supabase: _supabase,
-    );
+    // Initialize unified database service with Supabase
+    UnifiedDatabaseService.configure(supabase: _supabase);
 
     log(
       'ChallengeService initialized with ${UnifiedDatabaseService.currentMode} database',
@@ -153,11 +150,11 @@ class ChallengeService {
         title: title,
         description: description,
         amountInSol: amountInSol,
-        creatorId: creatorId,
+        creatorPrivyId: creatorId, // Fixed parameter name
         member1Address: member1Address,
         member2Address: member2Address,
         expiresAt: expiresAt,
-        participantEmail: participantEmail,
+        participantEmail: participantEmail ?? '',
         escrowAddress: challengeAddress, // Use challenge address as identifier
         vaultAddress: challengeAddress, // Use challenge address as identifier
         platformFee: platformFee,
@@ -167,10 +164,10 @@ class ChallengeService {
 
       log('📝 Challenge created in database');
       log(
-        '🚨 RETURNING CHALLENGE FROM createChallenge: ${createdChallenge.id}',
+        '🚨 RETURNING CHALLENGE FROM createChallenge: ${createdChallenge?.id}',
       );
 
-      return createdChallenge;
+      return createdChallenge!;
     } catch (e, stackTrace) {
       log('❌ Error creating challenge: $e');
       log('❌ Stack trace: $stackTrace');

@@ -1,6 +1,6 @@
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
-import 'package:chumbucket/shared/services/local_database_service.dart';
+import 'package:chumbucket/shared/services/unified_database_service.dart';
 
 class DatabaseActions {
   static void showClearDatabaseDialog(BuildContext context) {
@@ -20,7 +20,7 @@ class DatabaseActions {
               TextButton(
                 onPressed: () async {
                   try {
-                    await LocalDatabaseService.clearAllData();
+                    await UnifiedDatabaseService.clearAllData();
                     Navigator.pop(context);
                     SnackBarUtils.showInfo(
                       context,

@@ -58,14 +58,18 @@ class Challenge {
   factory Challenge.fromJson(Map<String, dynamic> json) {
     return Challenge(
       id: json['id'] as String,
-      creatorId: json['creator_privy_id'] as String,
+      creatorId: json['creator_privy_id'] as String? ?? 'unknown',
       participantId: json['participant_privy_id'] as String?,
       participantEmail: json['participant_email'] as String?,
       title: json['title'] as String,
       description: json['description'] as String,
-      amount: (json['amount_sol'] as num).toDouble(),
-      platformFee: (json['platform_fee_sol'] as num).toDouble(),
-      winnerAmount: (json['winner_amount_sol'] as num).toDouble(),
+      // Handle both old 'amount' and new 'amount_sol' column names
+      amount: (json['amount_sol'] ?? json['amount'] as num).toDouble(),
+      platformFee:
+          (json['platform_fee_sol'] ?? json['platform_fee'] as num).toDouble(),
+      winnerAmount:
+          (json['winner_amount_sol'] ?? json['winner_amount'] as num)
+              .toDouble(),
       createdAt: DateTime.parse(json['created_at'] as String),
       expiresAt: DateTime.parse(json['expires_at'] as String),
       completedAt:
@@ -76,7 +80,9 @@ class Challenge {
         (e) => e.toString().split('.').last == json['status'],
         orElse: () => ChallengeStatus.pending,
       ),
-      escrowAddress: json['multisig_address'] as String?,
+      escrowAddress:
+          json['multisig_address'] as String? ??
+          json['escrow_address'] as String?,
       vaultAddress: json['vault_address'] as String?,
       winnerId: json['winner_privy_id'] as String?,
       transactionSignature: json['transaction_signature'] as String?,

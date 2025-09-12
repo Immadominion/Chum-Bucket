@@ -11,7 +11,7 @@ import 'package:chumbucket/features/wallet/providers/wallet_provider.dart';
 
 class AuthProvider extends BaseChangeNotifier {
   late final Privy _privy;
-  late final SupabaseClient _supabase;
+  SupabaseClient? _supabase;
   PrivyUser? _currentUser;
   bool _initialized = false;
 
@@ -44,7 +44,7 @@ class AuthProvider extends BaseChangeNotifier {
   PrivyUser? get currentUser => _currentUser;
   bool get isAuthenticated => _currentUser != null;
   bool get isInitialized => _initialized;
-  SupabaseClient get supabase => _supabase;
+  SupabaseClient get supabase => _supabase!;
 
   final String _loggedInKey = 'isLoggedIn';
 
@@ -84,8 +84,8 @@ class AuthProvider extends BaseChangeNotifier {
 
     return runAsync(() async {
       try {
-        // Supabase already initialized in main.dart, just assign client
-        _supabase = Supabase.instance.client;
+        // Supabase already initialized in main.dart, just assign client if not already set
+        _supabase ??= Supabase.instance.client;
 
         // Then initialize Privy
         await _privy.awaitReady();
@@ -218,7 +218,7 @@ class AuthProvider extends BaseChangeNotifier {
       log('Syncing user with privy_id: ${privyUser.id}, email: $email');
 
       // Call the stored procedure
-      await _supabase.rpc(
+      await _supabase!.rpc(
         'sync_user',
         params: {'p_privy_id': privyUser.id, 'p_email': email},
       );
@@ -398,10 +398,15 @@ class AuthProvider extends BaseChangeNotifier {
         final prefs = await SharedPreferences.getInstance();
         await prefs.remove(_loggedInKey);
 
+        // Reset initialization state to allow clean re-initialization
+        _initialized = false;
+        // Note: Keep _supabase connection for reuse
+
         log('User logged out successfully');
       } catch (e) {
         log('Error during logout: ${e.toString()}');
         _currentUser = null;
+        _initialized = false;
         rethrow;
       }
     });
@@ -436,7 +441,7 @@ class AuthProvider extends BaseChangeNotifier {
 
     try {
       final response =
-          await _supabase
+          await _supabase!
               .from('users')
               .select()
               .eq('privy_id', _currentUser!.id)
@@ -456,7 +461,7 @@ class AuthProvider extends BaseChangeNotifier {
     try {
       updates['updated_at'] = DateTime.now().toIso8601String();
 
-      await _supabase
+      await _supabase!
           .from('users')
           .update(updates)
           .eq('privy_id', _currentUser!.id);
@@ -474,6 +479,8 @@ class AuthProvider extends BaseChangeNotifier {
   @override
   Future<void> clearUserData() async {
     await super.clearUserData();
+
+    await _privy.logout();
     _currentUser = null;
     _initialized = false;
     notifyListeners();

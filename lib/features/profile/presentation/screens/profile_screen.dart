@@ -1,4 +1,5 @@
 import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/features/wallet/providers/wallet_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -63,6 +64,12 @@ class _ProfileScreenState extends State<ProfileScreen>
           });
         }
       }
+
+      final walletProvider = Provider.of<WalletProvider>(
+        context,
+        listen: false,
+      );
+      walletProvider.refreshBalance();
     } catch (e) {
       debugPrint('Error loading profile: $e');
     }

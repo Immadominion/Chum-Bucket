@@ -5,8 +5,8 @@
 import 'dart:developer' as dev;
 import 'dart:math';
 import 'package:chumbucket/core/utils/app_logger.dart';
-import 'package:chumbucket/shared/services/local_user_service.dart';
-// import 'package:supabase_flutter/supabase_flutter.dart'; // Temporarily disabled
+// Removed local_user_service import after Supabase migration
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class PersistentProfilePictureService {
@@ -126,10 +126,40 @@ class PersistentProfilePictureService {
 
   static Future<String?> _getProfilePictureFromLocalDB(String privyId) async {
     try {
-      final user = await LocalUserService.getUser(privyId);
-      return user?.profileImageUrl;
+      AppLogger.debug(
+        'Fetching profile picture from Supabase for user: $privyId',
+        tag: 'ProfilePictureService',
+      );
+
+      final response =
+          await Supabase.instance.client
+              .from('users')
+              .select('profile_image_id')
+              .eq('privy_id', privyId)
+              .maybeSingle();
+
+      if (response != null && response['profile_image_id'] != null) {
+        final imageId = response['profile_image_id'] as int;
+        final imagePath = 'assets/images/ai_gen/profile_images/$imageId.png';
+
+        AppLogger.info(
+          'Retrieved profile picture from Supabase: $imagePath (ID: $imageId)',
+          tag: 'ProfilePictureService',
+        );
+
+        return imagePath;
+      }
+
+      AppLogger.debug(
+        'No profile picture found in Supabase for user: $privyId',
+        tag: 'ProfilePictureService',
+      );
+      return null;
     } catch (e) {
-      dev.log('Error fetching profile picture from local DB: $e');
+      AppLogger.error(
+        'Error fetching profile picture from Supabase: $e',
+        tag: 'ProfilePictureService',
+      );
       return null;
     }
   }
@@ -156,17 +186,28 @@ class PersistentProfilePictureService {
         tag: 'ProfilePictureService',
       );
 
-      // TODO: Enable when Supabase integration is ready
-      // await supabase.from('user_profiles').upsert({
-      //   'privy_id': privyId,
-      //   'profile_image_path': profileImagePath,
-      //   'updated_at': DateTime.now().toIso8601String(),
-      // });
+      // Extract the number from the path (e.g., "assets/images/ai_gen/profile_images/3.png" -> 3)
+      final regex = RegExp(r'(\d+)\.png$');
+      final match = regex.firstMatch(profileImagePath);
 
-      AppLogger.info(
-        'Successfully saved profile picture to Supabase (placeholder)',
-        tag: 'ProfilePictureService',
-      );
+      if (match != null) {
+        final imageId = int.parse(match.group(1)!);
+
+        await Supabase.instance.client
+            .from('users')
+            .update({'profile_image_id': imageId})
+            .eq('privy_id', privyId);
+
+        AppLogger.info(
+          'Successfully saved profile picture ID $imageId to Supabase for user: $privyId',
+          tag: 'ProfilePictureService',
+        );
+      } else {
+        AppLogger.warning(
+          'Could not extract image ID from path: $profileImagePath',
+          tag: 'ProfilePictureService',
+        );
+      }
     } catch (e) {
       AppLogger.error(
         'Error saving profile picture to Supabase: $e',
@@ -181,12 +222,14 @@ class PersistentProfilePictureService {
     String profileImagePath,
   ) async {
     try {
-      await LocalUserService.updateUser(privyId, {
-        'profile_image_url': profileImagePath,
-      });
+      // Now handled by Supabase users table via _saveToSupabase
+      AppLogger.debug(
+        'Profile picture saved to Supabase users table instead of local DB',
+        tag: 'ProfilePictureService',
+      );
     } catch (e) {
       AppLogger.error(
-        'Error saving profile picture to local DB: $e',
+        'Error in local DB placeholder: $e',
         tag: 'ProfilePictureService',
       );
       // Don't throw - we want to continue with other storage methods

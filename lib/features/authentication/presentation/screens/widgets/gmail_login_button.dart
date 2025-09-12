@@ -1,4 +1,5 @@
 import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -27,33 +28,10 @@ class EmailLoginButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => _handleGmailLogin(context),
-      child: Container(
-        width: double.infinity, // Full width instead of fixed 330.w
-        constraints: BoxConstraints(maxWidth: 330.w, minWidth: 280.w),
-        padding: EdgeInsets.symmetric(vertical: 12.h),
-        margin: EdgeInsets.symmetric(horizontal: 6.h),
-        decoration: BoxDecoration(
-          color: AppColors.primary,
-          borderRadius: BorderRadius.circular(18.r),
-          border: Border.all(color: AppColors.glassmorphismBorder, width: 1),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              "Continue with Email",
-              style: TextStyle(
-                color: AppColors.buttonText,
-                fontSize: 18.sp, // Reduced from 20.sp for smaller screens
-                fontWeight: FontWeight.w700,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
+    return ChallengeButton(
+      createNewChallenge: () => _handleGmailLogin(context),
+      label: 'Continue with email',
+      blurRadius: false,
     );
   }
 }

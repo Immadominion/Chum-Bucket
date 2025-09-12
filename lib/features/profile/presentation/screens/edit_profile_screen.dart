@@ -136,6 +136,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         leading:
             widget.showCancelIcon
@@ -166,8 +167,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       ),
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 24.w),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.only(
+            left: 24.w,
+            right: 24.w,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24.h,
+          ),
           child: Form(
             key: _formKey,
             child: Column(
@@ -200,7 +205,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     TextFormField(
                       controller: _nameController,
                       decoration: InputDecoration(
-                        hintText: "Enter your full name",
+                        hintText: "Enter your name",
                         hintStyle: TextStyle(
                           color: Theme.of(
                             context,
@@ -300,8 +305,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ),
                   ],
                 ),
-                const Spacer(),
-
+                SizedBox(height: 40.h),
                 ChallengeButton(
                   createNewChallenge: () {
                     if (!_isLoading) {

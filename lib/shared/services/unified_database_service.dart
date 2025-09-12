@@ -1,36 +1,27 @@
 import 'dart:developer' as dev;
 import '../models/models.dart';
-import 'local_database_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-enum DatabaseMode {
-  local,
-  remote,
-  auto, // Use local for development, remote for production
-}
-
+/// Unified database service using Supabase for all operations
+/// Migrated from local SQLite to remote Supabase for production use
 class UnifiedDatabaseService {
-  static DatabaseMode _mode =
-      DatabaseMode.local; // Default to local for development
   static SupabaseClient? _supabase;
 
-  static void configure({
-    required DatabaseMode mode,
-    SupabaseClient? supabase,
-  }) {
-    _mode = mode;
-    _supabase = supabase;
-    dev.log('Database service configured with mode: ${mode.name}');
+  static void configure({required SupabaseClient supabase}) {
+    if (_supabase == null) {
+      _supabase = supabase;
+      dev.log('Database service configured with Supabase');
+    } else {
+      dev.log('Database service already configured, skipping reconfiguration');
+    }
   }
 
-  static bool get isLocal =>
-      _mode == DatabaseMode.local ||
-      (_mode == DatabaseMode.auto && _isInDevelopment());
-
-  static bool _isInDevelopment() {
-    // You can customize this logic based on your needs
-    // For now, assume we're always in development to use local DB
-    return true;
+  // Getter for the configured Supabase client
+  static SupabaseClient get _client {
+    if (_supabase == null) {
+      throw Exception('Database service not configured');
+    }
+    return _supabase!;
   }
 
   // Challenge operations
@@ -38,7 +29,7 @@ class UnifiedDatabaseService {
     required String title,
     required String description,
     required double amountInSol,
-    required String creatorId,
+    required String creatorPrivyId,
     required String member1Address,
     required String member2Address,
     DateTime? expiresAt,
@@ -50,108 +41,57 @@ class UnifiedDatabaseService {
     String? challengeId, // Optional blockchain challenge address to use as ID
   }) async {
     try {
-      final challenge = Challenge(
-        id:
-            challengeId ??
-            '', // Use provided blockchain address or let database generate ID
-        creatorId: creatorId,
-        participantEmail: participantEmail,
-        title: title,
-        description: description,
-        amount: amountInSol,
-        platformFee: platformFee,
-        winnerAmount: winnerAmount,
-        createdAt: DateTime.now(),
-        expiresAt: expiresAt ?? DateTime.now().add(const Duration(days: 7)),
-        status: ChallengeStatus.pending,
-        escrowAddress: escrowAddress,
-        vaultAddress: vaultAddress,
-      );
+      // Get creator user ID from privy_id
+      final creatorResponse =
+          await _client
+              .from('users')
+              .select('id')
+              .eq('privy_id', creatorPrivyId)
+              .maybeSingle();
 
-      if (isLocal) {
-        if (challengeId != null && challengeId.isNotEmpty) {
-          // Use the provided blockchain address as ID
-          final challengeWithId = Challenge(
-            id: challengeId,
-            creatorId: challenge.creatorId,
-            participantId: challenge.participantId,
-            participantEmail: challenge.participantEmail,
-            title: challenge.title,
-            description: challenge.description,
-            amount: challenge.amount,
-            platformFee: challenge.platformFee,
-            winnerAmount: challenge.winnerAmount,
-            createdAt: challenge.createdAt,
-            expiresAt: challenge.expiresAt,
-            completedAt: challenge.completedAt,
-            status: challenge.status,
-            escrowAddress: challenge.escrowAddress,
-            vaultAddress: challenge.vaultAddress,
-            winnerId: challenge.winnerId,
-            transactionSignature: challenge.transactionSignature,
-            feeTransactionSignature: challenge.feeTransactionSignature,
-          );
-          final id = await LocalDatabaseService.insertChallenge(
-            challengeWithId,
-          );
-          final createdChallenge = await LocalDatabaseService.getChallenge(id);
-          if (createdChallenge == null) {
-            throw Exception('Failed to retrieve created challenge');
-          }
-          dev.log('Challenge created locally with blockchain ID: $challengeId');
-          return createdChallenge;
-        } else {
-          // Let database generate ID
-          final id = await LocalDatabaseService.insertChallenge(challenge);
-          final createdChallenge = await LocalDatabaseService.getChallenge(id);
-          if (createdChallenge == null) {
-            throw Exception('Failed to retrieve created challenge');
-          }
-          dev.log('Challenge created locally with generated ID: $id');
-          return createdChallenge;
-        }
-      } else {
-        // Remote Supabase logic
-        if (_supabase == null) {
-          throw Exception('Supabase client not configured for remote mode');
-        }
-
-        final insertData = {
-          'creator_privy_id': challenge.creatorId,
-          'participant_privy_id': challenge.participantId,
-          'participant_email': challenge.participantEmail,
-          'title': challenge.title,
-          'description': challenge.description,
-          'amount': challenge.amount, // Try without _sol suffix
-          'platform_fee': challenge.platformFee,
-          'winner_amount': challenge.winnerAmount,
-          'created_at': challenge.createdAt.toIso8601String(),
-          'expires_at': challenge.expiresAt.toIso8601String(),
-          'completed_at': challenge.completedAt?.toIso8601String(),
-          'status': challenge.status.toString().split('.').last,
-          'multisig_address': challenge.escrowAddress,
-          'vault_address': challenge.vaultAddress,
-          'winner_privy_id': challenge.winnerId,
-          'transaction_signature': challenge.transactionSignature,
-          'fee_transaction_signature': challenge.feeTransactionSignature,
-        };
-
-        // Add ID if provided (for blockchain challenges)
-        if (challengeId != null && challengeId.isNotEmpty) {
-          insertData['id'] = challengeId;
-        }
-
-        final response =
-            await _supabase!
-                .from('challenges')
-                .insert(insertData)
-                .select()
-                .single();
-
-        final createdChallenge = Challenge.fromJson(response);
-        dev.log('Challenge created remotely with ID: ${createdChallenge.id}');
-        return createdChallenge;
+      if (creatorResponse == null) {
+        throw Exception(
+          'Creator user not found with privy_id: $creatorPrivyId',
+        );
       }
+
+      final creatorDbId = creatorResponse['id'];
+
+      final insertData = {
+        'creator_id': creatorDbId,
+        'participant_id':
+            creatorDbId, // Default to creator, updated when participant joins
+        'participant_email': participantEmail ?? '',
+        'title': title,
+        'description': description,
+        'amount': amountInSol, // Fill the NOT NULL amount column
+        'amount_sol': amountInSol,
+        'platform_fee_sol': platformFee,
+        'winner_amount_sol': winnerAmount,
+        'expires_at':
+            (expiresAt ?? DateTime.now().add(const Duration(days: 7)))
+                .toIso8601String(),
+        'status': 'pending',
+        'multisig_address': escrowAddress,
+        'vault_address': vaultAddress,
+        // Store member addresses in metadata since they're not direct columns
+        'metadata':
+            '{"member1Address": "$member1Address", "member2Address": "$member2Address"}',
+      };
+
+      // For blockchain challenges, store the blockchain ID in blockchain_id field, not id
+      if (challengeId != null && challengeId.isNotEmpty) {
+        insertData['blockchain_id'] = challengeId;
+      }
+
+      final response =
+          await _client.from('challenges').insert(insertData).select().single();
+
+      final createdChallenge = Challenge.fromJson(response);
+      dev.log(
+        'Challenge created with ID: ${createdChallenge.id}, Blockchain ID: $challengeId',
+      );
+      return createdChallenge;
     } catch (e) {
       dev.log('Error creating challenge: $e');
       rethrow;
@@ -160,18 +100,10 @@ class UnifiedDatabaseService {
 
   static Future<Challenge?> getChallenge(String id) async {
     try {
-      if (isLocal) {
-        return await LocalDatabaseService.getChallenge(id);
-      } else {
-        if (_supabase == null) {
-          throw Exception('Supabase client not configured for remote mode');
-        }
+      final response =
+          await _client.from('challenges').select().eq('id', id).single();
 
-        final response =
-            await _supabase!.from('challenges').select().eq('id', id).single();
-
-        return Challenge.fromJson(response);
-      }
+      return Challenge.fromJson(response);
     } catch (e) {
       dev.log('Error getting challenge: $e');
       return null;
@@ -182,23 +114,52 @@ class UnifiedDatabaseService {
     String userPrivyId,
   ) async {
     try {
-      if (isLocal) {
-        return await LocalDatabaseService.getChallengesForUser(userPrivyId);
-      } else {
-        if (_supabase == null) {
-          throw Exception('Supabase client not configured for remote mode');
+      // Get user ID from privy_id first
+      final userResponse =
+          await _client
+              .from('users')
+              .select('id')
+              .eq('privy_id', userPrivyId)
+              .maybeSingle();
+
+      if (userResponse == null) {
+        dev.log('User not found with privy_id: $userPrivyId');
+        return [];
+      }
+
+      final userId = userResponse['id'];
+
+      // Query challenges where user is creator or participant
+      final response = await _client
+          .from('challenges')
+          .select(
+            '*, blockchain_id, creator:creator_id(privy_id), participant:participant_id(privy_id), witness:witness_id(privy_id)',
+          )
+          .or('creator_id.eq.$userId,participant_id.eq.$userId')
+          .order('created_at', ascending: false);
+
+      return response.map((json) {
+        // Convert the joined data back to the expected format
+        final challengeData = Map<String, dynamic>.from(json);
+
+        // Map the foreign key relationships back to privy_ids
+        if (challengeData['creator'] != null) {
+          challengeData['creator_privy_id'] =
+              challengeData['creator']['privy_id'];
+        }
+        if (challengeData['participant'] != null) {
+          challengeData['participant_privy_id'] =
+              challengeData['participant']['privy_id'];
         }
 
-        final response = await _supabase!
-            .from('challenges')
-            .select()
-            .or(
-              'creator_privy_id.eq.$userPrivyId,participant_privy_id.eq.$userPrivyId',
-            )
-            .order('created_at', ascending: false);
+        // Map the Supabase column names to what Challenge.fromJson expects
+        challengeData['amount'] = challengeData['amount_sol'];
+        challengeData['platform_fee'] = challengeData['platform_fee_sol'];
+        challengeData['winner_amount'] = challengeData['winner_amount_sol'];
+        challengeData['escrow_address'] = challengeData['multisig_address'];
 
-        return response.map((json) => Challenge.fromJson(json)).toList();
-      }
+        return Challenge.fromJson(challengeData);
+      }).toList();
     } catch (e) {
       dev.log('Error getting challenges for user: $e');
       return [];
@@ -210,26 +171,15 @@ class UnifiedDatabaseService {
     String participantPrivyId,
   ) async {
     try {
-      if (isLocal) {
-        return await LocalDatabaseService.getParticipantWalletAddress(
-          challengeId,
-          participantPrivyId,
-        );
-      } else {
-        if (_supabase == null) {
-          throw Exception('Supabase client not configured for remote mode');
-        }
+      final response =
+          await _client
+              .from('challenge_participants')
+              .select('wallet_address')
+              .eq('challenge_id', challengeId)
+              .eq('user_privy_id', participantPrivyId)
+              .maybeSingle();
 
-        final response =
-            await _supabase!
-                .from('challenge_participants')
-                .select('wallet_address')
-                .eq('challenge_id', challengeId)
-                .eq('user_privy_id', participantPrivyId)
-                .maybeSingle();
-
-        return response?['wallet_address'] as String?;
-      }
+      return response?['wallet_address'] as String?;
     } catch (e) {
       dev.log('Error getting participant wallet address: $e');
       return null;
@@ -241,21 +191,8 @@ class UnifiedDatabaseService {
     Map<String, dynamic> updates,
   ) async {
     try {
-      if (isLocal) {
-        final rowsAffected = await LocalDatabaseService.updateChallenge(
-          id,
-          updates,
-        );
-        return rowsAffected > 0;
-      } else {
-        if (_supabase == null) {
-          throw Exception('Supabase client not configured for remote mode');
-        }
-
-        await _supabase!.from('challenges').update(updates).eq('id', id);
-
-        return true;
-      }
+      await _client.from('challenges').update(updates).eq('id', id);
+      return true;
     } catch (e) {
       dev.log('Error updating challenge: $e');
       return false;
@@ -272,7 +209,7 @@ class UnifiedDatabaseService {
   }) async {
     final updates = <String, dynamic>{
       'status': status,
-      // Note: Local database doesn't have updated_at column, so we don't include it
+      'updated_at': DateTime.now().toIso8601String(),
     };
 
     if (transactionSignature != null) {
@@ -291,22 +228,14 @@ class UnifiedDatabaseService {
   // Platform fee operations
   static Future<String> insertPlatformFee(PlatformFee fee) async {
     try {
-      if (isLocal) {
-        return await LocalDatabaseService.insertPlatformFee(fee);
-      } else {
-        if (_supabase == null) {
-          throw Exception('Supabase client not configured for remote mode');
-        }
+      final response =
+          await _client
+              .from('platform_fees')
+              .insert(fee.toJson())
+              .select()
+              .single();
 
-        final response =
-            await _supabase!
-                .from('platform_fees')
-                .insert(fee.toJson())
-                .select()
-                .single();
-
-        return response['id'] as String;
-      }
+      return response['id'] as String;
     } catch (e) {
       dev.log('Error inserting platform fee: $e');
       rethrow;
@@ -318,24 +247,14 @@ class UnifiedDatabaseService {
     ChallengeTransaction transaction,
   ) async {
     try {
-      if (isLocal) {
-        return await LocalDatabaseService.insertChallengeTransaction(
-          transaction,
-        );
-      } else {
-        if (_supabase == null) {
-          throw Exception('Supabase client not configured for remote mode');
-        }
+      final response =
+          await _client
+              .from('challenge_transactions')
+              .insert(transaction.toJson())
+              .select()
+              .single();
 
-        final response =
-            await _supabase!
-                .from('challenge_transactions')
-                .insert(transaction.toJson())
-                .select()
-                .single();
-
-        return response['id'] as String;
-      }
+      return response['id'] as String;
     } catch (e) {
       dev.log('Error inserting challenge transaction: $e');
       rethrow;
@@ -347,66 +266,286 @@ class UnifiedDatabaseService {
     ChallengeParticipant participant,
   ) async {
     try {
-      if (isLocal) {
-        return await LocalDatabaseService.insertChallengeParticipant(
-          participant,
-        );
-      } else {
-        if (_supabase == null) {
-          throw Exception('Supabase client not configured for remote mode');
-        }
+      final response =
+          await _client
+              .from('challenge_participants')
+              .insert(participant.toJson())
+              .select()
+              .single();
 
-        final response =
-            await _supabase!
-                .from('challenge_participants')
-                .insert(participant.toJson())
-                .select()
-                .single();
-
-        return response['id'] as String;
-      }
+      return response['id'] as String;
     } catch (e) {
       dev.log('Error inserting challenge participant: $e');
       rethrow;
     }
   }
 
-  // Utility methods
-  static Future<void> clearAllData() async {
+  // Friends operations
+  /// Add a friend by their wallet address
+  static Future<bool> addFriend({
+    required String userPrivyId,
+    required String friendName,
+    required String friendWalletAddress,
+  }) async {
     try {
-      if (isLocal) {
-        await LocalDatabaseService.clearAllData();
-      } else {
-        dev.log('Clear all data not implemented for remote database');
+      dev.log(
+        'Adding friend: $friendName ($friendWalletAddress) for user: $userPrivyId',
+      );
+
+      // Get the user's database ID
+      final userResponse =
+          await _client
+              .from('users')
+              .select('id')
+              .eq('privy_id', userPrivyId)
+              .maybeSingle();
+
+      if (userResponse == null) {
+        throw Exception('User not found with privy_id: $userPrivyId');
       }
+
+      final userId = userResponse['id'];
+
+      // Check if friend exists by wallet address, if not create them
+      final existingFriendResponse =
+          await _client
+              .from('users')
+              .select('id')
+              .eq('wallet_address', friendWalletAddress)
+              .maybeSingle();
+
+      int friendId;
+
+      if (existingFriendResponse == null) {
+        // Friend doesn't exist, create a new user record with minimal info
+        final newFriendResponse =
+            await _client
+                .from('users')
+                .insert({
+                  'privy_id':
+                      'wallet_${friendWalletAddress.substring(0, 8)}', // Temporary privy_id
+                  'email':
+                      'wallet_${friendWalletAddress.substring(0, 8)}@temp.com', // Temporary email
+                  'full_name': friendName,
+                  'wallet_address': friendWalletAddress,
+                  'created_at': DateTime.now().toIso8601String(),
+                })
+                .select('id')
+                .single();
+
+        friendId = newFriendResponse['id'];
+        dev.log('Created new user for friend with ID: $friendId');
+      } else {
+        friendId = existingFriendResponse['id'];
+
+        // Update the existing user's name if it's not set
+        final currentUser =
+            await _client
+                .from('users')
+                .select('full_name')
+                .eq('id', friendId)
+                .single();
+
+        if (currentUser['full_name'] == null) {
+          await _client
+              .from('users')
+              .update({'full_name': friendName})
+              .eq('id', friendId);
+        }
+
+        dev.log('Found existing user for friend with ID: $friendId');
+      }
+
+      // Check if friendship already exists (bidirectional)
+      final existingFriendship =
+          await _client
+              .from('friends')
+              .select()
+              .or(
+                'and(user_id.eq.$userId,friend_id.eq.$friendId),and(user_id.eq.$friendId,friend_id.eq.$userId)',
+              )
+              .maybeSingle();
+
+      if (existingFriendship != null) {
+        dev.log(
+          'Friendship already exists between users $userId and $friendId',
+        );
+        return true; // Already friends
+      }
+
+      // Create bidirectional friendship
+      await _client.from('friends').insert([
+        {
+          'user_id': userId,
+          'friend_id': friendId,
+          'status': 'accepted',
+          'created_at': DateTime.now().toIso8601String(),
+        },
+        {
+          'user_id': friendId,
+          'friend_id': userId,
+          'status': 'accepted',
+          'created_at': DateTime.now().toIso8601String(),
+        },
+      ]);
+
+      dev.log(
+        'Successfully added friendship between users $userId and $friendId',
+      );
+      return true;
     } catch (e) {
-      dev.log('Error clearing data: $e');
+      dev.log('Error adding friend: $e');
+      return false;
     }
+  }
+
+  /// Get all friends for a user
+  static Future<List<Map<String, String>>> getUserFriends(
+    String id, {
+    required String userPrivyId,
+  }) async {
+    try {
+      dev.log('Getting friends for user: $userPrivyId');
+
+      // Get user's database ID
+      final userResponse =
+          await _client
+              .from('users')
+              .select('id')
+              .eq('privy_id', userPrivyId)
+              .maybeSingle();
+
+      if (userResponse == null) {
+        throw Exception('User not found with privy_id: $userPrivyId');
+      }
+
+      final userId = userResponse['id'];
+
+      // Get friends with their details
+      final friendsResponse = await _client
+          .from('friends')
+          .select('''
+            friend_id,
+            users!friends_friend_id_fkey(
+              full_name,
+              profile_image_id,
+              wallet_address
+            )
+          ''')
+          .eq('user_id', userId)
+          .eq('status', 'accepted');
+
+      dev.log(
+        'Retrieved ${friendsResponse.length} friends for user $userPrivyId',
+      );
+
+      // Transform the data to the expected format
+      final List<Map<String, String>> friends = [];
+      for (final friendData in friendsResponse) {
+        final friendDetails = friendData['users'] as Map<String, dynamic>;
+
+        // Convert profile_image_id to asset path
+        final profileImageId = friendDetails['profile_image_id'] as int? ?? 1;
+        final imagePath =
+            'assets/images/ai_gen/profile_images/$profileImageId.png';
+
+        final walletAddress = friendDetails['wallet_address'] as String? ?? '';
+        final friendName =
+            friendDetails['full_name'] as String? ?? 'Unknown Friend';
+
+        // Only add friends that have wallet addresses
+        if (walletAddress.isNotEmpty) {
+          friends.add({
+            'name': friendName,
+            'walletAddress': walletAddress,
+            'imagePath': imagePath,
+            'profileImageId': profileImageId.toString(),
+            'avatarColor': '#FF5A76', // Default color
+          });
+          dev.log('Added friend: $friendName ($walletAddress)');
+        } else {
+          dev.log('Skipped friend $friendName - no wallet address');
+        }
+      }
+
+      return friends;
+    } catch (e) {
+      dev.log('Error getting friends: $e');
+      return [];
+    }
+  }
+
+  /// Remove a friend
+  static Future<bool> removeFriend({
+    required String userPrivyId,
+    required String friendWalletAddress,
+  }) async {
+    try {
+      dev.log(
+        'Removing friend with wallet: $friendWalletAddress for user: $userPrivyId',
+      );
+
+      // Get user and friend IDs
+      final userResponse =
+          await _client
+              .from('users')
+              .select('id')
+              .eq('privy_id', userPrivyId)
+              .maybeSingle();
+
+      final friendResponse =
+          await _client
+              .from('users')
+              .select('id')
+              .eq('wallet_address', friendWalletAddress)
+              .maybeSingle();
+
+      if (userResponse == null || friendResponse == null) {
+        dev.log('User or friend not found');
+        return false;
+      }
+
+      final userId = userResponse['id'];
+      final friendId = friendResponse['id'];
+
+      // Remove bidirectional friendship
+      await _client
+          .from('friends')
+          .delete()
+          .or(
+            'and(user_id.eq.$userId,friend_id.eq.$friendId),and(user_id.eq.$friendId,friend_id.eq.$userId)',
+          );
+
+      dev.log(
+        'Successfully removed friendship between users $userId and $friendId',
+      );
+      return true;
+    } catch (e) {
+      dev.log('Error removing friend: $e');
+      return false;
+    }
+  }
+
+  // Utility methods - Supabase doesn't need manual data clearing or stats
+  static Future<void> clearAllData() async {
+    dev.log('Data clearing not available with Supabase (use dashboard)');
   }
 
   static Future<Map<String, int>> getDatabaseStats() async {
     try {
-      if (isLocal) {
-        return await LocalDatabaseService.getDatabaseStats();
-      } else {
-        // Could implement remote stats if needed
-        return {};
-      }
+      // Get basic stats from Supabase
+      final challengeData = await _client.from('challenges').select();
+      final friendsData = await _client.from('friends').select();
+
+      return {
+        'challenges': challengeData.length,
+        'friends': friendsData.length,
+      };
     } catch (e) {
       dev.log('Error getting database stats: $e');
       return {};
     }
   }
 
-  static Future<void> switchToLocal() async {
-    _mode = DatabaseMode.local;
-    dev.log('Switched to local database mode');
-  }
-
-  static Future<void> switchToRemote() async {
-    _mode = DatabaseMode.remote;
-    dev.log('Switched to remote database mode');
-  }
-
-  static String get currentMode => isLocal ? 'Local SQLite' : 'Remote Supabase';
+  static String get currentMode => 'Supabase Remote Database';
 }

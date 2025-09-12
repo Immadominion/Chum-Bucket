@@ -68,12 +68,13 @@ class ProfileHeader extends StatelessWidget {
                     return GestureDetector(
                       onTap: () async {
                         if (snapshot.hasData) {
-                          final selectedPfp = await ProfilePictureSelectionModal.show(
-                            context,
-                            currentProfilePicture: snapshot.data!,
-                          );
-                          
-                          if (selectedPfp != null && selectedPfp != snapshot.data) {
+                          final selectedImageId =
+                              await ProfilePictureSelectionModal.show(
+                                context,
+                                currentProfilePicture: snapshot.data!,
+                              );
+
+                          if (selectedImageId != null) {
                             // Trigger a rebuild by calling setState on parent if available
                             // The FutureBuilder will automatically update with new data
                             (context as Element).markNeedsBuild();
@@ -113,7 +114,7 @@ class ProfileHeader extends StatelessWidget {
                                 ),
                               ),
                               child: Icon(
-                                Icons.edit,
+                                PhosphorIcons.pencilSimple(),
                                 color: Colors.white,
                                 size: 16.w,
                               ),
@@ -148,7 +149,7 @@ class ProfileHeader extends StatelessWidget {
             Container(
               constraints: BoxConstraints(maxWidth: 280.w),
               child: Text(
-                bio,
+                bio == 'null' ? 'Cryptic chad [readacted]' : bio,
                 style: TextStyle(
                   fontSize: 16.sp,
                   color: Colors.black.withOpacity(0.8),

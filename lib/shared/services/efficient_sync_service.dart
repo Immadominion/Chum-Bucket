@@ -3,10 +3,11 @@ import 'dart:async';
 import 'package:chumbucket/shared/models/models.dart';
 import 'package:chumbucket/shared/services/unified_database_service.dart';
 import 'package:chumbucket/shared/services/blockchain_sync_service.dart';
-import 'package:chumbucket/shared/services/local_database_service.dart';
+
 import 'package:solana/solana.dart' as solana;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:uuid/uuid.dart';
 
 /// Efficient local-first sync service that minimizes blockchain calls
 /// Following best practices for web3 apps and mobile performance:
@@ -123,90 +124,101 @@ class EfficientSyncService {
         userId,
       );
 
-      // Persist to local database via UnifiedDatabaseService
+      // Persist to local database via UnifiedDatabaseService with error handling
       for (final c in onChain) {
-        // Try to find an existing challenge by multisig/escrow address
-        Challenge? existing;
-        for (final lc in localChallenges) {
-          if (lc.escrowAddress != null && lc.escrowAddress == c.escrowAddress) {
-            existing = lc;
-            break;
+        try {
+          // Try to find an existing challenge by multisig/escrow address
+          Challenge? existing;
+          for (final lc in localChallenges) {
+            if (lc.escrowAddress != null &&
+                lc.escrowAddress == c.escrowAddress) {
+              existing = lc;
+              break;
+            }
           }
-        }
 
-        // Prefer existing human-authored text over generic on-chain placeholders
-        String titleToUse = c.title;
-        String descToUse = c.description;
-        bool isGenericTitle(String t) {
-          final s = t.trim().toLowerCase();
-          return s == 'on-chain challenge' || s.startsWith('challenge: ');
-        }
-
-        bool isGenericDesc(String d) {
-          final s = d.trim().toLowerCase();
-          return s.startsWith('challenge discovered from blockchain');
-        }
-
-        if (existing != null) {
-          if (isGenericTitle(titleToUse) &&
-              (existing.title).trim().isNotEmpty) {
-            titleToUse = existing.title;
+          // Prefer existing human-authored text over generic on-chain placeholders
+          String titleToUse = c.title;
+          String descToUse = c.description;
+          bool isGenericTitle(String t) {
+            final s = t.trim().toLowerCase();
+            return s == 'on-chain challenge' || s.startsWith('challenge: ');
           }
-          if (isGenericDesc(descToUse) &&
-              (existing.description).trim().isNotEmpty) {
-            descToUse = existing.description;
+
+          bool isGenericDesc(String d) {
+            final s = d.trim().toLowerCase();
+            return s.startsWith('challenge discovered from blockchain');
           }
-        }
 
-        final participantIdToUse = existing?.participantId ?? c.participantId;
-        final participantEmailToUse =
-            existing?.participantEmail ?? c.participantEmail;
+          if (existing != null) {
+            if (isGenericTitle(titleToUse) &&
+                (existing.title).trim().isNotEmpty) {
+              titleToUse = existing.title;
+            }
+            if (isGenericDesc(descToUse) &&
+                (existing.description).trim().isNotEmpty) {
+              descToUse = existing.description;
+            }
+          }
 
-        final updateData = <String, dynamic>{
-          'title': titleToUse,
-          'description': descToUse,
-          // Use local DB schema column names
-          'amount_sol': c.amount,
-          'platform_fee_sol': c.platformFee,
-          'winner_amount_sol': c.winnerAmount,
-          // Do not overwrite creator on update; keep existing DB value
-          if (existing == null) 'creator_privy_id': userId,
-          'participant_privy_id': participantIdToUse,
-          'participant_email': participantEmailToUse,
-          'status': c.status.toString().split('.').last,
-          'created_at': c.createdAt.toIso8601String(),
-          'expires_at': c.expiresAt.toIso8601String(),
-          'multisig_address': c.escrowAddress,
-          'vault_address': c.vaultAddress,
-          'winner_privy_id': c.winnerId,
-        };
+          final participantIdToUse = existing?.participantId ?? c.participantId;
+          final participantEmailToUse =
+              existing?.participantEmail ?? c.participantEmail;
 
-        if (existing != null) {
-          // Update existing row by its ID
-          await UnifiedDatabaseService.updateChallenge(existing.id, updateData);
-        } else {
-          // Insert a new challenge locally using local schema
-          final newChallenge = Challenge(
-            id: c.id,
-            creatorId: userId,
-            participantId: participantIdToUse,
-            participantEmail: participantEmailToUse,
-            title: titleToUse,
-            description: descToUse,
-            amount: c.amount,
-            platformFee: c.platformFee,
-            winnerAmount: c.winnerAmount,
-            createdAt: c.createdAt,
-            expiresAt: c.expiresAt,
-            completedAt: c.completedAt,
-            status: c.status,
-            escrowAddress: c.escrowAddress,
-            vaultAddress: c.vaultAddress,
-            winnerId: c.winnerId,
-            transactionSignature: c.transactionSignature,
-            feeTransactionSignature: c.feeTransactionSignature,
+          if (existing != null) {
+            // Update existing challenge
+            final updateData = <String, dynamic>{
+              'title': titleToUse,
+              'description': descToUse,
+              'amount_sol': c.amount,
+              'platform_fee_sol': c.platformFee,
+              'winner_amount_sol': c.winnerAmount,
+              'participant_privy_id': participantIdToUse,
+              'participant_email': participantEmailToUse,
+              'status': c.status.toString().split('.').last,
+              'expires_at': c.expiresAt.toIso8601String(),
+              'multisig_address': c.escrowAddress,
+              'vault_address': c.vaultAddress,
+              'winner_privy_id': c.winnerId,
+            };
+            await UnifiedDatabaseService.updateChallenge(
+              existing.id,
+              updateData,
+            );
+            AppLogger.debug('Updated existing challenge: ${existing.id}');
+          } else {
+            // Insert a new challenge using upsert for safety
+            final newChallenge = Challenge(
+              id: c.id,
+              creatorId: userId,
+              participantId: participantIdToUse,
+              participantEmail: participantEmailToUse,
+              title: titleToUse,
+              description: descToUse,
+              amount: c.amount,
+              platformFee: c.platformFee,
+              winnerAmount: c.winnerAmount,
+              createdAt: c.createdAt,
+              expiresAt: c.expiresAt,
+              completedAt: c.completedAt,
+              status: c.status,
+              escrowAddress: c.escrowAddress,
+              vaultAddress: c.vaultAddress,
+              winnerId: c.winnerId,
+              transactionSignature: c.transactionSignature,
+              feeTransactionSignature: c.feeTransactionSignature,
+            );
+            // Convert challenge to Supabase format and upsert
+            await _upsertChallengeToSupabase(newChallenge);
+            AppLogger.debug('Upserted new challenge: ${c.id}');
+          }
+        } catch (e) {
+          AppLogger.error(
+            'Failed to sync challenge ${c.id}: $e',
+            tag: 'EfficientSyncService',
           );
-          await LocalDatabaseService.insertChallenge(newChallenge);
+          // Continue processing other challenges instead of failing completely
+          continue;
         }
       }
 
@@ -249,8 +261,8 @@ class EfficientSyncService {
     final shouldSync = _shouldSync(userId, walletAddress, forceSync);
 
     if (shouldSync && walletAddress != null) {
-      // 3. Sync in background (non-blocking)
-      _syncInBackground(userId, walletAddress);
+      // 3. Sync in background (non-blocking) using microtask to prevent UI blocking
+      scheduleMicrotask(() => _syncInBackground(userId, walletAddress));
     }
 
     // 4. Return database results immediately (no blockchain blocking)
@@ -550,5 +562,98 @@ class EfficientSyncService {
       'syncing': _activeSyncs.contains(key),
       'lastSync': _lastSyncTimes[key],
     };
+  }
+
+  /// Helper method to upsert challenge to Supabase with correct schema
+  static Future<void> _upsertChallengeToSupabase(Challenge challenge) async {
+    try {
+      // Check if this is a blockchain challenge with existing blockchain_id
+      final existingResponse =
+          await Supabase.instance.client
+              .from('challenges')
+              .select('id, blockchain_id')
+              .eq('blockchain_id', challenge.id)
+              .maybeSingle();
+
+      String challengeUuid;
+      if (existingResponse != null) {
+        challengeUuid = existingResponse['id'];
+      } else {
+        // Generate new UUID for new challenges
+        challengeUuid = const Uuid().v4();
+      }
+
+      // Get creator user ID from privy_id
+      final creatorResponse =
+          await Supabase.instance.client
+              .from('users')
+              .select('id')
+              .eq('privy_id', challenge.creatorId)
+              .maybeSingle();
+
+      if (creatorResponse == null) {
+        AppLogger.error('Creator not found for challenge ${challenge.id}');
+        return;
+      }
+
+      final creatorDbId = creatorResponse['id'];
+
+      // Get participant user ID (for blockchain challenges, this might be witness)
+      final participantResponse =
+          (challenge.participantId?.isNotEmpty == true)
+              ? await Supabase.instance.client
+                  .from('users')
+                  .select('id')
+                  .eq('privy_id', challenge.participantId!)
+                  .maybeSingle()
+              : null;
+
+      // For blockchain challenges, get witness from stored challenge data
+      // The participantEmail field contains the friend's wallet address for blockchain challenges
+      final witnessResponse =
+          (challenge.id.startsWith('onchain_') &&
+                  challenge.participantEmail?.isNotEmpty == true)
+              ? await Supabase.instance.client
+                  .from('users')
+                  .select('id')
+                  .eq('wallet_address', challenge.participantEmail!)
+                  .maybeSingle()
+              : null;
+
+      final participantDbId = participantResponse?['id'] ?? creatorDbId;
+      final witnessDbId = witnessResponse?['id'];
+
+      final insertData = {
+        'id': challengeUuid,
+        'blockchain_id':
+            challenge.id.startsWith('onchain_') ? challenge.id : null,
+        'creator_id': creatorDbId,
+        'participant_id': participantDbId,
+        'witness_id': witnessDbId,
+        'participant_email': challenge.participantEmail ?? '',
+        'title': challenge.title,
+        'description': challenge.description,
+        'amount_sol': challenge.amount,
+        'platform_fee_sol': challenge.platformFee,
+        'winner_amount_sol': challenge.winnerAmount,
+        'created_at': challenge.createdAt.toIso8601String(),
+        'expires_at': challenge.expiresAt.toIso8601String(),
+        'completed_at': challenge.completedAt?.toIso8601String(),
+        'status': challenge.status.toString().split('.').last,
+        'multisig_address': challenge.escrowAddress,
+        'vault_address': challenge.vaultAddress,
+        'winner_privy_id': challenge.winnerId,
+        'transaction_signature': challenge.transactionSignature,
+        'fee_transaction_signature': challenge.feeTransactionSignature,
+      };
+
+      await Supabase.instance.client.from('challenges').upsert(insertData);
+
+      AppLogger.debug(
+        'Successfully upserted challenge to Supabase: ${challenge.id} -> UUID: $challengeUuid',
+      );
+    } catch (e) {
+      AppLogger.error('Failed to upsert challenge to Supabase: $e');
+    }
   }
 }

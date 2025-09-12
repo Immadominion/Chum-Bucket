@@ -1,4 +1,6 @@
+import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
@@ -92,14 +94,30 @@ class ProfileWalletCard extends StatelessWidget {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Main balance
-                  Text(
-                    '${walletProvider.balance.toStringAsFixed(4)} SOL',
-                    style: TextStyle(
-                      fontSize: 28.sp,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.black87,
-                    ),
+                  // Main balance with reload icon
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(
+                        '${walletProvider.balance.toStringAsFixed(2)} SOL',
+                        style: TextStyle(
+                          fontSize: 28.sp,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      SizedBox(width: 8.w),
+                      GestureDetector(
+                        onTap: () {
+                          walletProvider.refreshBalance();
+                        },
+                        child: Icon(
+                          PhosphorIcons.arrowsClockwise(),
+                          size: 18.w,
+                          color: const Color(0xFFFF5A76),
+                        ),
+                      ),
+                    ],
                   ),
                   SizedBox(height: 4.h),
                   // Wallet address (shortened) and disclaimer
@@ -107,14 +125,45 @@ class ProfileWalletCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (walletProvider.walletAddress != null)
-                        ResolvedAddressText(
-                          addressOrLabel: walletProvider.walletAddress!,
-                          style: TextStyle(
-                            fontSize: 14.sp,
-                            color: Colors.grey.shade600,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          maxLines: 1,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          children: [
+                            Flexible(
+                              child: ResolvedAddressText(
+                                addressOrLabel: walletProvider.walletAddress!,
+                                style: TextStyle(
+                                  fontSize: 14.sp,
+                                  color: Colors.grey.shade600,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                              ),
+                            ),
+                            SizedBox(width: 8.w),
+                            GestureDetector(
+                              onTap: () async {
+                                await Clipboard.setData(
+                                  ClipboardData(
+                                    text: walletProvider.walletAddress!,
+                                  ),
+                                );
+                                if (context.mounted) {
+                                  SnackBarUtils.showInfo(
+                                    context,
+                                    title: 'Wallet Address Copied',
+                                    subtitle:
+                                        'The wallet address has been copied to your clipboard.',
+                                  );
+                                }
+                              },
+                              child: Icon(
+                                PhosphorIcons.copySimple(),
+                                size: 14.w,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            Spacer(),
+                          ],
                         ),
                       SizedBox(height: 8.h),
                       Text(

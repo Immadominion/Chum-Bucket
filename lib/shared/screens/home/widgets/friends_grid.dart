@@ -10,16 +10,21 @@ class FriendsGrid extends StatelessWidget {
   final int maxVisibleFriends; // Maximum friends to show before "View More"
 
   const FriendsGrid({
-    Key? key,
+    super.key,
     required this.friends,
     required this.onFriendSelected,
     required this.buildViewMoreItem,
     this.maxVisibleFriends =
         5, // Default to 5 friends visible (2 rows of 3, minus 1 for view more)
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
+    // If no friends, return minimal height container
+    if (friends.isEmpty) {
+      return SizedBox(height: 10.h);
+    }
+
     final hasMoreFriends = friends.length > maxVisibleFriends;
     final visibleFriends =
         hasMoreFriends ? friends.take(maxVisibleFriends).toList() : friends;

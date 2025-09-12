@@ -16,10 +16,21 @@ class ProfileProvider extends BaseChangeNotifier {
 
   /// Set user's profile picture and save to all storage backends
   Future<bool> setUserPfp(String privyId, String pfpPath) async {
-    return await PersistentProfilePictureService.setUserProfilePicture(
+    final success = await PersistentProfilePictureService.setUserProfilePicture(
       privyId,
       pfpPath,
     );
+
+    if (success) {
+      // Notify listeners so UI updates reactively
+      notifyListeners();
+      AppLogger.info(
+        'Profile picture updated and listeners notified',
+        tag: 'ProfileProvider',
+      );
+    }
+
+    return success;
   }
 
   /// Get a random profile picture from available options

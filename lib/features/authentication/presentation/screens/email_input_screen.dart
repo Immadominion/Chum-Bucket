@@ -3,6 +3,7 @@ import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
 import 'package:chumbucket/features/authentication/presentation/screens/otp_input_screen.dart';
@@ -54,7 +55,7 @@ class _EmailInputScreenState extends State<EmailInputScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: Icon(
-            CupertinoIcons.arrow_left,
+            PhosphorIcons.caretLeft(),
             color: Theme.of(context).colorScheme.primary,
           ),
           onPressed: () => Navigator.of(context).pop(),
@@ -94,7 +95,6 @@ class _EmailInputScreenState extends State<EmailInputScreen> {
                   ThemedTextField(
                     controller: _emailController,
                     hintText: "your@email.com",
-                    labelText: "Email Address",
                     keyboardType: TextInputType.emailAddress,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -110,8 +110,9 @@ class _EmailInputScreenState extends State<EmailInputScreen> {
                   Consumer<AuthProvider>(
                     builder: (context, authProvider, _) {
                       return ChallengeButton(
-                        createNewChallenge:
-                            () => authProvider.isLoading ? null : _submitEmail,
+                        createNewChallenge: () {
+                          authProvider.isLoading ? null : _submitEmail();
+                        },
                         label: "Continue",
                       );
                     },

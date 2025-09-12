@@ -1,6 +1,7 @@
 import 'package:chumbucket/features/challenges/presentation/screens/create_challenge_screen/widgets/action_button.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/create_challenge_screen/widgets/description_step.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/create_challenge_screen/widgets/top_divider.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
@@ -86,16 +87,25 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
     }
 
     try {
-      print('🚨 UI: ABOUT TO CALL walletProvider.createChallenge');
-      print('🔍 UI: Parameters:');
-      print('  - friendEmail: ${widget.friendAddress}');
-      print('  - friendAddress: ${widget.friendAddress}');
-      print('  - amount: $_betAmount');
-      print('  - description: $description');
-      print('  - durationDays: 7');
+      if (kDebugMode) {
+        print('🚨 UI: ABOUT TO CALL walletProvider.createChallenge');
+        print('🔍 UI: Parameters:');
+        print('  - friendEmail: ${widget.friendAddress}');
+        print('  - friendAddress: ${widget.friendAddress}');
+        print('  - amount: $_betAmount');
+        print('  - description: $description');
+        print('  - durationDays: 7');
+      }
+
+      // Validate friend information before creating challenge
+      if (widget.friendAddress.isEmpty) {
+        throw Exception(
+          'Friend wallet address is not found. Please, delete and add again!',
+        );
+      }
 
       final createdChallenge = await walletProvider.createChallenge(
-        friendEmail: widget.friendAddress,
+        friendEmail: widget.friendAddress, // Use address as email for now
         friendAddress: widget.friendAddress,
         amount: _betAmount,
         challengeDescription: description,
@@ -103,9 +113,11 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
         context: context, // Pass context to access AuthProvider
       );
 
-      print(
-        '🚨 UI: walletProvider.createChallenge returned: $createdChallenge',
-      );
+      if (kDebugMode) {
+        print(
+          '🚨 UI: walletProvider.createChallenge returned: $createdChallenge',
+        );
+      }
 
       if (mounted) {
         // Replace the pending screen with the appropriate result screen
@@ -165,6 +177,14 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Debug print constructor parameters
+    if (kDebugMode) {
+      print('🔍 CreateChallengeScreen initialized with:');
+      print('  - friendName: "${widget.friendName}"');
+      print('  - friendAddress: "${widget.friendAddress}"');
+      print('  - friendAvatarColor: "${widget.friendAvatarColor}"');
+    }
+
     return PopScope(
       canPop: true, // Allow popping
       onPopInvokedWithResult: (bool didPop, dynamic result) {

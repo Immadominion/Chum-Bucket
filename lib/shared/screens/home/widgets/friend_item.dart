@@ -12,6 +12,7 @@ Widget buildFriendItem(Map<String, String> friend, onFriendSelected) {
         child: FriendAvatar(
           name: friend['name']!,
           colorHex: friend['avatarColor']!,
+          //To show based on index instead of random
           imagePath: friend['imagePath'],
           onTap: () => onFriendSelected(friend['name']!),
           size: 75.sp, // Reduced from 90.sp

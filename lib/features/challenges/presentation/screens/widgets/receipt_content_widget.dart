@@ -137,15 +137,6 @@ class ReceiptContentWidget extends StatelessWidget {
       ]);
     }
 
-    // Note: Challenge model stores Privy user IDs, not wallet addresses
-    // For now, we display the user IDs. In production, you'd resolve these to wallet addresses
-    if (challenge?.creatorId != null) {
-      details.addAll([
-        _buildReceiptRow('Creator ID', _truncateAddress(challenge!.creatorId)),
-        SizedBox(height: 10.r),
-      ]);
-    }
-
     if (challenge?.participantId != null) {
       details.addAll([
         _buildReceiptRow(

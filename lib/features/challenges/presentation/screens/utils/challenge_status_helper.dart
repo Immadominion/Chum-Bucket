@@ -31,8 +31,7 @@ class ChallengeStatusHelper {
       case ChallengeStatus.failed:
         return ChallengeStatusData(
           title: "Challenge Failed",
-          message:
-              "Something went wrong. Coins have been refunded to both users.",
+          message: "Something went wrong. Please try again later.",
           color: Colors.red,
           buttonDescription: "Challenge could not be created",
         );

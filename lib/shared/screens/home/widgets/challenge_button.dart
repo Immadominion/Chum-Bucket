@@ -58,7 +58,7 @@ class ChallengeButton extends StatelessWidget {
           BoxShadow(
             color: Theme.of(context).colorScheme.primary.withAlpha(75),
             blurRadius: blurRadius ? 8 : 0,
-            offset: const Offset(0, 4),
+            offset: Offset(0, blurRadius ? 4 : 2),
           ),
         ],
       ),

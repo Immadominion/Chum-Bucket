@@ -6,7 +6,8 @@ import 'package:provider/provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenges_preview.dart';
 import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
-import 'package:chumbucket/shared/services/local_friends_service.dart';
+import 'package:chumbucket/shared/services/unified_database_service.dart';
+
 import 'package:chumbucket/shared/widgets/widgets.dart';
 
 class FriendsTab extends StatefulWidget {
@@ -86,17 +87,26 @@ class _FriendsTabState extends State<FriendsTab> {
 
       print('FriendsTab: Loading friends for user: ${currentUser.id}');
 
-      // Load friends from local database
-      final friendsData = await LocalFriendsService.getFriends(currentUser.id);
-      print('FriendsTab: Loaded ${friendsData.length} friends from database');
+      // Load friends from Supabase
+      final friendsData = await UnifiedDatabaseService.getUserFriends(
+        currentUser.id,
+        userPrivyId: currentUser.id,
+      );
 
-      // Convert to UI format
+      // Convert to UI format expected by FriendsGrid
       final uiFriends =
           friendsData
-              .map((friend) => LocalFriendsService.friendToUIFormat(friend))
+              .map<Map<String, String>>(
+                (friend) => {
+                  'name': friend['name'] as String,
+                  'walletAddress': friend['walletAddress'] as String,
+                  'avatarColor': friend['avatarColor'] as String,
+                  'imagePath': friend['imagePath'] as String,
+                },
+              )
               .toList();
 
-      print('FriendsTab: Converted to UI format: ${uiFriends.length} friends');
+      print('FriendsTab: Loaded ${uiFriends.length} friends from Supabase');
       for (final friend in uiFriends) {
         print('  - ${friend['name']} (${friend['walletAddress']})');
       }
@@ -128,10 +138,6 @@ class _FriendsTabState extends State<FriendsTab> {
           });
         }
 
-        if (isLoading) {
-          return const LoadingIndicator(message: 'Loading friends...');
-        }
-
         return SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           child: Column(
@@ -160,23 +166,29 @@ class _FriendsTabState extends State<FriendsTab> {
                       ),
                     ),
                     // SizedBox(height: 8.h),
-                    FriendsGrid(
-                      friends: friends,
-                      onFriendSelected: (friendName) {
-                        final friend = friends.firstWhere(
-                          (f) => f['name'] == friendName,
-                          orElse: () => {'walletAddress': ''},
-                        );
-                        // Pass raw wallet address; resolution will happen where displayed
-                        widget.onFriendSelected(
-                          friendName,
-                          friend['walletAddress'] ?? '',
-                        );
-                      },
-                      buildViewMoreItem: widget.buildViewMoreItem,
-                      maxVisibleFriends: 5, // Show 5 friends before "View More"
-                    ),
-                    SizedBox(height: 15.h),
+                    isLoading
+                        ? Padding(
+                          padding: EdgeInsets.only(top: 80.h, bottom: 20.h),
+                          child: const LoadingIndicator(message: ''),
+                        )
+                        : FriendsGrid(
+                          friends: friends,
+                          onFriendSelected: (friendName) {
+                            final friend = friends.firstWhere(
+                              (f) => f['name'] == friendName,
+                              orElse: () => {'walletAddress': ''},
+                            );
+                            // Pass raw wallet address; resolution will happen where displayed
+                            widget.onFriendSelected(
+                              friendName,
+                              friend['walletAddress'] ?? '',
+                            );
+                          },
+                          buildViewMoreItem: widget.buildViewMoreItem,
+                          maxVisibleFriends:
+                              5, // Show 5 friends before "View More"
+                        ),
+                    // SizedBox(height: 15.h),
                     ChallengeButton(
                       createNewChallenge: widget.createNewChallenge,
                     ),

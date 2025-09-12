@@ -1,5 +1,6 @@
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/shared/screens/home/home.dart';
+import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -132,7 +133,7 @@ class _OtpInputScreenState extends State<OtpInputScreen> {
                   Text(
                     "Enter code",
                     style: TextStyle(
-                      fontSize: 26.sp, // Reduced from 28.sp
+                      fontSize: 28.sp,
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
@@ -143,14 +144,14 @@ class _OtpInputScreenState extends State<OtpInputScreen> {
                     maxLines: 2,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 16.sp, // Reduced from 18.sp
+                      fontSize: 18.sp,
                       fontWeight: FontWeight.w700,
                       color: Theme.of(
                         context,
                       ).colorScheme.onSurface.withAlpha(120),
                     ),
                   ),
-                  SizedBox(height: 32.h), // Reduced from 40.h
+                  SizedBox(height: 32.h),
                   OtpTextField(
                     numberOfFields: 6,
                     borderColor:
@@ -160,7 +161,7 @@ class _OtpInputScreenState extends State<OtpInputScreen> {
                     focusedBorderColor: Theme.of(context).colorScheme.primary,
                     cursorColor: Theme.of(context).colorScheme.primary,
                     showFieldAsBox: true,
-                    fieldWidth: 40.w,
+                    fieldWidth: 44.w,
                     borderRadius: BorderRadius.circular(12.r),
                     fillColor: Theme.of(
                       context,
@@ -197,36 +198,12 @@ class _OtpInputScreenState extends State<OtpInputScreen> {
                   SizedBox(height: 30.h),
                   Consumer<AuthProvider>(
                     builder: (context, authProvider, _) {
-                      return GestureDetector(
-                        onTap: authProvider.isLoading ? null : _submitOtp,
-                        child: Container(
-                          width: double.infinity,
-                          padding: EdgeInsets.symmetric(vertical: 12.h),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary,
-                            borderRadius: BorderRadius.circular(18.r),
-                          ),
-                          child: Center(
-                            child:
-                                authProvider.isLoading
-                                    ? SizedBox(
-                                      height: 24.h,
-                                      width: 24.h,
-                                      child: CircularProgressIndicator(
-                                        color: AppColors.buttonText,
-                                        strokeWidth: 2.5,
-                                      ),
-                                    )
-                                    : Text(
-                                      "Continue",
-                                      style: TextStyle(
-                                        color: AppColors.buttonText,
-                                        fontSize: 20.sp,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                          ),
-                        ),
+                      return ChallengeButton(
+                        createNewChallenge: () {
+                          authProvider.isLoading ? null : _submitOtp();
+                        },
+                        label: "Verify",
+                        isLoading: authProvider.isLoading,
                       );
                     },
                   ),

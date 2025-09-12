@@ -17,47 +17,64 @@ Widget homeScreenHeader(BuildContext context) {
               context,
             ).push(MaterialPageRoute(builder: (context) => ProfileScreen()));
           },
-          child: FutureBuilder<String>(
-            future:
-                Provider.of<AuthProvider>(context, listen: false).currentUser !=
-                        null
-                    ? Provider.of<ProfileProvider>(
-                      context,
-                      listen: false,
-                    ).getUserPfp(
-                      Provider.of<AuthProvider>(
-                        context,
-                        listen: false,
-                      ).currentUser!.id,
-                    )
-                    : Future.value('assets/images/ai_gen/profile_images/1.png'),
-            builder: (context, snapshot) {
-              return Container(
-                width: 42.w,
-                height: 42.w,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.transparent,
-                  border: Border.all(color: Colors.grey[300]!, width: 1.w),
-                ),
-                child: Padding(
-                  padding: EdgeInsets.all(
-                    2.w,
-                  ), // Space between border and image
-                  child: CircleAvatar(
-                    backgroundColor: Colors.grey[300],
-                    backgroundImage:
-                        snapshot.hasData ? AssetImage(snapshot.data!) : null,
-                    child:
-                        !snapshot.hasData
-                            ? PhosphorIcon(
-                              PhosphorIconsRegular.user,
-                              size: 18.w,
-                              color: Colors.grey[700],
-                            )
-                            : null,
+          child: Consumer2<AuthProvider, ProfileProvider>(
+            builder: (context, authProvider, profileProvider, child) {
+              if (authProvider.currentUser == null) {
+                return Container(
+                  width: 42.w,
+                  height: 42.w,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.transparent,
+                    border: Border.all(color: Colors.grey[300]!, width: 1.w),
                   ),
+                  child: Padding(
+                    padding: EdgeInsets.all(2.w),
+                    child: CircleAvatar(
+                      backgroundColor: Colors.grey[300],
+                      child: PhosphorIcon(
+                        PhosphorIconsRegular.user,
+                        size: 18.w,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                  ),
+                );
+              }
+
+              return FutureBuilder<String>(
+                future: profileProvider.getUserPfp(
+                  authProvider.currentUser!.id,
                 ),
+                builder: (context, snapshot) {
+                  return Container(
+                    width: 42.w,
+                    height: 42.w,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.transparent,
+                      border: Border.all(color: Colors.grey[300]!, width: 1.w),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.all(2.w),
+                      child: CircleAvatar(
+                        backgroundColor: Colors.grey[300],
+                        backgroundImage:
+                            snapshot.hasData
+                                ? AssetImage(snapshot.data!)
+                                : null,
+                        child:
+                            !snapshot.hasData
+                                ? PhosphorIcon(
+                                  PhosphorIconsRegular.user,
+                                  size: 18.w,
+                                  color: Colors.grey[700],
+                                )
+                                : null,
+                      ),
+                    ),
+                  );
+                },
               );
             },
           ),
