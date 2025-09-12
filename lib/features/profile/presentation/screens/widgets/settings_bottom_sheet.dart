@@ -84,19 +84,6 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
             iconColor: Colors.blue,
           ),
           MenuTile(
-            icon: CupertinoIcons.hammer_fill,
-            title: "Database Test",
-            subtitle: "Test local SQLite database",
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => const DatabaseTestScreen(),
-                ),
-              );
-            },
-            iconColor: Colors.purple,
-          ),
-          MenuTile(
             icon: CupertinoIcons.delete_solid,
             title: "Delete Account",
             subtitle: "Permanently remove your account",
