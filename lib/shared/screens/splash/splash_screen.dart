@@ -115,37 +115,49 @@ class _SplashScreenState extends State<SplashScreen>
   // Trigger initial sync when user logs in to load challenges from blockchain
   Future<void> _triggerInitialSync(AuthProvider authProvider) async {
     try {
-      AppLogger.info('Triggering initial sync for logged-in user');
+      AppLogger.info('Scheduling delayed sync for logged-in user');
 
       final currentUser = authProvider.currentUser;
       if (currentUser == null || !mounted) return;
 
-      // Get wallet provider to get wallet address
-      final walletProvider = Provider.of<WalletProvider>(
-        context,
-        listen: false,
-      );
+      // Schedule sync to happen AFTER navigation is complete
+      // This prevents blocking the UI during app startup
+      Future.delayed(Duration(seconds: 3), () async {
+        if (!mounted) return;
 
-      // Initialize wallet if not already done
-      if (!walletProvider.isInitialized && mounted) {
-        await walletProvider.initializeWallet(context);
-      }
+        try {
+          final walletProvider = Provider.of<WalletProvider>(
+            context,
+            listen: false,
+          );
 
-      final walletAddress = walletProvider.walletAddress;
-      if (walletAddress != null) {
-        // Trigger background sync without blocking navigation
-        EfficientSyncService.instance
-            .forceBlockchainSync(
-              userId: currentUser.id,
-              walletAddress: walletAddress,
-            )
-            .catchError((e) {
-              AppLogger.error('Initial sync failed: $e');
-              // Don't block navigation on sync failure
-            });
-      }
+          // Initialize wallet if not already done
+          if (!walletProvider.isInitialized && mounted) {
+            await walletProvider.initializeWallet(context);
+          }
+
+          final walletAddress = walletProvider.walletAddress;
+          if (walletAddress != null) {
+            // Trigger background sync without blocking navigation
+            EfficientSyncService.instance
+                .getChallenges(
+                  userId: currentUser.id,
+                  walletAddress: walletAddress,
+                )
+                .then((_) {
+                  AppLogger.info('Delayed sync completed successfully');
+                })
+                .catchError((e) {
+                  AppLogger.error('Delayed sync failed: $e');
+                  // Don't show errors to users
+                });
+          }
+        } catch (e) {
+          AppLogger.error('Delayed sync error: $e');
+        }
+      });
     } catch (e) {
-      AppLogger.error('Error triggering initial sync: $e');
+      AppLogger.error('Error scheduling initial sync: $e');
       // Don't block navigation on errors
     }
   }

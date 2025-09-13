@@ -138,6 +138,10 @@ class UnifiedDatabaseService {
           .or('creator_id.eq.$userId,participant_id.eq.$userId')
           .order('created_at', ascending: false);
 
+      dev.log(
+        'Database query returned ${response.length} challenges for user $userPrivyId',
+      );
+
       return response.map((json) {
         // Convert the joined data back to the expected format
         final challengeData = Map<String, dynamic>.from(json);
@@ -444,11 +448,6 @@ class UnifiedDatabaseService {
       for (final friendData in friendsResponse) {
         final friendDetails = friendData['users'] as Map<String, dynamic>;
 
-        // Convert profile_image_id to asset path
-        final profileImageId = friendDetails['profile_image_id'] as int? ?? 1;
-        final imagePath =
-            'assets/images/ai_gen/profile_images/$profileImageId.png';
-
         final walletAddress = friendDetails['wallet_address'] as String? ?? '';
         final friendName =
             friendDetails['full_name'] as String? ?? 'Unknown Friend';
@@ -458,9 +457,9 @@ class UnifiedDatabaseService {
           friends.add({
             'name': friendName,
             'walletAddress': walletAddress,
-            'imagePath': imagePath,
-            'profileImageId': profileImageId.toString(),
-            'avatarColor': '#FF5A76', // Default color
+            'profileImageId': '0', // Will be set based on position later
+            'avatarColor':
+                '#FF5A76', // Default color, will be set based on position
           });
           dev.log('Added friend: $friendName ($walletAddress)');
         } else {
@@ -523,6 +522,50 @@ class UnifiedDatabaseService {
     } catch (e) {
       dev.log('Error removing friend: $e');
       return false;
+    }
+  }
+
+  /// Debug method to check challenge data in Supabase
+  static Future<void> debugChallengeData(String userPrivyId) async {
+    try {
+      // Get user ID from privy_id first
+      final userResponse =
+          await _client
+              .from('users')
+              .select('id')
+              .eq('privy_id', userPrivyId)
+              .maybeSingle();
+
+      if (userResponse == null) {
+        dev.log('DEBUG: User not found with privy_id: $userPrivyId');
+        return;
+      }
+
+      final userId = userResponse['id'];
+      dev.log('DEBUG: Found user ID: $userId for privy_id: $userPrivyId');
+
+      // Count total challenges in the system
+      final totalChallenges = await _client.from('challenges').select('id');
+      dev.log('DEBUG: Total challenges in database: ${totalChallenges.length}');
+
+      // Show first 20 challenges with details
+      final challengeDetails = await _client
+          .from('challenges')
+          .select('id, title, description, status, created_at')
+          .or('creator_id.eq.$userId,participant_privy_id.eq.$userId')
+          .order('created_at', ascending: false)
+          .limit(20);
+
+      dev.log('DEBUG: Found ${challengeDetails.length} challenges for user');
+      dev.log('DEBUG: First 20 challenges for user:');
+      for (int i = 0; i < challengeDetails.length; i++) {
+        final challenge = challengeDetails[i];
+        dev.log(
+          '  ${i + 1}. ${challenge['title'] ?? 'No title'} - ${challenge['description'] ?? 'No description'} (${challenge['status']}) - ${challenge['created_at']}',
+        );
+      }
+    } catch (e) {
+      dev.log('DEBUG: Error checking challenge data: $e');
     }
   }
 

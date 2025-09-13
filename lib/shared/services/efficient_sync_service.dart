@@ -1,8 +1,10 @@
 import 'package:chumbucket/core/utils/app_logger.dart';
 import 'dart:async';
+import 'package:flutter/material.dart';
 import 'package:chumbucket/shared/models/models.dart';
 import 'package:chumbucket/shared/services/unified_database_service.dart';
 import 'package:chumbucket/shared/services/blockchain_sync_service.dart';
+import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 
 import 'package:solana/solana.dart' as solana;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -48,17 +50,17 @@ class EfficientSyncService {
 
   EfficientSyncService._internal();
 
-  // Sync state tracking
+  // Sync state tracking - MUCH more conservative intervals
   static final Map<String, DateTime> _lastSyncTimes = {};
   static const Duration _syncInterval = Duration(
-    minutes: 5,
-  ); // Sync every 10 minutes (less frequent)
+    minutes: 15,
+  ); // Sync every 15 minutes (much less frequent)
   static const Duration _backgroundSyncInterval = Duration(
-    minutes: 10,
-  ); // Background sync every 30 minutes (much less frequent)
-  static const Duration _verificationInterval = Duration(
     minutes: 30,
-  ); // Blockchain verification every 30 minutes
+  ); // Background sync every 30 minutes
+  static const Duration _verificationInterval = Duration(
+    hours: 2,
+  ); // Blockchain verification every 2 hours (very infrequent)
 
   // Track if we're currently syncing to prevent duplicate calls
   static final Set<String> _activeSyncs = {};
@@ -72,6 +74,7 @@ class EfficientSyncService {
   Future<void> forceBlockchainSync({
     required String userId,
     String? walletAddress,
+    BuildContext? context,
   }) async {
     if (walletAddress == null) {
       AppLogger.debug(
@@ -118,6 +121,16 @@ class EfficientSyncService {
         supabase: supabase,
       );
       final onChain = await sync.fullSyncForUser(walletAddress, userId);
+
+      // Show snackbar if many challenges found and context available
+      if (onChain.length > 5 && context != null) {
+        SnackBarUtils.showInfo(
+          context,
+          title: 'Loading...',
+          subtitle: 'Be patient, we\'re cooking your chummy meal',
+          duration: Duration(seconds: 10),
+        );
+      }
 
       // Get existing local challenges for the user to prevent duplicates
       final localChallenges = await UnifiedDatabaseService.getChallengesForUser(
@@ -287,6 +300,34 @@ class EfficientSyncService {
       tag: 'EfficientSyncService',
     );
 
+    // CRITICAL: Prevent app unresponsiveness by limiting concurrent operations
+    if (_activeSyncs.length > 1) {
+      AppLogger.info(
+        'EfficientSync: Too many active syncs (${_activeSyncs.length}), returning cached data',
+      );
+      return await UnifiedDatabaseService.getChallengesForUser(userId);
+    }
+
+    // AGGRESSIVE THROTTLING: Prevent calls within 30 seconds
+    final key = '${userId}_${walletAddress ?? 'local'}';
+    final lastCall = _lastSyncTimes[key];
+    final now = DateTime.now();
+
+    if (lastCall != null && !forceSync) {
+      final timeSinceLastCall = now.difference(lastCall);
+      if (timeSinceLastCall < Duration(seconds: 30)) {
+        AppLogger.debug(
+          'EfficientSync: Throttling call - only ${timeSinceLastCall.inSeconds}s since last call',
+          tag: 'EfficientSyncService',
+        );
+        // Return cached data if available, otherwise load from DB
+        return await UnifiedDatabaseService.getChallengesForUser(userId);
+      }
+    }
+
+    // Update last call time immediately to prevent race conditions
+    _lastSyncTimes[key] = now;
+
     // 1. ALWAYS load from database first (fast local access)
     final dbChallenges = await UnifiedDatabaseService.getChallengesForUser(
       userId,
@@ -319,7 +360,7 @@ class EfficientSyncService {
     );
   }
 
-  /// Smart sync decision logic
+  /// Smart sync decision logic - VERY CONSERVATIVE
   bool _shouldSync(String userId, String? walletAddress, bool forceSync) {
     if (forceSync) return true;
     if (walletAddress == null) return false;
@@ -333,6 +374,19 @@ class EfficientSyncService {
         tag: 'EfficientSyncService',
       );
       return false;
+    }
+
+    // ADDITIONAL THROTTLING: Don't sync if called very recently
+    final lastCall = _lastSyncTimes[key];
+    if (lastCall != null) {
+      final timeSinceLastCall = DateTime.now().difference(lastCall);
+      if (timeSinceLastCall < Duration(minutes: 2)) {
+        AppLogger.debug(
+          'EfficientSync: Recent sync detected, skipping (${timeSinceLastCall.inMinutes}min ago)',
+          tag: 'EfficientSyncService',
+        );
+        return false;
+      }
     }
 
     final lastSync = _lastSyncTimes[key];
@@ -374,9 +428,9 @@ class EfficientSyncService {
   }
 
   /// Background sync that doesn't block UI
-  /// Smart verification approach:
+  /// PRODUCTION: Extremely conservative sync to prevent performance issues
   /// 1. Load from database FIRST (instant UI)
-  /// 2. Periodically verify/sync with blockchain in background
+  /// 2. MINIMAL blockchain verification (only when critical)
   /// 3. Update database if discrepancies found
   /// 4. Only run verification when app is active and has good connection
   Future<void> _syncInBackground(String userId, String walletAddress) async {
@@ -384,9 +438,18 @@ class EfficientSyncService {
 
     if (_activeSyncs.contains(key)) return;
 
+    // PRODUCTION FIX: Skip background sync if app is backgrounded
+    if (_isAppInBackground) {
+      AppLogger.debug(
+        'EfficientSync: Skipping background sync - app is backgrounded',
+        tag: 'EfficientSyncService',
+      );
+      return;
+    }
+
     _activeSyncs.add(key);
     AppLogger.debug(
-      'EfficientSync: Starting background verification for $key',
+      'EfficientSync: Starting conservative background verification for $key',
       tag: 'EfficientSyncService',
     );
 
@@ -586,6 +649,25 @@ class EfficientSyncService {
     _lastAppResumeTime = null;
     AppLogger.debug(
       'EfficientSync: Cleared all sync state',
+      tag: 'EfficientSyncService',
+    );
+  }
+
+  /// Clear all cached data (call on user sign out)
+  static void clearAllCaches() {
+    AppLogger.info(
+      'Clearing all cached data for user sign out',
+      tag: 'EfficientSyncService',
+    );
+
+    _lastSyncTimes.clear();
+    _activeSyncs.clear();
+    _hasInitialSync = false;
+    _lastAppResumeTime = null;
+    _isAppInBackground = false;
+
+    AppLogger.info(
+      'All caches cleared successfully',
       tag: 'EfficientSyncService',
     );
   }

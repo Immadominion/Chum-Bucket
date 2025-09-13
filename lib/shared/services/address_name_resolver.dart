@@ -10,7 +10,9 @@ import 'package:sns_sdk/sns_sdk.dart';
 /// Uses your local SNS SDK for proper resolution with graceful caching.
 class AddressNameResolver {
   static final Map<String, String> _cache = {};
+  static final Map<String, DateTime> _cacheTimestamps = {};
   static SnsClient? _snsClient;
+  static const Duration _cacheExpiry = Duration(hours: 1); // Cache for 1 hour
 
   // Base58 charset check (quick heuristic)
   static final RegExp _base58 = RegExp(r'^[1-9A-HJ-NP-Za-km-z]+$');
@@ -36,7 +38,21 @@ class AddressNameResolver {
     final trimmed = input.trim();
     if (trimmed.isEmpty) return 'Unknown';
     if (_looksLikeName(trimmed)) return trimmed; // already a name/domain/email
-    if (_cache.containsKey('name:$trimmed')) return _cache['name:$trimmed']!;
+
+    final cacheKey = 'name:$trimmed';
+
+    // Check cache with expiry
+    if (_cache.containsKey(cacheKey)) {
+      final timestamp = _cacheTimestamps[cacheKey];
+      if (timestamp != null &&
+          DateTime.now().difference(timestamp) < _cacheExpiry) {
+        return _cache[cacheKey]!;
+      } else {
+        // Cache expired, remove it
+        _cache.remove(cacheKey);
+        _cacheTimestamps.remove(cacheKey);
+      }
+    }
 
     // Only try reverse lookup if it looks like a base58 address
     if (!isBase58Address(trimmed)) {
@@ -58,7 +74,8 @@ class AddressNameResolver {
             primaryResult.domainName.endsWith('.sol')
                 ? primaryResult.domainName
                 : '${primaryResult.domainName}.sol';
-        _cache['name:$trimmed'] = domain;
+        _cache[cacheKey] = domain;
+        _cacheTimestamps[cacheKey] = DateTime.now();
         return domain;
       }
     } catch (e) {
@@ -76,7 +93,8 @@ class AddressNameResolver {
       if (domains.isNotEmpty) {
         final domain = domains.first.domain;
         if (domain.isNotEmpty) {
-          _cache['name:$trimmed'] = domain;
+          _cache[cacheKey] = domain;
+          _cacheTimestamps[cacheKey] = DateTime.now();
           return domain;
         }
       }
@@ -86,7 +104,8 @@ class AddressNameResolver {
 
     // Fallback to shortened address
     final fallback = _shorten(trimmed);
-    _cache['name:$trimmed'] = fallback;
+    _cache[cacheKey] = fallback;
+    _cacheTimestamps[cacheKey] = DateTime.now();
     return fallback;
   }
 

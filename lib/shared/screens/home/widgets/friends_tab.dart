@@ -38,6 +38,7 @@ class _FriendsTabState extends State<FriendsTab> {
   // Caching for performance optimization
   Future<List<Map<String, String>>>? _friendsFuture;
   ValueKey? _lastRefreshKey;
+  DateTime? _lastLoadTime; // Track when we last loaded friends
 
   @override
   void initState() {
@@ -54,9 +55,12 @@ class _FriendsTabState extends State<FriendsTab> {
     // Check if we need to refresh based on the widget key
     final newRefreshKey = widget.key;
     if (newRefreshKey != _lastRefreshKey && newRefreshKey is ValueKey) {
+      print('FriendsTab: Refresh key changed, clearing caches');
       _lastRefreshKey = newRefreshKey;
       _friendsFuture = null; // Clear cache to force refresh
       hasAttemptedLoad = false; // Reset load flag to allow refresh
+      // Also clear the current friends list to prevent showing old data
+      friends.clear();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _loadFriendsWhenReady();
       });
@@ -65,6 +69,19 @@ class _FriendsTabState extends State<FriendsTab> {
 
   Future<void> _loadFriendsWhenReady() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    // THROTTLING: Don't load if we loaded very recently
+    if (hasAttemptedLoad && friends.isNotEmpty) {
+      final timeSinceLoad = DateTime.now().difference(
+        _lastLoadTime ?? DateTime.now(),
+      );
+      if (timeSinceLoad < Duration(seconds: 30)) {
+        print(
+          'FriendsTab: Throttling load - too recent (${timeSinceLoad.inSeconds}s ago)',
+        );
+        return;
+      }
+    }
 
     // If user is already available, load friends immediately
     if (authProvider.currentUser != null) {
@@ -117,18 +134,28 @@ class _FriendsTabState extends State<FriendsTab> {
       userPrivyId: currentUser.id,
     );
 
-    // Convert to UI format expected by FriendsGrid
-    final uiFriends =
-        friendsData
-            .map<Map<String, String>>(
-              (friend) => {
-                'name': friend['name'] as String,
-                'walletAddress': friend['walletAddress'] as String,
-                'avatarColor': friend['avatarColor'] as String,
-                'imagePath': friend['imagePath'] as String,
-              },
-            )
-            .toList();
+    // Convert to UI format expected by FriendsGrid and assign images based on position
+    final uiFriends = <Map<String, String>>[];
+    final avatarColors = [
+      '#FF5A76', // Pink
+      '#4A90E2', // Blue
+      '#7ED321', // Green
+      '#F5A623', // Orange
+      '#9013FE', // Purple
+    ];
+
+    for (int i = 0; i < friendsData.length && i < 5; i++) {
+      final friend = friendsData[i];
+      final imageId = i + 1; // Images 1-5 based on position
+      final colorIndex = i % avatarColors.length;
+
+      uiFriends.add({
+        'name': friend['name'] as String,
+        'walletAddress': friend['walletAddress'] as String,
+        'avatarColor': avatarColors[colorIndex],
+        'imagePath': 'assets/images/ai_gen/profile_images/$imageId.png',
+      });
+    }
 
     print('FriendsTab: Loaded ${uiFriends.length} friends from Supabase');
     for (final friend in uiFriends) {
@@ -163,6 +190,7 @@ class _FriendsTabState extends State<FriendsTab> {
         setState(() {
           friends = uiFriends;
           isLoading = false;
+          _lastLoadTime = DateTime.now(); // Track load time
         });
       }
 

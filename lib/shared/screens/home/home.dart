@@ -89,8 +89,11 @@ class _HomeScreenState extends State<HomeScreen>
           await walletProvider.initializeWallet(context);
         }
 
-        // After wallet is ready, try blockchain sync in background (don't block UI)
-        _tryBackgroundSync(authProvider, walletProvider);
+        // REMOVED: No automatic background sync on initialization
+        // Sync will only happen when user pulls to refresh or explicitly requests it
+        AppLogger.info(
+          'Wallet and auth initialization completed (no auto-sync)',
+        );
       }
     } catch (e) {
       AppLogger.error('Error initializing wallet in home screen: $e');
@@ -98,47 +101,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  // Try blockchain sync in background without blocking UI
-  Future<void> _tryBackgroundSync(
-    AuthProvider authProvider,
-    WalletProvider walletProvider,
-  ) async {
-    try {
-      final currentUser = authProvider.currentUser;
-      final walletAddress = walletProvider.walletAddress;
-
-      if (currentUser != null && walletAddress != null) {
-        AppLogger.info('Attempting background blockchain sync');
-
-        // Try blockchain sync with timeout to prevent hanging
-        await EfficientSyncService.instance
-            .forceBlockchainSync(
-              userId: currentUser.id,
-              walletAddress: walletAddress,
-            )
-            .timeout(
-              const Duration(seconds: 10),
-              onTimeout: () {
-                AppLogger.info(
-                  'Background sync timed out - continuing with local data',
-                );
-              },
-            );
-
-        // Only refresh UI if data should be refreshed
-        if (mounted && _shouldRefreshData()) {
-          setState(() {
-            _challengesRefreshKey++;
-            _friendsRefreshKey++;
-          });
-          _lastDataRefresh = DateTime.now();
-        }
-      }
-    } catch (e) {
-      AppLogger.error('Background sync failed (non-blocking): $e');
-      // Don't show errors to users - app works fine with local data
-    }
-  }
+  // REMOVED: _tryBackgroundSync method to eliminate automatic syncing
 
   // Only refresh if data is stale (older than 30 seconds) or forced
   bool _shouldRefreshData({bool forced = false}) {
@@ -188,6 +151,7 @@ class _HomeScreenState extends State<HomeScreen>
         if (address != null) {
           await EfficientSyncService.instance
               .forceBlockchainSync(
+                context: context,
                 userId: currentUser.id,
                 walletAddress: address,
               )

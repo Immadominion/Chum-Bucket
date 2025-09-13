@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:chumbucket/core/utils/app_logger.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:chumbucket/core/utils/base_change_notifier.dart';
@@ -139,27 +140,39 @@ class ProfileProvider extends BaseChangeNotifier {
   }
 
   Future<void> saveUserProfileLocally(Map<String, dynamic> profile) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_profile', profile.toString());
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final profileJson = jsonEncode(profile);
+      await prefs.setString('user_profile', profileJson);
+      AppLogger.debug(
+        'Profile saved locally: ${profile['full_name']} (${profile['email']})',
+        tag: 'ProfileProvider',
+      );
+    } catch (e) {
+      AppLogger.error('Failed to save profile locally: $e');
+    }
   }
 
   Future<Map<String, dynamic>?> getUserProfileFromLocal() async {
-    final prefs = await SharedPreferences.getInstance();
-    final profileString = prefs.getString('user_profile');
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final profileJson = prefs.getString('user_profile');
 
-    if (profileString != null) {
-      final profileParts = profileString
-          .substring(1, profileString.length - 1) // Remove braces
-          .split(', ');
+      if (profileJson != null && profileJson.isNotEmpty) {
+        final profile = jsonDecode(profileJson) as Map<String, dynamic>;
+        AppLogger.debug(
+          'Profile loaded locally: ${profile['full_name']} (${profile['email']})',
+          tag: 'ProfileProvider',
+        );
+        return profile;
+      }
 
-      final profileMap = {
-        for (var part in profileParts) part.split(': ')[0]: part.split(': ')[1],
-      };
-
-      return profileMap;
+      AppLogger.debug('No local profile found', tag: 'ProfileProvider');
+      return null;
+    } catch (e) {
+      AppLogger.error('Failed to load profile locally: $e');
+      return null;
     }
-
-    return null;
   }
 
   // Optional: Update profile with PFP in database

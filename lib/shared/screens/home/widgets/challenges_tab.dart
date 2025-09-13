@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
 import 'package:chumbucket/features/wallet/providers/wallet_provider.dart';
 import 'package:chumbucket/shared/services/efficient_sync_service.dart';
+import 'package:chumbucket/shared/services/unified_database_service.dart';
 import 'challenge_card.dart';
 import 'shimmer_challenges.dart';
 import 'resolve_challenge_sheet.dart';
@@ -211,6 +212,9 @@ class _ChallengesTabState extends State<ChallengesTab> {
       if (currentUser == null || walletProvider.challengeService == null) {
         return [];
       }
+
+      // Debug: Check what's in the database
+      await UnifiedDatabaseService.debugChallengeData(currentUser.id);
 
       // Use efficient sync service - database-first approach
       final challenges = await EfficientSyncService.instance.getChallenges(

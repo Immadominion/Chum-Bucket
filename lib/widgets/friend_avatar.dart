@@ -14,7 +14,7 @@ class FriendAvatar extends StatelessWidget {
     required this.colorHex,
     required this.onTap,
     this.size = 90,
-    this.imagePath = 'assets/images/ai_gen/profile_images/1.png',
+    this.imagePath,
   });
 
   Color _hexToColor(String hexString) {
@@ -41,31 +41,37 @@ class FriendAvatar extends StatelessWidget {
   }
 
   Widget _buildAvatarContent() {
-    // If no image path is provided, use the name for a fallback
-    if (imagePath == null) {
-      return Center(
-        child: Text(
-          name.isNotEmpty ? name[0].toUpperCase() : '?',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: size * 0.5,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      );
-    }
+    String imagePathToUse = imagePath ?? _generateImagePathFromName();
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(
         size.sp / 2,
       ), // Match container's circular shape
       child: Image.asset(
-        imagePath!,
-
+        imagePathToUse,
         fit: BoxFit.cover, // This makes the image cover the full area
         width: size.sp, // Match container width
         height: size.sp, // Match container height
+        errorBuilder: (context, error, stackTrace) {
+          // If image fails to load, show name initial
+          return Center(
+            child: Text(
+              name.isNotEmpty ? name[0].toUpperCase() : '?',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: size * 0.5,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          );
+        },
       ),
     );
+  }
+
+  String _generateImagePathFromName() {
+    // Default to image 1 if no specific logic needed
+    // The actual image ID should be passed from the friends list based on order
+    return 'assets/images/ai_gen/profile_images/1.png';
   }
 }

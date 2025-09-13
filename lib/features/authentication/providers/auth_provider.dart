@@ -8,6 +8,7 @@ import 'package:chumbucket/core/utils/base_change_notifier.dart'
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:chumbucket/features/profile/providers/profile_provider.dart';
 import 'package:chumbucket/features/wallet/providers/wallet_provider.dart';
+import 'package:chumbucket/shared/services/efficient_sync_service.dart';
 
 class AuthProvider extends BaseChangeNotifier {
   late final Privy _privy;
@@ -398,15 +399,24 @@ class AuthProvider extends BaseChangeNotifier {
         final prefs = await SharedPreferences.getInstance();
         await prefs.remove(_loggedInKey);
 
+        // Clear all cached data to prevent data leakage between users
+        EfficientSyncService.clearAllCaches();
+
         // Reset initialization state to allow clean re-initialization
         _initialized = false;
         // Note: Keep _supabase connection for reuse
 
-        log('User logged out successfully');
+        log('User logged out successfully and caches cleared');
       } catch (e) {
         log('Error during logout: ${e.toString()}');
         _currentUser = null;
         _initialized = false;
+        // Still clear caches even on error to prevent data leakage
+        try {
+          EfficientSyncService.clearAllCaches();
+        } catch (clearError) {
+          log('Error clearing caches during logout: $clearError');
+        }
         rethrow;
       }
     });
@@ -483,6 +493,10 @@ class AuthProvider extends BaseChangeNotifier {
     await _privy.logout();
     _currentUser = null;
     _initialized = false;
+
+    // Clear all cached data to prevent data leakage between users
+    EfficientSyncService.clearAllCaches();
+
     notifyListeners();
   }
 }

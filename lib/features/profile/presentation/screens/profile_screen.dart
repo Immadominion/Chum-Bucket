@@ -52,15 +52,53 @@ class _ProfileScreenState extends State<ProfileScreen>
       );
 
       if (authProvider.currentUser != null) {
-        final profile = await profileProvider.getUserProfileFromLocal();
+        final userId = authProvider.currentUser!.id;
+        debugPrint('🔍 Loading profile for user: $userId');
+
+        // First try to get from local storage
+        var profile = await profileProvider.getUserProfileFromLocal();
+        debugPrint('📱 Local profile: $profile');
+
+        // If no local profile, fetch from database and save locally
+        if (profile == null) {
+          debugPrint('📡 No local profile, fetching from database...');
+          profile = await profileProvider.fetchUserProfileWithPfp(userId);
+          debugPrint('🗄️ Database profile: $profile');
+        }
 
         if (mounted) {
           setState(() {
-            _username = profile?['full_name'] ?? 'Username';
-            _bio =
-                profile?['bio'] ??
-                'This is a short bio that describes the user.';
-            // Profile image is now handled by ProfileHeader widget
+            if (profile != null) {
+              _username =
+                  profile['full_name'] ??
+                  profile['name'] ??
+                  profile['email']?.split('@')[0] ??
+                  'Username';
+              _bio =
+                  profile['bio'] ??
+                  'This is a short bio that describes the user.';
+              debugPrint(
+                '✅ Profile loaded: $_username (from ${profile.keys.toList()})',
+              );
+            } else {
+              // If no profile, try to use auth provider data as fallback
+              final currentUser = authProvider.currentUser;
+              if (currentUser != null) {
+                try {
+                  final emailAccount = currentUser.linkedAccounts.firstWhere(
+                    (account) => account.type == 'email',
+                  );
+                  final emailAddr =
+                      (emailAccount as dynamic).emailAddress as String?;
+                  _username = emailAddr?.split('@')[0] ?? 'Username';
+                  debugPrint('🔄 Using email fallback: $_username');
+                } catch (e) {
+                  _username = 'Username';
+                  debugPrint('🔄 No email account found, using default');
+                }
+              }
+              debugPrint('❌ No profile data available, using fallback');
+            }
           });
         }
       }
@@ -71,7 +109,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       );
       walletProvider.refreshBalance();
     } catch (e) {
-      debugPrint('Error loading profile: $e');
+      debugPrint('❌ Error loading profile: $e');
     }
   }
 

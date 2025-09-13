@@ -6,7 +6,6 @@ import 'package:solana/dto.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:chumbucket/shared/models/models.dart';
 import 'package:chumbucket/shared/services/escrow_service.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Service to sync challenges from the blockchain
 /// This ensures the local database stays in sync with on-chain state
@@ -31,10 +30,10 @@ class BlockchainSyncService {
   static final Map<String, DateTime> _lastSyncAt = {};
   static const Duration _cacheTtl = Duration(seconds: 45);
 
-  // Verbose logging and remote sync toggle via .env
-  static bool get _verbose => (dotenv.env['SYNC_VERBOSE'] ?? 'false') == 'true';
+  // Verbose logging and remote sync toggle via .env - PRODUCTION: DISABLED
+  static bool get _verbose => false; // Disabled for production performance
   static bool get _remoteSyncEnabled =>
-      (dotenv.env['REMOTE_SYNC_ENABLED'] ?? 'false') == 'true';
+      false; // Disabled for production performance
 
   final solana.SolanaClient _solanaClient;
   final SupabaseClient _supabase;
@@ -539,25 +538,27 @@ class BlockchainSyncService {
 
           await _supabase.from('challenges').insert({
             'id': challenge.id,
-            'title': challenge.title,
+            'title': challenge.title.isEmpty ? 'Challenge' : challenge.title,
             'description':
-                '${challenge.description} (Recovered from blockchain)',
-            'amount': challenge.amount,
+                challenge.description.isEmpty
+                    ? 'Challenge recovered from blockchain'
+                    : challenge.description,
+            'amount_sol': challenge.amount,
             'creator_id':
                 userId, // Current user as creator for discovered challenges
             'status': challenge.status.toString().split('.').last,
             'created_at': challenge.createdAt.toIso8601String(),
             'expires_at': challenge.expiresAt.toIso8601String(),
-            'escrow_address': challenge.escrowAddress,
+            'multisig_address': challenge.escrowAddress,
             'vault_address': challenge.vaultAddress,
-            'platform_fee': challenge.platformFee,
-            'winner_amount': challenge.winnerAmount,
+            'platform_fee_sol': challenge.platformFee,
+            'winner_amount_sol': challenge.winnerAmount,
             'participant_email': challenge.participantEmail,
-            'participant_id': challenge.participantId,
-            'winner_id': challenge.winnerId,
+            'participant_privy_id': challenge.participantId,
+            'winner_privy_id': challenge.winnerId,
           });
         } else {
-          // Challenge exists, update status if different
+          // Challenge exists, update status if different but preserve original descriptions
           final dbStatus = existingChallenge['status'] as String;
           final onChainStatus = challenge.status.toString().split('.').last;
 
@@ -566,13 +567,15 @@ class BlockchainSyncService {
               '🔄 Updating challenge status: ${challenge.escrowAddress} -> $onChainStatus',
             );
 
+            // Only update status and winner, preserve existing title/description
             await _supabase
                 .from('challenges')
                 .update({
                   'status': onChainStatus,
-                  'winner_id': challenge.winnerId,
+                  'winner_privy_id': challenge.winnerId,
+                  'winner_amount_sol': challenge.winnerAmount,
                 })
-                .eq('escrow_address', challenge.escrowAddress!);
+                .eq('multisig_address', challenge.escrowAddress!);
           }
         }
       }
