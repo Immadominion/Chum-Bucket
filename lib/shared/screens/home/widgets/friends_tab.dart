@@ -8,8 +8,6 @@ import 'package:chumbucket/shared/screens/home/widgets/challenges_preview.dart';
 import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
 import 'package:chumbucket/shared/services/unified_database_service.dart';
 
-import 'package:chumbucket/shared/widgets/widgets.dart';
-
 class FriendsTab extends StatefulWidget {
   final VoidCallback createNewChallenge;
   final Function(String, String)
@@ -37,6 +35,10 @@ class _FriendsTabState extends State<FriendsTab> {
   bool isLoading = true;
   bool hasAttemptedLoad = false; // Track if we've tried to load
 
+  // Caching for performance optimization
+  Future<List<Map<String, String>>>? _friendsFuture;
+  ValueKey? _lastRefreshKey;
+
   @override
   void initState() {
     super.initState();
@@ -46,12 +48,46 @@ class _FriendsTabState extends State<FriendsTab> {
     });
   }
 
+  @override
+  void didUpdateWidget(FriendsTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Check if we need to refresh based on the widget key
+    final newRefreshKey = widget.key;
+    if (newRefreshKey != _lastRefreshKey && newRefreshKey is ValueKey) {
+      _lastRefreshKey = newRefreshKey;
+      _friendsFuture = null; // Clear cache to force refresh
+      hasAttemptedLoad = false; // Reset load flag to allow refresh
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadFriendsWhenReady();
+      });
+    }
+  }
+
   Future<void> _loadFriendsWhenReady() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
     // If user is already available, load friends immediately
     if (authProvider.currentUser != null) {
-      _loadFriends();
+      // If we don't have cached data, load it
+      if (_friendsFuture == null) {
+        _loadFriends();
+      } else {
+        // We have cached data, just update UI with it
+        try {
+          final cachedFriends = await _friendsFuture!;
+          if (mounted) {
+            setState(() {
+              friends = cachedFriends;
+              isLoading = false;
+              hasAttemptedLoad = true;
+            });
+          }
+        } catch (e) {
+          // If cached data fails, reload
+          _friendsFuture = null;
+          _loadFriends();
+        }
+      }
     } else {
       // Otherwise, wait for auth to be ready
       print('FriendsTab: Waiting for auth to be ready...');
@@ -61,8 +97,55 @@ class _FriendsTabState extends State<FriendsTab> {
     }
   }
 
+  Future<List<Map<String, String>>> _loadFriendsData() async {
+    print('FriendsTab: Starting to load friends...');
+
+    // Get current user
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
+
+    if (currentUser == null) {
+      print('FriendsTab: No current user found');
+      return [];
+    }
+
+    print('FriendsTab: Loading friends for user: ${currentUser.id}');
+
+    // Load friends from Supabase
+    final friendsData = await UnifiedDatabaseService.getUserFriends(
+      currentUser.id,
+      userPrivyId: currentUser.id,
+    );
+
+    // Convert to UI format expected by FriendsGrid
+    final uiFriends =
+        friendsData
+            .map<Map<String, String>>(
+              (friend) => {
+                'name': friend['name'] as String,
+                'walletAddress': friend['walletAddress'] as String,
+                'avatarColor': friend['avatarColor'] as String,
+                'imagePath': friend['imagePath'] as String,
+              },
+            )
+            .toList();
+
+    print('FriendsTab: Loaded ${uiFriends.length} friends from Supabase');
+    for (final friend in uiFriends) {
+      print('  - ${friend['name']} (${friend['walletAddress']})');
+    }
+
+    return uiFriends;
+  }
+
   Future<void> _loadFriends() async {
-    if (hasAttemptedLoad) return; // Prevent multiple load attempts
+    // If we already have cached data and haven't been asked to refresh, use it
+    if (_friendsFuture != null && hasAttemptedLoad && friends.isNotEmpty) {
+      print(
+        'FriendsTab: Using cached friends data (${friends.length} friends)',
+      );
+      return;
+    }
 
     try {
       if (mounted) {
@@ -71,45 +154,10 @@ class _FriendsTabState extends State<FriendsTab> {
           hasAttemptedLoad = true;
         });
       }
-      print('FriendsTab: Starting to load friends...');
 
-      // Get current user
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final currentUser = authProvider.currentUser;
-
-      if (currentUser == null) {
-        print('FriendsTab: No current user found');
-        if (mounted) {
-          setState(() => isLoading = false);
-        }
-        return;
-      }
-
-      print('FriendsTab: Loading friends for user: ${currentUser.id}');
-
-      // Load friends from Supabase
-      final friendsData = await UnifiedDatabaseService.getUserFriends(
-        currentUser.id,
-        userPrivyId: currentUser.id,
-      );
-
-      // Convert to UI format expected by FriendsGrid
-      final uiFriends =
-          friendsData
-              .map<Map<String, String>>(
-                (friend) => {
-                  'name': friend['name'] as String,
-                  'walletAddress': friend['walletAddress'] as String,
-                  'avatarColor': friend['avatarColor'] as String,
-                  'imagePath': friend['imagePath'] as String,
-                },
-              )
-              .toList();
-
-      print('FriendsTab: Loaded ${uiFriends.length} friends from Supabase');
-      for (final friend in uiFriends) {
-        print('  - ${friend['name']} (${friend['walletAddress']})');
-      }
+      // Use cached future if available
+      _friendsFuture ??= _loadFriendsData();
+      final uiFriends = await _friendsFuture!;
 
       if (mounted) {
         setState(() {
@@ -129,135 +177,135 @@ class _FriendsTabState extends State<FriendsTab> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<AuthProvider>(
-      builder: (context, authProvider, child) {
-        // Auto-load friends when user becomes available (only if we haven't attempted yet)
-        if (authProvider.currentUser != null && !hasAttemptedLoad) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _loadFriends();
-          });
-        }
+    // Check auth state once without Consumer to avoid rebuilds
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
-        return SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: Column(
+    // Auto-load friends when user becomes available (only if we haven't attempted yet)
+    if (authProvider.currentUser != null &&
+        !hasAttemptedLoad &&
+        _friendsFuture == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadFriends();
+      });
+    }
+
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      child: Column(
+        children: [
+          Container(
+            padding: EdgeInsets.all(16.h),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(26.r),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.2),
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                SizedBox(height: 10.h),
+                Text(
+                  'Who do you want to challenge?',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                // SizedBox(height: 8.h),
+                isLoading
+                    ? Container(
+                      width: 24.w,
+                      height: 24.h,
+                      margin: EdgeInsets.all(60.r),
+                      child: const CircularProgressIndicator(),
+                    )
+                    : FriendsGrid(
+                      friends: friends,
+                      onFriendSelected: (friendName) {
+                        final friend = friends.firstWhere(
+                          (f) => f['name'] == friendName,
+                          orElse: () => {'walletAddress': ''},
+                        );
+                        // Pass raw wallet address; resolution will happen where displayed
+                        widget.onFriendSelected(
+                          friendName,
+                          friend['walletAddress'] ?? '',
+                        );
+                      },
+                      buildViewMoreItem: widget.buildViewMoreItem,
+                      maxVisibleFriends: 5, // Show 5 friends before "View More"
+                    ),
+                // SizedBox(height: 15.h),
+                ChallengeButton(createNewChallenge: widget.createNewChallenge),
+              ],
+            ),
+          ),
+          SizedBox(height: 24.h),
+          Stack(
             children: [
-              Container(
-                padding: EdgeInsets.all(16.h),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(26.r),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.2),
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    SizedBox(height: 10.h),
-                    Text(
-                      'Who do you want to challenge?',
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    // SizedBox(height: 8.h),
-                    isLoading
-                        ? Padding(
-                          padding: EdgeInsets.only(top: 80.h, bottom: 20.h),
-                          child: const LoadingIndicator(message: ''),
-                        )
-                        : FriendsGrid(
-                          friends: friends,
-                          onFriendSelected: (friendName) {
-                            final friend = friends.firstWhere(
-                              (f) => f['name'] == friendName,
-                              orElse: () => {'walletAddress': ''},
-                            );
-                            // Pass raw wallet address; resolution will happen where displayed
-                            widget.onFriendSelected(
-                              friendName,
-                              friend['walletAddress'] ?? '',
-                            );
-                          },
-                          buildViewMoreItem: widget.buildViewMoreItem,
-                          maxVisibleFriends:
-                              5, // Show 5 friends before "View More"
-                        ),
-                    // SizedBox(height: 15.h),
-                    ChallengeButton(
-                      createNewChallenge: widget.createNewChallenge,
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: 24.h),
-              Stack(
-                children: [
-                  Center(
-                    child: Opacity(
-                      opacity: 0.9,
-                      child: Text(
-                        'Challenges',
-                        style: TextStyle(
-                          fontSize: 22.sp,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey,
-                        ),
-                      ),
+              Center(
+                child: Opacity(
+                  opacity: 0.9,
+                  child: Text(
+                    'Challenges',
+                    style: TextStyle(
+                      fontSize: 22.sp,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey,
                     ),
                   ),
-                  Positioned(
-                    right: 0,
-                    top: -2,
-                    // bottom: 0,
-                    child: GestureDetector(
-                      onTap: widget.onViewAllChallenges,
-                      child: Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 16.w,
-                          vertical: 8.h,
+                ),
+              ),
+              Positioned(
+                right: 0,
+                top: -2,
+                // bottom: 0,
+                child: GestureDetector(
+                  onTap: widget.onViewAllChallenges,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 16.w,
+                      vertical: 8.h,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20.r),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'View All',
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade700,
+                          ),
                         ),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20.r),
+                        SizedBox(width: 4.w),
+                        PhosphorIcon(
+                          PhosphorIconsRegular.arrowRight,
+                          color: Colors.grey.shade700,
+                          size: 18.sp,
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'View All',
-                              style: TextStyle(
-                                fontSize: 14.sp,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey.shade700,
-                              ),
-                            ),
-                            SizedBox(width: 4.w),
-                            PhosphorIcon(
-                              PhosphorIconsRegular.arrowRight,
-                              color: Colors.grey.shade700,
-                              size: 18.sp,
-                            ),
-                          ],
-                        ),
-                      ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-              SizedBox(height: 12.h),
-              ChallengesPreview(
-                onViewAll: widget.onViewAllChallenges,
-                onMarkChallengeCompleted: widget.onMarkChallengeCompleted,
+                ),
               ),
             ],
           ),
-        );
-      },
+          SizedBox(height: 12.h),
+          ChallengesPreview(
+            onViewAll: widget.onViewAllChallenges,
+            onMarkChallengeCompleted: widget.onMarkChallengeCompleted,
+          ),
+        ],
+      ),
     );
   }
 }

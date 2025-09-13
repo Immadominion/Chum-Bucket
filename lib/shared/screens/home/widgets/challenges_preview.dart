@@ -8,7 +8,7 @@ import 'package:chumbucket/shared/services/efficient_sync_service.dart';
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
 import 'resolve_challenge_sheet.dart';
 
-class ChallengesPreview extends StatelessWidget {
+class ChallengesPreview extends StatefulWidget {
   final VoidCallback onViewAll;
   final Function(Map<String, dynamic>, bool) onMarkChallengeCompleted;
 
@@ -19,87 +19,148 @@ class ChallengesPreview extends StatelessWidget {
   });
 
   @override
+  State<ChallengesPreview> createState() => _ChallengesPreviewState();
+}
+
+class _ChallengesPreviewState extends State<ChallengesPreview>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _animation;
+
+  // Caching to prevent unnecessary reloads
+  Future<List<dynamic>>? _challengesFuture;
+  DateTime? _lastRefresh;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+    _animation = Tween<double>(begin: -1.0, end: 2.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.ease),
+    );
+    _animationController.repeat();
+
+    // Initialize challenges future immediately
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeChallenges();
+    });
+  }
+
+  void _initializeChallenges() {
+    if (_challengesFuture == null || _shouldRefresh()) {
+      _challengesFuture = null; // Clear cache
+      _lastRefresh = DateTime.now();
+      setState(() {}); // Trigger rebuild
+    }
+  }
+
+  bool _shouldRefresh() {
+    if (_lastRefresh == null) return true;
+    final now = DateTime.now();
+    return now.difference(_lastRefresh!).inSeconds >
+        30; // Refresh after 30 seconds
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Consumer<WalletProvider>(
-      builder: (context, walletProvider, child) {
-        // Also show shimmer while a blockchain sync is active
-        final authProvider = Provider.of<AuthProvider>(context, listen: false);
-        final currentUser = authProvider.currentUser;
-        final bool isSyncing =
-            currentUser != null
-                ? (EfficientSyncService.instance.getSyncStatus(
-                      currentUser.id,
-                      walletProvider.walletAddress,
-                    )['syncing']
-                    as bool)
-                : false;
+    // Get providers without listening to avoid unnecessary rebuilds
+    final walletProvider = Provider.of<WalletProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
 
-        return FutureBuilder<List<dynamic>>(
-          future: _getPreviewChallenges(context, walletProvider),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting ||
-                isSyncing) {
-              return Column(
-                children: [
-                  _buildShimmerChallenge(),
-                  SizedBox(height: 12.h),
-                  _buildShimmerChallenge(),
-                ],
-              );
-            }
+    final bool isSyncing =
+        currentUser != null
+            ? (EfficientSyncService.instance.getSyncStatus(
+                  currentUser.id,
+                  walletProvider.walletAddress,
+                )['syncing']
+                as bool)
+            : false;
 
-            final challenges = snapshot.data ?? [];
+    // Use cached future or create new one
+    _challengesFuture ??= _getPreviewChallenges(context, walletProvider);
 
-            return Column(
-              children: [
-                // Show up to 2 challenges or shimmer if empty
-                if (challenges.isEmpty) ...[
-                  _buildShimmerChallenge(),
-                  SizedBox(height: 12.h),
-                  _buildShimmerChallenge(),
-                ] else ...[
-                  ...challenges
-                      .take(2)
-                      .map(
-                        (challenge) => Padding(
-                          padding: EdgeInsets.only(bottom: 12.h),
-                          child: GestureDetector(
-                            onTap:
-                                (challenge['status'] as String) == 'pending'
-                                    ? () => showResolveChallengeSheet(
-                                      context,
-                                      challenge:
-                                          challenge as Map<String, dynamic>,
-                                      onMarkCompleted: onMarkChallengeCompleted,
-                                    )
-                                    : null,
-                            child: _buildChallengePreviewCard(challenge),
-                          ),
-                        ),
+    return FutureBuilder<List<dynamic>>(
+      future: _challengesFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting || isSyncing) {
+          return Column(
+            children: [
+              _buildShimmerChallenge(),
+              SizedBox(height: 12.h),
+              _buildShimmerChallenge(),
+            ],
+          );
+        }
+
+        final challenges = snapshot.data ?? [];
+
+        return Column(
+          children: [
+            // Show up to 2 challenges or shimmer if empty
+            if (challenges.isEmpty) ...[
+              _buildShimmerChallenge(),
+              SizedBox(height: 12.h),
+              _buildShimmerChallenge(),
+            ] else ...[
+              ...challenges
+                  .take(2)
+                  .map(
+                    (challenge) => Padding(
+                      padding: EdgeInsets.only(bottom: 12.h),
+                      child: GestureDetector(
+                        onTap:
+                            (challenge['status'] as String) == 'pending'
+                                ? () => showResolveChallengeSheet(
+                                  context,
+                                  challenge: challenge as Map<String, dynamic>,
+                                  onMarkCompleted:
+                                      widget.onMarkChallengeCompleted,
+                                )
+                                : null,
+                        child: _buildChallengePreviewCard(challenge),
                       ),
-                  if (challenges.length == 1) _buildShimmerChallenge(),
-                ],
-              ],
-            );
-          },
+                    ),
+                  ),
+              if (challenges.length == 1) _buildShimmerChallenge(),
+            ],
+          ],
         );
       },
     );
   }
 
   Widget _buildShimmerChallenge() {
-    return Container(
-      width: double.infinity,
-      height: 70.h,
-
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [const Color(0xFFF5F5F5), const Color(0xFFE8E8E8)],
-        ),
-        borderRadius: BorderRadius.circular(12.r),
-      ),
+    return AnimatedBuilder(
+      animation: _animationController,
+      builder: (context, child) {
+        return Container(
+          width: double.infinity,
+          height: 70.h,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12.r),
+            gradient: LinearGradient(
+              colors: [
+                Colors.grey.shade300,
+                Colors.grey.shade100,
+                Colors.grey.shade300,
+              ],
+              begin: Alignment(_animation.value - 1, 0.0),
+              end: Alignment(_animation.value, 0.0),
+              stops: const [0.0, 0.5, 1.0],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -127,15 +188,6 @@ class ChallengesPreview extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Status indicator
-          // Container(
-          //   width: 8.w,
-          //   height: 8.w,
-          //   decoration: BoxDecoration(
-          //     shape: BoxShape.circle,
-          //     color: isPending ? Colors.orange : Colors.green,
-          //   ),
-          // ),
           PhosphorIcon(
             isPending
                 ? PhosphorIconsRegular.circle

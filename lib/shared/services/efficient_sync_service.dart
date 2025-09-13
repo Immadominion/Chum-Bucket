@@ -173,14 +173,53 @@ class EfficientSyncService {
               'amount_sol': c.amount,
               'platform_fee_sol': c.platformFee,
               'winner_amount_sol': c.winnerAmount,
-              'participant_privy_id': participantIdToUse,
               'participant_email': participantEmailToUse,
               'status': c.status.toString().split('.').last,
               'expires_at': c.expiresAt.toIso8601String(),
               'multisig_address': c.escrowAddress,
               'vault_address': c.vaultAddress,
-              'winner_privy_id': c.winnerId,
             };
+
+            // If participant ID is provided, find the corresponding user database ID
+            if (participantIdToUse != null) {
+              try {
+                final participantUserResponse =
+                    await Supabase.instance.client
+                        .from('users')
+                        .select('id')
+                        .eq('privy_id', participantIdToUse)
+                        .maybeSingle();
+
+                if (participantUserResponse != null) {
+                  updateData['participant_id'] = participantUserResponse['id'];
+                }
+              } catch (e) {
+                AppLogger.warning(
+                  'Could not find user for participant privy ID $participantIdToUse: $e',
+                );
+              }
+            }
+
+            // Handle winner ID similarly if provided
+            if (c.winnerId != null) {
+              try {
+                final winnerUserResponse =
+                    await Supabase.instance.client
+                        .from('users')
+                        .select('id')
+                        .eq('privy_id', c.winnerId!)
+                        .maybeSingle();
+
+                if (winnerUserResponse != null) {
+                  updateData['winner_id'] = winnerUserResponse['id'];
+                }
+              } catch (e) {
+                AppLogger.warning(
+                  'Could not find user for winner privy ID ${c.winnerId}: $e',
+                );
+              }
+            }
+
             await UnifiedDatabaseService.updateChallenge(
               existing.id,
               updateData,

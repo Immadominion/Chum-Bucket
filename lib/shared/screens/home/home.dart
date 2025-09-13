@@ -1,4 +1,3 @@
-import 'package:chumbucket/config/theme/app_theme.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/challenge_details_screen/challenge_details_screen.dart';
 import 'package:flutter/material.dart';
@@ -30,6 +29,7 @@ class _HomeScreenState extends State<HomeScreen>
   int _friendsRefreshKey = 0; // Key to force FriendsTab refresh
   int _challengesRefreshKey = 0; // Key to force challenges refresh
   bool _isRefreshing = false;
+  DateTime? _lastDataRefresh; // Track when data was last refreshed
 
   @override
   void initState() {
@@ -39,40 +39,33 @@ class _HomeScreenState extends State<HomeScreen>
     // Initialize wallet and load local challenges immediately
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeAuthAndWallet();
-      _onPullToRefresh(); // Load challenges from database first
+      // Initial load without forcing refresh indicators
+      _loadInitialData();
     });
   }
 
-  // Load challenges from local database immediately (offline-first approach)
-  Future<void> _loadLocalChallenges() async {
+  // Load initial data without forcing refresh indicators
+  Future<void> _loadInitialData() async {
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
 
       if (currentUser != null) {
-        AppLogger.info(
-          'Loading challenges from local database for immediate display',
-        );
+        AppLogger.info('Loading initial data for home screen');
 
-        // Get challenges from local database first (instant UI)
-        await EfficientSyncService.instance.getChallenges(
-          userId: currentUser.id,
-          walletAddress: null, // Don't require wallet for local database access
-        );
-
-        // Force refresh of both tabs to show local challenges
+        // Trigger initial data load for both tabs
         if (mounted) {
           setState(() {
             _challengesRefreshKey++;
             _friendsRefreshKey++;
           });
+          _lastDataRefresh = DateTime.now();
         }
 
-        AppLogger.info('Local challenges loaded successfully');
+        AppLogger.info('Initial data load completed');
       }
     } catch (e) {
-      AppLogger.error('Error loading local challenges: $e');
-      // Don't block UI for local database errors
+      AppLogger.error('Error loading initial data: $e');
     }
   }
 
@@ -132,12 +125,13 @@ class _HomeScreenState extends State<HomeScreen>
               },
             );
 
-        // Refresh UI if sync succeeded
-        if (mounted) {
+        // Only refresh UI if data should be refreshed
+        if (mounted && _shouldRefreshData()) {
           setState(() {
             _challengesRefreshKey++;
             _friendsRefreshKey++;
           });
+          _lastDataRefresh = DateTime.now();
         }
       }
     } catch (e) {
@@ -146,14 +140,28 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  // Only refresh if data is stale (older than 30 seconds) or forced
+  bool _shouldRefreshData({bool forced = false}) {
+    if (forced) return true;
+    if (_lastDataRefresh == null) return true;
+
+    final now = DateTime.now();
+    final difference = now.difference(_lastDataRefresh!);
+    return difference.inSeconds >
+        30; // Refresh if data is older than 30 seconds
+  }
+
   Future<void> _onPullToRefresh() async {
     if (_isRefreshing) return;
+
+    // Always refresh when user explicitly pulls to refresh
     setState(() {
       _isRefreshing = true;
-      // Bump keys first so UI (including shimmers) updates immediately
       _friendsRefreshKey++;
       _challengesRefreshKey++;
     });
+
+    _lastDataRefresh = DateTime.now();
 
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -267,10 +275,13 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // Method to refresh challenges after completion or other changes
-  void refreshChallenges() {
-    setState(() {
-      _challengesRefreshKey++;
-    });
+  void refreshChallenges({bool forced = false}) {
+    if (_shouldRefreshData(forced: forced)) {
+      setState(() {
+        _challengesRefreshKey++;
+      });
+      _lastDataRefresh = DateTime.now();
+    }
   }
 
   Future<void> _markChallengeCompleted(
@@ -296,11 +307,12 @@ class _HomeScreenState extends State<HomeScreen>
       SnackBarUtils.hide(context);
 
       if (success) {
-        // Refresh both tabs so challenges list and friends preview update
+        // Force refresh both tabs since challenge status changed
         setState(() {
           _challengesRefreshKey++;
-          _friendsRefreshKey++; // Also refresh friends tab to update challenge previews
+          _friendsRefreshKey++;
         });
+        _lastDataRefresh = DateTime.now();
 
         // Show enhanced success message
         SnackBarUtils.showChallengeSuccess(context, userWon: userWon);
@@ -334,11 +346,12 @@ class _HomeScreenState extends State<HomeScreen>
     );
 
     if (result != null && mounted) {
-      // Refresh both tabs so Friends preview and Challenges list update
+      // Force refresh both tabs since new challenge was created
       setState(() {
         _friendsRefreshKey++;
         _challengesRefreshKey++;
       });
+      _lastDataRefresh = DateTime.now();
 
       // Switch to challenges tab to show the new challenge
       tabController.animateTo(1);
@@ -364,10 +377,11 @@ class _HomeScreenState extends State<HomeScreen>
     showAddFriendSheet(
       context,
       onFriendAdded: () {
-        // Refresh the friends tab by changing the key
+        // Force refresh friends tab since new friend was added
         setState(() {
           _friendsRefreshKey++;
         });
+        _lastDataRefresh = DateTime.now();
       },
     );
   }

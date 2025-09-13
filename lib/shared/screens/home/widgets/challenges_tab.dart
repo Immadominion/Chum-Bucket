@@ -25,151 +25,176 @@ class ChallengesTab extends StatefulWidget {
 }
 
 class _ChallengesTabState extends State<ChallengesTab> {
+  Future<List<dynamic>>? _challengesFuture;
+  int _lastRefreshKey = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeChallenges();
+  }
+
+  @override
+  void didUpdateWidget(ChallengesTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Only refresh if the refresh key actually changed
+    if (widget.refreshKey != _lastRefreshKey) {
+      _challengesFuture = null; // Clear cache to force refresh
+      _initializeChallenges();
+    }
+  }
+
+  void _initializeChallenges() {
+    _lastRefreshKey = widget.refreshKey;
+    // Only create new future if we don't have one cached
+    if (_challengesFuture == null) {
+      final walletProvider = Provider.of<WalletProvider>(
+        context,
+        listen: false,
+      );
+      _challengesFuture = _getAllChallenges(context, walletProvider);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Consumer<WalletProvider>(
-      key: ValueKey(widget.refreshKey), // Force rebuild when key changes
-      builder: (context, walletProvider, child) {
-        // Determine loading state from sync service as well
-        final authProvider = Provider.of<AuthProvider>(context, listen: false);
-        final currentUser = authProvider.currentUser;
-        final isSyncing =
-            currentUser != null
-                ? (EfficientSyncService.instance.getSyncStatus(
-                      currentUser.id,
-                      walletProvider.walletAddress,
-                    )['syncing']
-                    as bool)
-                : false;
+    // Get providers without listening to avoid unnecessary rebuilds
+    final walletProvider = Provider.of<WalletProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
 
-        return FutureBuilder<List<dynamic>>(
-          key: ValueKey('challenges_future_${widget.refreshKey}'),
-          future: _getAllChallenges(context, walletProvider),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting ||
-                isSyncing) {
-              return const ShimmerChallenges();
-            }
+    final isSyncing =
+        currentUser != null
+            ? (EfficientSyncService.instance.getSyncStatus(
+                  currentUser.id,
+                  walletProvider.walletAddress,
+                )['syncing']
+                as bool)
+            : false;
 
-            if (snapshot.hasError) {
-              return SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                child: Container(
-                  padding: EdgeInsets.all(32.w),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(26.r),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.grey.withOpacity(0.2),
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
+    return FutureBuilder<List<dynamic>>(
+      future: _challengesFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting || isSyncing) {
+          return const ShimmerChallenges();
+        }
+
+        if (snapshot.hasError) {
+          return SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Container(
+              padding: EdgeInsets.all(32.w),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(26.r),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.2),
+                    offset: const Offset(0, 2),
                   ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const PhosphorIcon(
-                        PhosphorIconsRegular.warning,
-                        size: 64,
-                        color: Colors.grey,
-                      ),
-                      SizedBox(height: 16.h),
-                      Text(
-                        'Error loading challenges',
-                        style: TextStyle(fontSize: 16.sp, color: Colors.grey),
-                      ),
-                      SizedBox(height: 8.h),
-                      TextButton(
-                        onPressed: () {
-                          // Trigger rebuild
-                          (context as Element).markNeedsBuild();
-                        },
-                        child: const Text('Retry'),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }
-
-            final challenges = snapshot.data ?? [];
-
-            if (challenges.isEmpty) {
-              return SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    SizedBox(height: 80.h),
-                    LottieBuilder.asset(
-                      'assets/animations/lottie/done.json',
-                      width: 150.w,
-                      height: 150.w,
-                      fit: BoxFit.contain,
-                    ),
-
-                    SizedBox(height: 16.h),
-                    Text(
-                      'No challenges yet',
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontSize: 18.sp,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    SizedBox(height: 8.h),
-                    Text(
-                      'Create your first challenge!',
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        color: Colors.grey,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }
-
-            // Revamped list: clean stack of cards with spacing, not wrapped in a container
-            return SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 8.h),
-                child: Column(
-                  children: [
-                    ...List.generate(challenges.length, (index) {
-                      final challenge = challenges[index];
-                      final status =
-                          (challenge['status'] as String?)?.toLowerCase() ??
-                          'pending';
-                      return Padding(
-                        padding: EdgeInsets.symmetric(vertical: 6.h),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(12.r),
-                          onTap:
-                              status == 'pending'
-                                  ? () => showResolveChallengeSheet(
-                                    context,
-                                    challenge:
-                                        challenge as Map<String, dynamic>,
-                                    onMarkCompleted:
-                                        widget.onMarkChallengeCompleted,
-                                  )
-                                  : null,
-                          child: ChallengeCard(
-                            challenge: challenge,
-                            onMarkCompleted: widget.onMarkChallengeCompleted,
-                          ),
-                        ),
-                      );
-                    }),
-                  ],
-                ),
+                ],
               ),
-            );
-          },
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const PhosphorIcon(
+                    PhosphorIconsRegular.warning,
+                    size: 64,
+                    color: Colors.grey,
+                  ),
+                  SizedBox(height: 16.h),
+                  Text(
+                    'Error loading challenges',
+                    style: TextStyle(fontSize: 16.sp, color: Colors.grey),
+                  ),
+                  SizedBox(height: 8.h),
+                  TextButton(
+                    onPressed: () {
+                      // Trigger rebuild
+                      (context as Element).markNeedsBuild();
+                    },
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        final challenges = snapshot.data ?? [];
+
+        if (challenges.isEmpty) {
+          return SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(height: 80.h),
+                LottieBuilder.asset(
+                  'assets/animations/lottie/done.json',
+                  width: 150.w,
+                  height: 150.w,
+                  fit: BoxFit.contain,
+                ),
+
+                SizedBox(height: 16.h),
+                Text(
+                  'No challenges yet',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 18.sp,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 8.h),
+                Text(
+                  'Create your first challenge!',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    color: Colors.grey,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // Revamped list: clean stack of cards with spacing, not wrapped in a container
+        return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 8.h),
+            child: Column(
+              children: [
+                ...List.generate(challenges.length, (index) {
+                  final challenge = challenges[index];
+                  final status =
+                      (challenge['status'] as String?)?.toLowerCase() ??
+                      'pending';
+                  return Padding(
+                    padding: EdgeInsets.symmetric(vertical: 6.h),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12.r),
+                      onTap:
+                          status == 'pending'
+                              ? () => showResolveChallengeSheet(
+                                context,
+                                challenge: challenge as Map<String, dynamic>,
+                                onMarkCompleted:
+                                    widget.onMarkChallengeCompleted,
+                              )
+                              : null,
+                      child: ChallengeCard(
+                        challenge: challenge,
+                        onMarkCompleted: widget.onMarkChallengeCompleted,
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
         );
       },
     );
