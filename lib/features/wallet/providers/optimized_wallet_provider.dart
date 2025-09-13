@@ -99,7 +99,7 @@ class OptimizedWalletProvider extends BaseChangeNotifier {
       EmbeddedSolanaWallet? solanaWallet;
       for (final account in user.linkedAccounts) {
         if (account is EmbeddedSolanaWallet) {
-          solanaWallet = account;
+          solanaWallet = account as EmbeddedSolanaWallet?;
           break;
         }
       }
