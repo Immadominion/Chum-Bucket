@@ -46,8 +46,6 @@ dependencies:
   pdf: ^3.11.3
   audioplayers: ^6.1.0    # Audio player for background music
   url_launcher: ^6.2.2    # For opening URLs in browser
-  webview_flutter: ^3.0.4  # For in-app web views (compatible with flutter_tawk)
-  flutter_tawk: ^0.1.0
 
 dependency_overrides:
   # Enhanced networking

@@ -1,4 +1,5 @@
 import 'package:chumbucket/shared/screens/home/widgets/friends_grid.dart';
+import 'package:chumbucket/shared/screens/home/widgets/view_more_friends_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -144,7 +145,7 @@ class _FriendsTabState extends State<FriendsTab> {
       '#9013FE', // Purple
     ];
 
-    for (int i = 0; i < friendsData.length && i < 5; i++) {
+    for (int i = 0; i < friendsData.length; i++) {
       final friend = friendsData[i];
       final imageId = i + 1; // Images 1-5 based on position
       final colorIndex = i % avatarColors.length;
@@ -163,6 +164,24 @@ class _FriendsTabState extends State<FriendsTab> {
     }
 
     return uiFriends;
+  }
+
+  void _showAllFriends() {
+    showViewMoreFriendsSheet(
+      context,
+      friends: friends,
+      onFriendSelected: (friendName) {
+        final friend = friends.firstWhere(
+          (f) => f['name'] == friendName,
+          orElse: () => {'walletAddress': ''},
+        );
+        // Pass raw wallet address; resolution will happen where displayed
+        widget.onFriendSelected(
+          friendName,
+          friend['walletAddress'] ?? '',
+        );
+      },
+    );
   }
 
   Future<void> _loadFriends() async {
@@ -266,6 +285,7 @@ class _FriendsTabState extends State<FriendsTab> {
                         );
                       },
                       buildViewMoreItem: widget.buildViewMoreItem,
+                      onViewMorePressed: _showAllFriends,
                       maxVisibleFriends: 5, // Show 5 friends before "View More"
                     ),
                 // SizedBox(height: 15.h),

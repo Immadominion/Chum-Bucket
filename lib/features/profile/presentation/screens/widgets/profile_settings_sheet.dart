@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 import 'dart:ui';
 import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
@@ -13,7 +12,7 @@ import 'package:chumbucket/features/profile/presentation/screens/widgets/profile
 import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
 import 'package:chumbucket/features/authentication/presentation/screens/login_screen.dart';
 import 'package:chumbucket/features/wallet/providers/wallet_provider.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:chumbucket/core/services/chat_service.dart';
 
 /// Settings modal sheet following the app's design conventions
 class ProfileSettingsSheet extends StatelessWidget {
@@ -227,15 +226,12 @@ class ProfileSettingsSheet extends StatelessWidget {
     );
   }
 
-  /// Open Tawk.to support chat in-app
+  /// Open Tawk.to support chat in external browser
   void _openTawkToSupport(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const InAppSupportScreen(),
-        fullscreenDialog: true,
-      ),
-    );
+    // Close the current sheet first
+    Navigator.pop(context);
+    // Open chat in external browser to avoid webview privacy manifest requirements
+    ChatService.openChat();
   }
 
   /// Wallet Management Sheet for wallet export/copy functionality
@@ -534,29 +530,6 @@ class _WalletExportWarningSheetState extends State<WalletExportWarningSheet> {
     //     });
     //   }
     // }
-  }
-
-  void _showWalletCopyOptions(BuildContext context) {
-    final walletProvider = Provider.of<WalletProvider>(context, listen: false);
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withOpacity(0.5),
-      elevation: 0,
-      builder: (context) {
-        return BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0),
-          child: SafeArea(
-            child: WalletCopySheet(
-              walletAddress:
-                  walletProvider.walletAddress ?? 'No address available',
-            ),
-          ),
-        );
-      },
-    );
   }
 }
 
@@ -918,65 +891,6 @@ class WalletExportNotAvailableSheet extends StatelessWidget {
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-/// In-app support screen using WebView
-class InAppSupportScreen extends StatefulWidget {
-  const InAppSupportScreen({super.key});
-
-  @override
-  State<InAppSupportScreen> createState() => _InAppSupportScreenState();
-}
-
-class _InAppSupportScreenState extends State<InAppSupportScreen> {
-  bool _isLoading = true;
-  late String tawkToUrl;
-  @override
-  void initState() {
-    super.initState();
-    tawkToUrl = dotenv.env['TAWK_TO_URL'] ?? '';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Talk To Support',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24.sp),
-        ),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Stack(
-        children: [
-          WebView(
-            initialUrl: tawkToUrl,
-            javascriptMode: JavascriptMode.unrestricted,
-            onPageStarted: (String url) {
-              setState(() {
-                _isLoading = true;
-              });
-            },
-            onPageFinished: (String url) {
-              setState(() {
-                _isLoading = false;
-              });
-            },
-          ),
-          if (_isLoading)
-            const Center(
-              child: CircularProgressIndicator(color: Color(0xFFFF5A76)),
-            ),
         ],
       ),
     );

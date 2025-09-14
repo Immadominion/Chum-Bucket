@@ -17,33 +17,51 @@ class HomeUtils {
   }
 
   /// Build view more item widget
-  static Widget buildViewMoreItem(BuildContext context, int remainingCount) {
-    return Column(
-      children: [
-        Container(
-          width: 80.w,
-          height: 80.w,
-          decoration: BoxDecoration(
-            color: Color(0xFFE0E0FF),
-            shape: BoxShape.circle,
-          ),
-          child: Center(
-            child: Text(
-              '+$remainingCount',
-              style: TextStyle(
-                fontSize: 16.sp,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF6E6EFF),
+  static Widget buildViewMoreItem(
+    BuildContext context, 
+    int remainingCount, {
+    VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 75.w,
+            height: 75.w,
+            decoration: BoxDecoration(
+              color: Color(0xFFE0E0FF),
+              shape: BoxShape.circle,
+              boxShadow: onTap != null ? [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  offset: const Offset(0, 2),
+                  blurRadius: 4,
+                ),
+              ] : null,
+            ),
+            child: Center(
+              child: Text(
+                '+$remainingCount',
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF6E6EFF),
+                ),
               ),
             ),
           ),
-        ),
-        SizedBox(height: 8.h),
-        Text(
-          'View More',
-          style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
-        ),
-      ],
+          SizedBox(height: 2.h),
+          Text(
+            'View More',
+            style: TextStyle(
+              fontSize: 12.sp, 
+              fontWeight: FontWeight.w600,
+              color: onTap != null ? Color(0xFF6E6EFF) : Colors.black,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

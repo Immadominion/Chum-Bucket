@@ -7,6 +7,7 @@ class FriendsGrid extends StatelessWidget {
   final Function(String) onFriendSelected;
   final Widget Function(BuildContext context, int remainingCount)
   buildViewMoreItem;
+  final VoidCallback? onViewMorePressed;
   final int maxVisibleFriends; // Maximum friends to show before "View More"
 
   const FriendsGrid({
@@ -14,6 +15,7 @@ class FriendsGrid extends StatelessWidget {
     required this.friends,
     required this.onFriendSelected,
     required this.buildViewMoreItem,
+    this.onViewMorePressed,
     this.maxVisibleFriends =
         5, // Default to 5 friends visible (2 rows of 3, minus 1 for view more)
   });
@@ -48,7 +50,10 @@ class FriendsGrid extends StatelessWidget {
         } else {
           // This is the "View More" item - only shows when hasMoreFriends is true
           final remainingCount = friends.length - maxVisibleFriends;
-          return buildViewMoreItem(context, remainingCount);
+          return GestureDetector(
+            onTap: onViewMorePressed,
+            child: buildViewMoreItem(context, remainingCount),
+          );
         }
       },
     );
