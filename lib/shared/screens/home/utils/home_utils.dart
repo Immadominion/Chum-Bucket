@@ -18,7 +18,7 @@ class HomeUtils {
 
   /// Build view more item widget
   static Widget buildViewMoreItem(
-    BuildContext context, 
+    BuildContext context,
     int remainingCount, {
     VoidCallback? onTap,
   }) {
@@ -32,13 +32,16 @@ class HomeUtils {
             decoration: BoxDecoration(
               color: Color(0xFFE0E0FF),
               shape: BoxShape.circle,
-              boxShadow: onTap != null ? [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  offset: const Offset(0, 2),
-                  blurRadius: 4,
-                ),
-              ] : null,
+              boxShadow:
+                  onTap != null
+                      ? [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          offset: const Offset(0, 2),
+                          blurRadius: 4,
+                        ),
+                      ]
+                      : null,
             ),
             child: Center(
               child: Text(
@@ -55,7 +58,7 @@ class HomeUtils {
           Text(
             'View More',
             style: TextStyle(
-              fontSize: 12.sp, 
+              fontSize: 12.sp,
               fontWeight: FontWeight.w600,
               color: onTap != null ? Color(0xFF6E6EFF) : Colors.black,
             ),

@@ -39,13 +39,9 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
       vsync: this,
     );
 
-    _scrollAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOutCirc,
-    ));
+    _scrollAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOutCirc),
+    );
   }
 
   @override
@@ -61,9 +57,13 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
       _animationController.reverse();
     });
 
-    // Call the parent callback
-    widget.onFriendSelected(friendName);
+    // Close modal first, then call callback after a short delay
     Navigator.of(context).pop();
+
+    // Small delay to ensure modal is fully closed before navigation
+    Future.delayed(const Duration(milliseconds: 100), () {
+      widget.onFriendSelected(friendName);
+    });
   }
 
   @override
@@ -72,7 +72,7 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
     final screenHeight = MediaQuery.of(context).size.height;
     final maxHeight = screenHeight * 0.87;
     final minHeight = 450.h;
-    final preferredHeight = 650.h;
+    final preferredHeight = 500.h;
     final finalHeight = preferredHeight.clamp(minHeight, maxHeight);
 
     return Container(
@@ -89,7 +89,7 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
           ),
         ],
       ),
-      child: Column(
+      child: Stack(
         children: [
           // Header with gradient background and wave
           Container(
@@ -106,13 +106,9 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
                 // Gradient header
                 Container(
                   width: double.infinity,
-                  height: 180.h,
+                  height: 150.h,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                    ),
+                    gradient: AppColors.primaryGradient,
                     borderRadius: BorderRadius.only(
                       topLeft: Radius.circular(43.r),
                       topRight: Radius.circular(43.r),
@@ -132,25 +128,7 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
                         ),
                       ),
                       SizedBox(height: 20.h),
-                      // Friends count badge
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 12.w,
-                          vertical: 6.h,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(20.r),
-                        ),
-                        child: Text(
-                          '${widget.friends.length} Friends',
-                          style: TextStyle(
-                            fontSize: 12.sp,
-                            color: Colors.white.withOpacity(0.9),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
+
                       SizedBox(height: 8.h),
                       // Main title
                       Text(
@@ -183,7 +161,7 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
                   child: ClipPath(
                     clipper: DetailedWaveClipper(),
                     child: Container(
-                      height: 180.h,
+                      height: 150.h,
                       decoration: BoxDecoration(
                         color: Colors.white,
                         boxShadow: [
@@ -202,51 +180,17 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
           ),
 
           // Friends list with iOS-style circular scroll
-          Expanded(
+          Positioned(
+            top: 120.h,
+            left: 0,
+            right: 0,
+            bottom: 0,
             child: Container(
               width: double.infinity,
-              padding: EdgeInsets.symmetric(horizontal: 24.w),
+              padding: EdgeInsets.symmetric(horizontal: 16.w),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(height: 8.h),
-
-                  // Search hint with subtle styling
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: 16.w,
-                      vertical: 8.h,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8F9FA),
-                      borderRadius: BorderRadius.circular(12.r),
-                      border: Border.all(
-                        color: Colors.grey.withOpacity(0.1),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          PhosphorIcons.magnifyingGlass(),
-                          size: 16.sp,
-                          color: Colors.grey.shade500,
-                        ),
-                        SizedBox(width: 8.w),
-                        Text(
-                          'Scroll to browse your friends',
-                          style: TextStyle(
-                            fontSize: 13.sp,
-                            color: Colors.grey.shade600,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  SizedBox(height: 16.h),
-
                   // Scrollable friends list with iOS circular picker behavior
                   Expanded(
                     child: AnimatedBuilder(
@@ -262,14 +206,8 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
                           },
                           child: Column(
                             children: [
-                              // Add spacing for visual breathing room
-                              SizedBox(height: 8.h),
-
                               // iOS Wheel Picker for friends
                               _buildFriendsGrid(),
-
-                              // Bottom spacing for comfortable scrolling
-                              SizedBox(height: 24.h),
                             ],
                           ),
                         );
@@ -289,12 +227,12 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
     // iOS-style circular wheel picker for friends
     return Container(
       height: 350.h, // Fixed height for the wheel picker
-      padding: EdgeInsets.symmetric(horizontal: 24.w),
+      padding: EdgeInsets.symmetric(horizontal: 14.w),
       child: ListWheelScrollView.useDelegate(
         controller: _wheelController,
         itemExtent: 80.h, // Height of each friend item in the wheel
         diameterRatio: 1.8, // Controls the curvature - larger = flatter
-        perspective: 0.003, // 3D perspective effect for depth
+        perspective: 0.004, // 3D perspective effect for depth
         offAxisFraction: 0.0, // Keep items centered horizontally
         physics: const FixedExtentScrollPhysics(), // iOS-style scroll behavior
         squeeze: 1.0, // No compression of items
@@ -319,15 +257,12 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
     return GestureDetector(
       onTap: () => _onFriendTap(friend['name'] ?? ''),
       child: Container(
-        margin: EdgeInsets.symmetric(horizontal: 16.w, vertical: 4.h),
-        padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 12.h),
+        margin: EdgeInsets.symmetric(horizontal: 20.w, vertical: 4.h),
+        padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 12.h),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20.r),
           color: Colors.white,
-          border: Border.all(
-            color: Colors.grey.withOpacity(0.12),
-            width: 1,
-          ),
+          border: Border.all(color: Colors.grey.withOpacity(0.12), width: 1),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.04),
@@ -360,7 +295,8 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(24.r),
                 child: Image.asset(
-                  friend['imagePath'] ?? 'assets/images/ai_gen/profile_images/1.png',
+                  friend['imagePath'] ??
+                      'assets/images/ai_gen/profile_images/1.png',
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) {
                     return Container(
@@ -411,7 +347,7 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
                       ),
                       SizedBox(width: 6.w),
                       Text(
-                        'Online',
+                        'Available',
                         style: TextStyle(
                           fontSize: 12.sp,
                           fontWeight: FontWeight.w500,

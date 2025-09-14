@@ -147,7 +147,8 @@ class _FriendsTabState extends State<FriendsTab> {
 
     for (int i = 0; i < friendsData.length; i++) {
       final friend = friendsData[i];
-      final imageId = i + 1; // Images 1-5 based on position
+      // Cycle through images 1-5 for any number of friends
+      final imageId = (i % 5) + 1; // This will give us 1,2,3,4,5,1,2,3,4,5...
       final colorIndex = i % avatarColors.length;
 
       uiFriends.add({
@@ -176,10 +177,7 @@ class _FriendsTabState extends State<FriendsTab> {
           orElse: () => {'walletAddress': ''},
         );
         // Pass raw wallet address; resolution will happen where displayed
-        widget.onFriendSelected(
-          friendName,
-          friend['walletAddress'] ?? '',
-        );
+        widget.onFriendSelected(friendName, friend['walletAddress'] ?? '');
       },
     );
   }

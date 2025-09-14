@@ -213,7 +213,7 @@ class UnifiedDatabaseService {
   }) async {
     final updates = <String, dynamic>{
       'status': status,
-      'updated_at': DateTime.now().toIso8601String(),
+      // Note: challenges table doesn't have updated_at column, using completed_at instead
     };
 
     if (transactionSignature != null) {
