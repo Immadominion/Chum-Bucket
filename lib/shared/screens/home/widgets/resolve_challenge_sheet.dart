@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'dart:ui';
+import 'dart:io';
 import 'package:chumbucket/shared/screens/home/widgets/overlapping_profile_avatars.dart';
 import 'package:chumbucket/shared/screens/home/widgets/resolve_sheet_header.dart';
 import 'package:chumbucket/shared/screens/home/widgets/resolve_sheet_content.dart';
@@ -8,7 +9,7 @@ import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
 
 /// Modal bottom sheet for resolving challenges with wave design and overlapping avatars
-class ResolveChallengeSheet extends StatelessWidget {
+class ResolveChallengeSheet extends StatefulWidget {
   final Map<String, dynamic> challenge;
   final Function(Map<String, dynamic>, bool) onMarkCompleted;
 
@@ -18,6 +19,11 @@ class ResolveChallengeSheet extends StatelessWidget {
     required this.onMarkCompleted,
   });
 
+  @override
+  State<ResolveChallengeSheet> createState() => _ResolveChallengeSheetState();
+}
+
+class _ResolveChallengeSheetState extends State<ResolveChallengeSheet> {
   /// Helper method to shorten wallet address in the same format used elsewhere
   String _shortenAddress(String address) {
     if (address.length <= 14) return address;
@@ -26,12 +32,60 @@ class ResolveChallengeSheet extends StatelessWidget {
     return '$start...$end';
   }
 
+  /// Safe wrapper for the completion callback that shows success feedback
+  void _safeMarkCompleted(
+    Map<String, dynamic> challenge,
+    bool completed,
+  ) async {
+    if (!mounted) return;
+
+    try {
+      // Close the modal first
+      Navigator.of(context).pop();
+
+      // Execute the completion callback
+      widget.onMarkCompleted(challenge, completed);
+
+      // Show success feedback after a short delay to ensure modal is closed
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                completed
+                    ? 'Challenge completed successfully!'
+                    : 'Challenge marked as failed',
+                style: const TextStyle(color: Colors.white),
+              ),
+              backgroundColor: completed ? Colors.green : Colors.orange,
+              duration: const Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      });
+    } catch (e) {
+      // Show error feedback if something goes wrong
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update challenge: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final status = (challenge['status'] as String?)?.toLowerCase() ?? 'pending';
+    final status =
+        (widget.challenge['status'] as String?)?.toLowerCase() ?? 'pending';
     final isPending = status == 'pending';
-    final friendRaw = (challenge['friendName'] as String?) ?? 'Zara';
-    final amount = challenge['amount'];
+    final friendRaw = (widget.challenge['friendName'] as String?) ?? 'Zara';
+    final amount = widget.challenge['amount'];
     final amountText = amount is num ? amount.toStringAsFixed(1) : '$amount';
 
     // Calculate responsive height with constraints
@@ -122,9 +176,9 @@ class ResolveChallengeSheet extends StatelessWidget {
 
           // Bottom section with challenge details and buttons
           ResolveSheetContent(
-            challenge: challenge,
+            challenge: widget.challenge,
             isPending: isPending,
-            onMarkCompleted: onMarkCompleted,
+            onMarkCompleted: _safeMarkCompleted,
           ),
         ],
       ),
@@ -147,9 +201,17 @@ Future<void> showResolveChallengeSheet(
       return BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0),
         child: SafeArea(
-          child: ResolveChallengeSheet(
-            challenge: challenge,
-            onMarkCompleted: onMarkCompleted,
+          child: Padding(
+            padding: EdgeInsets.only(
+              bottom:
+                  Platform.isIOS
+                      ? MediaQuery.of(context).padding.bottom + 10.h
+                      : MediaQuery.of(context).padding.bottom + 20.h,
+            ),
+            child: ResolveChallengeSheet(
+              challenge: challenge,
+              onMarkCompleted: onMarkCompleted,
+            ),
           ),
         ),
       );

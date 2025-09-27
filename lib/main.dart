@@ -8,14 +8,15 @@ import 'package:chumbucket/features/authentication/providers/onboarding_provider
 import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
 import 'package:chumbucket/features/profile/providers/profile_provider.dart';
 import 'package:chumbucket/features/wallet/providers/wallet_provider.dart';
+import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
 import 'package:chumbucket/shared/screens/splash/splash_screen.dart';
-import 'package:rive/rive.dart';
+// import 'package:rive/rive.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  unawaited(RiveFile.initialize());
+  // unawaited(RiveFile.initialize());
 
   // Try loading .env file, but continue even if it fails
   try {
@@ -44,6 +45,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => OnboardingProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ProfileProvider()),
+        ChangeNotifierProvider.value(value: ChallengeStateProvider.instance),
       ],
       child: const MyApp(),
     ),

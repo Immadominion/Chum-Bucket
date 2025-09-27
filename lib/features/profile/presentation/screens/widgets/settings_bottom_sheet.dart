@@ -8,7 +8,9 @@ import 'package:chumbucket/features/authentication/presentation/screens/login_sc
 import 'package:chumbucket/features/profile/presentation/screens/widgets/menu_tile.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_buttons.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_settings_sheet.dart';
+import 'package:chumbucket/core/services/chat_service.dart';
 import 'dart:ui';
+import 'dart:io';
 
 class SettingsBottomSheet extends StatefulWidget {
   const SettingsBottomSheet({Key? key}) : super(key: key);
@@ -78,7 +80,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
             icon: CupertinoIcons.question_circle_fill,
             title: "Support",
             subtitle: "Get help when you need it",
-            onTap: () {},
+            onTap: () => _openSupport(context),
             iconColor: Colors.blue,
           ),
           MenuTile(
@@ -100,9 +102,11 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
               );
               await authProvider.clearUserData();
 
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
-              );
+              if (context.mounted) {
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (context) => const LoginScreen()),
+                );
+              }
             },
             icon: CupertinoIcons.square_arrow_right,
             gradientColors: [Colors.grey.shade600, Colors.grey.shade700],
@@ -120,20 +124,59 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
 
     // Use a short delay to ensure the context is ready for the next modal
     Future.delayed(const Duration(milliseconds: 100), () {
-      // Show wallet export warning sheet
-      showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        barrierColor: Colors.black.withOpacity(0.5),
-        elevation: 0,
-        builder: (context) {
-          return BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0),
-            child: const SafeArea(child: WalletExportWarningSheet()),
-          );
-        },
-      );
+      // Check if context is still mounted before showing new modal
+      if (context.mounted) {
+        // Show wallet export warning sheet
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          barrierColor: Colors.black.withOpacity(0.5),
+          elevation: 0,
+          builder: (context) {
+            return BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0),
+              child: SafeArea(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    bottom:
+                        Platform.isIOS
+                            ? MediaQuery.of(context).padding.bottom + 10.h
+                            : MediaQuery.of(context).padding.bottom + 20.h,
+                  ),
+                  child: const WalletExportWarningSheet(),
+                ),
+              ),
+            );
+          },
+        );
+      }
     });
+  }
+
+  Future<void> _openSupport(BuildContext context) async {
+    try {
+      // First close the settings sheet
+      Navigator.of(context).pop();
+
+      // Use a short delay to ensure the context is ready
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      // Check if context is still mounted before opening support
+      if (context.mounted) {
+        await ChatService.openChat(context);
+      }
+    } catch (e) {
+      // If there's an error, show a simple error message
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Unable to open support chat: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 }

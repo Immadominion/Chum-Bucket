@@ -30,7 +30,7 @@ class ReceiptModal extends StatelessWidget {
     final screenHeight = MediaQuery.of(context).size.height;
     final maxHeight = screenHeight * 0.9;
     final minHeight = 450.h;
-    final preferredHeight = 650.h;
+    final preferredHeight = 550.h;
     final finalHeight = preferredHeight.clamp(minHeight, maxHeight);
 
     return Container(

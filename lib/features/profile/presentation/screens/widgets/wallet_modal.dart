@@ -12,6 +12,7 @@ import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'dart:ui';
+import 'dart:io';
 
 /// Wallet modal following the new bottom sheet design pattern
 class WalletModal extends StatefulWidget {
@@ -328,9 +329,17 @@ Future<void> showWalletModal(BuildContext context) async {
       return BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0),
         child: SafeArea(
-          child: ChangeNotifierProvider<WalletProvider>.value(
-            value: walletProvider,
-            child: const WalletModal(),
+          child: Padding(
+            padding: EdgeInsets.only(
+              bottom:
+                  Platform.isIOS
+                      ? MediaQuery.of(context).padding.bottom + 10.h
+                      : MediaQuery.of(context).padding.bottom + 20.h,
+            ),
+            child: ChangeNotifierProvider<WalletProvider>.value(
+              value: walletProvider,
+              child: const WalletModal(),
+            ),
           ),
         ),
       );

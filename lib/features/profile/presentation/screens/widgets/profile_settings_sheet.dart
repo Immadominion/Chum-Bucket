@@ -6,6 +6,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'dart:ui';
+import 'dart:io';
 import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_menu_item.dart';
@@ -174,7 +175,15 @@ class ProfileSettingsSheet extends StatelessWidget {
                             title: 'Delete Your Account',
                             subtitle: 'Permanently remove your account',
                             isDanger: true,
-                            onTap: () {},
+                            onTap: () {
+                              Navigator.pop(context);
+                              SnackBarUtils.showInfo(
+                                context,
+                                title: 'Coming Soon...',
+                                subtitle:
+                                    'You can open a ticket about that for now.',
+                              );
+                            },
                           ),
 
                           SizedBox(height: 16.h),
@@ -231,7 +240,7 @@ class ProfileSettingsSheet extends StatelessWidget {
     // Close the current sheet first
     Navigator.pop(context);
     // Open chat in external browser to avoid webview privacy manifest requirements
-    ChatService.openChat();
+    ChatService.openChat(context);
   }
 
   /// Wallet Management Sheet for wallet export/copy functionality
@@ -247,7 +256,17 @@ class ProfileSettingsSheet extends StatelessWidget {
       builder: (context) {
         return BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0),
-          child: const SafeArea(child: WalletExportWarningSheet()),
+          child: SafeArea(
+            child: Padding(
+              padding: EdgeInsets.only(
+                bottom:
+                    Platform.isIOS
+                        ? MediaQuery.of(context).padding.bottom + 10.h
+                        : MediaQuery.of(context).padding.bottom + 20.h,
+              ),
+              child: const WalletExportWarningSheet(),
+            ),
+          ),
         );
       },
     );
@@ -908,7 +927,17 @@ Future<void> showProfileSettingsSheet(BuildContext context) async {
     builder: (context) {
       return BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0),
-        child: const SafeArea(child: ProfileSettingsSheet()),
+        child: SafeArea(
+          child: Padding(
+            padding: EdgeInsets.only(
+              bottom:
+                  Platform.isIOS
+                      ? MediaQuery.of(context).padding.bottom + 10.h
+                      : MediaQuery.of(context).padding.bottom + 20.h,
+            ),
+            child: const ProfileSettingsSheet(),
+          ),
+        ),
       );
     },
   );

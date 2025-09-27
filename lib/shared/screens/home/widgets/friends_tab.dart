@@ -1,3 +1,4 @@
+import 'package:chumbucket/features/wallet/providers/wallet_provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/friends_grid.dart';
 import 'package:chumbucket/shared/screens/home/widgets/view_more_friends_sheet.dart';
 import 'package:flutter/material.dart';
@@ -35,6 +36,7 @@ class _FriendsTabState extends State<FriendsTab> {
   List<Map<String, String>> friends = [];
   bool isLoading = true;
   bool hasAttemptedLoad = false; // Track if we've tried to load
+  WalletProvider? _walletProvider; // Store provider reference for safe disposal
 
   // Caching for performance optimization
   Future<List<Map<String, String>>>? _friendsFuture;
@@ -48,6 +50,25 @@ class _FriendsTabState extends State<FriendsTab> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadFriendsWhenReady();
     });
+
+    // Also refresh the preview list as soon as a challenge is created by listening to WalletProvider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _walletProvider = Provider.of<WalletProvider>(context, listen: false);
+      _walletProvider?.addListener(_onWalletChange);
+    });
+  }
+
+  void _onWalletChange() {
+    if (!mounted) return;
+    // Rebuild to refresh ChallengesPreview below the grid
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    // Remove listener safely by storing the provider reference in initState
+    _walletProvider?.removeListener(_onWalletChange);
+    super.dispose();
   }
 
   @override

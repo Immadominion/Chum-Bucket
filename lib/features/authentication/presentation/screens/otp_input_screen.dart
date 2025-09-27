@@ -81,15 +81,19 @@ class _OtpInputScreenState extends State<OtpInputScreen> {
 
           if (profile != null &&
               profile['full_name']?.toString().trim().isNotEmpty == true) {
-            Navigator.of(context).pushReplacement(
+            // Replace the current navigation stack so Home becomes the root.
+            Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(builder: (context) => const HomeScreen()),
+              (route) => false,
             );
           } else {
-            Navigator.of(context).pushReplacement(
+            // Replace the current navigation stack so EditProfile becomes the root.
+            Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(
                 builder:
                     (context) => const EditProfileScreen(showCancelIcon: false),
               ),
+              (route) => false,
             );
           }
         }
@@ -172,6 +176,7 @@ class _OtpInputScreenState extends State<OtpInputScreen> {
                       fontWeight: FontWeight.w700,
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
+                    contentPadding: EdgeInsets.only(),
                     onCodeChanged: (code) {
                       if (_errorText != null) {
                         WidgetsBinding.instance.addPostFrameCallback((_) {

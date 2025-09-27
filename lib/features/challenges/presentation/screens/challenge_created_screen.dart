@@ -1,6 +1,8 @@
 import 'dart:ui';
+import 'dart:io';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/shared/models/models.dart';
 import 'package:screenshot/screenshot.dart';
 import 'widgets/challenge_status_widget.dart';
@@ -63,16 +65,18 @@ class _ChallengeStateScreenState extends State<ChallengeStateScreen> {
                   const SizedBox(width: 8),
                 ],
 
-                Flexible(
-                  child: ChallengeButton(
-                    createNewChallenge:
-                        () => Navigator.of(
-                          context,
-                        ).popUntil((route) => route.isFirst),
-                    label: 'Done',
-                    blurRadius: false,
+                if (widget.status != ChallengeStatus.pending) ...[
+                  Flexible(
+                    child: ChallengeButton(
+                      createNewChallenge:
+                          () => Navigator.of(
+                            context,
+                          ).popUntil((route) => route.isFirst),
+                      label: 'Done',
+                      blurRadius: false,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
 
@@ -94,10 +98,18 @@ class _ChallengeStateScreenState extends State<ChallengeStateScreen> {
         return BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0),
           child: SafeArea(
-            child: ReceiptModal(
-              challenge: widget.challenge,
-              status: widget.status,
-              screenshotController: screenshotController,
+            child: Padding(
+              padding: EdgeInsets.only(
+                bottom:
+                    Platform.isIOS
+                        ? MediaQuery.of(context).padding.bottom + 10.h
+                        : MediaQuery.of(context).padding.bottom + 20.h,
+              ),
+              child: ReceiptModal(
+                challenge: widget.challenge,
+                status: widget.status,
+                screenshotController: screenshotController,
+              ),
             ),
           ),
         );

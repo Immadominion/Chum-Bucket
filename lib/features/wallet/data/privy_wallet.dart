@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:developer';
 import 'dart:typed_data';
-import 'package:coral_xyz/coral_xyz_anchor.dart';
+import 'package:coral_xyz/coral_xyz.dart';
 import 'package:coral_xyz/src/types/transaction.dart' as types;
 import 'package:privy_flutter/privy_flutter.dart';
 

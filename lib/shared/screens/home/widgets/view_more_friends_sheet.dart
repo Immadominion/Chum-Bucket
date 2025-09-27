@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'dart:ui';
+import 'dart:io';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
@@ -389,9 +390,17 @@ Future<void> showViewMoreFriendsSheet(
       return BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0),
         child: SafeArea(
-          child: ViewMoreFriendsSheet(
-            friends: friends,
-            onFriendSelected: onFriendSelected,
+          child: Padding(
+            padding: EdgeInsets.only(
+              bottom:
+                  Platform.isIOS
+                      ? MediaQuery.of(context).padding.bottom + 10.h
+                      : MediaQuery.of(context).padding.bottom + 20.h,
+            ),
+            child: ViewMoreFriendsSheet(
+              friends: friends,
+              onFriendSelected: onFriendSelected,
+            ),
           ),
         ),
       );

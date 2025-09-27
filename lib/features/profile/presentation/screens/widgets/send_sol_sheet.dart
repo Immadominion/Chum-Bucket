@@ -10,6 +10,7 @@ import 'package:chumbucket/shared/widgets/widgets.dart';
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
 import 'package:chumbucket/features/wallet/presentation/screens/sol_transfer_result_screen.dart';
 import 'dart:ui';
+import 'dart:io';
 
 class SendSolSheet extends StatefulWidget {
   const SendSolSheet({super.key});
@@ -122,37 +123,44 @@ class _SendSolSheetState extends State<SendSolSheet> {
         context: context,
       );
 
-      if (transactionSignature != null && mounted) {
-        // Close the sheet
-        Navigator.of(context).pop();
+      // Check if widget is still mounted before UI operations
+      if (!mounted) return;
 
+      // Close the modal first
+      Navigator.of(context).pop();
+
+      if (transactionSignature != null) {
         // Navigate to success screen
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder:
-                (context) => SolTransferResultScreen(
-                  status: SolTransferStatus.success,
-                  destinationAddress:
-                      addressInput, // Use original input (might be domain)
-                  amount: amount,
-                  transactionSignature: transactionSignature,
-                  onDone: () => Navigator.of(context).pop(),
-                ),
-          ),
-        );
+        if (mounted) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder:
+                  (context) => SolTransferResultScreen(
+                    status: SolTransferStatus.success,
+                    destinationAddress: addressInput,
+                    amount: amount,
+                    transactionSignature: transactionSignature,
+                    onDone: () => Navigator.of(context).pop(),
+                  ),
+            ),
+          );
 
-        SnackBarUtils.showSuccess(
-          context,
-          title: 'Transfer Successful',
-          subtitle: 'Sent ${amount.toStringAsFixed(4)} SOL to $addressInput',
-        );
+          SnackBarUtils.showSuccess(
+            context,
+            title: 'Transfer Successful',
+            subtitle: 'Sent ${amount.toStringAsFixed(4)} SOL to $addressInput',
+          );
+        }
       }
     } catch (e) {
-      if (mounted) {
-        // Close the sheet
-        Navigator.of(context).pop();
+      // Check if widget is still mounted before UI operations
+      if (!mounted) return;
 
-        // Navigate to error screen
+      // Close the modal first
+      Navigator.of(context).pop();
+
+      // Navigate to error screen
+      if (mounted) {
         Navigator.of(context).push(
           MaterialPageRoute(
             builder:
@@ -543,10 +551,14 @@ Future<void> showSendSolSheet(BuildContext context) async {
         child: SafeArea(
           child: Padding(
             padding: EdgeInsets.only(
-              // Ensure padding is never negative
-              bottom: MediaQuery.of(
-                context,
-              ).viewInsets.bottom.clamp(0.0, double.infinity),
+              // Keyboard handling plus consistent bottom spacing
+              bottom:
+                  MediaQuery.of(
+                    context,
+                  ).viewInsets.bottom.clamp(0.0, double.infinity) +
+                  (Platform.isIOS
+                      ? MediaQuery.of(context).padding.bottom + 10.h
+                      : MediaQuery.of(context).padding.bottom + 20.h),
             ),
             child: const SendSolSheet(),
           ),

@@ -3,7 +3,7 @@ import 'package:chumbucket/core/utils/app_logger.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:solana/solana.dart' as solana;
-import 'package:coral_xyz/coral_xyz_anchor.dart';
+import 'package:coral_xyz/coral_xyz.dart';
 import 'package:coral_xyz/src/types/transaction.dart' as coral_types;
 import 'package:privy_flutter/privy_flutter.dart';
 import 'package:provider/provider.dart';
@@ -15,6 +15,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
 import 'package:chumbucket/features/wallet/data/privy_wallet.dart';
+import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
 
 class WalletProvider extends BaseChangeNotifier {
   // Create solana client for network operations
@@ -575,6 +576,13 @@ class WalletProvider extends BaseChangeNotifier {
     }
 
     try {
+      final rpcUrl =
+          dotenv.env['SOLANA_RPC_URL'] ?? 'https://api.devnet.solana.com';
+      AppLogger.debug(
+        'Refreshing balance for wallet: $_walletAddress using RPC: $rpcUrl',
+        tag: 'WalletProvider',
+      );
+
       final publicKey = solana.Ed25519HDPublicKey.fromBase58(_walletAddress!);
       final balanceResponse = await _client.rpcClient.getBalance(
         publicKey.toBase58(),
@@ -588,6 +596,9 @@ class WalletProvider extends BaseChangeNotifier {
       );
     } catch (e) {
       AppLogger.debug('Error refreshing balance: $e', tag: 'WalletProvider');
+      final rpcUrl =
+          dotenv.env['SOLANA_RPC_URL'] ?? 'https://api.devnet.solana.com';
+      AppLogger.debug('RPC URL being used: $rpcUrl', tag: 'WalletProvider');
     }
   }
 
@@ -648,6 +659,14 @@ class WalletProvider extends BaseChangeNotifier {
         '✅ Challenge created on-chain: $signature',
         tag: 'WalletProvider',
       );
+
+      // Update challenge state provider immediately with the new challenge
+      final challengeStateProvider = Provider.of<ChallengeStateProvider>(
+        context,
+        listen: false,
+      );
+      challengeStateProvider.addChallenge(createdChallenge);
+
       setSuccess();
       await refreshBalance();
       return createdChallenge;

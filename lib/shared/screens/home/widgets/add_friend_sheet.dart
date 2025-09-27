@@ -2,6 +2,7 @@ import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'dart:ui';
+import 'dart:io';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
@@ -11,6 +12,7 @@ import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/shared/widgets/widgets.dart';
 import 'package:chumbucket/shared/services/unified_database_service.dart';
+import 'package:chumbucket/shared/utils/safe_modal_utils.dart';
 
 class AddFriendSheet extends StatefulWidget {
   final VoidCallback onFriendAdded;
@@ -102,27 +104,37 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
       );
 
       if (success) {
-        widget.onFriendAdded();
-        if (mounted) Navigator.pop(context);
-
-        SnackBarUtils.showSuccess(
+        await SafeModalUtils.safeCloseAndExecute(
           context,
-          title: '$name added as friend!',
-          subtitle: 'You can now challenge them to duels',
+          mounted: mounted,
+          onComplete: () {
+            widget.onFriendAdded();
+            if (mounted) {
+              SnackBarUtils.showSuccess(
+                context,
+                title: '$name added as friend!',
+                subtitle: 'You can now challenge them to duels',
+              );
+            }
+          },
         );
       } else {
-        SnackBarUtils.showError(
-          context,
-          title: 'Failed to add friend',
-          subtitle: 'Could not add $name as a friend. Please try again.',
-        );
+        if (mounted) {
+          SnackBarUtils.showError(
+            context,
+            title: 'Failed to add friend',
+            subtitle: 'Could not add $name as a friend. Please try again.',
+          );
+        }
       }
     } catch (e) {
-      SnackBarUtils.showError(
-        context,
-        title: 'Error adding friend',
-        subtitle: e.toString(),
-      );
+      if (mounted) {
+        SnackBarUtils.showError(
+          context,
+          title: 'Error adding friend',
+          subtitle: e.toString(),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -373,10 +385,14 @@ Future<void> showAddFriendSheet(
         child: SafeArea(
           child: Padding(
             padding: EdgeInsets.only(
-              // Ensure padding is never negative
-              bottom: MediaQuery.of(
-                context,
-              ).viewInsets.bottom.clamp(0.0, double.infinity),
+              // Keyboard handling plus consistent bottom spacing
+              bottom:
+                  MediaQuery.of(
+                    context,
+                  ).viewInsets.bottom.clamp(0.0, double.infinity) +
+                  (Platform.isIOS
+                      ? MediaQuery.of(context).padding.bottom + 10.h
+                      : MediaQuery.of(context).padding.bottom + 20.h),
             ),
             child: AddFriendSheet(onFriendAdded: onFriendAdded),
           ),

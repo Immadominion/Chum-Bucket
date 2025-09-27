@@ -50,17 +50,17 @@ class EfficientSyncService {
 
   EfficientSyncService._internal();
 
-  // Sync state tracking - MUCH more conservative intervals
+  // Sync state tracking - More responsive intervals for better UX
   static final Map<String, DateTime> _lastSyncTimes = {};
   static const Duration _syncInterval = Duration(
-    minutes: 15,
-  ); // Sync every 15 minutes (much less frequent)
+    minutes: 2,
+  ); // Sync every 2 minutes (more responsive)
   static const Duration _backgroundSyncInterval = Duration(
-    minutes: 30,
-  ); // Background sync every 30 minutes
+    minutes: 5,
+  ); // Background sync every 5 minutes
   static const Duration _verificationInterval = Duration(
-    hours: 2,
-  ); // Blockchain verification every 2 hours (very infrequent)
+    minutes: 30,
+  ); // Blockchain verification every 30 minutes (more frequent for pending challenges)
 
   // Track if we're currently syncing to prevent duplicate calls
   static final Set<String> _activeSyncs = {};
@@ -308,14 +308,14 @@ class EfficientSyncService {
       return await UnifiedDatabaseService.getChallengesForUser(userId);
     }
 
-    // AGGRESSIVE THROTTLING: Prevent calls within 30 seconds
+    // REDUCED THROTTLING: Prevent calls within 10 seconds (more responsive)
     final key = '${userId}_${walletAddress ?? 'local'}';
     final lastCall = _lastSyncTimes[key];
     final now = DateTime.now();
 
     if (lastCall != null && !forceSync) {
       final timeSinceLastCall = now.difference(lastCall);
-      if (timeSinceLastCall < Duration(seconds: 30)) {
+      if (timeSinceLastCall < Duration(seconds: 10)) {
         AppLogger.debug(
           'EfficientSync: Throttling call - only ${timeSinceLastCall.inSeconds}s since last call',
           tag: 'EfficientSyncService',
@@ -376,13 +376,13 @@ class EfficientSyncService {
       return false;
     }
 
-    // ADDITIONAL THROTTLING: Don't sync if called very recently
+    // REDUCED THROTTLING: Don't sync if called very recently (30 seconds)
     final lastCall = _lastSyncTimes[key];
     if (lastCall != null) {
       final timeSinceLastCall = DateTime.now().difference(lastCall);
-      if (timeSinceLastCall < Duration(minutes: 2)) {
+      if (timeSinceLastCall < Duration(seconds: 30)) {
         AppLogger.debug(
-          'EfficientSync: Recent sync detected, skipping (${timeSinceLastCall.inMinutes}min ago)',
+          'EfficientSync: Recent sync detected, skipping (${timeSinceLastCall.inSeconds}s ago)',
           tag: 'EfficientSyncService',
         );
         return false;
@@ -508,12 +508,20 @@ class EfficientSyncService {
     final lastVerification = _lastSyncTimes['verification_$key'];
     final now = DateTime.now();
 
+    // More aggressive verification if there are pending challenges
+    final hasPendingChallenges = dbChallenges.any(
+      (c) => c.status == ChallengeStatus.pending,
+    );
+    final verificationInterval =
+        hasPendingChallenges
+            ? Duration(minutes: 5)
+            : _verificationInterval; // 5 min for pending, 30 min otherwise
+
     final shouldVerify =
         lastVerification == null ||
-        now.difference(lastVerification) > _verificationInterval ||
-        dbChallenges.any((c) => c.status == ChallengeStatus.pending) ||
+        now.difference(lastVerification) > verificationInterval ||
+        hasPendingChallenges ||
         !_hasInitialSync;
-
     if (!shouldVerify) {
       AppLogger.debug(
         'EfficientSync: Skipping blockchain verification - not needed yet',

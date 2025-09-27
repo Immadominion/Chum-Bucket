@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
 import 'package:chumbucket/features/wallet/providers/wallet_provider.dart';
-import 'package:chumbucket/shared/services/efficient_sync_service.dart';
+import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
 import 'resolve_challenge_sheet.dart';
 
@@ -27,10 +28,6 @@ class _ChallengesPreviewState extends State<ChallengesPreview>
   late AnimationController _animationController;
   late Animation<double> _animation;
 
-  // Caching to prevent unnecessary reloads
-  Future<List<dynamic>>? _challengesFuture;
-  DateTime? _lastRefresh;
-
   @override
   void initState() {
     super.initState();
@@ -42,26 +39,6 @@ class _ChallengesPreviewState extends State<ChallengesPreview>
       CurvedAnimation(parent: _animationController, curve: Curves.ease),
     );
     _animationController.repeat();
-
-    // Initialize challenges future immediately
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initializeChallenges();
-    });
-  }
-
-  void _initializeChallenges() {
-    if (_challengesFuture == null || _shouldRefresh()) {
-      _challengesFuture = null; // Clear cache
-      _lastRefresh = DateTime.now();
-      setState(() {}); // Trigger rebuild
-    }
-  }
-
-  bool _shouldRefresh() {
-    if (_lastRefresh == null) return true;
-    final now = DateTime.now();
-    return now.difference(_lastRefresh!).inSeconds >
-        30; // Refresh after 30 seconds
   }
 
   @override
@@ -72,27 +49,12 @@ class _ChallengesPreviewState extends State<ChallengesPreview>
 
   @override
   Widget build(BuildContext context) {
-    // Get providers without listening to avoid unnecessary rebuilds
-    final walletProvider = Provider.of<WalletProvider>(context, listen: false);
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final currentUser = authProvider.currentUser;
+    return Consumer3<AuthProvider, WalletProvider, ChallengeStateProvider>(
+      builder: (context, authProvider, walletProvider, challengeState, child) {
+        final walletAddress = walletProvider.walletAddress;
+        final currentUser = authProvider.currentUser;
 
-    final bool isSyncing =
-        currentUser != null
-            ? (EfficientSyncService.instance.getSyncStatus(
-                  currentUser.id,
-                  walletProvider.walletAddress,
-                )['syncing']
-                as bool)
-            : false;
-
-    // Use cached future or create new one
-    _challengesFuture ??= _getPreviewChallenges(context, walletProvider);
-
-    return FutureBuilder<List<dynamic>>(
-      future: _challengesFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting || isSyncing) {
+        if (walletAddress == null || currentUser == null) {
           return Column(
             children: [
               _buildShimmerChallenge(),
@@ -102,7 +64,28 @@ class _ChallengesPreviewState extends State<ChallengesPreview>
           );
         }
 
-        final challenges = snapshot.data ?? [];
+        // Initialize challenges if needed
+        if (challengeState.challenges.isEmpty && !challengeState.isLoading) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            challengeState.initialize(
+              currentUser.id,
+              walletAddress: walletAddress,
+            );
+          });
+        }
+
+        // Show loading state
+        if (challengeState.isLoading && challengeState.challenges.isEmpty) {
+          return Column(
+            children: [
+              _buildShimmerChallenge(),
+              SizedBox(height: 12.h),
+              _buildShimmerChallenge(),
+            ],
+          );
+        }
+
+        final challenges = challengeState.sortedChallenges;
 
         return Column(
           children: [
@@ -119,15 +102,16 @@ class _ChallengesPreviewState extends State<ChallengesPreview>
                       padding: EdgeInsets.only(bottom: 12.h),
                       child: GestureDetector(
                         onTap:
-                            (challenge['status'] as String) == 'pending'
+                            challenge.status.toString().split('.').last ==
+                                    'pending'
                                 ? () => showResolveChallengeSheet(
                                   context,
-                                  challenge: challenge as Map<String, dynamic>,
+                                  challenge: challenge.toJson(),
                                   onMarkCompleted:
                                       widget.onMarkChallengeCompleted,
                                 )
                                 : null,
-                        child: _buildChallengePreviewCard(challenge),
+                        child: _buildChallengePreviewCard(challenge.toJson()),
                       ),
                     ),
                   ),
@@ -183,7 +167,10 @@ class _ChallengesPreviewState extends State<ChallengesPreview>
         color: Colors.white,
         borderRadius: BorderRadius.circular(18.r),
         boxShadow: [
-          BoxShadow(color: Colors.grey.withOpacity(0.2), offset: Offset(0, 2)),
+          BoxShadow(
+            color: Colors.grey.withValues(alpha: 0.2),
+            offset: Offset(0, 2),
+          ),
         ],
       ),
       child: Row(
@@ -242,71 +229,5 @@ class _ChallengesPreviewState extends State<ChallengesPreview>
         ],
       ),
     );
-  }
-
-  Future<List<dynamic>> _getPreviewChallenges(
-    BuildContext context,
-    WalletProvider walletProvider,
-  ) async {
-    try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final currentUser = authProvider.currentUser;
-
-      if (currentUser == null || walletProvider.challengeService == null) {
-        return [];
-      }
-
-      // Use efficient sync service - database-first approach
-      final challenges = await EfficientSyncService.instance.getChallenges(
-        userId: currentUser.id,
-        walletAddress: walletProvider.walletAddress,
-      );
-
-      // Convert to UI format
-      final challengesList = <Map<String, dynamic>>[];
-
-      for (final challenge in challenges) {
-        // Try to get participant's wallet address if they have participated
-        String displayName = challenge.participantEmail ?? 'Unknown';
-        if (challenge.participantId != null) {
-          final participantWallet = await EfficientSyncService.instance
-              .getParticipantWalletAddress(
-                challenge.id,
-                challenge.participantId!,
-              );
-          if (participantWallet != null && participantWallet.isNotEmpty) {
-            displayName =
-                participantWallet; // Use wallet address for resolution
-          }
-        }
-
-        challengesList.add({
-          'id': challenge.id,
-          'title': challenge.title,
-          'description': challenge.description,
-          'amount': challenge.amount,
-          'status': challenge.status.toString().split('.').last,
-          'createdAt': challenge.createdAt,
-          'expiresAt': challenge.expiresAt,
-          'friendName': displayName,
-          'source': 'database',
-          'escrowAddress': challenge.escrowAddress,
-        });
-      }
-
-      // Sort: most recent first by createdAt
-      challengesList.sort((a, b) {
-        final da = a['createdAt'] as DateTime?;
-        final db = b['createdAt'] as DateTime?;
-        if (da == null && db == null) return 0;
-        if (da == null) return 1; // nulls last
-        if (db == null) return -1;
-        return db.compareTo(da);
-      });
-
-      return challengesList;
-    } catch (e) {
-      return [];
-    }
   }
 }

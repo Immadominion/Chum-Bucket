@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:developer';
 import 'package:chumbucket/features/wallet/data/privy_wallet.dart';
 import 'package:flutter/services.dart';
-import 'package:coral_xyz/coral_xyz_anchor.dart';
+import 'package:coral_xyz/coral_xyz.dart';
 import 'package:privy_flutter/privy_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
@@ -46,7 +46,7 @@ class EscrowService {
         walletAddress: walletAddress,
         embeddedWallet: embeddedWallet,
       );
-      service._provider = AnchorProvider(service._connection, service._wallet);
+      service._provider = AnchorProvider(service._connection, service._wallet as Wallet?);
 
       // Initialize Program
       service._program = Program.withProgramId(

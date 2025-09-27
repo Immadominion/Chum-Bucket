@@ -1,9 +1,8 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'dart:math';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-import 'package:coral_xyz/coral_xyz_anchor.dart' as coral;
+import 'package:coral_xyz/coral_xyz.dart' as coral;
 import 'package:chumbucket/core/utils/app_logger.dart';
 import 'package:chumbucket/shared/models/wallet_export_result.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';

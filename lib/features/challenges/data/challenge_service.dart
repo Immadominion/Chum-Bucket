@@ -1,5 +1,5 @@
 import 'dart:developer';
-import 'package:coral_xyz/coral_xyz_anchor.dart';
+import 'package:coral_xyz/coral_xyz.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:privy_flutter/privy_flutter.dart';

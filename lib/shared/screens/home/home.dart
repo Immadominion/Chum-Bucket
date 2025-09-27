@@ -13,7 +13,7 @@ import 'package:chumbucket/shared/screens/home/widgets/add_friend_sheet.dart';
 import 'package:chumbucket/shared/screens/home/widgets/header.dart';
 import 'package:chumbucket/shared/screens/home/widgets/tab_bar.dart';
 import 'package:chumbucket/shared/screens/home/utils/home_utils.dart';
-import 'package:chumbucket/shared/services/efficient_sync_service.dart';
+import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -135,26 +135,17 @@ class _HomeScreenState extends State<HomeScreen>
       final currentUser = authProvider.currentUser;
 
       if (currentUser != null) {
-        // First, refresh local challenges immediately
-        await EfficientSyncService.instance.getChallenges(
-          userId: currentUser.id,
-          walletAddress: null, // Local database doesn't need wallet
-        );
-
-        // Then try blockchain sync with timeout
+        // Ensure wallet is initialized
         String? address = walletProvider.walletAddress;
         if (address == null && !walletProvider.isInitialized) {
           await walletProvider.initializeWallet(context);
           address = walletProvider.walletAddress;
         }
 
+        // Force refresh through challenge state provider
         if (address != null) {
-          await EfficientSyncService.instance
-              .forceBlockchainSync(
-                context: context,
-                userId: currentUser.id,
-                walletAddress: address,
-              )
+          await ChallengeStateProvider.instance
+              .forceRefresh(currentUser.id, address)
               .timeout(
                 const Duration(seconds: 15),
                 onTimeout: () {
@@ -163,6 +154,9 @@ class _HomeScreenState extends State<HomeScreen>
                   );
                 },
               );
+        } else {
+          // Soft refresh if no wallet
+          await ChallengeStateProvider.instance.softRefresh(currentUser.id);
         }
       }
     } catch (e) {
@@ -252,10 +246,10 @@ class _HomeScreenState extends State<HomeScreen>
     Map<String, dynamic> challenge,
     bool userWon,
   ) async {
-    // Close the resolve sheet first so user can see the loading state
-    Navigator.of(context).pop();
+    if (!mounted) return;
 
     final walletProvider = Provider.of<WalletProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
     // Show enhanced loading state with branded styling
     SnackBarUtils.showChallengeLoading(context, isWinning: userWon);
@@ -268,28 +262,52 @@ class _HomeScreenState extends State<HomeScreen>
       );
 
       // Remove loading snackbar
-      SnackBarUtils.hide(context);
+      if (mounted) {
+        SnackBarUtils.hide(context);
+      }
+
+      // Close the resolve sheet after the operation completes
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
 
       if (success) {
-        // Force refresh both tabs since challenge status changed
-        setState(() {
-          _challengesRefreshKey++;
-          _friendsRefreshKey++;
+        // Update challenge state provider immediately
+        ChallengeStateProvider.instance.updateChallenge(challenge['id'], {
+          'status': 'completed',
+          'completedAt': DateTime.now(),
+          'winnerId': userWon ? authProvider.currentUser?.id : null,
         });
-        _lastDataRefresh = DateTime.now();
+
+        // Force refresh both tabs since challenge status changed
+        if (mounted) {
+          setState(() {
+            _challengesRefreshKey++;
+            _friendsRefreshKey++;
+          });
+          _lastDataRefresh = DateTime.now();
+        }
 
         // Show enhanced success message
-        SnackBarUtils.showChallengeSuccess(context, userWon: userWon);
+        if (mounted) {
+          SnackBarUtils.showChallengeSuccess(context, userWon: userWon);
+        }
       } else {
         // Show enhanced error message
-        SnackBarUtils.showChallengeError(context);
+        if (mounted) {
+          SnackBarUtils.showChallengeError(context);
+        }
       }
     } catch (e) {
       // Remove loading snackbar
-      SnackBarUtils.hide(context);
+      if (mounted) {
+        SnackBarUtils.hide(context);
+      }
 
       // Show enhanced error message
-      SnackBarUtils.showChallengeError(context, errorMessage: e.toString());
+      if (mounted) {
+        SnackBarUtils.showChallengeError(context, errorMessage: e.toString());
+      }
     }
   }
 

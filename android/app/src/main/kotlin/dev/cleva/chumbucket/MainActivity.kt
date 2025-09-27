@@ -1,4 +1,4 @@
-package com.example.chumbucket
+package dev.cleva.chumbucket
 
 import io.flutter.embedding.android.FlutterActivity
 
