@@ -9,12 +9,23 @@ import 'package:provider/provider.dart';
 import 'package:chumbucket/shared/screens/home/home.dart';
 import 'package:chumbucket/features/authentication/providers/onboarding_provider.dart';
 import 'package:chumbucket/features/profile/providers/profile_provider.dart';
-import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
+// MWA Auth Provider for wallet-based authentication
+import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 
 class EditProfileScreen extends StatefulWidget {
+  /// Whether to show the cancel/skip button
+  /// Should be false for first-time users who MUST set up their profile
   final bool showCancelIcon;
 
-  const EditProfileScreen({super.key, this.showCancelIcon = true});
+  /// Whether this is mandatory profile setup (e.g., first login)
+  /// When true, user cannot skip without entering a name
+  final bool isRequired;
+
+  const EditProfileScreen({
+    super.key,
+    this.showCancelIcon = true,
+    this.isRequired = false,
+  });
 
   @override
   State<EditProfileScreen> createState() => _EditProfileScreenState();
@@ -43,14 +54,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _loadUserProfile() async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final authProvider = Provider.of<MwaAuthProvider>(context, listen: false);
     final profileProvider = Provider.of<ProfileProvider>(
       context,
       listen: false,
     );
 
+    if (!authProvider.isAuthenticated) return;
+
     final profile = await profileProvider.fetchUserProfile(
-      authProvider.currentUser!.id,
+      authProvider.walletAddress!,
     );
 
     log('Fetched profile: $profile');
@@ -83,11 +96,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         _isLoading = true;
       });
 
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final authProvider = Provider.of<MwaAuthProvider>(context, listen: false);
       final profileProvider = Provider.of<ProfileProvider>(
         context,
         listen: false,
       );
+
+      if (!authProvider.isAuthenticated) return;
 
       final updates = {
         'full_name': _nameController.text.trim(),
@@ -95,7 +110,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       };
 
       final success = await profileProvider.updateUserProfile(
-        authProvider.currentUser!.id,
+        authProvider.walletAddress!,
         updates,
       );
 
@@ -147,6 +162,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     size: 33.w,
                   ),
                   onPressed: () async {
+                    // If profile is required, show a message
+                    if (widget.isRequired) {
+                      SnackBarUtils.showError(
+                        context,
+                        title: 'Name Required',
+                        subtitle: 'Please enter your name to continue',
+                      );
+                      return;
+                    }
+
                     // Allow skipping profile setup, but mark onboarding as completed
                     final onboardingProvider = Provider.of<OnboardingProvider>(
                       context,

@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
-import 'package:chumbucket/features/wallet/providers/wallet_provider.dart';
+// MWA Wallet Provider for Pinocchio program integration
+import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/shared/widgets/widgets.dart';
@@ -43,7 +44,7 @@ class _SendSolSheetState extends State<SendSolSheet> {
 
     // Get current balance for max amount
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final walletProvider = Provider.of<WalletProvider>(
+      final walletProvider = Provider.of<MwaWalletProvider>(
         context,
         listen: false,
       );
@@ -82,9 +83,9 @@ class _SendSolSheetState extends State<SendSolSheet> {
     final address = _addressController.text.trim();
     if (address.isEmpty) return false;
 
-    // Support both regular Solana addresses and .sol domains
+    // Support regular Solana addresses and supported domains (.sol, .skr, etc.).
     return AddressNameResolver.isBase58Address(address) ||
-        AddressNameResolver.isSolDomain(address);
+        AddressNameResolver.isSnsDomain(address);
   }
 
   bool get _canSendSol =>
@@ -98,7 +99,7 @@ class _SendSolSheetState extends State<SendSolSheet> {
     });
 
     try {
-      final walletProvider = Provider.of<WalletProvider>(
+      final walletProvider = Provider.of<MwaWalletProvider>(
         context,
         listen: false,
       );
@@ -107,7 +108,7 @@ class _SendSolSheetState extends State<SendSolSheet> {
 
       // Resolve domain name to address if needed
       String? destinationAddress = addressInput;
-      if (AddressNameResolver.isSolDomain(addressInput)) {
+      if (!AddressNameResolver.isBase58Address(addressInput)) {
         destinationAddress = await AddressNameResolver.resolveAddress(
           addressInput,
         );
@@ -276,7 +277,7 @@ class _SendSolSheetState extends State<SendSolSheet> {
                             ),
                           ),
                           SizedBox(height: 8.h),
-                          Consumer<WalletProvider>(
+                          Consumer<MwaWalletProvider>(
                             builder: (context, walletProvider, _) {
                               return Text(
                                 'Available: ${walletProvider.balance.toStringAsFixed(4)} SOL',

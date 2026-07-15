@@ -59,6 +59,7 @@ class ChallengeStatusWidget extends StatelessWidget {
   Widget _buildAnimation(BuildContext context) {
     // Use Lottie animations based on status
     switch (status) {
+      case ChallengeStatus.active:
       case ChallengeStatus.accepted:
       case ChallengeStatus.funded:
       case ChallengeStatus.completed:

@@ -1,67 +1,74 @@
 name: chumbucket
 description: "A challenge app with friends to lock coins on Solana"
 
-publish_to: 'none' 
+publish_to: "none"
 
-version: 1.0.0+1
+version: 1.0.2+2
 
 environment:
   sdk: ^3.7.0
-
 
 dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.6
-  flutter_screenutil: ^5.9.0  # For responsive design
-  google_fonts: ^6.1.0        # For custom fonts
-  provider: ^6.1.1            # For state management
-  solana: ^0.31.2+1           # Updated Solana blockchain SDK
-  sns_sdk: 
-    path: ../sns-sdk/dart     
-  bip39: ^1.0.6               # For mnemonic generation
-  shared_preferences: ^2.2.2  # For local storage
-  flutter_secure_storage: ^9.0.0  # For secure storage
-  http: ^1.1.2                # For API requests
-  intl: ^0.19.0               # For date formatting
+  flutter_screenutil: ^5.9.0 # For responsive design
+  google_fonts: ^8.1.0 # For custom fonts
+  provider: ^6.1.1 # For state management
+  solana: ^0.31.2+1 # Updated Solana blockchain SDK
+  sns_sdk:
+    path: ../sns-sdk/dart
+  tld_parser: ^0.1.0
+  bip39: ^1.0.6 # For mnemonic generation
+  shared_preferences: ^2.2.2 # For local storage
+  flutter_secure_storage: ^9.0.0 # For secure storage
+  http: ^1.6.0 # For API requests
+  intl: ^0.19.0 # For date formatting
   rive: ^0.13.20
-  privy_flutter: ^0.3.0
+  # MWA - Mobile Wallet Adapter for Solana Mobile (replaces Privy)
+  solana_mobile_client:
+    path: ../../espresso-cash-public/packages/solana_mobile_client
   lottie: ^3.3.1
   flutter_dotenv: ^6.0.0
   flutter_otp_text_field: ^1.5.1+1
   supabase_flutter: ^2.9.0
-  connectivity_plus: ^6.1.4
+  connectivity_plus: ^7.0.0
   qr_flutter: ^4.1.0
-  
+
+  # Push Notifications
+  firebase_core: ^3.12.0
+  firebase_messaging: ^15.2.4
+  flutter_local_notifications: ^17.2.3 # Local notification display
+
   # Local Database for Development
-  sqflite: ^2.3.0        # SQLite database for local development
-  path: ^1.8.3           # For database path management
-  uuid: ^4.5.1           # For generating unique IDs
+  sqflite: ^2.3.0 # SQLite database for local development
+  path: ^1.8.3 # For database path management
+  uuid: ^4.5.1 # For generating unique IDs
   phosphor_flutter: ^2.1.0
   screenshot: ^3.0.0
   share_plus: ^11.1.0
   path_provider: ^2.1.5
   pdf: ^3.11.3
-  audioplayers: ^6.1.0    # Audio player for background music
-  url_launcher: ^6.2.2    # For opening URLs in browser
-  webview_flutter: ^4.13.0  # For in-app web browser
+  audioplayers: ^6.1.0 # Audio player for background music
+  url_launcher: ^6.2.2 # For opening URLs in browser
+  webview_flutter: ^4.13.0 # For in-app web browser
   coral_xyz: ^1.0.0-beta.5
+  flutter_launcher_icons: ^0.14.4
 
 dependency_overrides:
+  phosphor_flutter:
+    path: third_party/phosphor_flutter_compat
+
   # Enhanced networking
-  dio: ^5.4.0             # Better HTTP client
-  retry: ^3.1.2           # Retry failed transactions
-  
+  dio: ^5.4.0 # Better HTTP client
+  retry: ^3.1.2 # Retry failed transactions
+
   # Enhanced crypto utilities
-  hex: ^0.2.0            # Hex encoding utilities
-  convert: ^3.1.1        # Additional conversion utilities
-  
-  # Real-time features
-  flutter_local_notifications: ^17.2.3
-  
+  hex: ^0.2.0 # Hex encoding utilities
+  convert: ^3.1.1 # Additional conversion utilities
+
   # JSON manipulation for Solana transactions
   json_annotation: ^4.8.1
-
 
 dev_dependencies:
   flutter_test:
@@ -71,15 +78,11 @@ dev_dependencies:
   json_serializable: ^6.7.1
   build_runner: ^2.4.7
 
-
 flutter:
-
-
   uses-material-design: true
   assets:
     - .env
-    - assets/chumbucket_escrow_idl.json
-    - assets/idl/
+    - assets/chumbucket_arena_idl.json
     - assets/images/
     - assets/images/ai_gen/
     - assets/images/ai_gen/logo/
@@ -92,3 +95,4 @@ flutter:
     - assets/animations/whisk_ai_generate/
     - assets/animations/lottie/
     - assets/audio/
+    - shorebird.yaml

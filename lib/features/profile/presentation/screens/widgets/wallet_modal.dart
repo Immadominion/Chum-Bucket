@@ -7,7 +7,8 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/core/utils/base_change_notifier.dart'
     show LoadingState;
-import 'package:chumbucket/features/wallet/providers/wallet_provider.dart';
+// MWA Wallet Provider for Pinocchio program integration
+import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -28,12 +29,12 @@ class _WalletModalState extends State<WalletModal> {
     super.initState();
     // Ensure wallet data is refreshed when modal is opened
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final walletProvider = Provider.of<WalletProvider>(
+      final walletProvider = Provider.of<MwaWalletProvider>(
         context,
         listen: false,
       );
-      if (walletProvider.walletAddress == null) {
-        walletProvider.refreshBalance();
+      if (walletProvider.walletAddress != null) {
+        walletProvider.refreshWalletBalance();
       }
     });
   }
@@ -153,7 +154,7 @@ class _WalletModalState extends State<WalletModal> {
   Widget _buildScrollableContent() {
     return Padding(
       padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 18.h),
-      child: Consumer<WalletProvider>(
+      child: Consumer<MwaWalletProvider>(
         builder: (context, walletProvider, _) {
           return Column(
             children: [
@@ -183,7 +184,7 @@ class _WalletModalState extends State<WalletModal> {
 
               // Disclaimer
               Text(
-                "Disclaimer: Wallet secrets are managed by Privy and are not exportable.",
+                "Wallet managed by your external wallet app (Phantom, Solflare, etc.)",
                 style: TextStyle(
                   fontSize: 12.sp,
                   fontStyle: FontStyle.italic,
@@ -198,7 +199,7 @@ class _WalletModalState extends State<WalletModal> {
     );
   }
 
-  Widget _buildQRCode(WalletProvider walletProvider) {
+  Widget _buildQRCode(MwaWalletProvider walletProvider) {
     if (walletProvider.loadingState == LoadingState.loading) {
       return Center(
         child: Column(
@@ -259,7 +260,7 @@ class _WalletModalState extends State<WalletModal> {
     );
   }
 
-  Widget _buildWalletAddress(WalletProvider walletProvider) {
+  Widget _buildWalletAddress(MwaWalletProvider walletProvider) {
     return GestureDetector(
       onTap: () {
         if (walletProvider.walletAddress != null) {
@@ -312,11 +313,11 @@ class _WalletModalState extends State<WalletModal> {
 /// Function to show the wallet modal with backdrop blur
 Future<void> showWalletModal(BuildContext context) async {
   // Get the wallet provider first to ensure it's available to the modal
-  final walletProvider = Provider.of<WalletProvider>(context, listen: false);
+  final walletProvider = Provider.of<MwaWalletProvider>(context, listen: false);
 
   // Ensure we have the wallet address
   if (walletProvider.walletAddress == null) {
-    walletProvider.refreshBalance();
+    walletProvider.refreshWalletBalance();
   }
 
   await showModalBottomSheet(
@@ -336,7 +337,7 @@ Future<void> showWalletModal(BuildContext context) async {
                       ? MediaQuery.of(context).padding.bottom + 10.h
                       : MediaQuery.of(context).padding.bottom + 20.h,
             ),
-            child: ChangeNotifierProvider<WalletProvider>.value(
+            child: ChangeNotifierProvider<MwaWalletProvider>.value(
               value: walletProvider,
               child: const WalletModal(),
             ),

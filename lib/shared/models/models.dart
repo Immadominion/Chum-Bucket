@@ -1,5 +1,12 @@
 export 'wallet_export_result.dart';
 
+/// Helper to convert empty strings to null
+String? _nonEmptyString(dynamic value) {
+  if (value == null) return null;
+  final str = value.toString();
+  return str.isEmpty ? null : str;
+}
+
 class Friend {
   final String id;
   final String name;
@@ -30,6 +37,10 @@ class Challenge {
   final ChallengeStatus status;
   final String? escrowAddress;
   final String? vaultAddress;
+  final String? member1Address; // Initiator wallet address (creator)
+  final String? witnessAddress; // member2_address - the witness/friend wallet
+  final String?
+  witnessDisplayName; // Cached display name (SNS domain or full_name)
   final String? winnerId;
   final String? transactionSignature;
   final String? feeTransactionSignature;
@@ -50,26 +61,45 @@ class Challenge {
     this.status = ChallengeStatus.pending,
     this.escrowAddress,
     this.vaultAddress,
+    this.member1Address,
+    this.witnessAddress,
+    this.witnessDisplayName,
     this.winnerId,
     this.transactionSignature,
     this.feeTransactionSignature,
   });
 
   factory Challenge.fromJson(Map<String, dynamic> json) {
+    // Debug: Log escrow address values from JSON
+    final id = json['id'] as String;
+    final multisigAddr = json['multisig_address'];
+    final escrowAddr = json['escrow_address'];
+    print(
+      '🔍 DEBUG Challenge.fromJson: id=$id, multisig_address=$multisigAddr, escrow_address=$escrowAddr',
+    );
+
     return Challenge(
-      id: json['id'] as String,
-      creatorId: json['creator_privy_id'] as String? ?? 'unknown',
+      id: id,
+      creatorId:
+          json['creator_privy_id'] as String? ??
+          json['creator_wallet_address'] as String? ??
+          'unknown',
       participantId: json['participant_privy_id'] as String?,
       participantEmail: json['participant_email'] as String?,
       title: json['title'] as String,
       description: json['description'] as String,
       // Handle both old 'amount' and new 'amount_sol' column names
-      amount: (json['amount_sol'] ?? json['amount'] as num).toDouble(),
+      // Handle nullable numeric fields with proper null safety
+      amount:
+          ((json['amount_sol'] ?? json['amount']) as num?)?.toDouble() ?? 0.0,
       platformFee:
-          (json['platform_fee_sol'] ?? json['platform_fee'] as num).toDouble(),
+          ((json['platform_fee_sol'] ?? json['platform_fee']) as num?)
+              ?.toDouble() ??
+          0.0,
       winnerAmount:
-          (json['winner_amount_sol'] ?? json['winner_amount'] as num)
-              .toDouble(),
+          ((json['winner_amount_sol'] ?? json['winner_amount']) as num?)
+              ?.toDouble() ??
+          0.0,
       createdAt: DateTime.parse(json['created_at'] as String),
       expiresAt: DateTime.parse(json['expires_at'] as String),
       completedAt:
@@ -80,10 +110,21 @@ class Challenge {
         (e) => e.toString().split('.').last == json['status'],
         orElse: () => ChallengeStatus.pending,
       ),
+      // Handle empty strings as null for escrow address
       escrowAddress:
-          json['multisig_address'] as String? ??
-          json['escrow_address'] as String?,
-      vaultAddress: json['vault_address'] as String?,
+          _nonEmptyString(json['multisig_address']) ??
+          _nonEmptyString(json['escrow_address']),
+      vaultAddress: _nonEmptyString(json['vault_address']),
+      // Initiator address (member1) - the creator's wallet
+      member1Address:
+          _nonEmptyString(json['member1_address']) ??
+          _nonEmptyString(json['creator_wallet_address']),
+      // Witness address (member2) - the friend who witnesses the challenge
+      witnessAddress:
+          _nonEmptyString(json['member2_address']) ??
+          _nonEmptyString(json['witness_address']),
+      // Cached display name from database - avoids expensive RPC lookups
+      witnessDisplayName: _nonEmptyString(json['witness_display_name']),
       winnerId: json['winner_privy_id'] as String?,
       transactionSignature: json['transaction_signature'] as String?,
       feeTransactionSignature: json['fee_transaction_signature'] as String?,
@@ -94,10 +135,14 @@ class Challenge {
     return {
       'id': id,
       'creator_privy_id': creatorId,
+      'creator_wallet_address': member1Address, // For database
+      'member1_address':
+          member1Address, // Initiator wallet (CRITICAL for resolution)
       'participant_privy_id': participantId,
       'participant_email': participantEmail,
       'title': title,
       'description': description,
+      'amount': amount, // Include both formats
       'amount_sol': amount,
       'platform_fee_sol': platformFee,
       'winner_amount_sol': winnerAmount,
@@ -105,8 +150,14 @@ class Challenge {
       'expires_at': expiresAt.toIso8601String(),
       'completed_at': completedAt?.toIso8601String(),
       'status': status.toString().split('.').last,
+      'escrowAddress': escrowAddress, // Include both key formats
       'multisig_address': escrowAddress,
       'vault_address': vaultAddress,
+      'member2_address': witnessAddress, // Witness wallet address
+      'witness_address': witnessAddress, // Alias for resolution
+      'witness_display_name': witnessDisplayName, // Cached display name
+      'friendName':
+          witnessDisplayName ?? witnessAddress, // Alias for UI display
       'winner_privy_id': winnerId,
       'transaction_signature': transactionSignature,
       'fee_transaction_signature': feeTransactionSignature,
@@ -116,6 +167,7 @@ class Challenge {
 
 enum ChallengeStatus {
   pending,
+  active, // Added to match database 'active' status
   accepted,
   funded,
   completed,

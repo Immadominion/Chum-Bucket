@@ -4,7 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
-import 'package:chumbucket/features/wallet/providers/wallet_provider.dart';
+// MWA Wallet Provider for Pinocchio program integration
+import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:chumbucket/core/utils/base_change_notifier.dart'
     show LoadingState;
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
@@ -65,7 +66,7 @@ class ProfileWalletCard extends StatelessWidget {
           SizedBox(height: 16.h),
 
           // Balance display
-          Consumer<WalletProvider>(
+          Consumer<MwaWalletProvider>(
             builder: (context, walletProvider, _) {
               if (walletProvider.loadingState == LoadingState.loading) {
                 return Row(
@@ -109,7 +110,7 @@ class ProfileWalletCard extends StatelessWidget {
                       SizedBox(width: 8.w),
                       GestureDetector(
                         onTap: () {
-                          walletProvider.refreshBalance();
+                          walletProvider.refreshWalletBalance();
                         },
                         child: Icon(
                           PhosphorIcons.arrowsClockwise(),

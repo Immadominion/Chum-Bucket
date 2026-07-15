@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
-import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
+// MWA Auth Provider for wallet-based authentication
+import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/profile/providers/profile_provider.dart';
 import 'package:chumbucket/widgets/profile_picture_selection_modal.dart';
 
@@ -45,9 +46,9 @@ class ProfileHeader extends StatelessWidget {
                 width: 3.w,
               ),
             ),
-            child: Consumer<AuthProvider>(
+            child: Consumer<MwaAuthProvider>(
               builder: (context, authProvider, child) {
-                if (authProvider.currentUser == null) {
+                if (!authProvider.isAuthenticated) {
                   return CircleAvatar(
                     radius: 45.w,
                     backgroundColor: Colors.black.withOpacity(0.2),
@@ -63,7 +64,7 @@ class ProfileHeader extends StatelessWidget {
                   future: Provider.of<ProfileProvider>(
                     context,
                     listen: false,
-                  ).getUserPfp(authProvider.currentUser!.id),
+                  ).getUserPfp(authProvider.walletAddress!),
                   builder: (context, snapshot) {
                     return GestureDetector(
                       onTap: () async {

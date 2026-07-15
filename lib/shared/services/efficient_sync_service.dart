@@ -5,10 +5,10 @@ import 'package:chumbucket/shared/models/models.dart';
 import 'package:chumbucket/shared/services/unified_database_service.dart';
 import 'package:chumbucket/shared/services/blockchain_sync_service.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
+import 'package:chumbucket/core/config/network_config.dart';
 
 import 'package:solana/solana.dart' as solana;
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:uuid/uuid.dart';
 
 /// Efficient local-first sync service that minimizes blockchain calls
@@ -70,6 +70,10 @@ class EfficientSyncService {
   static bool _hasInitialSync = false;
   static bool _isAppInBackground = false;
 
+  // Minimum time between force syncs (throttling)
+  static const Duration _minForceSyncInterval = Duration(seconds: 30);
+  static final Map<String, DateTime> _lastForceSyncTime = {};
+
   /// Force immediate blockchain sync (for pull-to-refresh)
   Future<void> forceBlockchainSync({
     required String userId,
@@ -86,6 +90,21 @@ class EfficientSyncService {
 
     final key = '${userId}_$walletAddress';
 
+    // Check throttling
+    final lastSync = _lastForceSyncTime[key];
+    if (lastSync != null) {
+      final timeSinceLastSync = DateTime.now().difference(lastSync);
+      if (timeSinceLastSync < _minForceSyncInterval) {
+        final remaining =
+            _minForceSyncInterval.inSeconds - timeSinceLastSync.inSeconds;
+        AppLogger.info(
+          'Force sync throttled - wait ${remaining}s',
+          tag: 'EfficientSyncService',
+        );
+        return;
+      }
+    }
+
     if (_activeSyncs.contains(key)) {
       AppLogger.debug(
         'Sync already in progress, skipping force sync',
@@ -99,15 +118,15 @@ class EfficientSyncService {
       tag: 'EfficientSyncService',
     );
     _activeSyncs.add(key);
+    _lastForceSyncTime[key] = DateTime.now();
 
     try {
       // Reset sync timestamps to force immediate verification
       _lastSyncTimes.remove(key);
       _lastSyncTimes.remove('verification_$key');
 
-      // Build required clients
-      final rpcUrl =
-          dotenv.env['SOLANA_RPC_URL'] ?? 'https://api.devnet.solana.com';
+      // Build required clients using NetworkConfig for proper network selection
+      final rpcUrl = NetworkConfig.rpcUrl;
       final wsUrl = rpcUrl.replaceFirst('http', 'ws');
       final solanaClient = solana.SolanaClient(
         rpcUrl: Uri.parse(rpcUrl),
@@ -183,7 +202,8 @@ class EfficientSyncService {
             final updateData = <String, dynamic>{
               'title': titleToUse,
               'description': descToUse,
-              'amount_sol': c.amount,
+              'amount': c.amount, // NOT NULL column
+              'amount_in_sol': c.amount,
               'platform_fee_sol': c.platformFee,
               'winner_amount_sol': c.winnerAmount,
               'participant_email': participantEmailToUse,
@@ -243,8 +263,12 @@ class EfficientSyncService {
             final newChallenge = Challenge(
               id: c.id,
               creatorId: userId,
+              member1Address:
+                  c.member1Address, // CRITICAL: Preserve initiator wallet
               participantId: participantIdToUse,
               participantEmail: participantEmailToUse,
+              witnessAddress:
+                  c.witnessAddress, // CRITICAL: Preserve witness wallet
               title: titleToUse,
               description: descToUse,
               amount: c.amount,
@@ -696,74 +720,131 @@ class EfficientSyncService {
   /// Helper method to upsert challenge to Supabase with correct schema
   static Future<void> _upsertChallengeToSupabase(Challenge challenge) async {
     try {
-      // Check if this is a blockchain challenge with existing blockchain_id
-      final existingResponse =
+      // Check if challenge already exists - try multiple lookup strategies:
+      // 1. By blockchain_id (for previously synced blockchain challenges)
+      // 2. By escrow_address (for app-created challenges that don't have blockchain_id)
+      Map<String, dynamic>? existingResponse;
+
+      // First, try blockchain_id lookup
+      existingResponse =
           await Supabase.instance.client
               .from('challenges')
-              .select('id, blockchain_id')
+              .select('id, blockchain_id, title, description')
               .eq('blockchain_id', challenge.id)
               .maybeSingle();
 
+      // If not found by blockchain_id, try escrow_address (most reliable for dedup)
+      if (existingResponse == null && challenge.escrowAddress != null) {
+        existingResponse =
+            await Supabase.instance.client
+                .from('challenges')
+                .select('id, blockchain_id, title, description')
+                .eq('escrow_address', challenge.escrowAddress!)
+                .maybeSingle();
+      }
+
       String challengeUuid;
+      String? existingTitle;
+      String? existingDescription;
+
       if (existingResponse != null) {
         challengeUuid = existingResponse['id'];
+        existingTitle = existingResponse['title'] as String?;
+        existingDescription = existingResponse['description'] as String?;
+        AppLogger.debug(
+          'Found existing challenge $challengeUuid for escrow ${challenge.escrowAddress}',
+        );
       } else {
         // Generate new UUID for new challenges
         challengeUuid = const Uuid().v4();
       }
 
-      // Get creator user ID from privy_id
-      final creatorResponse =
+      // Get creator user ID - try wallet_address first (MWA), then privy_id (legacy)
+      var creatorResponse =
           await Supabase.instance.client
               .from('users')
-              .select('id')
-              .eq('privy_id', challenge.creatorId)
+              .select('id, wallet_address')
+              .eq('wallet_address', challenge.creatorId)
               .maybeSingle();
 
+      // Fallback to privy_id if wallet_address lookup fails
       if (creatorResponse == null) {
-        AppLogger.error('Creator not found for challenge ${challenge.id}');
-        return;
+        creatorResponse =
+            await Supabase.instance.client
+                .from('users')
+                .select('id, wallet_address')
+                .eq('privy_id', challenge.creatorId)
+                .maybeSingle();
       }
 
-      final creatorDbId = creatorResponse['id'];
+      if (creatorResponse == null) {
+        AppLogger.warning(
+          'Creator not found for challenge ${challenge.id}, creatorId: ${challenge.creatorId}',
+        );
+        // Don't return - we can still save the challenge with wallet address references
+      }
 
-      // Get participant user ID (for blockchain challenges, this might be witness)
-      final participantResponse =
-          (challenge.participantId?.isNotEmpty == true)
-              ? await Supabase.instance.client
-                  .from('users')
-                  .select('id')
-                  .eq('privy_id', challenge.participantId!)
-                  .maybeSingle()
-              : null;
+      final creatorDbId = creatorResponse?['id'];
+      final creatorWalletAddress =
+          creatorResponse?['wallet_address'] ?? challenge.creatorId;
 
-      // For blockchain challenges, get witness from stored challenge data
-      // The participantEmail field contains the friend's wallet address for blockchain challenges
-      final witnessResponse =
-          (challenge.id.startsWith('onchain_') &&
-                  challenge.participantEmail?.isNotEmpty == true)
-              ? await Supabase.instance.client
-                  .from('users')
-                  .select('id')
-                  .eq('wallet_address', challenge.participantEmail!)
-                  .maybeSingle()
-              : null;
+      // Get participant/witness user ID - for blockchain challenges, participantEmail contains witness wallet
+      final witnessWalletAddress = challenge.participantEmail;
+      Map<String, dynamic>? witnessResponse;
 
-      final participantDbId = participantResponse?['id'] ?? creatorDbId;
+      if (witnessWalletAddress?.isNotEmpty == true) {
+        witnessResponse =
+            await Supabase.instance.client
+                .from('users')
+                .select('id')
+                .eq('wallet_address', witnessWalletAddress!)
+                .maybeSingle();
+      }
+
       final witnessDbId = witnessResponse?['id'];
+
+      // Prefer existing human-authored title/description over generic blockchain data
+      bool isGenericTitle(String? t) {
+        if (t == null || t.isEmpty) return true;
+        final s = t.trim().toLowerCase();
+        return s == 'on-chain challenge' || s.startsWith('challenge: ');
+      }
+
+      bool isGenericDesc(String? d) {
+        if (d == null || d.isEmpty) return true;
+        final s = d.trim().toLowerCase();
+        return s.startsWith('challenge discovered from blockchain');
+      }
+
+      // Use existing title/description if they're human-authored and challenge has generic text
+      final titleToUse =
+          (isGenericTitle(challenge.title) &&
+                  existingTitle != null &&
+                  !isGenericTitle(existingTitle))
+              ? existingTitle
+              : challenge.title;
+
+      final descToUse =
+          (isGenericDesc(challenge.description) &&
+                  existingDescription != null &&
+                  !isGenericDesc(existingDescription))
+              ? existingDescription
+              : challenge.description;
 
       final insertData = {
         'id': challengeUuid,
         'blockchain_id':
             challenge.id.startsWith('onchain_') ? challenge.id : null,
-        'creator_id': creatorDbId,
-        'participant_id': participantDbId,
-        'witness_id': witnessDbId,
-        'participant_email': challenge.participantEmail ?? '',
-        'title': challenge.title,
-        'description': challenge.description,
-        'amount': challenge.amount, // Fill the NOT NULL amount column
-        'amount_sol': challenge.amount,
+        'creator_id': creatorDbId, // Can be null if user not in DB yet
+        'witness_id': witnessDbId, // Can be null if witness not in DB yet
+        'creator_wallet_address': creatorWalletAddress,
+        'member1_address': creatorWalletAddress, // Initiator
+        'member2_address': witnessWalletAddress, // Witness
+        'escrow_address': challenge.escrowAddress,
+        'title': titleToUse,
+        'description': descToUse,
+        'amount': challenge.amount, // NOT NULL column
+        'amount_in_sol': challenge.amount,
         'platform_fee_sol': challenge.platformFee,
         'winner_amount_sol': challenge.winnerAmount,
         'created_at': challenge.createdAt.toIso8601String(),
@@ -772,15 +853,17 @@ class EfficientSyncService {
         'status': challenge.status.toString().split('.').last,
         'multisig_address': challenge.escrowAddress,
         'vault_address': challenge.vaultAddress,
-        'winner_privy_id': challenge.winnerId,
+        'winner_id': challenge.winnerId,
         'transaction_signature': challenge.transactionSignature,
         'fee_transaction_signature': challenge.feeTransactionSignature,
+        // Store the current network for devnet/mainnet separation
+        'network': NetworkConfig.currentNetwork,
       };
 
       await Supabase.instance.client.from('challenges').upsert(insertData);
 
       AppLogger.debug(
-        'Successfully upserted challenge to Supabase: ${challenge.id} -> UUID: $challengeUuid',
+        'Successfully upserted challenge to Supabase: ${challenge.id} -> UUID: $challengeUuid, network: ${NetworkConfig.currentNetwork}',
       );
     } catch (e) {
       AppLogger.error('Failed to upsert challenge to Supabase: $e');

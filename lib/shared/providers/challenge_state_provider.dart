@@ -19,13 +19,21 @@ class ChallengeStateProvider extends ChangeNotifier {
   bool _isLoading = false;
   bool _isSyncing = false;
   DateTime? _lastUpdate;
+  DateTime? _lastSyncTime; // Throttle sync calls
   String? _currentUserId;
+  bool _isInitialized = false; // Track if already initialized
+  bool _isInitializing = false; // Lock to prevent concurrent initialization
+
+  // Throttle constants
+  static const Duration _minSyncInterval = Duration(seconds: 30);
+  static const Duration _minDbLoadInterval = Duration(seconds: 5);
 
   // Getters
   List<Challenge> get challenges => List.unmodifiable(_challenges);
   bool get isLoading => _isLoading;
   bool get isSyncing => _isSyncing;
   DateTime? get lastUpdate => _lastUpdate;
+  bool get isInitialized => _isInitialized;
 
   // Get challenges sorted by creation date (most recent first)
   List<Challenge> get sortedChallenges {
@@ -41,34 +49,74 @@ class ChallengeStateProvider extends ChangeNotifier {
         .toList();
   }
 
-  /// Initialize the provider with user data
+  /// Initialize the provider with user data (only once per user)
   Future<void> initialize(String userId, {String? walletAddress}) async {
-    if (_currentUserId == userId && _challenges.isNotEmpty) {
-      AppLogger.debug('ChallengeState: Already initialized for user $userId');
-      return; // Already initialized for this user
+    AppLogger.info('ChallengeState: initialize() called with userId: $userId');
+    AppLogger.info(
+      'ChallengeState: Current state - isInitialized: $_isInitialized, currentUserId: $_currentUserId',
+    );
+
+    // Check if initialized for a DIFFERENT user - if so, clear and reinit
+    if (_isInitialized && _currentUserId != null && _currentUserId != userId) {
+      AppLogger.info(
+        'ChallengeState: User changed from $_currentUserId to $userId - clearing old state',
+      );
+      clear();
     }
 
+    // Prevent multiple initializations for the same user
+    if (_isInitialized && _currentUserId == userId) {
+      AppLogger.debug('ChallengeState: Already initialized for user $userId');
+      return;
+    }
+
+    // Prevent concurrent initialization attempts
+    if (_isInitializing) {
+      AppLogger.debug('ChallengeState: Initialization already in progress');
+      return;
+    }
+
+    AppLogger.info(
+      'ChallengeState: Starting fresh initialization for user $userId',
+    );
+    _isInitializing = true;
     _currentUserId = userId;
     _isLoading = true;
+    notifyListeners();
 
     try {
-      // Load from database immediately (fast)
-      await _loadFromDatabase(userId);
+      // Clear any existing challenges first
+      _challenges.clear();
 
-      // Trigger background sync if wallet is available (non-blocking)
-      if (walletAddress != null) {
-        _triggerBackgroundSync(userId, walletAddress);
-      }
+      // Load from database immediately (fast)
+      await _loadFromDatabase(userId, notify: false);
+      _isInitialized = true;
+
+      // DON'T auto-trigger blockchain sync on initialize
+      // User must explicitly pull-to-refresh for blockchain sync
+      AppLogger.info(
+        'ChallengeState: Initialized with ${_challenges.length} challenges from database',
+      );
     } catch (e) {
       AppLogger.error('ChallengeState: Initialize error: $e');
     } finally {
       _isLoading = false;
+      _isInitializing = false;
       notifyListeners();
     }
   }
 
-  /// Load challenges from local database (fast)
-  Future<void> _loadFromDatabase(String userId) async {
+  /// Load challenges from local database (fast) with throttling
+  Future<void> _loadFromDatabase(String userId, {bool notify = true}) async {
+    // Throttle database loads
+    if (_lastUpdate != null) {
+      final timeSinceLastLoad = DateTime.now().difference(_lastUpdate!);
+      if (timeSinceLastLoad < _minDbLoadInterval) {
+        AppLogger.debug('ChallengeState: Skipping db load (throttled)');
+        return;
+      }
+    }
+
     try {
       final dbChallenges = await UnifiedDatabaseService.getChallengesForUser(
         userId,
@@ -79,54 +127,54 @@ class ChallengeStateProvider extends ChangeNotifier {
       AppLogger.info(
         'ChallengeState: Loaded ${_challenges.length} challenges from database',
       );
-      notifyListeners();
+      if (notify) notifyListeners();
     } catch (e) {
       AppLogger.error('ChallengeState: Database load error: $e');
     }
   }
 
-  /// Trigger background sync (non-blocking)
-  void _triggerBackgroundSync(String userId, String walletAddress) {
-    if (_isSyncing) return;
+  /// Force refresh (for pull-to-refresh ONLY) with throttling
+  Future<void> forceRefresh(String userId, String walletAddress) async {
+    // Throttle sync calls to prevent spam
+    if (_lastSyncTime != null) {
+      final timeSinceLastSync = DateTime.now().difference(_lastSyncTime!);
+      if (timeSinceLastSync < _minSyncInterval) {
+        AppLogger.info(
+          'ChallengeState: Skipping refresh (throttled - ${_minSyncInterval.inSeconds - timeSinceLastSync.inSeconds}s remaining)',
+        );
+        // Just reload from database instead
+        await _loadFromDatabase(userId);
+        return;
+      }
+    }
 
+    // Prevent concurrent syncs
+    if (_isSyncing) {
+      AppLogger.debug('ChallengeState: Sync already in progress');
+      return;
+    }
+
+    _isLoading = true;
     _isSyncing = true;
     notifyListeners();
 
-    // Run sync in background without blocking UI
-    EfficientSyncService.instance
-        .forceBlockchainSync(userId: userId, walletAddress: walletAddress)
-        .then((_) async {
-          // Reload from database after sync
-          await _loadFromDatabase(userId);
-        })
-        .catchError((e) {
-          AppLogger.error('ChallengeState: Background sync error: $e');
-        })
-        .whenComplete(() {
-          _isSyncing = false;
-          notifyListeners();
-        });
-  }
-
-  /// Force refresh (for pull-to-refresh)
-  Future<void> forceRefresh(String userId, String walletAddress) async {
-    _isLoading = true;
-    notifyListeners();
-
     try {
+      _lastSyncTime = DateTime.now();
+
       // Force blockchain sync
       await EfficientSyncService.instance.forceBlockchainSync(
         userId: userId,
         walletAddress: walletAddress,
       );
 
-      // Reload from database
-      await _loadFromDatabase(userId);
+      // Reload from database (don't notify yet)
+      await _loadFromDatabase(userId, notify: false);
     } catch (e) {
       AppLogger.error('ChallengeState: Force refresh error: $e');
     } finally {
       _isLoading = false;
-      notifyListeners();
+      _isSyncing = false;
+      notifyListeners(); // Single notification at the end
     }
   }
 
@@ -157,15 +205,19 @@ class ChallengeStateProvider extends ChangeNotifier {
   }
 
   /// Update challenge status (when resolved)
-  void updateChallenge(String challengeId, Map<String, dynamic> updates) {
+  Future<void> updateChallenge(
+    String challengeId,
+    Map<String, dynamic> updates,
+  ) async {
     final index = _challenges.indexWhere((c) => c.id == challengeId);
     if (index >= 0) {
       final challenge = _challenges[index];
 
       // Update the challenge with new data
-      _challenges[index] = Challenge(
+      final updatedChallenge = Challenge(
         id: challenge.id,
         creatorId: challenge.creatorId,
+        member1Address: challenge.member1Address, // Preserve initiator wallet
         participantId: updates['participantId'] ?? challenge.participantId,
         participantEmail:
             updates['participantEmail'] ?? challenge.participantEmail,
@@ -183,6 +235,8 @@ class ChallengeStateProvider extends ChangeNotifier {
                 : challenge.status,
         escrowAddress: updates['escrowAddress'] ?? challenge.escrowAddress,
         vaultAddress: updates['vaultAddress'] ?? challenge.vaultAddress,
+        witnessAddress: challenge.witnessAddress,
+        witnessDisplayName: challenge.witnessDisplayName,
         winnerId: updates['winnerId'] ?? challenge.winnerId,
         transactionSignature:
             updates['transactionSignature'] ?? challenge.transactionSignature,
@@ -191,9 +245,41 @@ class ChallengeStateProvider extends ChangeNotifier {
             challenge.feeTransactionSignature,
       );
 
+      _challenges[index] = updatedChallenge;
       _lastUpdate = DateTime.now();
       AppLogger.info('ChallengeState: Updated challenge $challengeId');
       notifyListeners();
+
+      // Persist to database - await to ensure it completes
+      await _persistChallengeUpdate(updatedChallenge);
+    }
+  }
+
+  /// Persist challenge update to database
+  Future<void> _persistChallengeUpdate(Challenge challenge) async {
+    try {
+      AppLogger.info(
+        'ChallengeState: Persisting challenge ${challenge.id} - status: ${challenge.status.name}, winnerId: ${challenge.winnerId}',
+      );
+      final success = await UnifiedDatabaseService.updateChallengeStatus(
+        challenge.id,
+        challenge.status.name,
+        winnerId: challenge.winnerId,
+        completedAt: challenge.completedAt,
+      );
+      if (success) {
+        AppLogger.info(
+          'ChallengeState: ✅ Successfully persisted challenge ${challenge.id} to database',
+        );
+      } else {
+        AppLogger.warning(
+          'ChallengeState: ⚠️ Database update returned false for ${challenge.id}',
+        );
+      }
+    } catch (e, stackTrace) {
+      AppLogger.error('ChallengeState: ❌ Failed to persist challenge: $e');
+      AppLogger.error('Stack trace: $stackTrace');
+      // Don't throw - UI already updated, db sync will catch up later
     }
   }
 
@@ -205,6 +291,8 @@ class ChallengeStateProvider extends ChangeNotifier {
     switch (statusStr) {
       case 'pending':
         return ChallengeStatus.pending;
+      case 'active': // Database uses 'active' for newly created challenges
+        return ChallengeStatus.active;
       case 'accepted':
         return ChallengeStatus.accepted;
       case 'funded':
@@ -224,11 +312,18 @@ class ChallengeStateProvider extends ChangeNotifier {
 
   /// Clear state (for logout)
   void clear() {
+    AppLogger.info('ChallengeState: Clearing all state for logout');
     _challenges.clear();
     _isLoading = false;
     _isSyncing = false;
     _lastUpdate = null;
+    _lastSyncTime = null;
     _currentUserId = null;
+    _isInitialized = false;
+    _isInitializing = false;
+    AppLogger.info(
+      'ChallengeState: State cleared - challenges: ${_challenges.length}, isInitialized: $_isInitialized',
+    );
     notifyListeners();
   }
 

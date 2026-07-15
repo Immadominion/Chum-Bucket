@@ -5,6 +5,13 @@ import '../models/challenge_status_data.dart';
 class ChallengeStatusHelper {
   static ChallengeStatusData getStatusData(ChallengeStatus status) {
     switch (status) {
+      case ChallengeStatus.active:
+        return ChallengeStatusData(
+          title: "Challenge Active!",
+          message: "Your challenge is live and waiting for resolution.",
+          color: Colors.green,
+          buttonDescription: "Your challenge is active",
+        );
       case ChallengeStatus.accepted:
         return ChallengeStatusData(
           title: "Challenge Created!",

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:chumbucket/shared/widgets/widgets.dart';
 
 class ActionButton extends StatelessWidget {
   final String text;
@@ -40,33 +39,8 @@ class ActionButton extends StatelessWidget {
                 ),
               ),
             )
-            : GestureDetector(
-              onTap: () {
-                // TODO: Show configurations
-              },
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    isSecondStep ? description : 'Configurations',
-                    style: TextStyle(
-                      color: const Color(0xFFFF3355),
-                      fontSize:
-                          isSecondStep
-                              ? 15.sp
-                              : 18.sp, // Smaller font for longer description
-                      fontWeight: FontWeight.w600,
-                      // Handle long descriptions
-                    ),
-                  ),
-                  Icon(
-                    isSecondStep ? Icons.info_outline : Icons.keyboard_arrow_up,
-                    color: const Color(0xFFFF3355),
-                    size: 20.sp,
-                  ),
-                ],
-              ),
-            ),
+            // Configuration options removed - not implemented in on-chain program
+            : const SizedBox.shrink(),
         SizedBox(height: 20.h),
         Container(
           width: double.infinity,

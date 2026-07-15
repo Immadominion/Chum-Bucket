@@ -248,9 +248,14 @@ class ProfileProvider extends BaseChangeNotifier {
 
   @override
   Future<void> clearUserData() async {
-    await super.clearUserData();
+    // Clear the cached user_profile from SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('user_profile');
+
     // Note: We intentionally don't clear PFP data here as we want it to persist
     // across sessions for better user experience. If you need to clear it,
     // call PersistentProfilePictureService.clearUserProfilePictureData() explicitly
+
+    await super.clearUserData();
   }
 }

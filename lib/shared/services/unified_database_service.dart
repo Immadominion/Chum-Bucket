@@ -1,6 +1,7 @@
 import 'dart:developer' as dev;
 import '../models/models.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:chumbucket/core/config/network_config.dart';
 
 /// Unified database service using Supabase for all operations
 /// Migrated from local SQLite to remote Supabase for production use
@@ -41,17 +42,25 @@ class UnifiedDatabaseService {
     String? challengeId, // Optional blockchain challenge address to use as ID
   }) async {
     try {
-      // Get creator user ID from privy_id
-      final creatorResponse =
+      // Get creator user ID - check both privy_id and wallet_address (for MWA auth)
+      var creatorResponse =
           await _client
               .from('users')
               .select('id')
               .eq('privy_id', creatorPrivyId)
               .maybeSingle();
 
+      // If not found by privy_id, try wallet_address (MWA auth)
+      creatorResponse ??=
+          await _client
+              .from('users')
+              .select('id')
+              .eq('wallet_address', creatorPrivyId)
+              .maybeSingle();
+
       if (creatorResponse == null) {
         throw Exception(
-          'Creator user not found with privy_id: $creatorPrivyId',
+          'Creator user not found with privy_id or wallet_address: $creatorPrivyId',
         );
       }
 
@@ -65,18 +74,20 @@ class UnifiedDatabaseService {
         'title': title,
         'description': description,
         'amount': amountInSol, // Fill the NOT NULL amount column
-        'amount_sol': amountInSol,
+        'amount_in_sol': amountInSol,
         'platform_fee_sol': platformFee,
         'winner_amount_sol': winnerAmount,
         'expires_at':
             (expiresAt ?? DateTime.now().add(const Duration(days: 7)))
                 .toIso8601String(),
         'status': 'pending',
+        'escrow_address': escrowAddress,
         'multisig_address': escrowAddress,
         'vault_address': vaultAddress,
-        // Store member addresses in metadata since they're not direct columns
-        'metadata':
-            '{"member1Address": "$member1Address", "member2Address": "$member2Address"}',
+        'member1_address': member1Address,
+        'member2_address': member2Address,
+        // Store the current network for devnet/mainnet separation
+        'network': NetworkConfig.currentNetwork,
       };
 
       // For blockchain challenges, store the blockchain ID in blockchain_id field, not id
@@ -89,7 +100,7 @@ class UnifiedDatabaseService {
 
       final createdChallenge = Challenge.fromJson(response);
       dev.log(
-        'Challenge created with ID: ${createdChallenge.id}, Blockchain ID: $challengeId',
+        'Challenge created with ID: ${createdChallenge.id}, Blockchain ID: $challengeId, Network: ${NetworkConfig.currentNetwork}',
       );
       return createdChallenge;
     } catch (e) {
@@ -114,58 +125,113 @@ class UnifiedDatabaseService {
     String userPrivyId,
   ) async {
     try {
-      // Get user ID from privy_id first
-      final userResponse =
-          await _client
-              .from('users')
-              .select('id')
-              .eq('privy_id', userPrivyId)
-              .maybeSingle();
+      final currentNetwork = NetworkConfig.currentNetwork;
 
-      if (userResponse == null) {
-        dev.log('User not found with privy_id: $userPrivyId');
+      dev.log(
+        'Fetching challenges for wallet $userPrivyId on network $currentNetwork using RPC',
+      );
+
+      // Use the secure RPC function for server-side filtering
+      // This ensures only challenges where user is creator OR witness are returned
+      final response = await _client.rpc(
+        'get_challenges_for_wallet',
+        params: {'p_wallet_address': userPrivyId, 'p_network': currentNetwork},
+      );
+
+      if (response == null || response is! List) {
+        dev.log('RPC returned no data or invalid format');
         return [];
       }
 
-      final userId = userResponse['id'];
-
-      // Query challenges where user is creator or participant
-      final response = await _client
-          .from('challenges')
-          .select(
-            '*, blockchain_id, creator:creator_id(privy_id), participant:participant_id(privy_id), witness:witness_id(privy_id)',
-          )
-          .or('creator_id.eq.$userId,participant_id.eq.$userId')
-          .order('created_at', ascending: false);
-
       dev.log(
-        'Database query returned ${response.length} challenges for user $userPrivyId',
+        'RPC returned ${response.length} challenges for user $userPrivyId on network $currentNetwork',
       );
 
       return response.map((json) {
-        // Convert the joined data back to the expected format
         final challengeData = Map<String, dynamic>.from(json);
 
-        // Map the foreign key relationships back to privy_ids
-        if (challengeData['creator'] != null) {
-          challengeData['creator_privy_id'] =
-              challengeData['creator']['privy_id'];
-        }
-        if (challengeData['participant'] != null) {
-          challengeData['participant_privy_id'] =
-              challengeData['participant']['privy_id'];
-        }
-
         // Map the Supabase column names to what Challenge.fromJson expects
-        challengeData['amount'] = challengeData['amount_sol'];
+        // Database has amount_in_sol, platform_fee_sol, winner_amount_sol
+        challengeData['amount_sol'] =
+            challengeData['amount_in_sol'] ?? challengeData['amount'];
         challengeData['platform_fee'] = challengeData['platform_fee_sol'];
         challengeData['winner_amount'] = challengeData['winner_amount_sol'];
-        challengeData['escrow_address'] = challengeData['multisig_address'];
+        challengeData['escrow_address'] =
+            challengeData['escrow_address'] ?? challengeData['vault_address'];
 
         return Challenge.fromJson(challengeData);
       }).toList();
     } catch (e) {
-      dev.log('Error getting challenges for user: $e');
+      dev.log('Error getting challenges for user via RPC: $e');
+      // Fallback to direct query if RPC fails
+      return _getChallengesForUserFallback(userPrivyId);
+    }
+  }
+
+  /// Fallback method using direct query if RPC fails
+  static Future<List<Challenge>> _getChallengesForUserFallback(
+    String userPrivyId,
+  ) async {
+    try {
+      dev.log('Using fallback query for challenges');
+
+      // Build query that checks multiple fields for MWA compatibility
+      // User should see challenges where they are:
+      // - creator (creator_wallet_address, member1_address)
+      // - witness (member2_address)
+      List<String> userConditions = [
+        'creator_wallet_address.eq.$userPrivyId',
+        'member1_address.eq.$userPrivyId',
+        'member2_address.eq.$userPrivyId',
+      ];
+
+      // Also check if user has a UUID in the users table
+      final userResponse =
+          await _client
+              .from('users')
+              .select('id')
+              .eq('wallet_address', userPrivyId)
+              .maybeSingle();
+
+      if (userResponse != null) {
+        final userId = userResponse['id'] as String;
+        userConditions.add('creator_id.eq.$userId');
+        userConditions.add('witness_id.eq.$userId');
+      }
+
+      final currentNetwork = NetworkConfig.currentNetwork;
+
+      // Query with user conditions
+      final response = await _client
+          .from('challenges')
+          .select('*')
+          .or(userConditions.join(','));
+
+      // Filter by network in memory
+      final filteredResponse =
+          response.where((challenge) {
+            final challengeNetwork = challenge['network'] as String?;
+            return challengeNetwork == null ||
+                challengeNetwork == currentNetwork;
+          }).toList();
+
+      dev.log(
+        'Fallback: ${response.length} total, ${filteredResponse.length} for network $currentNetwork',
+      );
+
+      return filteredResponse.map((json) {
+          final challengeData = Map<String, dynamic>.from(json);
+          challengeData['amount_sol'] =
+              challengeData['amount_in_sol'] ?? challengeData['amount'];
+          challengeData['platform_fee'] = challengeData['platform_fee_sol'];
+          challengeData['winner_amount'] = challengeData['winner_amount_sol'];
+          challengeData['escrow_address'] =
+              challengeData['escrow_address'] ?? challengeData['vault_address'];
+          return Challenge.fromJson(challengeData);
+        }).toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    } catch (e) {
+      dev.log('Fallback query also failed: $e');
       return [];
     }
   }
@@ -195,10 +261,12 @@ class UnifiedDatabaseService {
     Map<String, dynamic> updates,
   ) async {
     try {
+      dev.log('📤 UnifiedDB: updateChallenge($id) - $updates');
       await _client.from('challenges').update(updates).eq('id', id);
+      dev.log('✅ UnifiedDB: updateChallenge($id) succeeded');
       return true;
     } catch (e) {
-      dev.log('Error updating challenge: $e');
+      dev.log('❌ UnifiedDB: Error updating challenge $id: $e');
       return false;
     }
   }
@@ -213,7 +281,7 @@ class UnifiedDatabaseService {
   }) async {
     final updates = <String, dynamic>{
       'status': status,
-      // Note: challenges table doesn't have updated_at column, using completed_at instead
+      'updated_at': DateTime.now().toIso8601String(),
     };
 
     if (transactionSignature != null) {
@@ -226,6 +294,7 @@ class UnifiedDatabaseService {
       updates['completed_at'] = completedAt.toIso8601String();
     }
 
+    dev.log('📤 UnifiedDB: Updating challenge $id with: $updates');
     return await updateChallenge(id, updates);
   }
 
@@ -286,6 +355,7 @@ class UnifiedDatabaseService {
 
   // Friends operations
   /// Add a friend by their wallet address
+  /// Note: userPrivyId can be either a privy_id or wallet_address (for MWA auth)
   static Future<bool> addFriend({
     required String userPrivyId,
     required String friendName,
@@ -296,19 +366,29 @@ class UnifiedDatabaseService {
         'Adding friend: $friendName ($friendWalletAddress) for user: $userPrivyId',
       );
 
-      // Get the user's database ID
-      final userResponse =
+      // Get the user's database ID - check both privy_id and wallet_address
+      var userResponse =
           await _client
               .from('users')
               .select('id')
               .eq('privy_id', userPrivyId)
               .maybeSingle();
 
+      // If not found by privy_id, try wallet_address (MWA auth)
+      userResponse ??=
+          await _client
+              .from('users')
+              .select('id')
+              .eq('wallet_address', userPrivyId)
+              .maybeSingle();
+
       if (userResponse == null) {
-        throw Exception('User not found with privy_id: $userPrivyId');
+        throw Exception(
+          'User not found with privy_id or wallet_address: $userPrivyId',
+        );
       }
 
-      final userId = userResponse['id'];
+      final userId = userResponse['id'] as String;
 
       // Check if friend exists by wallet address, if not create them
       final existingFriendResponse =
@@ -318,7 +398,7 @@ class UnifiedDatabaseService {
               .eq('wallet_address', friendWalletAddress)
               .maybeSingle();
 
-      int friendId;
+      String friendId;
 
       if (existingFriendResponse == null) {
         // Friend doesn't exist, create a new user record with minimal info
@@ -337,10 +417,10 @@ class UnifiedDatabaseService {
                 .select('id')
                 .single();
 
-        friendId = newFriendResponse['id'];
+        friendId = newFriendResponse['id'] as String;
         dev.log('Created new user for friend with ID: $friendId');
       } else {
-        friendId = existingFriendResponse['id'];
+        friendId = existingFriendResponse['id'] as String;
 
         // Update the existing user's name if it's not set
         final currentUser =
@@ -404,6 +484,7 @@ class UnifiedDatabaseService {
   }
 
   /// Get all friends for a user
+  /// Note: userPrivyId can be either a privy_id or wallet_address (for MWA auth)
   static Future<List<Map<String, String>>> getUserFriends(
     String id, {
     required String userPrivyId,
@@ -411,16 +492,26 @@ class UnifiedDatabaseService {
     try {
       dev.log('Getting friends for user: $userPrivyId');
 
-      // Get user's database ID
-      final userResponse =
+      // Get user's database ID - check both privy_id and wallet_address
+      var userResponse =
           await _client
               .from('users')
               .select('id')
               .eq('privy_id', userPrivyId)
               .maybeSingle();
 
+      // If not found by privy_id, try wallet_address (MWA auth)
+      userResponse ??=
+          await _client
+              .from('users')
+              .select('id')
+              .eq('wallet_address', userPrivyId)
+              .maybeSingle();
+
       if (userResponse == null) {
-        throw Exception('User not found with privy_id: $userPrivyId');
+        throw Exception(
+          'User not found with privy_id or wallet_address: $userPrivyId',
+        );
       }
 
       final userId = userResponse['id'];
@@ -475,6 +566,7 @@ class UnifiedDatabaseService {
   }
 
   /// Remove a friend
+  /// Note: userPrivyId can be either a privy_id or wallet_address (for MWA auth)
   static Future<bool> removeFriend({
     required String userPrivyId,
     required String friendWalletAddress,
@@ -484,12 +576,20 @@ class UnifiedDatabaseService {
         'Removing friend with wallet: $friendWalletAddress for user: $userPrivyId',
       );
 
-      // Get user and friend IDs
-      final userResponse =
+      // Get user ID - check both privy_id and wallet_address (for MWA auth)
+      var userResponse =
           await _client
               .from('users')
               .select('id')
               .eq('privy_id', userPrivyId)
+              .maybeSingle();
+
+      // If not found by privy_id, try wallet_address (MWA auth)
+      userResponse ??=
+          await _client
+              .from('users')
+              .select('id')
+              .eq('wallet_address', userPrivyId)
               .maybeSingle();
 
       final friendResponse =
@@ -529,20 +629,31 @@ class UnifiedDatabaseService {
   static Future<void> debugChallengeData(String userPrivyId) async {
     try {
       // Get user ID from privy_id first
-      final userResponse =
+      // Get user ID - check both privy_id and wallet_address (for MWA auth)
+      var userResponse =
           await _client
               .from('users')
               .select('id')
               .eq('privy_id', userPrivyId)
               .maybeSingle();
 
+      // If not found by privy_id, try wallet_address (MWA auth)
+      userResponse ??=
+          await _client
+              .from('users')
+              .select('id')
+              .eq('wallet_address', userPrivyId)
+              .maybeSingle();
+
       if (userResponse == null) {
-        dev.log('DEBUG: User not found with privy_id: $userPrivyId');
+        dev.log(
+          'DEBUG: User not found with privy_id or wallet_address: $userPrivyId',
+        );
         return;
       }
 
       final userId = userResponse['id'];
-      dev.log('DEBUG: Found user ID: $userId for privy_id: $userPrivyId');
+      dev.log('DEBUG: Found user ID: $userId for identifier: $userPrivyId');
 
       // Count total challenges in the system
       final totalChallenges = await _client.from('challenges').select('id');

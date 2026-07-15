@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:intl/intl.dart'; // Add this import for number formatting
 
 class ChallengeInput extends StatelessWidget {
   final TextEditingController controller;
@@ -90,37 +89,32 @@ class ChallengeDescriptionInput extends ChallengeInput {
 class ChallengeBetAmountInput extends StatelessWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
-  final NumberFormat _currencyFormat = NumberFormat.currency(
-    symbol: '\$',
-    decimalDigits: 3,
-    locale: 'en_US',
-  );
 
-  ChallengeBetAmountInput({
+  const ChallengeBetAmountInput({
     super.key,
     required this.controller,
     required this.onChanged,
   });
 
-  // Format as currency
-  String _formatAsCurrency(String text) {
+  // Format amount nicely (remove trailing zeros)
+  String _formatAmount(String text) {
     if (text.isEmpty) return '';
 
-    // Remove any existing formatting
+    // Remove any existing formatting except digits and decimal
     String cleanText = text.replaceAll(RegExp(r'[^\d.]'), '');
 
-    // Parse the clean text to a double
+    // Parse and format
     double? value = double.tryParse(cleanText);
     if (value == null) return '';
 
-    // Format with currency symbol and commas
-    return _currencyFormat.format(value);
-  }
-
-  // Extract numeric value from formatted string
-  String _extractNumericValue(String formattedText) {
-    String cleanText = formattedText.replaceAll(RegExp(r'[^\d.]'), '');
-    return cleanText;
+    // Format with up to 4 decimal places, removing trailing zeros
+    if (value == value.truncate()) {
+      return value.truncate().toString();
+    }
+    return value
+        .toStringAsFixed(4)
+        .replaceAll(RegExp(r'0+$'), '')
+        .replaceAll(RegExp(r'\.$'), '');
   }
 
   @override
@@ -141,16 +135,15 @@ class ChallengeBetAmountInput extends StatelessWidget {
           onChanged(value);
         },
         onEditingComplete: () {
-          // Format the value when done editing
-          final formattedValue = _formatAsCurrency(controller.text);
+          // Format the value nicely when done editing
+          final formattedValue = _formatAmount(controller.text);
           controller.value = TextEditingValue(
             text: formattedValue,
             selection: TextSelection.collapsed(offset: formattedValue.length),
           );
 
-          // Extract the numeric value to pass to parent
-          final numericValue = _extractNumericValue(formattedValue);
-          onChanged(numericValue);
+          // Pass the numeric value to parent
+          onChanged(formattedValue);
 
           // Dismiss keyboard
           FocusScope.of(context).unfocus();

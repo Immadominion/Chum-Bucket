@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:chumbucket/features/authentication/presentation/screens/login_screen.dart';
+// MWA Login Screen for wallet-based authentication (replaces email login)
+import 'package:chumbucket/features/authentication/presentation/screens/mwa_login_screen.dart';
 import 'package:chumbucket/features/authentication/presentation/screens/onboarding/widgets/onboarding_controller.dart';
 
 class OnboardingButtons extends StatelessWidget {
@@ -45,7 +46,7 @@ class OnboardingButtons extends StatelessWidget {
               if (isLastPage) {
                 onCompleteOnboarding();
                 Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  MaterialPageRoute(builder: (_) => const MwaLoginScreen()),
                 );
               } else {
                 // Use the controller to navigate to next page
@@ -132,7 +133,7 @@ class OnboardingButtons extends StatelessWidget {
                     print("Skip button tapped");
                     onCompleteOnboarding();
                     Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      MaterialPageRoute(builder: (_) => const MwaLoginScreen()),
                     );
                   },
                   style: TextButton.styleFrom(

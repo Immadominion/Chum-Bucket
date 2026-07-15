@@ -7,12 +7,12 @@ import 'package:chumbucket/shared/screens/splash/widgets/splash_background_paint
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:chumbucket/features/authentication/presentation/screens/login_screen.dart';
+import 'package:chumbucket/features/authentication/presentation/screens/mwa_login_screen.dart';
 import 'package:chumbucket/features/authentication/presentation/screens/onboarding/onboarding_screen.dart';
 import 'package:provider/provider.dart';
-import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
+import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/authentication/providers/onboarding_provider.dart';
-import 'package:chumbucket/features/wallet/providers/wallet_provider.dart';
+import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:chumbucket/shared/services/efficient_sync_service.dart';
 import 'package:chumbucket/core/utils/app_logger.dart';
 
@@ -67,17 +67,17 @@ class _SplashScreenState extends State<SplashScreen>
     await Future.delayed(const Duration(milliseconds: 400));
 
     // Check login state and onboarding completion
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final authProvider = Provider.of<MwaAuthProvider>(context, listen: false);
     final onboardingProvider = Provider.of<OnboardingProvider>(
       context,
       listen: false,
     );
 
-    // Ensure AuthProvider is initialized before checking login status
-    if (!authProvider.isInitialized) {
-      debugPrint('Initializing AuthProvider...');
+    // MWA auth provider initialize is sync for state restoration
+    if (authProvider.state == MwaAuthState.initial) {
+      debugPrint('Initializing MwaAuthProvider...');
       await authProvider.initialize();
-      debugPrint('AuthProvider initialized');
+      debugPrint('MwaAuthProvider initialized');
     }
 
     final isLoggedIn = await authProvider.isLoggedIn();
@@ -101,7 +101,7 @@ class _SplashScreenState extends State<SplashScreen>
       // For new users, check if onboarding has been completed
       if (hasCompletedOnboarding) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          MaterialPageRoute(builder: (context) => const MwaLoginScreen()),
         );
       } else {
         // Show onboarding for first-time users
@@ -113,12 +113,13 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   // Trigger initial sync when user logs in to load challenges from blockchain
-  Future<void> _triggerInitialSync(AuthProvider authProvider) async {
+  Future<void> _triggerInitialSync(MwaAuthProvider authProvider) async {
     try {
       AppLogger.info('Scheduling delayed sync for logged-in user');
 
-      final currentUser = authProvider.currentUser;
-      if (currentUser == null || !mounted) return;
+      // MWA auth doesn't have currentUser, use walletAddress instead
+      final walletAddress = authProvider.walletAddress;
+      if (walletAddress == null || !mounted) return;
 
       // Schedule sync to happen AFTER navigation is complete
       // This prevents blocking the UI during app startup
@@ -126,23 +127,24 @@ class _SplashScreenState extends State<SplashScreen>
         if (!mounted) return;
 
         try {
-          final walletProvider = Provider.of<WalletProvider>(
+          final walletProvider = Provider.of<MwaWalletProvider>(
             context,
             listen: false,
           );
 
           // Initialize wallet if not already done
           if (!walletProvider.isInitialized && mounted) {
-            await walletProvider.initializeWallet(context);
+            await walletProvider.initializeFromAuth(authProvider);
           }
 
-          final walletAddress = walletProvider.walletAddress;
-          if (walletAddress != null) {
+          final syncWalletAddress = walletProvider.walletAddress;
+          if (syncWalletAddress != null) {
             // Trigger background sync without blocking navigation
+            // Use wallet address as userId for MWA (no Privy user ID)
             EfficientSyncService.instance
                 .getChallenges(
-                  userId: currentUser.id,
-                  walletAddress: walletAddress,
+                  userId: syncWalletAddress,
+                  walletAddress: syncWalletAddress,
                 )
                 .then((_) {
                   AppLogger.info('Delayed sync completed successfully');

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/features/profile/providers/profile_provider.dart';
-import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
+import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 
 class ProfilePictureSelectionModal extends StatefulWidget {
   final String? currentProfilePicture;
@@ -69,21 +69,24 @@ class _ProfilePictureSelectionModalState
     setState(() => _isLoading = true);
 
     try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final authProvider = Provider.of<MwaAuthProvider>(context, listen: false);
       final profileProvider = Provider.of<ProfileProvider>(
         context,
         listen: false,
       );
-      final privyId = authProvider.currentUser?.id;
+      final walletAddress = authProvider.walletAddress;
 
-      if (privyId != null) {
+      if (walletAddress != null) {
         final imagePath = _availableImages[_selectedImageId! - 1];
-        final success = await profileProvider.setUserPfp(privyId, imagePath);
+        final success = await profileProvider.setUserPfp(
+          walletAddress,
+          imagePath,
+        );
 
         if (success && mounted) {
           // Force deep state refresh by re-fetching user profile with new PFP
           // This will cause all dependent widgets to rebuild with new profile picture
-          await profileProvider.fetchUserProfileWithPfp(privyId);
+          await profileProvider.fetchUserProfileWithPfp(walletAddress);
 
           // Show success feedback
           ScaffoldMessenger.of(context).showSnackBar(

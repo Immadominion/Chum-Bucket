@@ -7,6 +7,7 @@ import 'package:chumbucket/shared/screens/home/widgets/resolve_sheet_header.dart
 import 'package:chumbucket/shared/screens/home/widgets/resolve_sheet_content.dart';
 import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
+import 'package:chumbucket/shared/utils/challenge_status_utils.dart';
 
 /// Modal bottom sheet for resolving challenges with wave design and overlapping avatars
 class ResolveChallengeSheet extends StatefulWidget {
@@ -30,6 +31,23 @@ class _ResolveChallengeSheetState extends State<ResolveChallengeSheet> {
     final start = address.substring(0, 6);
     final end = address.substring(address.length - 4);
     return '$start...$end';
+  }
+
+  /// Format amount to display nicely (avoid rounding errors like 0.05 -> 0.1)
+  String _formatAmount(dynamic amount) {
+    if (amount == null) return '0';
+    final value =
+        (amount is num)
+            ? amount.toDouble()
+            : double.tryParse(amount.toString()) ?? 0.0;
+    // Remove trailing zeros and limit to 4 decimal places
+    if (value == value.truncate()) {
+      return value.truncate().toString();
+    }
+    return value
+        .toStringAsFixed(4)
+        .replaceAll(RegExp(r'0+$'), '')
+        .replaceAll(RegExp(r'\.$'), '');
   }
 
   /// Safe wrapper for the completion callback that shows success feedback
@@ -83,16 +101,22 @@ class _ResolveChallengeSheetState extends State<ResolveChallengeSheet> {
   Widget build(BuildContext context) {
     final status =
         (widget.challenge['status'] as String?)?.toLowerCase() ?? 'pending';
-    final isPending = status == 'pending';
-    final friendRaw = (widget.challenge['friendName'] as String?) ?? 'Zara';
+    // Use shared utility for consistent status handling
+    final isResolvable = ChallengeStatusUtils.isResolvable(status);
+    // Get friend name from challenge data - try multiple keys since different sources use different names
+    final friendRaw =
+        (widget.challenge['friendName'] as String?) ??
+        (widget.challenge['participantId'] as String?) ??
+        (widget.challenge['witness_address'] as String?) ??
+        'Unknown';
     final amount = widget.challenge['amount'];
-    final amountText = amount is num ? amount.toStringAsFixed(1) : '$amount';
+    final amountText = _formatAmount(amount);
 
     // Calculate responsive height with constraints
     final screenHeight = MediaQuery.of(context).size.height;
     final maxHeight = screenHeight * 0.86; // Max 86% of screen height
     final minHeight = 320.h;
-    final preferredHeight = isPending ? 510.h : 320.h;
+    final preferredHeight = isResolvable ? 510.h : 320.h;
     final finalHeight = preferredHeight.clamp(minHeight, maxHeight);
 
     return Container(
@@ -175,9 +199,11 @@ class _ResolveChallengeSheetState extends State<ResolveChallengeSheet> {
           ),
 
           // Bottom section with challenge details and buttons
+          // isCurrentUserWitness flag is set in challenges_preview.dart
           ResolveSheetContent(
             challenge: widget.challenge,
-            isPending: isPending,
+            isPending: isResolvable,
+            isWitness: widget.challenge['isCurrentUserWitness'] == true,
             onMarkCompleted: _safeMarkCompleted,
           ),
         ],

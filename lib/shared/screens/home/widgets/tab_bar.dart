@@ -14,6 +14,7 @@ class HomeScreenTabBar extends StatefulWidget {
 class _HomeScreenTabBarState extends State<HomeScreenTabBar> {
   // Define the challenge button color (same as in ChallengeButton)
   static const Color challengeButtonColor = Color(0xFFFF5A76);
+  static const List<String> _labels = ['Friends', 'Challenges', 'Arena'];
 
   @override
   void initState() {
@@ -28,69 +29,44 @@ class _HomeScreenTabBarState extends State<HomeScreenTabBar> {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        GestureDetector(
-          onTap: () => widget.tabController.animateTo(0),
-          child: Row(
-            children: [
-              Text(
-                'Friends',
-                style: TextStyle(
-                  fontSize: 18.sp,
-                  fontWeight: FontWeight.w600,
-                  color:
-                      widget.tabController.index == 0
-                          ? Colors.black
-                          : Colors.grey,
-                ),
-              ),
-              SizedBox(width: 4.w),
-              // Show dot on Friends tab when Friends is active
-              if (widget.tabController.index == 0)
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: challengeButtonColor,
-                    shape: BoxShape.circle,
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          for (var i = 0; i < _labels.length; i++) ...[
+            if (i > 0) SizedBox(width: 16.w),
+            GestureDetector(
+              onTap: () => widget.tabController.animateTo(i),
+              child: Row(
+                children: [
+                  Text(
+                    _labels[i],
+                    style: TextStyle(
+                      fontSize: 18.sp,
+                      fontWeight: FontWeight.w600,
+                      color:
+                          widget.tabController.index == i
+                              ? Colors.black
+                              : Colors.grey,
+                    ),
                   ),
-                ),
-            ],
-          ),
-        ),
-        SizedBox(width: 16.w),
-        GestureDetector(
-          onTap: () => widget.tabController.animateTo(1),
-          child: Row(
-            children: [
-              Text(
-                'Challenges',
-                style: TextStyle(
-                  fontSize: 18.sp,
-                  fontWeight: FontWeight.w600,
-                  color:
-                      widget.tabController.index == 1
-                          ? Colors.black
-                          : Colors.grey,
-                ),
+                  SizedBox(width: 4.w),
+                  if (widget.tabController.index == i)
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: challengeButtonColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                ],
               ),
-              SizedBox(width: 4.w),
-              // Show dot on Challenges tab when active
-              if (widget.tabController.index == 1)
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: challengeButtonColor,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ],
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

@@ -44,6 +44,8 @@ class ChallengeStatusBadge extends StatelessWidget {
     switch (status) {
       case ChallengeStatus.pending:
         return const Color(0xFF2196F3); // Blue
+      case ChallengeStatus.active:
+        return const Color(0xFF4CAF50); // Green - active challenges
       case ChallengeStatus.accepted:
         return const Color(0xFF4CAF50); // Green
       case ChallengeStatus.funded:
@@ -63,6 +65,8 @@ class ChallengeStatusBadge extends StatelessWidget {
     switch (status) {
       case ChallengeStatus.pending:
         return 'PENDING';
+      case ChallengeStatus.active:
+        return 'ACTIVE';
       case ChallengeStatus.accepted:
         return 'ACCEPTED';
       case ChallengeStatus.funded:

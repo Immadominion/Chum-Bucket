@@ -1,11 +1,12 @@
 import 'package:chumbucket/core/theme/app_colors.dart';
-import 'package:chumbucket/features/wallet/providers/wallet_provider.dart';
+import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/features/profile/providers/profile_provider.dart';
-import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
+// MWA Auth Provider for wallet-based authentication
+import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/profile/presentation/screens/edit_profile_screen.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_header.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_wallet_card.dart';
@@ -24,6 +25,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   String _username = 'Username';
   String _bio = 'This is a short bio that describes the user.';
+  String? _lastLoadedWallet; // Track which wallet we loaded data for
 
   @override
   void initState() {
@@ -45,35 +47,39 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Future<void> _loadProfileData() async {
     try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final authProvider = Provider.of<MwaAuthProvider>(context, listen: false);
       final profileProvider = Provider.of<ProfileProvider>(
         context,
         listen: false,
       );
 
-      if (authProvider.currentUser != null) {
-        final userId = authProvider.currentUser!.id;
-        debugPrint('🔍 Loading profile for user: $userId');
+      if (authProvider.isAuthenticated) {
+        final walletAddress = authProvider.walletAddress!;
 
-        // First try to get from local storage
-        var profile = await profileProvider.getUserProfileFromLocal();
-        debugPrint('📱 Local profile: $profile');
-
-        // If no local profile, fetch from database and save locally
-        if (profile == null) {
-          debugPrint('📡 No local profile, fetching from database...');
-          profile = await profileProvider.fetchUserProfileWithPfp(userId);
-          debugPrint('🗄️ Database profile: $profile');
+        // Skip if we already loaded for this wallet
+        if (_lastLoadedWallet == walletAddress && _username != 'Username') {
+          debugPrint('🔄 Profile already loaded for wallet: $walletAddress');
+          return;
         }
+
+        debugPrint('🔍 Loading profile for wallet: $walletAddress');
+
+        // ALWAYS fetch from database first for correct data (skip local cache)
+        // Local cache might be stale from previous user
+        var profile = await profileProvider.fetchUserProfileWithPfp(
+          walletAddress,
+        );
+        debugPrint('🗄️ Database profile: $profile');
 
         if (mounted) {
           setState(() {
+            _lastLoadedWallet = walletAddress;
             if (profile != null) {
               _username =
                   profile['full_name'] ??
                   profile['name'] ??
-                  profile['email']?.split('@')[0] ??
-                  'Username';
+                  // For MWA, show truncated wallet address if no name
+                  '${walletAddress.substring(0, 4)}...${walletAddress.substring(walletAddress.length - 4)}';
               _bio =
                   profile['bio'] ??
                   'This is a short bio that describes the user.';
@@ -81,33 +87,21 @@ class _ProfileScreenState extends State<ProfileScreen>
                 '✅ Profile loaded: $_username (from ${profile.keys.toList()})',
               );
             } else {
-              // If no profile, try to use auth provider data as fallback
-              final currentUser = authProvider.currentUser;
-              if (currentUser != null) {
-                try {
-                  final emailAccount = currentUser.linkedAccounts.firstWhere(
-                    (account) => account.type == 'email',
-                  );
-                  final emailAddr =
-                      (emailAccount as dynamic).emailAddress as String?;
-                  _username = emailAddr?.split('@')[0] ?? 'Username';
-                  debugPrint('🔄 Using email fallback: $_username');
-                } catch (e) {
-                  _username = 'Username';
-                  debugPrint('🔄 No email account found, using default');
-                }
-              }
-              debugPrint('❌ No profile data available, using fallback');
+              // If no profile, use wallet address as fallback
+              _username =
+                  '${walletAddress.substring(0, 4)}...${walletAddress.substring(walletAddress.length - 4)}';
+              _bio = 'This is a short bio that describes the user.';
+              debugPrint('🔄 Using wallet address fallback: $_username');
             }
           });
         }
       }
 
-      final walletProvider = Provider.of<WalletProvider>(
+      final walletProvider = Provider.of<MwaWalletProvider>(
         context,
         listen: false,
       );
-      walletProvider.refreshBalance();
+      walletProvider.refreshWalletBalance();
     } catch (e) {
       debugPrint('❌ Error loading profile: $e');
     }

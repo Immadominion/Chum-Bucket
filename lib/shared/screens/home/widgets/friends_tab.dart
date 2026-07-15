@@ -1,4 +1,4 @@
-import 'package:chumbucket/features/wallet/providers/wallet_provider.dart';
+import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/friends_grid.dart';
 import 'package:chumbucket/shared/screens/home/widgets/view_more_friends_sheet.dart';
 import 'package:flutter/material.dart';
@@ -7,7 +7,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenges_preview.dart';
-import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
+import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/shared/services/unified_database_service.dart';
 
 class FriendsTab extends StatefulWidget {
@@ -32,16 +32,23 @@ class FriendsTab extends StatefulWidget {
   State<FriendsTab> createState() => _FriendsTabState();
 }
 
-class _FriendsTabState extends State<FriendsTab> {
+class _FriendsTabState extends State<FriendsTab>
+    with AutomaticKeepAliveClientMixin {
   List<Map<String, String>> friends = [];
-  bool isLoading = true;
+  bool isLoading = false; // Start as false - only show loading on first load
   bool hasAttemptedLoad = false; // Track if we've tried to load
-  WalletProvider? _walletProvider; // Store provider reference for safe disposal
+  bool _isFirstLoad = true; // Track if this is the first load
+  MwaWalletProvider?
+  _walletProvider; // Store provider reference for safe disposal
 
   // Caching for performance optimization
   Future<List<Map<String, String>>>? _friendsFuture;
   ValueKey? _lastRefreshKey;
   DateTime? _lastLoadTime; // Track when we last loaded friends
+
+  // Keep state alive when switching tabs
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -53,7 +60,7 @@ class _FriendsTabState extends State<FriendsTab> {
 
     // Also refresh the preview list as soon as a challenge is created by listening to WalletProvider
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _walletProvider = Provider.of<WalletProvider>(context, listen: false);
+      _walletProvider = Provider.of<MwaWalletProvider>(context, listen: false);
       _walletProvider?.addListener(_onWalletChange);
     });
   }
@@ -81,8 +88,8 @@ class _FriendsTabState extends State<FriendsTab> {
       _lastRefreshKey = newRefreshKey;
       _friendsFuture = null; // Clear cache to force refresh
       hasAttemptedLoad = false; // Reset load flag to allow refresh
-      // Also clear the current friends list to prevent showing old data
-      friends.clear();
+      // DON'T clear friends list - keep showing old data while refreshing
+      // friends.clear();  // REMOVED - this was causing UI flash
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _loadFriendsWhenReady();
       });
@@ -90,7 +97,7 @@ class _FriendsTabState extends State<FriendsTab> {
   }
 
   Future<void> _loadFriendsWhenReady() async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final authProvider = Provider.of<MwaAuthProvider>(context, listen: false);
 
     // THROTTLING: Don't load if we loaded very recently
     if (hasAttemptedLoad && friends.isNotEmpty) {
@@ -106,7 +113,7 @@ class _FriendsTabState extends State<FriendsTab> {
     }
 
     // If user is already available, load friends immediately
-    if (authProvider.currentUser != null) {
+    if (authProvider.walletAddress != null) {
       // If we don't have cached data, load it
       if (_friendsFuture == null) {
         _loadFriends();
@@ -140,20 +147,20 @@ class _FriendsTabState extends State<FriendsTab> {
     print('FriendsTab: Starting to load friends...');
 
     // Get current user
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final currentUser = authProvider.currentUser;
+    final authProvider = Provider.of<MwaAuthProvider>(context, listen: false);
+    final walletAddress = authProvider.walletAddress;
 
-    if (currentUser == null) {
+    if (walletAddress == null) {
       print('FriendsTab: No current user found');
       return [];
     }
 
-    print('FriendsTab: Loading friends for user: ${currentUser.id}');
+    print('FriendsTab: Loading friends for user: $walletAddress');
 
     // Load friends from Supabase
     final friendsData = await UnifiedDatabaseService.getUserFriends(
-      currentUser.id,
-      userPrivyId: currentUser.id,
+      walletAddress,
+      userPrivyId: walletAddress,
     );
 
     // Convert to UI format expected by FriendsGrid and assign images based on position
@@ -215,7 +222,8 @@ class _FriendsTabState extends State<FriendsTab> {
     try {
       if (mounted) {
         setState(() {
-          isLoading = true;
+          // Only show loading spinner on first load, not on tab switches
+          isLoading = _isFirstLoad;
           hasAttemptedLoad = true;
         });
       }
@@ -228,6 +236,7 @@ class _FriendsTabState extends State<FriendsTab> {
         setState(() {
           friends = uiFriends;
           isLoading = false;
+          _isFirstLoad = false; // No longer first load
           _lastLoadTime = DateTime.now(); // Track load time
         });
       }
@@ -243,11 +252,14 @@ class _FriendsTabState extends State<FriendsTab> {
 
   @override
   Widget build(BuildContext context) {
+    // Required for AutomaticKeepAliveClientMixin
+    super.build(context);
+
     // Check auth state once without Consumer to avoid rebuilds
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final authProvider = Provider.of<MwaAuthProvider>(context, listen: false);
 
     // Auto-load friends when user becomes available (only if we haven't attempted yet)
-    if (authProvider.currentUser != null &&
+    if (authProvider.walletAddress != null &&
         !hasAttemptedLoad &&
         _friendsFuture == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -282,12 +294,13 @@ class _FriendsTabState extends State<FriendsTab> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                // SizedBox(height: 8.h),
-                isLoading
+                // Only show spinner on first load when no data exists
+                // Otherwise show the grid (even if empty or refreshing in background)
+                (isLoading && friends.isEmpty)
                     ? Container(
                       width: 24.w,
                       height: 24.h,
-                      margin: EdgeInsets.all(60.r),
+                      margin: EdgeInsets.all(30.r),
                       child: const CircularProgressIndicator(),
                     )
                     : FriendsGrid(

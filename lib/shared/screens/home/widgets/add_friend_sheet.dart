@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -5,7 +6,7 @@ import 'dart:ui';
 import 'dart:io';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
-import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
+import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
 import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
@@ -23,12 +24,20 @@ class AddFriendSheet extends StatefulWidget {
   State<AddFriendSheet> createState() => _AddFriendSheetState();
 }
 
+/// Validation state for address input
+enum AddressValidationState { idle, validating, valid, invalid }
+
 class _AddFriendSheetState extends State<AddFriendSheet> {
   final _nameController = TextEditingController();
   final _addressController = TextEditingController();
   final FocusNode _nameFocusNode = FocusNode();
   final FocusNode _addressFocusNode = FocusNode();
   bool _isLoading = false;
+
+  // Address validation state
+  AddressValidationState _addressValidation = AddressValidationState.idle;
+  String? _resolvedAddress; // Cached resolved address
+  Timer? _debounceTimer;
 
   @override
   void initState() {
@@ -46,11 +55,106 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _nameController.dispose();
     _addressController.dispose();
     _nameFocusNode.dispose();
     _addressFocusNode.dispose();
     super.dispose();
+  }
+
+  /// Validate address input with debouncing
+  void _validateAddress(String value) {
+    _debounceTimer?.cancel();
+
+    final trimmed = value.trim();
+
+    // Reset state for empty input
+    if (trimmed.isEmpty) {
+      setState(() {
+        _addressValidation = AddressValidationState.idle;
+        _resolvedAddress = null;
+      });
+      return;
+    }
+
+    // Check if it's already a valid base58 address
+    if (AddressNameResolver.isBase58Address(trimmed)) {
+      setState(() {
+        _addressValidation = AddressValidationState.valid;
+        _resolvedAddress = trimmed;
+      });
+      return;
+    }
+
+    // Check if it looks like a domain
+    if (!AddressNameResolver.isSnsDomain(trimmed)) {
+      // Not a valid address format and not a domain
+      setState(() {
+        _addressValidation = AddressValidationState.invalid;
+        _resolvedAddress = null;
+      });
+      return;
+    }
+
+    // It's a domain, debounce the resolution
+    setState(() => _addressValidation = AddressValidationState.validating);
+
+    _debounceTimer = Timer(const Duration(milliseconds: 600), () async {
+      if (!mounted) return;
+
+      try {
+        final resolved = await AddressNameResolver.resolveAddress(trimmed);
+        if (!mounted) return;
+
+        if (resolved != null) {
+          setState(() {
+            _addressValidation = AddressValidationState.valid;
+            _resolvedAddress = resolved;
+          });
+        } else {
+          setState(() {
+            _addressValidation = AddressValidationState.invalid;
+            _resolvedAddress = null;
+          });
+        }
+      } catch (_) {
+        if (!mounted) return;
+        setState(() {
+          _addressValidation = AddressValidationState.invalid;
+          _resolvedAddress = null;
+        });
+      }
+    });
+  }
+
+  /// Build validation indicator widget
+  Widget? _buildValidationIndicator() {
+    switch (_addressValidation) {
+      case AddressValidationState.idle:
+        return null;
+      case AddressValidationState.validating:
+        return SizedBox(
+          width: 20.w,
+          height: 20.w,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.grey.shade400),
+          ),
+        );
+      case AddressValidationState.valid:
+        return PhosphorIcon(
+          PhosphorIconsFill.checkCircle,
+          color: Colors.green,
+          size: 22.w,
+        );
+      case AddressValidationState.invalid:
+        return PhosphorIcon(
+          PhosphorIconsFill.xCircle,
+          color: Colors.red,
+          size: 22.w,
+        );
+    }
   }
 
   Future<void> _addFriend() async {
@@ -66,41 +170,66 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
       return;
     }
 
+    // Validate before submitting
+    if (_addressValidation == AddressValidationState.invalid) {
+      SnackBarUtils.showError(
+        context,
+        title: 'Invalid Address',
+        subtitle: 'Please enter a valid wallet address or domain',
+      );
+      return;
+    }
+
+    if (_addressValidation == AddressValidationState.validating) {
+      SnackBarUtils.showInfo(
+        context,
+        title: 'Please Wait',
+        subtitle: 'Validating address...',
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final currentUser = authProvider.currentUser;
-      if (currentUser == null) throw Exception('User not authenticated');
+      final authProvider = Provider.of<MwaAuthProvider>(context, listen: false);
+      final walletAddress = authProvider.walletAddress;
+      if (walletAddress == null) throw Exception('User not authenticated');
 
-      // Normalize to wallet address only
-      String? walletAddress;
-      if (AddressNameResolver.isBase58Address(addressInput)) {
-        walletAddress = addressInput;
-      } else if (AddressNameResolver.isSolDomain(addressInput)) {
-        walletAddress = await AddressNameResolver.resolveAddress(addressInput);
-        if (walletAddress == null) {
+      // Use cached resolved address if available, otherwise resolve
+      String? friendWalletAddress = _resolvedAddress;
+
+      if (friendWalletAddress == null) {
+        // Fallback resolution (shouldn't normally reach here)
+        if (AddressNameResolver.isBase58Address(addressInput)) {
+          friendWalletAddress = addressInput;
+        } else if (AddressNameResolver.isSnsDomain(addressInput)) {
+          friendWalletAddress = await AddressNameResolver.resolveAddress(
+            addressInput,
+          );
+          if (friendWalletAddress == null) {
+            SnackBarUtils.showError(
+              context,
+              title: 'Resolution Error',
+              subtitle: 'Could not resolve $addressInput to a wallet',
+            );
+            return;
+          }
+        } else {
           SnackBarUtils.showError(
             context,
-            title: 'Resolution Error',
-            subtitle: 'Could not resolve $addressInput to a wallet',
+            title: 'Input Error',
+            subtitle: 'Enter a valid wallet address or SNS domain (.sol, .skr)',
           );
           return;
         }
-      } else {
-        SnackBarUtils.showError(
-          context,
-          title: 'Input Error',
-          subtitle: 'Enter a valid wallet or .sol domain',
-        );
-        return;
       }
 
       // Add friend to Supabase database
       final success = await UnifiedDatabaseService.addFriend(
-        userPrivyId: currentUser.id,
+        userPrivyId: walletAddress,
         friendName: name,
-        friendWalletAddress: walletAddress,
+        friendWalletAddress: friendWalletAddress,
       );
 
       if (success) {
@@ -296,7 +425,7 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
                       ),
                       SizedBox(height: 16.h),
 
-                      // Address input
+                      // Address input with validation
                       TextField(
                         controller: _addressController,
                         focusNode: _addressFocusNode,
@@ -306,12 +435,12 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
                           ); // Force rebuild to update border color
                         },
                         onChanged: (value) {
-                          setState(() {}); // Force rebuild for validation
+                          _validateAddress(value);
                         },
                         textInputAction: TextInputAction.done,
                         onSubmitted: (_) => FocusScope.of(context).unfocus(),
                         decoration: InputDecoration(
-                          hintText: 'Wallet address or .sol domain',
+                          hintText: 'Wallet address or SNS domain (.sol, .skr)',
                           hintStyle: TextStyle(
                             color: Colors.grey.shade500,
                             fontSize: 16.sp,
@@ -326,6 +455,15 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
                               size: 20.w,
                             ),
                           ),
+                          suffixIcon:
+                              _buildValidationIndicator() != null
+                                  ? Container(
+                                    width: 20.w,
+                                    height: 20.w,
+                                    alignment: Alignment.center,
+                                    child: _buildValidationIndicator(),
+                                  )
+                                  : null,
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.symmetric(
                             horizontal: 16.w,
@@ -337,6 +475,35 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
                           fontWeight: FontWeight.w500,
                         ),
                       ),
+                      // Show resolved address hint when domain is validated
+                      if (_addressValidation == AddressValidationState.valid &&
+                          _resolvedAddress != null &&
+                          AddressNameResolver.isSnsDomain(
+                            _addressController.text.trim(),
+                          ))
+                        Padding(
+                          padding: EdgeInsets.only(left: 8.w, top: 4.h),
+                          child: Text(
+                            'Resolves to: ${_resolvedAddress!.substring(0, 6)}...${_resolvedAddress!.substring(_resolvedAddress!.length - 4)}',
+                            style: TextStyle(
+                              fontSize: 12.sp,
+                              color: Colors.green.shade600,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      if (_addressValidation == AddressValidationState.invalid)
+                        Padding(
+                          padding: EdgeInsets.only(left: 8.w, top: 4.h),
+                          child: Text(
+                            'Invalid address or domain not found',
+                            style: TextStyle(
+                              fontSize: 12.sp,
+                              color: Colors.red.shade600,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
 
                       SizedBox(height: 20.h),
 

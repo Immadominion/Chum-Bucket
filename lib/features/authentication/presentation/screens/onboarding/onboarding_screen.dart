@@ -164,34 +164,33 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   Widget _getCurrentPage(int currentPage) {
     const pages = [
       OnboardingPage(
-        title: "Dare Your Friends with Chum Bucket",
+        title: "Dare Your Friends",
         description:
-            "Set up fun challenges with your friends, bet coins, and keep each other on track. It's simple, social, and rewarding!",
+            "Create fun challenges with friends, stake coins, and keep each other accountable.",
         illustration: "assets/animations/whisk_ai_generate/onb_animation_1.gif",
         isAnimated: true,
         fallback:
             "assets/images/ai_gen/whisk_animation_fallback/animation_image_1.jpg",
       ),
       OnboardingPage(
-        title: "Lock Coins, Win Big",
+        title: "Lock Coins. Play Fair.",
         description:
-            "Add your friend's email or wallet, lock your CHUM tokens, and agree on the challenge. Winner takes the pot—minus our small 1% fee (capped at \$10).",
+            "Add a wallet or .skr name, set the challenge, and lock funds. Winner takes all.",
         illustration: "assets/animations/whisk_ai_generate/onb_animation_2.gif",
         fallback:
             "assets/images/ai_gen/whisk_animation_fallback/animation_image_2.jpg",
         isAnimated: true,
       ),
       OnboardingPage(
-        title: "Fair and Transparent Wins",
+        title: "On-Chain. No Trust Needed.",
         description:
-            "Challenger signs to release funds to the winner. We keep 1% as a fee (up to \$10), stored publicly, with 50% for the team and 50% for Solana user airdrops.",
+            "Witness approval automatically release 100% to the winner. Challenger Disputes split 50/50.",
         illustration: "assets/animations/whisk_ai_generate/onb_animation_3.gif",
         fallback:
             "assets/images/ai_gen/whisk_animation_fallback/animation_image_3.jpg",
         isAnimated: true,
       ),
     ];
-
     return KeyedSubtree(key: ValueKey(currentPage), child: pages[currentPage]);
   }
 

@@ -1,0 +1,60 @@
+publisher:
+  name: Cleva Labs
+  website: https://chum-bucket.vercel.app/
+  email: immadotdev@gmail.com
+app:
+  name: Chum Bucket
+  address: DV6ruFs8DmBgEtFtRej3DxJqVSVEZLnTuRp72dkYLjnp
+  android_package: dev.cleva.chumbucket
+  urls:
+    license_url: https://chum-bucket.vercel.app/license
+    copyright_url: https://chum-bucket.vercel.app/copyright
+    privacy_policy_url: https://chum-bucket.vercel.app/privacy
+    website: https://chum-bucket.vercel.app/
+  media:
+    - purpose: icon
+      uri: media/icon.png
+release:
+  address: 74Ra239BnAaenFndMB91Hx1mvUZu7XSn3dQ5khF5xwda
+  media:
+    - purpose: icon
+      uri: media/icon.png
+    - purpose: banner
+      uri: media/banner.png
+    - purpose: screenshot
+      uri: media/screenshot1.png
+    - purpose: screenshot
+      uri: media/screenshot2.png
+    - purpose: screenshot
+      uri: media/screenshot3.png
+    - purpose: screenshot
+      uri: media/screenshot4.png
+  files:
+    - purpose: install
+      uri: files/app-release.apk
+  catalog:
+    en-US:
+      name: Chumbucket
+      short_description: Lock tokens, challenge friends
+      long_description: Lock tokens, set personal challenges with friends, and release funds based on your achievements.
+      new_in_version: '- Lock tokens securely in our escrow (Devnet) - Add friends to your bucket - Set personal challenges with friends - Release funds based on achievements - View challenge history'
+      saga_features: none yet.
+  android_details:
+    cert_fingerprint: 315b22c7fe1c285eae7a9915629037fc8ec3239fed347a734957dc250850e1c7
+    min_sdk: 27
+    version: 1.0.2
+    version_code: 2
+    locales:
+      - en-US
+solana_mobile_dapp_publisher_portal:
+  testing_instructions: |-
+    What to test: Thank you for taking your time to check this out. You'd want to test out all of these features:
+    - Login - Fund your wallet (Devnet Sol for now - till live) - Add friends (Use either Wallet address base58 strings or .sol domains) - Challenge these friends with a simple stake - When you have met your challenge, you can choose who won
+    Example challenges can be ("I'd pass the class test", or "No fap")—literally anything.
+    Thanks once again, and catch you where the formulas at!
+lastSubmittedVersionOnChain:
+  address: 74Ra239BnAaenFndMB91Hx1mvUZu7XSn3dQ5khF5xwda
+  version_code: 2
+  apk_hash: ka8ovWOyK8rbbBkajPIyQhM/y4ipx4M63FDoNWSQyog=
+lastUpdatedVersionOnStore:
+  address: 74Ra239BnAaenFndMB91Hx1mvUZu7XSn3dQ5khF5xwda

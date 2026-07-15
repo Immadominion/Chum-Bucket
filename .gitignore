@@ -53,3 +53,19 @@ app.*.map.json
 .env.test.local
 .env.production
 .env.production.local
+
+# Node (publishing tooling and any bundled JS deps)
+node_modules/
+**/node_modules/
+
+# Signing / secrets (never commit)
+*.jks
+*.keystore
+key.properties
+**/service-account*.json
+
+# Build artifacts (too large / rebuildable — never commit)
+*.apk
+*.aab
+*.ipa
+publishing/files/

@@ -4,9 +4,9 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:chumbucket/features/profile/presentation/screens/profile_screen.dart';
 import 'package:provider/provider.dart';
-import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
+import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/profile/providers/profile_provider.dart';
-import 'package:chumbucket/features/wallet/providers/wallet_provider.dart';
+import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 
 Widget homeScreenHeader(BuildContext context) {
@@ -20,9 +20,9 @@ Widget homeScreenHeader(BuildContext context) {
               context,
             ).push(MaterialPageRoute(builder: (context) => ProfileScreen()));
           },
-          child: Consumer2<AuthProvider, ProfileProvider>(
+          child: Consumer2<MwaAuthProvider, ProfileProvider>(
             builder: (context, authProvider, profileProvider, child) {
-              if (authProvider.currentUser == null) {
+              if (authProvider.walletAddress == null) {
                 return Container(
                   width: 42.w,
                   height: 42.w,
@@ -46,9 +46,7 @@ Widget homeScreenHeader(BuildContext context) {
               }
 
               return FutureBuilder<String>(
-                future: profileProvider.getUserPfp(
-                  authProvider.currentUser!.id,
-                ),
+                future: profileProvider.getUserPfp(authProvider.walletAddress!),
                 builder: (context, snapshot) {
                   return Container(
                     width: 42.w,
@@ -83,7 +81,7 @@ Widget homeScreenHeader(BuildContext context) {
           ),
         ),
         Spacer(),
-        Consumer<WalletProvider>(
+        Consumer<MwaWalletProvider>(
           builder: (context, walletProvider, child) {
             return GestureDetector(
               onTap: () async {

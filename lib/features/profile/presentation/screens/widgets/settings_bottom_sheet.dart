@@ -2,13 +2,21 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
-import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
-import 'package:chumbucket/features/wallet/providers/wallet_provider.dart';
-import 'package:chumbucket/features/authentication/presentation/screens/login_screen.dart';
+// MWA Auth Provider for wallet-based authentication
+import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
+// MWA Wallet Provider for Pinocchio program integration
+import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
+// MWA Login Screen for wallet connection
+import 'package:chumbucket/features/authentication/presentation/screens/mwa_login_screen.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/menu_tile.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_buttons.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_settings_sheet.dart';
+import 'package:chumbucket/features/profile/providers/profile_provider.dart';
+import 'package:chumbucket/features/authentication/providers/onboarding_provider.dart';
+import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
 import 'package:chumbucket/core/services/chat_service.dart';
+import 'package:chumbucket/core/services/realtime_service.dart';
+import 'package:chumbucket/core/services/app_lifecycle_service.dart';
 import 'dart:ui';
 import 'dart:io';
 
@@ -55,14 +63,14 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
             ),
           ),
           SizedBox(height: 16.h),
-          Consumer<WalletProvider>(
+          Consumer<MwaWalletProvider>(
             builder: (context, walletProvider, _) {
               return MenuTile(
                 icon: CupertinoIcons.square_arrow_up,
                 title: "Export Wallet",
                 subtitle:
                     walletProvider.walletAddress != null
-                        ? 'Export or copy your wallet details'
+                        ? 'View your wallet details'
                         : 'Loading...',
                 onTap: () => _showWalletExportWarning(context),
               );
@@ -92,19 +100,62 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
           ),
           SizedBox(height: 16.h),
 
-          // Sign Out Button
+          // Sign Out Button (Disconnect Wallet for MWA)
           GradientButton(
-            text: "Sign Out",
+            text: "Disconnect Wallet",
             onPressed: () async {
-              final authProvider = Provider.of<AuthProvider>(
+              debugPrint('🚪 LOGOUT: Starting disconnect process');
+
+              // Get all providers before clearing
+              final authProvider = Provider.of<MwaAuthProvider>(
                 context,
                 listen: false,
               );
-              await authProvider.clearUserData();
+              final walletProvider = Provider.of<MwaWalletProvider>(
+                context,
+                listen: false,
+              );
+              final profileProvider = Provider.of<ProfileProvider>(
+                context,
+                listen: false,
+              );
+              final onboardingProvider = Provider.of<OnboardingProvider>(
+                context,
+                listen: false,
+              );
 
+              // Clear all services and providers in correct order
+              debugPrint('🚪 LOGOUT: Unsubscribing from realtime');
+              await RealtimeService.instance.unsubscribe();
+
+              debugPrint('🚪 LOGOUT: Disposing AppLifecycleService');
+              AppLifecycleService.instance.dispose();
+
+              debugPrint('🚪 LOGOUT: Clearing ChallengeStateProvider');
+              ChallengeStateProvider.instance.clear();
+
+              debugPrint('🚪 LOGOUT: Clearing MwaWalletProvider');
+              walletProvider.clear();
+
+              debugPrint('🚪 LOGOUT: Clearing ProfileProvider');
+              await profileProvider.clearUserData();
+
+              debugPrint('🚪 LOGOUT: Clearing OnboardingProvider');
+              await onboardingProvider.clearUserData();
+
+              debugPrint('🚪 LOGOUT: Calling authProvider.logout()');
+              await authProvider.logout();
+
+              debugPrint(
+                '🚪 LOGOUT: All providers cleared, navigating to login',
+              );
+              // Use pushAndRemoveUntil to completely clear the navigation stack
               if (context.mounted) {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (context) => const LoginScreen()),
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(
+                    builder: (context) => const MwaLoginScreen(),
+                  ),
+                  (route) => false, // Remove ALL routes
                 );
               }
             },

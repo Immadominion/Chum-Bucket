@@ -23,6 +23,9 @@ class AppColors {
   static const Color tertiaryContainer = Color(0xFFFEF3C7);
   static const Color onTertiaryContainer = Color(0xFF78350F);
 
+  /// Solana brand color - for MWA/wallet UI elements
+  static const Color solanaGreen = Color(0xFF14F195); // Solana brand green
+
   /// Error colors
   static const Color error = Color(0xFFEF4444); // Red
   static const Color onError = Color(0xFFFFFFFF);
@@ -54,7 +57,7 @@ class AppColors {
   static const Color onSurfaceVariantDark = Color(0xFF9CA3AF);
 
   /// Background colors
-  static const Color background = Color(0xFFFAFBFC);
+  static const Color background = Color.fromARGB(255, 244, 244, 244);
   static const Color onBackground = Color(0xFF111827);
   static const Color backgroundDark = Color(0xFF0F172A);
   static const Color onBackgroundDark = Color(0xFFF1F5F9);

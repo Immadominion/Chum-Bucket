@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:lottie/lottie.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
+import 'package:chumbucket/core/config/network_config.dart';
 
 enum SolTransferStatus { success, failed }
 
@@ -79,22 +80,15 @@ class _SolTransferResultScreenState extends State<SolTransferResultScreen> {
   Future<void> _openTransactionOnExplorer() async {
     if (widget.transactionSignature == null) return;
 
-    // Use Solscan for devnet or mainnet
-    final explorerUrl =
-        'https://solscan.io/tx/${widget.transactionSignature}?cluster=devnet';
+    // Use NetworkConfig for proper network-aware explorer URLs
+    final explorerUrl = NetworkConfig.getExplorerUrl(
+      widget.transactionSignature!,
+    );
 
     try {
       final uri = Uri.parse(explorerUrl);
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        // Fallback to Solana Explorer
-        final fallbackUrl =
-            'https://explorer.solana.com/tx/${widget.transactionSignature}?cluster=devnet';
-        final fallbackUri = Uri.parse(fallbackUrl);
-        if (await canLaunchUrl(fallbackUri)) {
-          await launchUrl(fallbackUri, mode: LaunchMode.externalApplication);
-        }
       }
     } catch (e) {
       // Handle error silently or show a snackbar

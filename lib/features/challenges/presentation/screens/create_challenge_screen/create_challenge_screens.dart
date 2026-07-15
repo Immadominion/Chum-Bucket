@@ -6,7 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/shared/models/models.dart';
-import 'package:chumbucket/features/wallet/providers/wallet_provider.dart';
+// MWA Wallet Provider for Pinocchio program integration
+import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/challenge_created_screen.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/create_challenge_screen/widgets/bet_amount_step.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
@@ -54,11 +55,11 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
   }
 
   Future<void> _createChallenge() async {
-    if (_betAmount < 0.05 && _currentStep == 1) {
+    if (_betAmount < 0.01 && _currentStep == 1) {
       SnackBarUtils.showError(
         context,
         title: 'Minimum Bet Required',
-        subtitle: 'Minimum bet amount is 0.05 SOL',
+        subtitle: 'Minimum bet amount is 0.01 SOL',
       );
       return;
     }
@@ -67,7 +68,10 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
       _isCreating = true;
     });
 
-    final walletProvider = Provider.of<WalletProvider>(context, listen: false);
+    final walletProvider = Provider.of<MwaWalletProvider>(
+      context,
+      listen: false,
+    );
     final description = _descriptionController.text;
 
     // First navigate to the pending state screen
@@ -111,6 +115,7 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
         challengeDescription: description,
         durationDays: 7,
         context: context, // Pass context to access AuthProvider
+        witnessDisplayName: widget.friendName, // Cache friend's display name
       );
 
       if (kDebugMode) {
@@ -177,13 +182,7 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Debug print constructor parameters
-    if (kDebugMode) {
-      print('🔍 CreateChallengeScreen initialized with:');
-      print('  - friendName: "${widget.friendName}"');
-      print('  - friendAddress: "${widget.friendAddress}"');
-      print('  - friendAvatarColor: "${widget.friendAvatarColor}"');
-    }
+    // Note: Debug prints moved to initState to avoid logging on every rebuild
 
     return PopScope(
       canPop: true, // Allow popping

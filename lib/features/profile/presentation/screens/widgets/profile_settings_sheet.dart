@@ -10,9 +10,8 @@ import 'dart:io';
 import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_menu_item.dart';
-import 'package:chumbucket/features/authentication/providers/auth_provider.dart';
-import 'package:chumbucket/features/authentication/presentation/screens/login_screen.dart';
-import 'package:chumbucket/features/wallet/providers/wallet_provider.dart';
+import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
+import 'package:chumbucket/features/authentication/presentation/screens/mwa_login_screen.dart';
 import 'package:chumbucket/core/services/chat_service.dart';
 
 /// Settings modal sheet following the app's design conventions
@@ -138,21 +137,9 @@ class ProfileSettingsSheet extends StatelessWidget {
                     child: SingleChildScrollView(
                       child: Column(
                         children: [
-                          Consumer<WalletProvider>(
-                            builder: (context, walletProvider, _) {
-                              return ProfileMenuItem(
-                                icon: PhosphorIcons.wallet(),
-                                title: 'My Wallet',
-                                subtitle:
-                                    walletProvider.walletAddress != null
-                                        ? 'Export your private key'
-                                        : 'Loading...',
-                                iconColor: const Color(0xFFFF5A76),
-                                onTap: () => _showExportWarning(context),
-                              );
-                            },
-                          ),
-
+                          // Note: "My Wallet - Export private key" removed since
+                          // wallet is connected via MWA (Mobile Wallet Adapter)
+                          // Users manage their keys in their wallet app (Phantom, etc.)
                           ProfileMenuItem(
                             icon: PhosphorIcons.star(),
                             title: 'Rate Chum Bucket',
@@ -195,7 +182,7 @@ class ProfileSettingsSheet extends StatelessWidget {
                   // Fixed bottom buttons
                   ChallengeButton(
                     createNewChallenge: () async {
-                      final authProvider = Provider.of<AuthProvider>(
+                      final authProvider = Provider.of<MwaAuthProvider>(
                         context,
                         listen: false,
                       );
@@ -204,7 +191,7 @@ class ProfileSettingsSheet extends StatelessWidget {
                       if (context.mounted) {
                         Navigator.of(context).pushAndRemoveUntil(
                           MaterialPageRoute(
-                            builder: (context) => const LoginScreen(),
+                            builder: (context) => const MwaLoginScreen(),
                           ),
                           (route) => false,
                         );
@@ -213,19 +200,7 @@ class ProfileSettingsSheet extends StatelessWidget {
                     label: 'Sign Out',
                   ),
 
-                  // Cancel button
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: Text(
-                      'Cancel',
-                      style: TextStyle(
-                        fontSize: 17.sp,
-                        color: const Color(0xFFFF5A76),
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 8.h),
+                  SizedBox(height: 48.h),
                 ],
               ),
             ),
@@ -241,35 +216,6 @@ class ProfileSettingsSheet extends StatelessWidget {
     Navigator.pop(context);
     // Open chat in external browser to avoid webview privacy manifest requirements
     ChatService.openChat(context);
-  }
-
-  /// Wallet Management Sheet for wallet export/copy functionality
-
-  void _showExportWarning(BuildContext context) {
-    Navigator.pop(context); // Close current sheet
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withOpacity(0.5),
-      elevation: 0,
-      builder: (context) {
-        return BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0),
-          child: SafeArea(
-            child: Padding(
-              padding: EdgeInsets.only(
-                bottom:
-                    Platform.isIOS
-                        ? MediaQuery.of(context).padding.bottom + 10.h
-                        : MediaQuery.of(context).padding.bottom + 20.h,
-              ),
-              child: const WalletExportWarningSheet(),
-            ),
-          ),
-        );
-      },
-    );
   }
 }
 
@@ -503,7 +449,7 @@ class _WalletExportWarningSheetState extends State<WalletExportWarningSheet> {
     // });
 
     // try {
-    //   final walletProvider = Provider.of<WalletProvider>(
+    //   final walletProvider = Provider.of<MwaWalletProvider>(
     //     context,
     //     listen: false,
     //   );

@@ -5,25 +5,44 @@ import 'package:solana/solana.dart' as solana;
 import 'package:solana/dto.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:chumbucket/shared/models/models.dart';
-import 'package:chumbucket/shared/services/escrow_service.dart';
 
 /// Service to sync challenges from the blockchain
 /// This ensures the local database stays in sync with on-chain state
+///
+/// IMPORTANT: This service is now updated to work with the Pinocchio program.
+/// The account layout is 146 bytes with the following structure:
+/// [0..8]:    discriminator "CHALL001"
+/// [8..40]:   initiator (32 bytes)
+/// [40..72]:  witness (32 bytes)
+/// [72..104]: platform_fee_account (32 bytes)
+/// [104..112]: amount_staked (8 bytes)
+/// [112..120]: platform_fee (8 bytes)
+/// [120..128]: winner_amount (8 bytes)
+/// [128..136]: deadline (8 bytes)
+/// [136]:     is_resolved (1 byte)
+/// [137]:     initiator_won (1 byte)
+/// [138]:     bump (1 byte)
+/// [139..146]: reserved (7 bytes)
 class BlockchainSyncService {
+  // Pinocchio program ID (updated from legacy Anchor program)
   static const String ESCROW_PROGRAM_ID =
-      'Es4Z5VVh54APWZ2LFy1FRebbHwPpSpA8W47oAfPrA4bV';
+      'D6mjMGW1fX8oH3UcwZDh3teWcHEWvghUqaR2aeWD9sF1';
 
-  // Challenge account discriminator from IDL
+  // Challenge account discriminator: "CHALL001" in ASCII
+  // This matches the Pinocchio program's CHALLENGE_DISCRIMINATOR constant
   static const List<int> CHALLENGE_DISCRIMINATOR = [
-    119,
-    250,
-    161,
-    121,
-    119,
-    81,
-    22,
-    208,
+    0x43, // 'C'
+    0x48, // 'H'
+    0x41, // 'A'
+    0x4C, // 'L'
+    0x4C, // 'L'
+    0x30, // '0'
+    0x30, // '0'
+    0x31, // '1'
   ];
+
+  // Pinocchio challenge account size (146 bytes)
+  static const int CHALLENGE_ACCOUNT_SIZE = 146;
 
   // Caching & throttling
   static final Map<String, List<Challenge>> _cacheByWallet = {};
@@ -115,8 +134,8 @@ class BlockchainSyncService {
         ESCROW_PROGRAM_ID,
         encoding: Encoding.base64,
         filters: [
-          // Filter by account data size - Challenge accounts should be exactly 105 bytes
-          ProgramDataFilter.dataSize(105),
+          // Filter by account data size - Pinocchio Challenge accounts are 146 bytes
+          ProgramDataFilter.dataSize(CHALLENGE_ACCOUNT_SIZE),
           // Filter by discriminator to only get Challenge accounts
           ProgramDataFilter.memcmp(offset: 0, bytes: CHALLENGE_DISCRIMINATOR),
         ],
@@ -316,12 +335,24 @@ class BlockchainSyncService {
         return null;
       }
 
-      // Decode Challenge struct fields
-      // Layout: discriminator(8) + initiator(32) + witness(32) + amount(8) + original_amount(8) + platform_fee(8) + deadline(8) + resolved(1)
-      if (data.length < 105) {
+      // Decode Pinocchio Challenge struct fields
+      // Layout (146 bytes total):
+      // [0..8]:    discriminator \"CHALL001\"
+      // [8..40]:   initiator (32 bytes)
+      // [40..72]:  witness (32 bytes)
+      // [72..104]: platform_fee_account (32 bytes)
+      // [104..112]: amount_staked (8 bytes)
+      // [112..120]: platform_fee (8 bytes)
+      // [120..128]: winner_amount (8 bytes)
+      // [128..136]: deadline (8 bytes)
+      // [136]:     is_resolved (1 byte)
+      // [137]:     initiator_won (1 byte)
+      // [138]:     bump (1 byte)
+      // [139..146]: reserved (7 bytes)
+      if (data.length < CHALLENGE_ACCOUNT_SIZE) {
         if (_verbose) {
           AppLogger.info(
-            '⚠️ Challenge account data incomplete: $pubkey (${data.length} bytes, need 105)',
+            '⚠️ Challenge account data incomplete: $pubkey (${data.length} bytes, need $CHALLENGE_ACCOUNT_SIZE)',
           );
         }
         return null;
@@ -338,6 +369,9 @@ class BlockchainSyncService {
       // Witness (32 bytes)
       final witnessBytes = data.sublist(offset, offset + 32);
       final witnessAddress = solana.Ed25519HDPublicKey(witnessBytes).toBase58();
+      offset += 32;
+
+      // Platform fee account (32 bytes) - skip, we already know it
       offset += 32;
 
       if (_verbose) {
@@ -388,24 +422,36 @@ class BlockchainSyncService {
         return null;
       }
 
-      // Amount (8 bytes, little endian u64)
-      final amount = _readU64LE(data, offset);
-      offset += 8;
+      // Pinocchio layout (after platform_fee_account at offset 104):
+      // [104..112]: amount_staked (8 bytes)
+      // [112..120]: platform_fee (8 bytes)
+      // [120..128]: winner_amount (8 bytes)
+      // [128..136]: deadline (8 bytes)
+      // [136]:     is_resolved (1 byte)
+      // [137]:     initiator_won (1 byte)
 
-      // Original amount (8 bytes, little endian u64)
-      final originalAmount = _readU64LE(data, offset);
+      // Amount staked (8 bytes, little endian u64) - this is the original staked amount
+      final amountStaked = _readU64LE(data, offset);
       offset += 8;
 
       // Platform fee (8 bytes, little endian u64)
       final platformFee = _readU64LE(data, offset);
       offset += 8;
 
+      // Winner amount (8 bytes, little endian u64) - amount after fee deduction
+      final winnerAmount = _readU64LE(data, offset);
+      offset += 8;
+
       // Deadline (8 bytes, little endian i64)
       final deadline = _readI64LE(data, offset);
       offset += 8;
 
-      // Resolved (1 byte boolean)
-      final resolved = data[offset] != 0;
+      // is_resolved (1 byte boolean)
+      final isResolved = data[offset] != 0;
+      offset += 1;
+
+      // initiator_won (1 byte boolean) - only meaningful if resolved
+      final initiatorWon = data[offset] != 0;
 
       // Convert deadline to proper DateTime - check if it's in seconds or milliseconds
       late DateTime deadlineDateTime;
@@ -435,15 +481,15 @@ class BlockchainSyncService {
         tag: 'BlockchainSyncService',
       );
       AppLogger.debug(
-        '  - Amount: ${amount / solana.lamportsPerSol} SOL',
+        '  - Amount Staked: ${amountStaked / solana.lamportsPerSol} SOL',
         tag: 'BlockchainSyncService',
       );
       AppLogger.debug(
-        '  - Original: ${originalAmount / solana.lamportsPerSol} SOL',
+        '  - Winner Amount: ${winnerAmount / solana.lamportsPerSol} SOL',
         tag: 'BlockchainSyncService',
       );
       AppLogger.debug(
-        '  - Fee: ${platformFee / solana.lamportsPerSol} SOL',
+        '  - Platform Fee: ${platformFee / solana.lamportsPerSol} SOL',
         tag: 'BlockchainSyncService',
       );
       AppLogger.debug(
@@ -454,43 +500,60 @@ class BlockchainSyncService {
         '  - Created (est): $estimatedCreationTime',
         tag: 'BlockchainSyncService',
       );
-      AppLogger.debug('  - Resolved: $resolved', tag: 'BlockchainSyncService');
+      AppLogger.debug(
+        '  - Resolved: $isResolved',
+        tag: 'BlockchainSyncService',
+      );
+      AppLogger.debug(
+        '  - Initiator Won: $initiatorWon',
+        tag: 'BlockchainSyncService',
+      );
 
       // Convert to local Challenge model
-      final status =
-          resolved ? ChallengeStatus.completed : ChallengeStatus.pending;
+      // Determine status based on on-chain state
+      ChallengeStatus status;
+      if (isResolved) {
+        // Challenge has been resolved
+        status =
+            initiatorWon ? ChallengeStatus.completed : ChallengeStatus.failed;
+      } else if (DateTime.now().isAfter(deadlineDateTime)) {
+        // Deadline has passed but not resolved
+        status = ChallengeStatus.expired;
+      } else {
+        // Active challenge
+        status = ChallengeStatus.active;
+      }
 
-      // Determine friend info based on user role
-      final friendAddress = isUserInitiator ? witnessAddress : initiatorAddress;
-
-      // Try to get stored description from EscrowService
-      final storedDescription = EscrowService.getStoredDescriptionStatic(
-        pubkey,
-      );
-      final challengeDescription =
-          storedDescription ?? 'Challenge discovered from blockchain';
-      final challengeTitle =
-          storedDescription != null
-              ? 'Challenge: ${storedDescription.length > 30 ? storedDescription.substring(0, 30) + '...' : storedDescription}'
-              : 'On-chain Challenge';
+      // Use default description for discovered challenges
+      // (Challenge descriptions are now stored in Supabase)
+      const challengeDescription = 'Challenge discovered from blockchain';
+      const challengeTitle = 'On-chain Challenge';
 
       return Challenge(
         id: 'onchain_$pubkey', // Prefix to indicate on-chain source
         title: challengeTitle,
         description: challengeDescription,
-        amount: originalAmount / solana.lamportsPerSol, // Use original amount
-        creatorId: isUserInitiator ? 'current_user' : 'friend',
+        amount: amountStaked / solana.lamportsPerSol, // Original staked amount
+        // IMPORTANT: Use actual wallet address, not placeholder string
+        creatorId: initiatorAddress, // Always the initiator's wallet address
+        member1Address:
+            initiatorAddress, // CRITICAL: Initiator wallet for resolution
         status: status,
         createdAt: estimatedCreationTime,
         expiresAt: deadlineDateTime,
         escrowAddress: pubkey, // The challenge account itself
         vaultAddress: ESCROW_PROGRAM_ID, // Program ID as vault reference
         platformFee: platformFee / solana.lamportsPerSol,
-        winnerAmount: amount / solana.lamportsPerSol, // Net amount after fee
-        participantEmail: friendAddress, // Use wallet address as placeholder
+        winnerAmount:
+            winnerAmount / solana.lamportsPerSol, // Net amount after fee
+        participantEmail: witnessAddress, // Witness wallet address
+        witnessAddress:
+            witnessAddress, // CRITICAL: Witness wallet for resolution
         participantId: null,
         winnerId:
-            resolved ? (isUserInitiator ? 'current_user' : 'friend') : null,
+            isResolved
+                ? (initiatorWon ? initiatorAddress : witnessAddress)
+                : null,
       );
     } catch (e) {
       AppLogger.debug(
@@ -543,19 +606,21 @@ class BlockchainSyncService {
                 challenge.description.isEmpty
                     ? 'Challenge recovered from blockchain'
                     : challenge.description,
-            'amount_sol': challenge.amount,
+            'amount': challenge.amount, // NOT NULL column
+            'amount_in_sol': challenge.amount,
             'creator_id':
                 userId, // Current user as creator for discovered challenges
             'status': challenge.status.toString().split('.').last,
             'created_at': challenge.createdAt.toIso8601String(),
             'expires_at': challenge.expiresAt.toIso8601String(),
+            'escrow_address': challenge.escrowAddress,
             'multisig_address': challenge.escrowAddress,
             'vault_address': challenge.vaultAddress,
             'platform_fee_sol': challenge.platformFee,
             'winner_amount_sol': challenge.winnerAmount,
-            'participant_email': challenge.participantEmail,
-            'participant_privy_id': challenge.participantId,
-            'winner_privy_id': challenge.winnerId,
+            'member1_address': challenge.creatorId,
+            'member2_address': challenge.participantEmail,
+            'winner_id': challenge.winnerId,
           });
         } else {
           // Challenge exists, update status if different but preserve original descriptions
@@ -587,6 +652,89 @@ class BlockchainSyncService {
     } catch (e) {
       AppLogger.debug(
         '❌ Error syncing challenges with database: $e',
+        tag: 'BlockchainSyncService',
+      );
+    }
+  }
+
+  /// Mark challenges as completed when their on-chain account no longer exists
+  /// This happens when a challenge is resolved - the Pinocchio program closes the account
+  Future<void> _markClosedChallengesAsCompleted(
+    String userWalletAddress,
+    String userId,
+  ) async {
+    try {
+      // Get all active/pending challenges from database that have an escrow address
+      final activeFromDb = await _supabase
+          .from('challenges')
+          .select(
+            'id, escrow_address, multisig_address, status, member1_address, member2_address',
+          )
+          .or(
+            'creator_wallet_address.eq.$userWalletAddress,member1_address.eq.$userWalletAddress,member2_address.eq.$userWalletAddress',
+          )
+          .inFilter('status', ['active', 'pending', 'funded', 'accepted']);
+
+      if (activeFromDb.isEmpty) {
+        AppLogger.debug(
+          'No active challenges to check for closure',
+          tag: 'BlockchainSyncService',
+        );
+        return;
+      }
+
+      AppLogger.info(
+        '🔍 Checking ${activeFromDb.length} active challenges for closure',
+        tag: 'BlockchainSyncService',
+      );
+
+      for (final challenge in activeFromDb) {
+        final escrowAddress =
+            challenge['escrow_address'] ?? challenge['multisig_address'];
+        if (escrowAddress == null || escrowAddress.toString().isEmpty) continue;
+
+        try {
+          // Check if the account still exists on-chain
+          final accountInfo = await _solanaClient.rpcClient.getAccountInfo(
+            escrowAddress,
+            encoding: Encoding.base64,
+          );
+
+          if (accountInfo.value == null) {
+            // Account is closed = challenge was resolved!
+            AppLogger.info(
+              '✅ Challenge account closed (resolved): $escrowAddress',
+              tag: 'BlockchainSyncService',
+            );
+
+            // Mark as completed in database
+            // We assume initiator won if the account is closed (they got refunded)
+            // In practice, the actual winner info should come from resolution tx
+            await _supabase
+                .from('challenges')
+                .update({
+                  'status': 'completed',
+                  'completed_at': DateTime.now().toIso8601String(),
+                  'updated_at': DateTime.now().toIso8601String(),
+                })
+                .eq('id', challenge['id']);
+
+            AppLogger.info(
+              '📝 Updated challenge ${challenge['id']} to completed',
+              tag: 'BlockchainSyncService',
+            );
+          }
+        } catch (e) {
+          // If we get an error checking the account, log but don't fail
+          AppLogger.debug(
+            '⚠️ Error checking account $escrowAddress: $e',
+            tag: 'BlockchainSyncService',
+          );
+        }
+      }
+    } catch (e) {
+      AppLogger.error(
+        '❌ Error marking closed challenges: $e',
         tag: 'BlockchainSyncService',
       );
     }
@@ -644,6 +792,12 @@ class BlockchainSyncService {
 
       // Sync with database (optional)
       await syncChallengesWithDatabase(onChainChallenges, userId);
+
+      // CRITICAL: Check for resolved challenges (closed accounts)
+      // When a challenge is resolved on-chain, the account is closed.
+      // We need to mark those as completed in the database.
+      await _markClosedChallengesAsCompleted(userWalletAddress, userId);
+
       if (_verbose)
         AppLogger.info(
           '🚨 DATABASE SYNC COMPLETED',
@@ -716,26 +870,30 @@ class BlockchainSyncService {
         }
       }
 
-      // Decode the resolved status and other key fields
-      if (data.length < 105) return null;
+      // Decode using Pinocchio layout (146 bytes)
+      if (data.length < CHALLENGE_ACCOUNT_SIZE) return null;
 
-      int offset = 8 + 32 + 32; // Skip discriminator + initiator + witness
+      // Skip discriminator(8) + initiator(32) + witness(32) + platform_fee_account(32)
+      int offset = 8 + 32 + 32 + 32; // = 104
 
-      final amount = _readU64LE(data, offset);
-      offset += 8;
-      final originalAmount = _readU64LE(data, offset);
+      final amountStaked = _readU64LE(data, offset);
       offset += 8;
       final platformFee = _readU64LE(data, offset);
       offset += 8;
+      final winnerAmount = _readU64LE(data, offset);
+      offset += 8;
       final deadline = _readI64LE(data, offset);
       offset += 8;
-      final resolved = data[offset] != 0;
+      final isResolved = data[offset] != 0;
+      offset += 1;
+      final initiatorWon = data[offset] != 0;
 
       return {
         'exists': true,
-        'resolved': resolved,
-        'amount': amount,
-        'originalAmount': originalAmount,
+        'isResolved': isResolved,
+        'initiatorWon': initiatorWon,
+        'amountStaked': amountStaked,
+        'winnerAmount': winnerAmount,
         'platformFee': platformFee,
         'deadline': deadline,
       };

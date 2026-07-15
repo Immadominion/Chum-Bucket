@@ -1,9 +1,8 @@
 import 'package:chumbucket/features/challenges/presentation/screens/create_challenge_screen/widgets/friend_avatar_section.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/create_challenge_screen/widgets/description_input.dart';
-import 'package:chumbucket/features/challenges/data/challenge_service.dart';
+import 'package:chumbucket/features/challenges/data/mwa_challenge_service.dart';
 
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -139,8 +138,8 @@ class _BetAmountStepState extends State<BetAmountStep> {
   }
 
   Widget _buildFeeBreakdown(BuildContext context) {
-    // Use the new progressive fee calculation from ChallengeService
-    final feeBreakdown = ChallengeService.getFeeBreakdown(widget.betAmount);
+    // Use the new progressive fee calculation from MwaChallengeService
+    final feeBreakdown = MwaChallengeService.getFeeBreakdown(widget.betAmount);
 
     final platformFee = feeBreakdown['platformFee']!;
     final winnerAmount = feeBreakdown['winnerAmount']!;

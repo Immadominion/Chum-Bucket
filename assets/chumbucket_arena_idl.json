@@ -1,0 +1,1369 @@
+{
+  "address": "AMFpYiYPCUwiVbYMkhnaCmnSDv226yew17QXLhVWk9CG",
+  "metadata": {
+    "name": "chumbucket_arena",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "claim",
+      "docs": [
+        "Pull your own payout (or refund on a void). Closes the position."
+      ],
+      "discriminator": [
+        62,
+        198,
+        214,
+        193,
+        213,
+        159,
+        108,
+        210
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pot",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pot.match_id",
+                "account": "Pot"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pot"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player_usdc",
+          "writable": true
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pot"
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "create_pot",
+      "docs": [
+        "Open a match's parimutuel Pot and its USDC vault."
+      ],
+      "discriminator": [
+        232,
+        45,
+        123,
+        181,
+        204,
+        121,
+        131,
+        9
+      ],
+      "accounts": [
+        {
+          "name": "keeper",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pot",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "match_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "docs": [
+            "The USDC vault — a token account owned by the Pot PDA. Funds only leave",
+            "via `claim`, signed by the Pot's own seeds after settlement."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pot"
+              }
+            ]
+          }
+        },
+        {
+          "name": "usdc_mint"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "match_id",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "txline_fixture_id",
+          "type": "i64"
+        },
+        {
+          "name": "kickoff",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "init_config",
+      "docs": [
+        "One-time: pin the USDC mint + txoracle program, set rake + thin-pool floor."
+      ],
+      "discriminator": [
+        23,
+        235,
+        115,
+        232,
+        168,
+        96,
+        1,
+        231
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "usdc_mint"
+        },
+        {
+          "name": "txoracle_program",
+          "docs": [
+            "verifies the passed txoracle program matches this address."
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "rake_bps",
+          "type": "u16"
+        },
+        {
+          "name": "min_participants",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "lock_pot",
+      "docs": [
+        "Freeze calls at kickoff (permissionless)."
+      ],
+      "discriminator": [
+        251,
+        183,
+        190,
+        181,
+        243,
+        124,
+        242,
+        188
+      ],
+      "accounts": [
+        {
+          "name": "pot",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pot.match_id",
+                "account": "Pot"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "place_call",
+      "docs": [
+        "Stake USDC on an outcome — funds move into the vault now."
+      ],
+      "discriminator": [
+        11,
+        8,
+        17,
+        8,
+        195,
+        166,
+        211,
+        69
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pot",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pot.match_id",
+                "account": "Pot"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pot"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player_usdc",
+          "writable": true
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pot"
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "bucket",
+          "type": "u8"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "settle_pot",
+      "docs": [
+        "Settle by proving the outcome on-chain via a `validate_stat` CPI."
+      ],
+      "discriminator": [
+        120,
+        181,
+        232,
+        100,
+        60,
+        57,
+        32,
+        238
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pot",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pot.match_id",
+                "account": "Pot"
+              }
+            ]
+          }
+        },
+        {
+          "name": "txoracle_program"
+        },
+        {
+          "name": "daily_scores_merkle_roots",
+          "docs": [
+            "for `ts`'s epoch day (require_keys_eq against the derived address)."
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "winning_bucket",
+          "type": "u8"
+        },
+        {
+          "name": "ts",
+          "type": "i64"
+        },
+        {
+          "name": "fixture_summary",
+          "type": {
+            "defined": {
+              "name": "ScoresBatchSummary"
+            }
+          }
+        },
+        {
+          "name": "fixture_proof",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "ProofNode"
+              }
+            }
+          }
+        },
+        {
+          "name": "main_tree_proof",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "ProofNode"
+              }
+            }
+          }
+        },
+        {
+          "name": "stat_home",
+          "type": {
+            "defined": {
+              "name": "StatTerm"
+            }
+          }
+        },
+        {
+          "name": "stat_away",
+          "type": {
+            "defined": {
+              "name": "StatTerm"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "sweep_rake",
+      "docs": [
+        "Sweep a settled pot's accrued house rake out to the manager treasury",
+        "(admin-only; can never touch a winner's unclaimed payout)."
+      ],
+      "discriminator": [
+        8,
+        64,
+        18,
+        95,
+        96,
+        177,
+        71,
+        195
+      ],
+      "accounts": [
+        {
+          "name": "keeper",
+          "docs": [
+            "The config admin (the keeper the backend runs) — the only signer allowed",
+            "to move house revenue."
+          ],
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pot",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pot.match_id",
+                "account": "Pot"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pot"
+              }
+            ]
+          }
+        },
+        {
+          "name": "manager_usdc",
+          "docs": [
+            "The house treasury USDC account the rake is swept to. Must hold the",
+            "config's USDC mint, and must not be the vault itself (a self-transfer",
+            "would silently break the vault.amount + paid_out == total_stake ledger).",
+            "The admin chooses which account — they own the house revenue."
+          ],
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "verify_match_stat",
+      "docs": [
+        "Standalone read-only proof check (client-side \"verify it yourself\" helper)."
+      ],
+      "discriminator": [
+        21,
+        202,
+        165,
+        190,
+        110,
+        9,
+        111,
+        149
+      ],
+      "accounts": [
+        {
+          "name": "txoracle_program",
+          "docs": [
+            "program id below, so no further validation of its contents is needed."
+          ],
+          "address": "9ExbZjAapQww1vfcisDmrngPinHTEfpjYRWMunJgcKaA"
+        },
+        {
+          "name": "daily_scores_merkle_roots",
+          "docs": [
+            "this stat. txoracle's own handler validates this account's",
+            "owner/PDA derivation internally — we pass it through untouched as the",
+            "CPI account, so this program does no independent validation of it."
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "ts",
+          "type": "i64"
+        },
+        {
+          "name": "fixture_summary",
+          "type": {
+            "defined": {
+              "name": "ScoresBatchSummary"
+            }
+          }
+        },
+        {
+          "name": "fixture_proof",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "ProofNode"
+              }
+            }
+          }
+        },
+        {
+          "name": "main_tree_proof",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "ProofNode"
+              }
+            }
+          }
+        },
+        {
+          "name": "predicate",
+          "type": {
+            "defined": {
+              "name": "TraderPredicate"
+            }
+          }
+        },
+        {
+          "name": "stat_home",
+          "type": {
+            "defined": {
+              "name": "StatTerm"
+            }
+          }
+        },
+        {
+          "name": "stat_away",
+          "type": {
+            "defined": {
+              "name": "StatTerm"
+            }
+          }
+        },
+        {
+          "name": "op",
+          "type": {
+            "defined": {
+              "name": "BinaryExpression"
+            }
+          }
+        }
+      ],
+      "returns": "bool"
+    },
+    {
+      "name": "void_pot",
+      "docs": [
+        "Rescue: void a stuck locked pot (admin any time; anyone after timeout)."
+      ],
+      "discriminator": [
+        30,
+        99,
+        197,
+        190,
+        2,
+        36,
+        139,
+        100
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pot",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pot.match_id",
+                "account": "Pot"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Config",
+      "discriminator": [
+        155,
+        12,
+        170,
+        224,
+        30,
+        250,
+        204,
+        130
+      ]
+    },
+    {
+      "name": "Position",
+      "discriminator": [
+        170,
+        188,
+        143,
+        228,
+        122,
+        64,
+        247,
+        208
+      ]
+    },
+    {
+      "name": "Pot",
+      "discriminator": [
+        238,
+        118,
+        60,
+        175,
+        178,
+        191,
+        59,
+        58
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "MissingTxlineReturnData",
+      "msg": "txoracle CPI did not return the expected bool return-data"
+    },
+    {
+      "code": 6001,
+      "name": "RakeTooHigh",
+      "msg": "rake basis points exceed the 10% ceiling"
+    },
+    {
+      "code": 6002,
+      "name": "InvalidBucket",
+      "msg": "bucket must be 0 (HOME), 1 (DRAW) or 2 (AWAY)"
+    },
+    {
+      "code": 6003,
+      "name": "ZeroStake",
+      "msg": "stake must be greater than zero"
+    },
+    {
+      "code": 6004,
+      "name": "PotNotOpen",
+      "msg": "pot is not open for calls"
+    },
+    {
+      "code": 6005,
+      "name": "NotKickedOff",
+      "msg": "pot has not kicked off yet"
+    },
+    {
+      "code": 6006,
+      "name": "PotNotLocked",
+      "msg": "pot is not locked"
+    },
+    {
+      "code": 6007,
+      "name": "PotNotSettled",
+      "msg": "pot is not settled"
+    },
+    {
+      "code": 6008,
+      "name": "PotNotVoid",
+      "msg": "pot is not voided"
+    },
+    {
+      "code": 6009,
+      "name": "ProofRejected",
+      "msg": "the on-chain proof does not confirm the claimed winning bucket"
+    },
+    {
+      "code": 6010,
+      "name": "AlreadyClaimed",
+      "msg": "this position has already been claimed"
+    },
+    {
+      "code": 6011,
+      "name": "WrongTxoracleProgram",
+      "msg": "txoracle program account does not match the pinned config address"
+    },
+    {
+      "code": 6012,
+      "name": "MathOverflow",
+      "msg": "arithmetic overflow"
+    },
+    {
+      "code": 6013,
+      "name": "WrongFixture",
+      "msg": "proof fixture does not match this pot's fixture"
+    },
+    {
+      "code": 6014,
+      "name": "TimestampOutOfWindow",
+      "msg": "proof timestamp is outside this pot's match window"
+    },
+    {
+      "code": 6015,
+      "name": "WrongRootsAccount",
+      "msg": "scores-roots account is not the txoracle PDA for this timestamp's day"
+    },
+    {
+      "code": 6016,
+      "name": "Unauthorized",
+      "msg": "only the config admin may perform this action"
+    },
+    {
+      "code": 6017,
+      "name": "KickoffInvalid",
+      "msg": "kickoff must be in the future and within the allowed lead time"
+    },
+    {
+      "code": 6018,
+      "name": "VoidTooEarly",
+      "msg": "void timeout has not elapsed; only the admin may void earlier"
+    },
+    {
+      "code": 6019,
+      "name": "NothingToSweep",
+      "msg": "no rake to sweep (already swept, or a voided pot)"
+    },
+    {
+      "code": 6020,
+      "name": "RakeExceedsFree",
+      "msg": "rake exceeds the vault balance free after reserving unclaimed winners"
+    },
+    {
+      "code": 6021,
+      "name": "VaultUnderwater",
+      "msg": "vault balance is below the outstanding winner liability"
+    },
+    {
+      "code": 6022,
+      "name": "WrongMint",
+      "msg": "token account mint does not match the configured USDC mint"
+    },
+    {
+      "code": 6023,
+      "name": "SweepToVault",
+      "msg": "cannot sweep rake into the pot's own vault"
+    }
+  ],
+  "types": [
+    {
+      "name": "BinaryExpression",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Add"
+          },
+          {
+            "name": "Subtract"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Comparison",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "GreaterThan"
+          },
+          {
+            "name": "LessThan"
+          },
+          {
+            "name": "EqualTo"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Config",
+      "docs": [
+        "Global program config — one per deployment. Pins the USDC mint every Pot",
+        "escrows in and the txoracle program every settlement CPIs into, so a Pot",
+        "can never be steered at an attacker-controlled mint or a fake oracle."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "usdc_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "txoracle_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "rake_bps",
+            "docs": [
+              "House cut of the losers' pool, in basis points, routed to the Manager's Pot."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "min_participants",
+            "docs": [
+              "Below this many distinct positions a Pot voids and refunds (thin-pool guard)."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Position",
+      "docs": [
+        "A single player's stake in one Pot's bucket. Pull-based: the player calls",
+        "`claim` themselves after settlement, so a Pot with thousands of players",
+        "never blows the compute budget on a settle-time payout loop."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pot",
+            "type": "pubkey"
+          },
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "bucket",
+            "type": "u8"
+          },
+          {
+            "name": "stake",
+            "type": "u64"
+          },
+          {
+            "name": "claimed",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Pot",
+      "docs": [
+        "One parimutuel Pot per (fixture, RESULT market). Holds real USDC in its",
+        "vault PDA — funds only leave via `claim`, and only after `settle_pot` has",
+        "proven the outcome on-chain by CPI into txoracle's `validate_stat`."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "match_id",
+            "docs": [
+              "Stable id for this market (the backend's MatchId, ascii, left-padded)."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "txline_fixture_id",
+            "docs": [
+              "TxLINE's numeric fixture id — what settlement proves against."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "kickoff",
+            "type": "i64"
+          },
+          {
+            "name": "status",
+            "type": "u8"
+          },
+          {
+            "name": "winning_bucket",
+            "docs": [
+              "Valid once SETTLED: which bucket the on-chain proof confirmed won."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "participants",
+            "type": "u32"
+          },
+          {
+            "name": "bucket_totals",
+            "docs": [
+              "USDC staked per bucket, index = bucket."
+            ],
+            "type": {
+              "array": [
+                "u64",
+                3
+              ]
+            }
+          },
+          {
+            "name": "total_stake",
+            "type": "u64"
+          },
+          {
+            "name": "rake",
+            "docs": [
+              "Set at settle: house rake taken from the losers' pool."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "distributable",
+            "docs": [
+              "Set at settle: losers' pool minus rake, split pro-rata among winners."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "winners_stake",
+            "docs": [
+              "Set at settle: total stake in the winning bucket (the pro-rata denominator)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "paid_out",
+            "docs": [
+              "USDC that has left the vault — winner claims plus swept rake. Together",
+              "with the live balance this reconciles exactly: vault.amount + paid_out",
+              "== total_stake, for the pot's whole life."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "vault_bump",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProofNode",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "is_right_sibling",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ScoreStat",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "key",
+            "type": "u32"
+          },
+          {
+            "name": "value",
+            "type": "i32"
+          },
+          {
+            "name": "period",
+            "type": "i32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ScoresBatchSummary",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "fixture_id",
+            "type": "i64"
+          },
+          {
+            "name": "update_stats",
+            "type": {
+              "defined": {
+                "name": "ScoresUpdateStats"
+              }
+            }
+          },
+          {
+            "name": "events_sub_tree_root",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ScoresUpdateStats",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "update_count",
+            "type": "i32"
+          },
+          {
+            "name": "min_timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "max_timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "StatTerm",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "stat_to_prove",
+            "type": {
+              "defined": {
+                "name": "ScoreStat"
+              }
+            }
+          },
+          {
+            "name": "event_stat_root",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "stat_proof",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "ProofNode"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "TraderPredicate",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "threshold",
+            "type": "i32"
+          },
+          {
+            "name": "comparison",
+            "type": {
+              "defined": {
+                "name": "Comparison"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

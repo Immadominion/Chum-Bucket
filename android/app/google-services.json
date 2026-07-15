@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "648270025270",
+    "project_id": "chumbucket-service",
+    "storage_bucket": "chumbucket-service.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:648270025270:android:793b2edf17cd0a9858fe97",
+        "android_client_info": {
+          "package_name": "dev.cleva.chumbucket"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCwug55b34PoG7r0ZoJdImv8iWOvJESX58"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
