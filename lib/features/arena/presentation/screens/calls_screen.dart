@@ -12,7 +12,6 @@ import 'package:chumbucket/features/arena/presentation/screens/caller_profile_sc
 import 'package:chumbucket/features/arena/presentation/screens/dare_yourself_screen.dart';
 import 'package:chumbucket/features/arena/presentation/widgets/arena_format.dart';
 import 'package:chumbucket/features/arena/providers/arena_provider.dart';
-import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_tabs.dart';
 
@@ -432,29 +431,77 @@ class _CallCard extends StatelessWidget {
                   ),
                 ],
                 const Spacer(),
-                Text(
-                  event.isSettled ? 'SETTLED' : event.status,
-                  style: TextStyle(
-                    color:
-                        event.isSettled
-                            ? AppColors.success
-                            : AppColors.textSecondary,
-                    fontSize: 10.sp,
-                    fontWeight: FontWeight.w600,
+                // "Call too" is a compact pill on the meta row (not a
+                // full-width CTA per card) so the feed stays dense — more
+                // calls visible without scrolling.
+                if (!event.isSettled && event.matchId?.isNotEmpty == true)
+                  _CompactCallToo(isLoading: isOpening, onTap: onCallToo)
+                else
+                  Text(
+                    event.isSettled ? 'SETTLED' : event.status,
+                    style: TextStyle(
+                      color:
+                          event.isSettled
+                              ? AppColors.success
+                              : AppColors.textSecondary,
+                      fontSize: 10.sp,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
               ],
             ),
-            if (!event.isSettled && event.matchId?.isNotEmpty == true) ...[
-              SizedBox(height: 14.h),
-              ChallengeButton(
-                label: isOpening ? 'Opening...' : 'Call too',
-                isLoading: isOpening,
-                blurRadius: false,
-                createNewChallenge: onCallToo,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactCallToo extends StatelessWidget {
+  final bool isLoading;
+  final VoidCallback onTap;
+
+  const _CompactCallToo({required this.isLoading, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.primary,
+      borderRadius: BorderRadius.circular(20.r),
+      child: InkWell(
+        onTap: isLoading ? null : onTap,
+        borderRadius: BorderRadius.circular(20.r),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 7.h),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isLoading)
+                SizedBox(
+                  width: 12.sp,
+                  height: 12.sp,
+                  child: const CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation(Colors.white),
+                  ),
+                )
+              else
+                PhosphorIcon(
+                  PhosphorIconsFill.broadcast,
+                  color: Colors.white,
+                  size: 13.sp,
+                ),
+              SizedBox(width: 6.w),
+              Text(
+                isLoading ? 'Opening' : 'Call too',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12.sp,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ],
-          ],
+          ),
         ),
       ),
     );

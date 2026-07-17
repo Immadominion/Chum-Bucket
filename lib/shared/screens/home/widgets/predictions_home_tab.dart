@@ -188,11 +188,17 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
                       ),
                     ),
                   )
-                else
+                else ...[
+                  // Home is a dashboard: cap the markets to a preview so "Your
+                  // challenges" below stays reachable no matter how busy the
+                  // matchday is. The full list lives behind "See calls".
                   SliverPadding(
                     padding: EdgeInsets.symmetric(horizontal: 20.w),
                     sliver: SliverList.separated(
-                      itemCount: matches.length,
+                      itemCount:
+                          matches.length > _kHomeMarketsPreview
+                              ? _kHomeMarketsPreview
+                              : matches.length,
                       separatorBuilder: (_, __) => SizedBox(height: 12.h),
                       itemBuilder:
                           (context, index) => _MarketRow(
@@ -202,6 +208,17 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
                           ),
                     ),
                   ),
+                  if (matches.length > _kHomeMarketsPreview)
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(20.w, 12.h, 20.w, 0),
+                      sliver: SliverToBoxAdapter(
+                        child: _SeeMoreMarketsButton(
+                          remaining: matches.length - _kHomeMarketsPreview,
+                          onTap: widget.onViewCalls,
+                        ),
+                      ),
+                    ),
+                ],
                 SliverPadding(
                   padding: EdgeInsets.fromLTRB(20.w, 28.h, 20.w, 12.h),
                   sliver: SliverToBoxAdapter(
@@ -265,6 +282,51 @@ class _SectionHeader extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// How many markets the home dashboard previews before deferring the rest to
+/// the full calls list — keeps "Your challenges" reachable on busy matchdays.
+const int _kHomeMarketsPreview = 6;
+
+class _SeeMoreMarketsButton extends StatelessWidget {
+  final int remaining;
+  final VoidCallback onTap;
+
+  const _SeeMoreMarketsButton({required this.remaining, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.primary.withOpacity(0.08),
+      borderRadius: BorderRadius.circular(16.r),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16.r),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 13.h),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'See $remaining more ${remaining == 1 ? 'market' : 'markets'}',
+                style: TextStyle(
+                  color: AppColors.primary,
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              SizedBox(width: 6.w),
+              PhosphorIcon(
+                PhosphorIconsRegular.caretRight,
+                color: AppColors.primary,
+                size: 16.sp,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
