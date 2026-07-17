@@ -1035,9 +1035,10 @@ packages:
   phosphor_flutter:
     dependency: "direct main"
     description:
-      path: "third_party/phosphor_flutter_compat"
-      relative: true
-    source: path
+      name: phosphor_flutter
+      sha256: "8a14f238f28a0b54842c5a4dc20676598dd4811fcba284ed828bd5a262c11fde"
+      url: "https://pub.dev"
+    source: hosted
     version: "2.1.0"
   pinenacl:
     dependency: transitive

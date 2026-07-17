@@ -43,19 +43,19 @@ class AppTextStyles {
   static TextTheme textThemeWithColorScheme(ColorScheme colorScheme) =>
       TextTheme(
         // Display styles
-        displayLarge: GoogleFonts.inter(
+        displayLarge: GoogleFonts.montserrat(
           fontSize: 57,
           fontWeight: FontWeight.w400,
           letterSpacing: -0.25,
           color: colorScheme.onSurface,
         ),
-        displayMedium: GoogleFonts.inter(
+        displayMedium: GoogleFonts.montserrat(
           fontSize: 45,
           fontWeight: FontWeight.w400,
           letterSpacing: 0,
           color: colorScheme.onSurface,
         ),
-        displaySmall: GoogleFonts.inter(
+        displaySmall: GoogleFonts.montserrat(
           fontSize: 36,
           fontWeight: FontWeight.w400,
           letterSpacing: 0,
@@ -63,19 +63,19 @@ class AppTextStyles {
         ),
 
         // Headline styles
-        headlineLarge: GoogleFonts.inter(
+        headlineLarge: GoogleFonts.montserrat(
           fontSize: 32,
           fontWeight: FontWeight.w400,
           letterSpacing: 0,
           color: colorScheme.onSurface,
         ),
-        headlineMedium: GoogleFonts.inter(
+        headlineMedium: GoogleFonts.montserrat(
           fontSize: 28,
           fontWeight: FontWeight.w400,
           letterSpacing: 0,
           color: colorScheme.onSurface,
         ),
-        headlineSmall: GoogleFonts.inter(
+        headlineSmall: GoogleFonts.montserrat(
           fontSize: 24,
           fontWeight: FontWeight.w400,
           letterSpacing: 0,
@@ -83,19 +83,19 @@ class AppTextStyles {
         ),
 
         // Title styles
-        titleLarge: GoogleFonts.inter(
+        titleLarge: GoogleFonts.montserrat(
           fontSize: 22,
           fontWeight: FontWeight.w500,
           letterSpacing: 0,
           color: colorScheme.onSurface,
         ),
-        titleMedium: GoogleFonts.inter(
+        titleMedium: GoogleFonts.montserrat(
           fontSize: 16,
           fontWeight: FontWeight.w500,
           letterSpacing: 0.15,
           color: colorScheme.onSurface,
         ),
-        titleSmall: GoogleFonts.inter(
+        titleSmall: GoogleFonts.montserrat(
           fontSize: 14,
           fontWeight: FontWeight.w500,
           letterSpacing: 0.1,
@@ -103,19 +103,19 @@ class AppTextStyles {
         ),
 
         // Label styles
-        labelLarge: GoogleFonts.inter(
+        labelLarge: GoogleFonts.montserrat(
           fontSize: 14,
           fontWeight: FontWeight.w500,
           letterSpacing: 0.1,
           color: colorScheme.onSurface,
         ),
-        labelMedium: GoogleFonts.inter(
+        labelMedium: GoogleFonts.montserrat(
           fontSize: 12,
           fontWeight: FontWeight.w500,
           letterSpacing: 0.5,
           color: colorScheme.onSurface,
         ),
-        labelSmall: GoogleFonts.inter(
+        labelSmall: GoogleFonts.montserrat(
           fontSize: 11,
           fontWeight: FontWeight.w500,
           letterSpacing: 0.5,
@@ -123,19 +123,19 @@ class AppTextStyles {
         ),
 
         // Body styles
-        bodyLarge: GoogleFonts.inter(
+        bodyLarge: GoogleFonts.montserrat(
           fontSize: 16,
           fontWeight: FontWeight.w400,
           letterSpacing: 0.15,
           color: colorScheme.onSurface,
         ),
-        bodyMedium: GoogleFonts.inter(
+        bodyMedium: GoogleFonts.montserrat(
           fontSize: 14,
           fontWeight: FontWeight.w400,
           letterSpacing: 0.25,
           color: colorScheme.onSurface,
         ),
-        bodySmall: GoogleFonts.inter(
+        bodySmall: GoogleFonts.montserrat(
           fontSize: 12,
           fontWeight: FontWeight.w400,
           letterSpacing: 0.4,
@@ -144,21 +144,21 @@ class AppTextStyles {
       );
 
   // Additional custom styles that accept colorScheme
-  static TextStyle button(ColorScheme colorScheme) => GoogleFonts.inter(
+  static TextStyle button(ColorScheme colorScheme) => GoogleFonts.montserrat(
     fontSize: 14,
     fontWeight: FontWeight.w500,
     letterSpacing: 0.1,
     color: colorScheme.onPrimary,
   );
 
-  static TextStyle caption(ColorScheme colorScheme) => GoogleFonts.inter(
+  static TextStyle caption(ColorScheme colorScheme) => GoogleFonts.montserrat(
     fontSize: 12,
     fontWeight: FontWeight.w400,
     letterSpacing: 0.4,
     color: colorScheme.onSurfaceVariant,
   );
 
-  static TextStyle overline(ColorScheme colorScheme) => GoogleFonts.inter(
+  static TextStyle overline(ColorScheme colorScheme) => GoogleFonts.montserrat(
     fontSize: 10,
     fontWeight: FontWeight.w500,
     letterSpacing: 1.5,

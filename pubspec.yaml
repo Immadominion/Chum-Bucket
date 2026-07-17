@@ -56,9 +56,6 @@ dependencies:
   flutter_launcher_icons: ^0.14.4
 
 dependency_overrides:
-  phosphor_flutter:
-    path: third_party/phosphor_flutter_compat
-
   # Enhanced networking
   dio: ^5.4.0 # Better HTTP client
   retry: ^3.1.2 # Retry failed transactions
