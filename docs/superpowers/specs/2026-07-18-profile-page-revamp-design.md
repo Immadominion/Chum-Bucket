@@ -1,0 +1,79 @@
+# Compact Profile Page Revamp
+
+## Goal
+
+Reduce the Profile page's unused vertical space while preserving Chumbucket's light, friendly card language. The page should present identity, wallet, and prediction credibility as one coherent profile surface instead of two large stacked cards.
+
+## Direction
+
+- **Archetype:** compact social prediction profile
+- **Density:** comfortable-compact
+- **Surface:** one composed white card with internal sections
+- **Type mood:** friendly, direct, numeric where appropriate
+- **Accent:** existing Chumbucket pink and cool neutral palette
+
+The supplied profile-card references inform the composition and density only. Chumbucket keeps its own avatars, Basil icons, colors, typography, radii, and wallet behavior.
+
+## Page Hierarchy
+
+1. A compact page header displays `Profile` on the left and the existing settings icon on the right. A standalone pushed Profile route may also show its close icon.
+2. One unified profile card contains identity, wallet, and prediction statistics.
+3. `Your activity` follows after a 20px-equivalent gap and retains the prediction-history and challenge-history rows.
+4. The version label remains a quiet footer.
+
+## Unified Profile Card
+
+### Identity Section
+
+- Use a 72px-equivalent circular Chumbucket avatar on the left.
+- Place the name and a maximum two-line bio to its right.
+- Place a 40px-or-larger pink-tinted pen icon button in the top-right area.
+- Pressing the pen opens the existing full Edit Profile screen.
+- Pressing the avatar retains the existing profile-picture selector behavior.
+- Remove the full-width `Edit Profile` button.
+
+### Wallet Section
+
+- Separate the wallet section from identity with an inset divider.
+- Show the wallet icon and `Wallet` label, then the current SOL balance as the strongest number in the section.
+- Keep balance refresh, resolved domain/address, copy action, loading behavior, and Add SOL behavior.
+- Present `Add SOL` as a compact command aligned with the wallet content rather than a full-width primary CTA.
+- Do not reintroduce Withdraw or custodial-wallet wording.
+
+### Prediction Summary Footer
+
+- Integrate Calls, Win rate, and PnL as a light neutral footer band within the same card.
+- Use three equal columns with slim vertical dividers.
+- Keep success/error coloring only for positive/negative PnL.
+- Preserve all existing Arena profile data and zero-value fallbacks.
+
+## Visual Rules
+
+- Keep the existing scaffold background, white surface, pink accent, Basil outline icons, and Chumbucket avatar assets.
+- Use one outer card radius consistent with current profile surfaces; internal sections do not become nested cards.
+- Use a restrained ambient shadow and an outline/divider for structure.
+- Use no decorative gradients beyond the existing small wallet icon treatment.
+- Keep touch targets at least 40px-equivalent and provide tooltips/semantics for icon-only actions.
+- Text must remain readable at the Infinix width without clipping or overlapping.
+
+## Component Boundaries
+
+- Replace the separate `ProfileHeader` and `ProfileWalletCard` page composition with a focused unified profile-card widget.
+- The unified widget receives identity text and edit callback, and reads the existing profile, authentication, and wallet providers for avatar and wallet state.
+- Prediction history and challenge history remain page-level navigation concerns.
+- Existing edit-profile, profile-picture, wallet modal, copy, refresh, and settings flows remain unchanged.
+
+## States And Errors
+
+- Wallet loading uses a stable inline placeholder that does not resize the card.
+- Missing profile names continue to fall back to the shortened wallet address.
+- Missing bios do not reserve a large empty block; the identity section compacts naturally.
+- Missing social prediction statistics display zero values.
+- Existing snackbars continue to report copy and wallet errors.
+
+## Verification
+
+- Add widget coverage for the pen action, compact Add SOL action, and integrated stat labels.
+- Run focused analysis and the full Flutter test suite.
+- Build and install the debug APK.
+- Inspect the initial and scrolled Profile states on the connected Infinix for density, clipping, bottom-navigation clearance, and functional icon targets.
