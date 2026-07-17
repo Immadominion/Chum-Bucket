@@ -69,7 +69,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
           Consumer<MwaWalletProvider>(
             builder: (context, walletProvider, _) {
               return MenuTile(
-                icon: CupertinoIcons.square_arrow_up,
+                basilIcon: 'share-box-outline',
                 title: "Export Wallet",
                 subtitle:
                     walletProvider.walletAddress != null
@@ -81,7 +81,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
           ),
 
           MenuTile(
-            icon: CupertinoIcons.star_fill,
+            basilIcon: 'star-solid',
             title: "Rate Chum Bucket",
             subtitle: "Share your experience",
             onTap: () {},
@@ -95,14 +95,14 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
             iconColor: Colors.blue,
           ),
           MenuTile(
-            icon: CupertinoIcons.person_crop_circle_badge_plus,
+            basilIcon: 'user-plus-outline',
             title: "Link Google or X",
             subtitle: "Put a name behind your calls",
             onTap: () => _showIdentityLink(context),
             iconColor: Theme.of(context).colorScheme.primary,
           ),
           MenuTile(
-            icon: CupertinoIcons.delete_solid,
+            basilIcon: 'trash-solid',
             title: "Delete Account",
             subtitle: "Permanently remove your account",
             onTap: () {},
