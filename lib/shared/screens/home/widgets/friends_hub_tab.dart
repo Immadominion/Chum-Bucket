@@ -9,6 +9,7 @@ import 'package:chumbucket/features/arena/presentation/screens/caller_profile_sc
 import 'package:chumbucket/features/arena/presentation/widgets/arena_format.dart';
 import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/friends_tab.dart';
+import 'package:chumbucket/shared/screens/home/widgets/header.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_tabs.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
@@ -57,6 +58,10 @@ class _FriendsHubTabState extends State<FriendsHubTab>
       bottom: false,
       child: Column(
         children: [
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20.w),
+            child: const ChumbucketAppHeader(title: 'Friends'),
+          ),
           SizedBox(height: 10.h),
           ChumbucketTabs(
             labels: const ['Friends', 'Leaderboard'],

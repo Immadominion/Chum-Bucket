@@ -6,11 +6,11 @@ import 'package:provider/provider.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/arena/data/arena_models.dart';
-import 'package:chumbucket/features/arena/presentation/screens/arena_notifications_screen.dart';
 import 'package:chumbucket/features/arena/presentation/screens/caller_profile_screen.dart';
 import 'package:chumbucket/features/arena/presentation/screens/dare_yourself_screen.dart';
 import 'package:chumbucket/features/arena/presentation/widgets/arena_format.dart';
 import 'package:chumbucket/features/arena/providers/arena_provider.dart';
+import 'package:chumbucket/shared/screens/home/widgets/header.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_tabs.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
@@ -123,12 +123,6 @@ class _CallsScreenState extends State<CallsScreen>
     }
   }
 
-  void _openNotifications() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const ArenaNotificationsScreen()));
-  }
-
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -144,26 +138,9 @@ class _CallsScreenState extends State<CallsScreen>
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
                 SliverPadding(
-                  padding: EdgeInsets.fromLTRB(20.w, 18.h, 12.w, 2.h),
-                  sliver: SliverToBoxAdapter(
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Calls',
-                            style: TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 24.sp,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        _NotificationButton(
-                          count: arena.unreadNotificationCount,
-                          onTap: _openNotifications,
-                        ),
-                      ],
-                    ),
+                  padding: EdgeInsets.fromLTRB(20.w, 4.h, 20.w, 0),
+                  sliver: const SliverToBoxAdapter(
+                    child: ChumbucketAppHeader(title: 'Calls'),
                   ),
                 ),
                 SliverPadding(
@@ -259,30 +236,6 @@ class _CallsScreenState extends State<CallsScreen>
   }
 }
 
-class _NotificationButton extends StatelessWidget {
-  final int count;
-  final VoidCallback onTap;
-
-  const _NotificationButton({required this.count, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      tooltip: count == 0 ? 'Inbox' : '$count unread notifications',
-      onPressed: onTap,
-      icon: Badge(
-        isLabelVisible: count > 0,
-        label: Text(count > 9 ? '9+' : '$count'),
-        backgroundColor: AppColors.primary,
-        child: const BasilIcon(
-          'notification-outline',
-          color: AppColors.textPrimary,
-        ),
-      ),
-    );
-  }
-}
-
 class _CallCard extends StatelessWidget {
   final ArenaActivityEvent event;
   final bool isMe;
@@ -312,7 +265,7 @@ class _CallCard extends StatelessWidget {
       color: Colors.white,
       borderRadius: BorderRadius.circular(20.r),
       child: Padding(
-        padding: EdgeInsets.all(16.w),
+        padding: EdgeInsets.all(14.w),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -322,7 +275,7 @@ class _CallCard extends StatelessWidget {
                   onTap: onProfile,
                   borderRadius: BorderRadius.circular(24.r),
                   child: CircleAvatar(
-                    radius: 22.r,
+                    radius: 20.r,
                     backgroundColor: AppColors.primaryContainer,
                     backgroundImage: AssetImage(
                       _avatarAsset(event.walletAddress),
@@ -378,26 +331,24 @@ class _CallCard extends StatelessWidget {
                   ),
               ],
             ),
-            SizedBox(height: 16.h),
+            SizedBox(height: 12.h),
+            // The fixture (who's playing) is the useful, scannable info —
+            // it's the headline. The activity type ("Call placed", "Winnings
+            // claimed", ...) already reads in the subtitle above, so it
+            // doesn't need its own line here too; neither does the
+            // competition name, which was almost always the generic
+            // "Prediction" fallback anyway.
             Text(
-              event.title ?? event.fixtureTitle,
-              maxLines: 2,
+              event.fixtureTitle,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: AppColors.textPrimary,
-                fontSize: 17.sp,
-                height: 1.2,
+                fontSize: 16.sp,
                 fontWeight: FontWeight.w700,
               ),
             ),
-            SizedBox(height: 5.h),
-            Text(
-              _competitionLabel(event.competition),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 11.sp),
-            ),
-            SizedBox(height: 14.h),
+            SizedBox(height: 10.h),
             Row(
               children: [
                 if (bucket.isNotEmpty)
@@ -557,7 +508,7 @@ class _CallSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 244.h,
+      height: 168.h,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20.r),
@@ -586,15 +537,16 @@ String _relativeTime(DateTime time) {
 }
 
 String _eventVerb(ArenaActivityEvent event) {
-  if (event.type == 'CALL_COPIED') return 'copied a call';
-  if (event.isSettled) return 'settled';
-  return 'called ${event.displayBucket}';
-}
-
-String _competitionLabel(String competition) {
-  return competition.trim().toLowerCase() == 'arena'
-      ? 'Prediction'
-      : competition;
+  switch (event.type) {
+    case 'CALL_COPIED':
+      return 'copied a call';
+    case 'CALL_SETTLED':
+      return 'call settled';
+    case 'CLAIMED':
+      return 'claimed winnings';
+    default:
+      return 'called ${event.displayBucket}';
+  }
 }
 
 Color _bucketColor(String bucket) {

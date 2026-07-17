@@ -39,6 +39,8 @@ class PredictionsHomeTab extends StatefulWidget {
 
 class _PredictionsHomeTabState extends State<PredictionsHomeTab>
     with AutomaticKeepAliveClientMixin {
+  bool _marketsExpanded = false;
+
   @override
   bool get wantKeepAlive => true;
 
@@ -129,10 +131,7 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
                 SliverPadding(
                   padding: EdgeInsets.fromLTRB(20.w, 4.h, 20.w, 0),
                   sliver: SliverToBoxAdapter(
-                    child: homeScreenHeader(
-                      context,
-                      onProfileTap: widget.onProfileTap,
-                    ),
+                    child: ChumbucketAppHeader(onProfileTap: widget.onProfileTap),
                   ),
                 ),
                 if (arena.claimablePositions.isNotEmpty)
@@ -145,12 +144,38 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
                       ),
                     ),
                   ),
+                // Personal stuff first: your challenges are more relevant to
+                // you than the global markets list, so they no longer sit
+                // below it — you'd have to scroll past every open market to
+                // reach your own challenge history.
                 SliverPadding(
                   padding: EdgeInsets.fromLTRB(20.w, 2.h, 20.w, 12.h),
                   sliver: SliverToBoxAdapter(
                     child: _SectionHeader(
+                      title: 'Your challenges',
+                      action: 'View all',
+                      onAction: widget.onViewChallenges,
+                    ),
+                  ),
+                ),
+                SliverPadding(
+                  padding: EdgeInsets.symmetric(horizontal: 20.w),
+                  sliver: SliverToBoxAdapter(
+                    child: ChallengesPreview(
+                      onViewAll: widget.onViewChallenges,
+                      onMarkChallengeCompleted: widget.onMarkChallengeCompleted,
+                    ),
+                  ),
+                ),
+                SliverPadding(
+                  padding: EdgeInsets.fromLTRB(20.w, 28.h, 20.w, 12.h),
+                  sliver: SliverToBoxAdapter(
+                    child: _SectionHeader(
                       title: "Today's markets",
-                      action: 'See calls',
+                      // "See calls" read as ambiguous — this is OTHER
+                      // people's activity (the social feed), not a "see
+                      // more markets" browser. Say so.
+                      action: "Who's calling",
                       onAction: widget.onViewCalls,
                     ),
                   ),
@@ -189,16 +214,17 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
                     ),
                   )
                 else ...[
-                  // Home is a dashboard: cap the markets to a preview so "Your
-                  // challenges" below stays reachable no matter how busy the
-                  // matchday is. The full list lives behind "See calls".
+                  // "See N more markets" expands the list in place — it
+                  // used to navigate to the Calls feed, which isn't a
+                  // markets browser at all, so the button's own promise
+                  // ("more markets") was never actually kept.
                   SliverPadding(
                     padding: EdgeInsets.symmetric(horizontal: 20.w),
                     sliver: SliverList.separated(
                       itemCount:
-                          matches.length > _kHomeMarketsPreview
-                              ? _kHomeMarketsPreview
-                              : matches.length,
+                          _marketsExpanded || matches.length <= _kHomeMarketsPreview
+                              ? matches.length
+                              : _kHomeMarketsPreview,
                       separatorBuilder: (_, __) => SizedBox(height: 12.h),
                       itemBuilder:
                           (context, index) => _MarketRow(
@@ -208,36 +234,17 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
                           ),
                     ),
                   ),
-                  if (matches.length > _kHomeMarketsPreview)
+                  if (!_marketsExpanded && matches.length > _kHomeMarketsPreview)
                     SliverPadding(
                       padding: EdgeInsets.fromLTRB(20.w, 12.h, 20.w, 0),
                       sliver: SliverToBoxAdapter(
                         child: _SeeMoreMarketsButton(
                           remaining: matches.length - _kHomeMarketsPreview,
-                          onTap: widget.onViewCalls,
+                          onTap: () => setState(() => _marketsExpanded = true),
                         ),
                       ),
                     ),
                 ],
-                SliverPadding(
-                  padding: EdgeInsets.fromLTRB(20.w, 28.h, 20.w, 12.h),
-                  sliver: SliverToBoxAdapter(
-                    child: _SectionHeader(
-                      title: 'Your challenges',
-                      action: 'View all',
-                      onAction: widget.onViewChallenges,
-                    ),
-                  ),
-                ),
-                SliverPadding(
-                  padding: EdgeInsets.symmetric(horizontal: 20.w),
-                  sliver: SliverToBoxAdapter(
-                    child: ChallengesPreview(
-                      onViewAll: widget.onViewChallenges,
-                      onMarkChallengeCompleted: widget.onMarkChallengeCompleted,
-                    ),
-                  ),
-                ),
                 SliverToBoxAdapter(child: SizedBox(height: 112.h)),
               ],
             ),
