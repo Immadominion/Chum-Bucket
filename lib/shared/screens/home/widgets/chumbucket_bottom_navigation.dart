@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class ChumbucketBottomNavigation extends StatelessWidget {
   final int selectedIndex;
@@ -17,23 +17,23 @@ class ChumbucketBottomNavigation extends StatelessWidget {
   static const _items = <_NavigationItem>[
     _NavigationItem(
       label: 'Home',
-      regular: PhosphorIconsRegular.house,
-      selected: PhosphorIconsFill.house,
+      regular: 'home-outline',
+      selected: 'home-solid',
     ),
     _NavigationItem(
       label: 'Calls',
-      regular: PhosphorIconsRegular.broadcast,
-      selected: PhosphorIconsFill.broadcast,
+      regular: 'shopping-basket-outline',
+      selected: 'shopping-basket-solid',
     ),
     _NavigationItem(
       label: 'Friends',
-      regular: PhosphorIconsRegular.usersThree,
-      selected: PhosphorIconsFill.usersThree,
+      regular: 'envelope-open-outline',
+      selected: 'envelope-open-solid',
     ),
     _NavigationItem(
       label: 'Profile',
-      regular: PhosphorIconsRegular.userCircle,
-      selected: PhosphorIconsFill.userCircle,
+      regular: 'user-outline',
+      selected: 'user-solid',
     ),
   ];
 
@@ -89,7 +89,7 @@ class ChumbucketBottomNavigation extends StatelessWidget {
                             borderRadius: BorderRadius.circular(18.r),
                           ),
                           child: Center(
-                            child: PhosphorIcon(
+                            child: BasilIcon(
                               isSelected ? item.selected : item.regular,
                               size: 25.w,
                               color:
@@ -114,8 +114,8 @@ class ChumbucketBottomNavigation extends StatelessWidget {
 
 class _NavigationItem {
   final String label;
-  final IconData regular;
-  final IconData selected;
+  final String regular;
+  final String selected;
 
   const _NavigationItem({
     required this.label,

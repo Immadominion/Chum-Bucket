@@ -1,7 +1,29 @@
-/// Application text styles following Material 3 design
+/// Application text styles following Material 3 design.
+///
+/// Mixed typeface: PP Neue Machina — a bold, geometric display face with only
+/// three weights (Light/Regular/Ultrabold, no mid-range) — carries the app's
+/// "voice" (display/headline/title/label/button: short, punchy text).
+/// Montserrat stays for body copy, where long-form reading needs a face with
+/// a fuller weight range and softer letterforms.
+library;
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+/// A PP Neue Machina text style at the given weight (bundled OTF, registered
+/// as the `PPNeueMachina` family in pubspec.yaml — not a Google Font).
+TextStyle _ppNeueMachina({
+  required double fontSize,
+  required FontWeight fontWeight,
+  double letterSpacing = 0,
+  Color? color,
+}) => TextStyle(
+  fontFamily: 'PPNeueMachina',
+  fontSize: fontSize,
+  fontWeight: fontWeight,
+  letterSpacing: letterSpacing,
+  color: color,
+);
 
 class AppTextStyles {
   // Backwards compatible static getter using a default dark theme
@@ -42,82 +64,82 @@ class AppTextStyles {
   // New function-based approach
   static TextTheme textThemeWithColorScheme(ColorScheme colorScheme) =>
       TextTheme(
-        // Display styles
-        displayLarge: GoogleFonts.montserrat(
+        // Display styles — PP Neue Machina Ultrabold: the app's hero voice.
+        displayLarge: _ppNeueMachina(
           fontSize: 57,
-          fontWeight: FontWeight.w400,
+          fontWeight: FontWeight.w800,
           letterSpacing: -0.25,
           color: colorScheme.onSurface,
         ),
-        displayMedium: GoogleFonts.montserrat(
+        displayMedium: _ppNeueMachina(
           fontSize: 45,
-          fontWeight: FontWeight.w400,
+          fontWeight: FontWeight.w800,
           letterSpacing: 0,
           color: colorScheme.onSurface,
         ),
-        displaySmall: GoogleFonts.montserrat(
+        displaySmall: _ppNeueMachina(
           fontSize: 36,
-          fontWeight: FontWeight.w400,
+          fontWeight: FontWeight.w800,
           letterSpacing: 0,
           color: colorScheme.onSurface,
         ),
 
-        // Headline styles
-        headlineLarge: GoogleFonts.montserrat(
+        // Headline styles — PP Neue Machina Ultrabold.
+        headlineLarge: _ppNeueMachina(
           fontSize: 32,
-          fontWeight: FontWeight.w400,
+          fontWeight: FontWeight.w800,
           letterSpacing: 0,
           color: colorScheme.onSurface,
         ),
-        headlineMedium: GoogleFonts.montserrat(
+        headlineMedium: _ppNeueMachina(
           fontSize: 28,
-          fontWeight: FontWeight.w400,
+          fontWeight: FontWeight.w800,
           letterSpacing: 0,
           color: colorScheme.onSurface,
         ),
-        headlineSmall: GoogleFonts.montserrat(
+        headlineSmall: _ppNeueMachina(
           fontSize: 24,
-          fontWeight: FontWeight.w400,
+          fontWeight: FontWeight.w800,
           letterSpacing: 0,
           color: colorScheme.onSurface,
         ),
 
-        // Title styles
-        titleLarge: GoogleFonts.montserrat(
+        // Title styles — PP Neue Machina Regular (structural, not shouting).
+        titleLarge: _ppNeueMachina(
           fontSize: 22,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w400,
           letterSpacing: 0,
           color: colorScheme.onSurface,
         ),
-        titleMedium: GoogleFonts.montserrat(
+        titleMedium: _ppNeueMachina(
           fontSize: 16,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w400,
           letterSpacing: 0.15,
           color: colorScheme.onSurface,
         ),
-        titleSmall: GoogleFonts.montserrat(
+        titleSmall: _ppNeueMachina(
           fontSize: 14,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w400,
           letterSpacing: 0.1,
           color: colorScheme.onSurface,
         ),
 
-        // Label styles
-        labelLarge: GoogleFonts.montserrat(
+        // Label styles — PP Neue Machina (nav labels, chips, tags).
+        labelLarge: _ppNeueMachina(
           fontSize: 14,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w400,
           letterSpacing: 0.1,
           color: colorScheme.onSurface,
         ),
-        labelMedium: GoogleFonts.montserrat(
+        labelMedium: _ppNeueMachina(
           fontSize: 12,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w300,
           letterSpacing: 0.5,
           color: colorScheme.onSurface,
         ),
-        labelSmall: GoogleFonts.montserrat(
+        labelSmall: _ppNeueMachina(
           fontSize: 11,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w300,
           letterSpacing: 0.5,
           color: colorScheme.onSurface,
         ),
@@ -144,9 +166,9 @@ class AppTextStyles {
       );
 
   // Additional custom styles that accept colorScheme
-  static TextStyle button(ColorScheme colorScheme) => GoogleFonts.montserrat(
+  static TextStyle button(ColorScheme colorScheme) => _ppNeueMachina(
     fontSize: 14,
-    fontWeight: FontWeight.w500,
+    fontWeight: FontWeight.w800,
     letterSpacing: 0.1,
     color: colorScheme.onPrimary,
   );

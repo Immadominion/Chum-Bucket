@@ -45,6 +45,7 @@ dependencies:
   path: ^1.8.3 # For database path management
   uuid: ^4.5.1 # For generating unique IDs
   phosphor_flutter: ^2.1.0
+  flutter_svg: ^2.3.0 # Basil icon set (Iconify) rendered from bundled SVG assets
   screenshot: ^3.0.0
   share_plus: ^11.1.0
   path_provider: ^2.1.5
@@ -92,4 +93,14 @@ flutter:
     - assets/animations/whisk_ai_generate/
     - assets/animations/lottie/
     - assets/audio/
+    - assets/icons/basil/
     - shorebird.yaml
+  fonts:
+    - family: PPNeueMachina
+      fonts:
+        - asset: assets/fonts/PPNeueMachina/PPNeueMachina-Light.otf
+          weight: 300
+        - asset: assets/fonts/PPNeueMachina/PPNeueMachina-Regular.otf
+          weight: 400
+        - asset: assets/fonts/PPNeueMachina/PPNeueMachina-Ultrabold.otf
+          weight: 800
