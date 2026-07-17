@@ -121,136 +121,144 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
                   (a, b) => a.fixture.kickoff.compareTo(b.fixture.kickoff),
                 );
 
-          return RefreshIndicator(
-            color: AppColors.primary,
-            onRefresh: _load,
-            child: CustomScrollView(
-              key: const PageStorageKey('predictions-home'),
-              physics: const AlwaysScrollableScrollPhysics(),
-              slivers: [
-                SliverPadding(
-                  padding: EdgeInsets.fromLTRB(20.w, 4.h, 20.w, 0),
-                  sliver: SliverToBoxAdapter(
-                    child: ChumbucketAppHeader(
-                      title: 'Home',
-                      onProfileTap: widget.onProfileTap,
-                    ),
+          // Only the markets list scrolls. The header, claimable strip, and
+          // "Your challenges" preview are fixed on screen — they're compact
+          // and personal, not something you should have to scroll past or
+          // lose sight of while browsing markets.
+          return Column(
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(20.w, 4.h, 20.w, 0),
+                child: ChumbucketAppHeader(
+                  title: 'Home',
+                  onProfileTap: widget.onProfileTap,
+                ),
+              ),
+              if (arena.claimablePositions.isNotEmpty)
+                Padding(
+                  padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 20.h),
+                  child: _ClaimableStrip(
+                    count: arena.claimablePositions.length,
+                    onTap: _openPositions,
                   ),
                 ),
-                if (arena.claimablePositions.isNotEmpty)
-                  SliverPadding(
-                    padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 20.h),
-                    sliver: SliverToBoxAdapter(
-                      child: _ClaimableStrip(
-                        count: arena.claimablePositions.length,
-                        onTap: _openPositions,
-                      ),
-                    ),
-                  ),
-                // Personal stuff first: your challenges are more relevant to
-                // you than the global markets list, so they no longer sit
-                // below it — you'd have to scroll past every open market to
-                // reach your own challenge history.
-                SliverPadding(
-                  padding: EdgeInsets.fromLTRB(20.w, 2.h, 20.w, 12.h),
-                  sliver: SliverToBoxAdapter(
-                    child: _SectionHeader(
-                      title: 'Your challenges',
-                      action: 'View all',
-                      onAction: widget.onViewChallenges,
-                    ),
-                  ),
+              // Personal stuff first: your challenges are more relevant to
+              // you than the global markets list, so they no longer sit
+              // below it — you'd have to scroll past every open market to
+              // reach your own challenge history.
+              Padding(
+                padding: EdgeInsets.fromLTRB(20.w, 2.h, 20.w, 12.h),
+                child: _SectionHeader(
+                  title: 'Your challenges',
+                  action: 'View all',
+                  onAction: widget.onViewChallenges,
                 ),
-                SliverPadding(
-                  padding: EdgeInsets.symmetric(horizontal: 20.w),
-                  sliver: SliverToBoxAdapter(
-                    child: ChallengesPreview(
-                      onViewAll: widget.onViewChallenges,
-                      onMarkChallengeCompleted: widget.onMarkChallengeCompleted,
-                    ),
-                  ),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20.w),
+                child: ChallengesPreview(
+                  onViewAll: widget.onViewChallenges,
+                  onMarkChallengeCompleted: widget.onMarkChallengeCompleted,
                 ),
-                SliverPadding(
-                  padding: EdgeInsets.fromLTRB(20.w, 28.h, 20.w, 12.h),
-                  sliver: SliverToBoxAdapter(
-                    child: _SectionHeader(
-                      title: "Today's markets",
-                      // "See calls" read as ambiguous — this is OTHER
-                      // people's activity (the social feed), not a "see
-                      // more markets" browser. Say so.
-                      action: "Who's calling",
-                      onAction: widget.onViewCalls,
-                    ),
-                  ),
+              ),
+              Padding(
+                padding: EdgeInsets.fromLTRB(20.w, 28.h, 20.w, 12.h),
+                child: _SectionHeader(
+                  title: "Today's markets",
+                  // "See calls" read as ambiguous — this is OTHER people's
+                  // activity (the social feed), not a "see more markets"
+                  // browser. Say so.
+                  action: "Who's calling",
+                  onAction: widget.onViewCalls,
                 ),
-                if (arena.isLoadingMatchday && matches.isEmpty)
-                  SliverPadding(
-                    padding: EdgeInsets.symmetric(horizontal: 20.w),
-                    sliver: SliverList.separated(
-                      itemCount: 3,
-                      separatorBuilder: (_, __) => SizedBox(height: 12.h),
-                      itemBuilder: (_, __) => const _MarketSkeleton(),
-                    ),
-                  )
-                else if (arena.matchdayError != null && matches.isEmpty)
-                  SliverPadding(
-                    padding: EdgeInsets.symmetric(horizontal: 20.w),
-                    sliver: SliverToBoxAdapter(
-                      child: _HomeState(
-                        basilIcon: 'hotspot-outline',
-                        title: 'Markets are taking a moment',
-                        detail: 'Pull down to try again.',
-                        onTap: _load,
-                      ),
-                    ),
-                  )
-                else if (matches.isEmpty)
-                  SliverPadding(
-                    padding: EdgeInsets.symmetric(horizontal: 20.w),
-                    sliver: const SliverToBoxAdapter(
-                      child: _HomeState(
-                        icon: Icons.sports_soccer_outlined,
-                        title: 'No open markets right now',
-                        detail:
-                            'New fixtures will appear here when calls open.',
-                      ),
-                    ),
-                  )
-                else ...[
-                  // "See N more markets" expands the list in place — it
-                  // used to navigate to the Calls feed, which isn't a
-                  // markets browser at all, so the button's own promise
-                  // ("more markets") was never actually kept.
-                  SliverPadding(
-                    padding: EdgeInsets.symmetric(horizontal: 20.w),
-                    sliver: SliverList.separated(
-                      itemCount:
-                          _marketsExpanded || matches.length <= _kHomeMarketsPreview
-                              ? matches.length
-                              : _kHomeMarketsPreview,
-                      separatorBuilder: (_, __) => SizedBox(height: 12.h),
-                      itemBuilder:
-                          (context, index) => _MarketRow(
-                            match: matches[index],
-                            onTap: () => _openMatch(matches[index]),
-                            onCallers: () => _openCallers(matches[index]),
+              ),
+              Expanded(
+                child: RefreshIndicator(
+                  color: AppColors.primary,
+                  onRefresh: _load,
+                  child: CustomScrollView(
+                    key: const PageStorageKey('predictions-home-markets'),
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      if (arena.isLoadingMatchday && matches.isEmpty)
+                        SliverPadding(
+                          padding: EdgeInsets.symmetric(horizontal: 20.w),
+                          sliver: SliverList.separated(
+                            itemCount: 3,
+                            separatorBuilder:
+                                (_, __) => SizedBox(height: 12.h),
+                            itemBuilder: (_, __) => const _MarketSkeleton(),
                           ),
-                    ),
-                  ),
-                  if (!_marketsExpanded && matches.length > _kHomeMarketsPreview)
-                    SliverPadding(
-                      padding: EdgeInsets.fromLTRB(20.w, 12.h, 20.w, 0),
-                      sliver: SliverToBoxAdapter(
-                        child: _SeeMoreMarketsButton(
-                          remaining: matches.length - _kHomeMarketsPreview,
-                          onTap: () => setState(() => _marketsExpanded = true),
+                        )
+                      else if (arena.matchdayError != null && matches.isEmpty)
+                        SliverPadding(
+                          padding: EdgeInsets.symmetric(horizontal: 20.w),
+                          sliver: SliverToBoxAdapter(
+                            child: _HomeState(
+                              basilIcon: 'hotspot-outline',
+                              title: 'Markets are taking a moment',
+                              detail: 'Pull down to try again.',
+                              onTap: _load,
+                            ),
+                          ),
+                        )
+                      else if (matches.isEmpty)
+                        SliverPadding(
+                          padding: EdgeInsets.symmetric(horizontal: 20.w),
+                          sliver: const SliverToBoxAdapter(
+                            child: _HomeState(
+                              icon: Icons.sports_soccer_outlined,
+                              title: 'No open markets right now',
+                              detail:
+                                  'New fixtures will appear here when calls open.',
+                            ),
+                          ),
+                        )
+                      else ...[
+                        // "See N more markets" expands the list in place —
+                        // it used to navigate to the Calls feed, which
+                        // isn't a markets browser at all, so the button's
+                        // own promise ("more markets") was never kept.
+                        SliverPadding(
+                          padding: EdgeInsets.symmetric(horizontal: 20.w),
+                          sliver: SliverList.separated(
+                            itemCount:
+                                _marketsExpanded ||
+                                        matches.length <= _kHomeMarketsPreview
+                                    ? matches.length
+                                    : _kHomeMarketsPreview,
+                            separatorBuilder:
+                                (_, __) => SizedBox(height: 12.h),
+                            itemBuilder:
+                                (context, index) => _MarketRow(
+                                  match: matches[index],
+                                  onTap: () => _openMatch(matches[index]),
+                                  onCallers: () => _openCallers(matches[index]),
+                                ),
+                          ),
                         ),
-                      ),
-                    ),
-                ],
-                SliverToBoxAdapter(child: SizedBox(height: 112.h)),
-              ],
-            ),
+                        if (!_marketsExpanded &&
+                            matches.length > _kHomeMarketsPreview)
+                          SliverPadding(
+                            padding: EdgeInsets.fromLTRB(20.w, 12.h, 20.w, 0),
+                            sliver: SliverToBoxAdapter(
+                              child: _SeeMoreMarketsButton(
+                                remaining:
+                                    matches.length - _kHomeMarketsPreview,
+                                onTap:
+                                    () => setState(
+                                      () => _marketsExpanded = true,
+                                    ),
+                              ),
+                            ),
+                          ),
+                      ],
+                      SliverToBoxAdapter(child: SizedBox(height: 112.h)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           );
         },
       ),

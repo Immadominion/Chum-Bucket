@@ -147,7 +147,7 @@ class _CallsScreenState extends State<CallsScreen>
                   padding: EdgeInsets.fromLTRB(20.w, 6.h, 20.w, 14.h),
                   sliver: SliverToBoxAdapter(
                     child: Align(
-                      alignment: Alignment.centerLeft,
+                      alignment: Alignment.center,
                       child: ChumbucketTabs(
                         labels: const ['Global', 'Following'],
                         selectedIndex:
