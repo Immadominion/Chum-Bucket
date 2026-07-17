@@ -3,24 +3,21 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-// Import SNS SDK for .sol domains
-import 'package:sns_sdk/sns_sdk.dart';
-
-// Import TLD Parser for .skr, .abc, .poor, .bonk and other AllDomains TLDs
+// TLD Parser (AllDomains/ANS protocol) for .skr, .abc, .poor, .bonk and
+// other multi-TLD domains. Does NOT cover .sol (that's the separate,
+// Bonfida-only SNS protocol, dropped from this app).
 import 'package:tld_parser/tld_parser.dart';
 import 'package:solana/solana.dart' as solana;
 
 /// Resolves Solana wallet addresses to domain names when available,
 /// and resolves domains to wallet addresses when provided by user.
 ///
-/// Supported domain extensions:
-/// - .sol - Standard SNS domains (Bonfida) - uses sns_sdk
-/// - .skr - Seeker wallet domains (Solana Mobile) - uses tld_parser
-/// - .abc, .poor, .bonk, etc. - AllDomains TLDs - uses tld_parser
+/// Supported domain extensions (all via AllDomains/ANS, tld_parser):
+/// - .skr - Seeker wallet domains (Solana Mobile)
+/// - .abc, .poor, .bonk, etc. - other AllDomains TLDs
 class AddressNameResolver {
   static final Map<String, String> _cache = {};
   static final Map<String, DateTime> _cacheTimestamps = {};
-  static SnsClient? _snsClient;
   static TldParser? _tldParser;
   static const Duration _cacheExpiry = Duration(hours: 1); // Cache for 1 hour
 
@@ -65,10 +62,9 @@ class AddressNameResolver {
   // Base58 charset check (quick heuristic)
   static final RegExp _base58 = RegExp(r'^[1-9A-HJ-NP-Za-km-z]+$');
 
-  // SNS domains (.sol only)
-  static const List<String> _snsDomainExtensions = ['.sol'];
-
-  // AllDomains TLDs (tld_parser)
+  // AllDomains/ANS TLDs (tld_parser) — the only domain protocol this app
+  // resolves. SNS (.sol) was dropped: it's a separate, Bonfida-only
+  // protocol tld_parser explicitly does not cover.
   static const List<String> _allDomainsTldExtensions = [
     '.skr', // Seeker/Solana Mobile
     '.bonk',
@@ -80,18 +76,9 @@ class AddressNameResolver {
     // Add more as needed
   ];
 
-  // All supported domain extensions
-  static List<String> get _supportedDomainExtensions => [
-    ..._snsDomainExtensions,
-    ..._allDomainsTldExtensions,
-  ];
-
   // Public helpers
   static bool isBase58Address(String value) =>
       value.length >= 32 && value.length <= 50 && _base58.hasMatch(value);
-
-  /// Check if value is a .sol domain (SNS/Bonfida)
-  static bool isSolDomain(String value) => value.toLowerCase().endsWith('.sol');
 
   /// Check if value is a .skr domain (Seeker wallet)
   static bool isSkrDomain(String value) => value.toLowerCase().endsWith('.skr');
@@ -102,19 +89,8 @@ class AddressNameResolver {
     return _allDomainsTldExtensions.any((ext) => lower.endsWith(ext));
   }
 
-  /// Check if value is any supported domain (.sol, .skr, etc.)
-  static bool isSnsDomain(String value) {
-    final lower = value.toLowerCase();
-    return _supportedDomainExtensions.any((ext) => lower.endsWith(ext));
-  }
-
-  /// Get or create the SNS client for .sol domains
-  static SnsClient _getSnsClient() {
-    if (_snsClient != null) return _snsClient!;
-    final rpcClient = HttpRpcClient(_mainnetRpcUrl);
-    _snsClient = SnsClient(rpcClient);
-    return _snsClient!;
-  }
+  /// Check if value is any domain this resolver supports (.skr, .abc, etc.)
+  static bool isSupportedDomain(String value) => isAllDomainsTld(value);
 
   /// Get or create the TLD Parser for AllDomains TLDs
   static TldParser _getTldParser() {
@@ -194,49 +170,6 @@ class AddressNameResolver {
       }
     }
 
-    // Fallback to SNS SDK for .sol domains
-    try {
-      final client = _getSnsClient();
-
-      // Try to get primary domain for this wallet
-      final primaryResult = await getPrimaryDomain(
-        GetPrimaryDomainParams(rpc: client.rpc, walletAddress: address),
-      );
-
-      if (primaryResult != null && primaryResult.domainName.isNotEmpty) {
-        final domain =
-            primaryResult.domainName.endsWith('.sol')
-                ? primaryResult.domainName
-                : '${primaryResult.domainName}.sol';
-        _cache[cacheKey] = domain;
-        _cacheTimestamps[cacheKey] = DateTime.now();
-        return domain;
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        log('AddressNameResolver: SNS primary domain lookup failed: $e');
-      }
-    }
-
-    // Try to get all .sol domains owned by this address
-    try {
-      final client = _getSnsClient();
-      final domains = await getDomainsForAddress(
-        GetDomainsForAddressParams(rpc: client.rpc, address: address),
-      );
-
-      if (domains.isNotEmpty) {
-        final domain = domains.first.domain;
-        if (domain.isNotEmpty) {
-          _cache[cacheKey] = domain;
-          _cacheTimestamps[cacheKey] = DateTime.now();
-          return domain;
-        }
-      }
-    } catch (e) {
-      if (kDebugMode) log('AddressNameResolver: SNS domain lookup failed: $e');
-    }
-
     // Fallback to shortened address
     final fallback = _shorten(address);
     _cache[cacheKey] = fallback;
@@ -246,7 +179,7 @@ class AddressNameResolver {
 
   /// Resolve a user-provided input into a wallet address.
   /// - If input is a base58 address, returns it as-is.
-  /// - If input looks like a domain (.sol, .skr, etc.), tries to resolve owner address.
+  /// - If input looks like a domain (.skr, .abc, etc.), tries to resolve owner address.
   /// - Otherwise returns null (caller can handle error).
   static Future<String?> resolveAddress(String input) async {
     final trimmed = input.trim();
@@ -258,43 +191,12 @@ class AddressNameResolver {
     // Cache hit
     if (_cache.containsKey('addr:$trimmed')) return _cache['addr:$trimmed'];
 
-    // Route to appropriate resolver based on TLD
-    if (isSolDomain(trimmed)) {
-      // Use SNS SDK for .sol domains
-      return _resolveSolDomain(trimmed);
-    } else if (isAllDomainsTld(trimmed)) {
+    if (isAllDomainsTld(trimmed)) {
       // Use TLD Parser for .skr, .abc, .poor, .bonk, etc.
       return _resolveAllDomainsTld(trimmed);
     }
 
     // Unknown domain format
-    return null;
-  }
-
-  /// Resolve a .sol domain using SNS SDK
-  static Future<String?> _resolveSolDomain(String domain) async {
-    try {
-      final client = _getSnsClient();
-
-      // Normalize to lowercase - SNS protocol is case-sensitive but users expect case-insensitive
-      // e.g., "Toly.sol" should resolve the same as "toly.sol"
-      final normalizedDomain = domain.toLowerCase();
-
-      final ownerAddress = await resolve(
-        client,
-        normalizedDomain,
-        config: const ResolveConfig(allowPda: 'any'),
-      );
-
-      if (ownerAddress.isNotEmpty && isBase58Address(ownerAddress)) {
-        _cache['addr:$domain'] = ownerAddress;
-        return ownerAddress;
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        log('AddressNameResolver: SNS resolution failed for $domain: $e');
-      }
-    }
     return null;
   }
 
@@ -327,7 +229,7 @@ class AddressNameResolver {
   static bool _looksLikeName(String value) {
     if (value.contains(' ') || value.contains('@')) return true;
     // Check for any domain extension (.sol, .skr, etc.)
-    if (isSnsDomain(value)) return true;
+    if (isSupportedDomain(value)) return true;
     if (value.length < 32 || !_base58.hasMatch(value)) {
       return true; // not an address
     }

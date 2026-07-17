@@ -83,9 +83,9 @@ class _SendSolSheetState extends State<SendSolSheet> {
     final address = _addressController.text.trim();
     if (address.isEmpty) return false;
 
-    // Support regular Solana addresses and supported domains (.sol, .skr, etc.).
+    // Support regular Solana addresses and supported domains (.skr, .abc, etc.).
     return AddressNameResolver.isBase58Address(address) ||
-        AddressNameResolver.isSnsDomain(address);
+        AddressNameResolver.isSupportedDomain(address);
   }
 
   bool get _canSendSol =>
@@ -467,7 +467,7 @@ class _SendSolSheetState extends State<SendSolSheet> {
                           textInputAction: TextInputAction.done,
                           onSubmitted: (_) => FocusScope.of(context).unfocus(),
                           decoration: InputDecoration(
-                            hintText: 'Enter wallet address or .sol domain',
+                            hintText: 'Enter wallet address or domain (.skr, .abc...)',
                             hintStyle: TextStyle(
                               fontSize: 16.sp,
                               color: Colors.grey.shade400,

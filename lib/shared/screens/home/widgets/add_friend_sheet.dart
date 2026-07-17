@@ -88,7 +88,7 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
     }
 
     // Check if it looks like a domain
-    if (!AddressNameResolver.isSnsDomain(trimmed)) {
+    if (!AddressNameResolver.isSupportedDomain(trimmed)) {
       // Not a valid address format and not a domain
       setState(() {
         _addressValidation = AddressValidationState.invalid;
@@ -195,7 +195,7 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
         // Fallback resolution (shouldn't normally reach here)
         if (AddressNameResolver.isBase58Address(addressInput)) {
           friendWalletAddress = addressInput;
-        } else if (AddressNameResolver.isSnsDomain(addressInput)) {
+        } else if (AddressNameResolver.isSupportedDomain(addressInput)) {
           friendWalletAddress = await AddressNameResolver.resolveAddress(
             addressInput,
           );
@@ -211,7 +211,7 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
           SnackBarUtils.showError(
             context,
             title: 'Input Error',
-            subtitle: 'Enter a valid wallet address or SNS domain (.sol, .skr)',
+            subtitle: 'Enter a valid wallet address or domain (.skr, .abc, ...)',
           );
           return;
         }
@@ -432,7 +432,7 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
                         textInputAction: TextInputAction.done,
                         onSubmitted: (_) => FocusScope.of(context).unfocus(),
                         decoration: InputDecoration(
-                          hintText: 'Wallet address or SNS domain (.sol, .skr)',
+                          hintText: 'Wallet address or domain (.skr, .abc, ...)',
                           hintStyle: TextStyle(
                             color: Colors.grey.shade500,
                             fontSize: 16.sp,
@@ -470,7 +470,7 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
                       // Show resolved address hint when domain is validated
                       if (_addressValidation == AddressValidationState.valid &&
                           _resolvedAddress != null &&
-                          AddressNameResolver.isSnsDomain(
+                          AddressNameResolver.isSupportedDomain(
                             _addressController.text.trim(),
                           ))
                         Padding(
