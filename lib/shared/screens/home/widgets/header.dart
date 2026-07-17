@@ -9,17 +9,21 @@ import 'package:chumbucket/features/profile/providers/profile_provider.dart';
 import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 
-Widget homeScreenHeader(BuildContext context) {
+Widget homeScreenHeader(BuildContext context, {VoidCallback? onProfileTap}) {
   return Padding(
     padding: EdgeInsets.symmetric(vertical: 16.h),
     child: Row(
       children: [
         GestureDetector(
-          onTap: () {
-            Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (context) => ProfileScreen()));
-          },
+          onTap:
+              onProfileTap ??
+              () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const ProfileScreen(),
+                  ),
+                );
+              },
           child: Consumer2<MwaAuthProvider, ProfileProvider>(
             builder: (context, authProvider, profileProvider, child) {
               if (authProvider.walletAddress == null) {

@@ -3,6 +3,8 @@ export 'buttons/action_buttons.dart';
 export 'inputs/text_fields.dart';
 export 'containers/containers.dart';
 export 'loading/loading_widgets.dart';
+export 'chumbucket_wavy_sheet.dart';
+export 'chumbucket_tabs.dart';
 
 // App-specific reusable components
 export 'app_components/app_avatar.dart';

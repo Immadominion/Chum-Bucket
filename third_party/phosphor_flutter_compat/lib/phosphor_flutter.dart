@@ -59,19 +59,30 @@ class PhosphorIcons {
 class PhosphorIconsRegular {
   static const IconData arrowSquareOut = Icons.open_in_new;
   static const IconData arrowRight = Icons.arrow_forward;
+  static const IconData bell = Icons.notifications_none_outlined;
+  static const IconData broadcast = Icons.sensors_outlined;
+  static const IconData caretLeft = Icons.chevron_left;
   static const IconData caretRight = Icons.chevron_right;
   static const IconData checkCircle = Icons.check_circle_outline;
   static const IconData circle = Icons.circle_outlined;
   static const IconData clock = Icons.schedule;
   static const IconData clockCountdown = Icons.timer_outlined;
   static const IconData hourglass = Icons.hourglass_empty;
+  static const IconData house = Icons.home_outlined;
   static const IconData prohibit = Icons.block;
+  static const IconData trophy = Icons.emoji_events_outlined;
   static const IconData user = Icons.person_outline;
+  static const IconData userCircle = Icons.account_circle_outlined;
+  static const IconData usersThree = Icons.people_outline;
   static const IconData wallet = Icons.account_balance_wallet_outlined;
   static const IconData xCircle = Icons.cancel_outlined;
 }
 
 class PhosphorIconsFill {
+  static const IconData broadcast = Icons.sensors;
   static const IconData checkCircle = Icons.check_circle;
+  static const IconData house = Icons.home;
+  static const IconData userCircle = Icons.account_circle;
+  static const IconData usersThree = Icons.people;
   static const IconData xCircle = Icons.cancel;
 }

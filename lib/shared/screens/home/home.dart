@@ -1,18 +1,18 @@
 import 'package:chumbucket/core/theme/app_colors.dart';
-import 'package:chumbucket/features/arena/presentation/screens/matchday_screen.dart';
+import 'package:chumbucket/features/arena/presentation/screens/calls_screen.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/challenge_details_screen/challenge_details_screen.dart';
+import 'package:chumbucket/features/challenges/presentation/screens/challenge_history_screen.dart';
+import 'package:chumbucket/features/profile/presentation/screens/profile_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/core/utils/app_logger.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/create_challenge_screen/create_challenge_screens.dart';
-import 'package:chumbucket/shared/screens/home/widgets/friends_tab.dart';
-import 'package:chumbucket/shared/screens/home/widgets/challenges_tab.dart';
 import 'package:chumbucket/shared/screens/home/widgets/add_friend_sheet.dart';
-import 'package:chumbucket/shared/screens/home/widgets/header.dart';
-import 'package:chumbucket/shared/screens/home/widgets/tab_bar.dart';
+import 'package:chumbucket/shared/screens/home/widgets/chumbucket_bottom_navigation.dart';
+import 'package:chumbucket/shared/screens/home/widgets/friends_hub_tab.dart';
+import 'package:chumbucket/shared/screens/home/widgets/predictions_home_tab.dart';
 import 'package:chumbucket/shared/screens/home/utils/home_utils.dart';
 import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
@@ -28,19 +28,16 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
-  late TabController tabController;
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  int _selectedIndex = 0;
   int _friendsRefreshKey = 0; // Key to force FriendsTab refresh
   int _challengesRefreshKey = 0; // Key to force challenges refresh
-  bool _isRefreshing = false;
   DateTime? _lastDataRefresh; // Track when data was last refreshed
   DateTime? _lastBackgroundTime; // Track when app went to background
 
   @override
   void initState() {
     super.initState();
-    tabController = TabController(length: 3, vsync: this);
 
     // Register lifecycle observer
     WidgetsBinding.instance.addObserver(this);
@@ -83,11 +80,9 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _navigateToChallenge(String challengeId) {
-    // Switch to challenges tab and potentially navigate to detail
     if (mounted) {
-      tabController.animateTo(1); // Switch to challenges tab
-      // Trigger refresh to ensure we have latest data
       _onLifecycleRefresh();
+      _openChallengeHistory();
     }
   }
 
@@ -154,6 +149,7 @@ class _HomeScreenState extends State<HomeScreen>
 
       // If authenticated, initialize the wallet
       if (authProvider.isAuthenticated) {
+        if (!mounted) return;
         final walletProvider = Provider.of<MwaWalletProvider>(
           context,
           listen: false,
@@ -209,67 +205,9 @@ class _HomeScreenState extends State<HomeScreen>
     return difference.inSeconds > 30;
   }
 
-  Future<void> _onPullToRefresh() async {
-    if (_isRefreshing) return;
-
-    // Always refresh when user explicitly pulls to refresh
-    setState(() {
-      _isRefreshing = true;
-      _friendsRefreshKey++;
-      _challengesRefreshKey++;
-    });
-
-    _lastDataRefresh = DateTime.now();
-
-    try {
-      final authProvider = Provider.of<MwaAuthProvider>(context, listen: false);
-      final walletProvider = Provider.of<MwaWalletProvider>(
-        context,
-        listen: false,
-      );
-      final walletAddress = authProvider.walletAddress;
-
-      if (walletAddress != null) {
-        // Ensure wallet is initialized
-        String? address = walletProvider.walletAddress;
-        if (address == null && !walletProvider.isInitialized) {
-          await walletProvider.initializeFromAuth(authProvider);
-          address = walletProvider.walletAddress;
-        }
-
-        // Force refresh through challenge state provider
-        // Use wallet address as userId for MWA
-        if (address != null) {
-          await ChallengeStateProvider.instance
-              .forceRefresh(walletAddress, address)
-              .timeout(
-                const Duration(seconds: 15),
-                onTimeout: () {
-                  AppLogger.info(
-                    'Pull-to-refresh sync timed out - showing local data',
-                  );
-                },
-              );
-        } else {
-          // Soft refresh if no wallet
-          await ChallengeStateProvider.instance.softRefresh(walletAddress);
-        }
-      }
-    } catch (e) {
-      AppLogger.error('Home pull-to-refresh error: $e');
-      // Show user-friendly message only for pull-to-refresh failures
-      if (mounted) {
-        SnackBarUtils.showSyncError(context);
-      }
-    } finally {
-      if (mounted) setState(() => _isRefreshing = false);
-    }
-  }
-
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    tabController.dispose();
     super.dispose();
   }
 
@@ -277,58 +215,63 @@ class _HomeScreenState extends State<HomeScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: RefreshIndicator(
-        onRefresh: _onPullToRefresh,
-        color: Theme.of(context).primaryColor,
-        notificationPredicate: (_) => true, // Listen to nested scrollables
-        child: Padding(
-          padding: EdgeInsets.only(left: 16.w, right: 16.w, top: 60.h),
-          child: Column(
-            children: [
-              homeScreenHeader(context),
-              SizedBox(height: 20.h),
-              HomeScreenTabBar(tabController: tabController),
-              SizedBox(height: 10.h),
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(24.r),
-                      topRight: Radius.circular(24.r),
-                    ),
-                  ),
-                  clipBehavior: Clip.hardEdge,
-                  child: TabBarView(
-                    controller: tabController,
-                    children: [
-                      FriendsTab(
-                        key: ValueKey(_friendsRefreshKey),
-                        createNewChallenge: createNewChallenge,
-                        onFriendSelected: onFriendSelected,
-                        buildViewMoreItem:
-                            (context, remainingCount) =>
-                                HomeUtils.buildViewMoreItem(
-                                  context,
-                                  remainingCount,
-                                ),
-                        onViewAllChallenges: () => tabController.animateTo(1),
-                        onMarkChallengeCompleted: _markChallengeCompleted,
-                      ),
-                      ChallengesTab(
-                        refreshKey: _challengesRefreshKey,
-                        onMarkChallengeCompleted: _markChallengeCompleted,
-                      ),
-                      // Arena - solo staking into a shared match-outcome pot
-                      // (chumbucket_arena program). This is separate from
-                      // friend challenges and signs through MWA.
-                      const MatchdayScreen(),
-                    ],
-                  ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: IndexedStack(
+              index: _selectedIndex,
+              children: [
+                PredictionsHomeTab(
+                  onProfileTap: () => _selectDestination(3),
+                  onViewCalls: () => _selectDestination(1),
+                  onViewChallenges: _openChallengeHistory,
+                  onMarkChallengeCompleted: _markChallengeCompleted,
                 ),
-              ),
-            ],
+                const CallsScreen(),
+                FriendsHubTab(
+                  refreshKey: _friendsRefreshKey,
+                  createNewChallenge: createNewChallenge,
+                  onFriendSelected: onFriendSelected,
+                  buildViewMoreItem:
+                      (context, remainingCount) =>
+                          HomeUtils.buildViewMoreItem(context, remainingCount),
+                  onViewAllChallenges: _openChallengeHistory,
+                  onMarkChallengeCompleted: _markChallengeCompleted,
+                ),
+                ProfileScreen(
+                  embedded: true,
+                  onOpenChallenges: _openChallengeHistory,
+                ),
+              ],
+            ),
           ),
-        ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: ChumbucketBottomNavigation(
+              selectedIndex: _selectedIndex,
+              onSelected: _selectDestination,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _selectDestination(int index) {
+    if (_selectedIndex == index) return;
+    setState(() => _selectedIndex = index);
+  }
+
+  void _openChallengeHistory() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder:
+            (_) => ChallengeHistoryScreen(
+              refreshKey: _challengesRefreshKey,
+              onMarkChallengeCompleted: _markChallengeCompleted,
+            ),
       ),
     );
   }
@@ -503,9 +446,6 @@ class _HomeScreenState extends State<HomeScreen>
         _challengesRefreshKey++;
       });
       _lastDataRefresh = DateTime.now();
-
-      // Switch to challenges tab to show the new challenge
-      tabController.animateTo(1);
 
       // If the challenge was created, open the challenge details screen
       Navigator.push(

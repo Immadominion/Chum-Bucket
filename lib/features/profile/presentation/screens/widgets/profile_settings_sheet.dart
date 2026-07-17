@@ -13,6 +13,8 @@ import 'package:chumbucket/features/profile/presentation/screens/widgets/profile
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/authentication/presentation/screens/mwa_login_screen.dart';
 import 'package:chumbucket/core/services/chat_service.dart';
+import 'package:chumbucket/features/profile/presentation/screens/widgets/identity_link_sheet.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 
 /// Settings modal sheet following the app's design conventions
 class ProfileSettingsSheet extends StatelessWidget {
@@ -158,6 +160,14 @@ class ProfileSettingsSheet extends StatelessWidget {
                           ),
 
                           ProfileMenuItem(
+                            icon: PhosphorIcons.user(),
+                            title: 'Link Google or X',
+                            subtitle: 'Put a name behind your calls',
+                            iconColor: AppColors.primary,
+                            onTap: () => _showIdentityLink(context),
+                          ),
+
+                          ProfileMenuItem(
                             icon: PhosphorIcons.trash(),
                             title: 'Delete Your Account',
                             subtitle: 'Permanently remove your account',
@@ -216,6 +226,19 @@ class ProfileSettingsSheet extends StatelessWidget {
     Navigator.pop(context);
     // Open chat in external browser to avoid webview privacy manifest requirements
     ChatService.openChat(context);
+  }
+
+  void _showIdentityLink(BuildContext context) {
+    final navigator = Navigator.of(context);
+    final hostContext = navigator.context;
+    navigator.pop();
+    Future<void>.delayed(const Duration(milliseconds: 100), () {
+      if (!hostContext.mounted) return;
+      showChumbucketWavySheet<void>(
+        context: hostContext,
+        builder: (_) => const IdentityLinkSheet(),
+      );
+    });
   }
 }
 

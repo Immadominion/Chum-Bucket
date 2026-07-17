@@ -1,14 +1,20 @@
 import 'dart:convert';
 import 'dart:async';
 import 'dart:developer';
+import 'dart:typed_data';
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:solana/base58.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:chumbucket/core/config/network_config.dart';
 import 'package:chumbucket/core/utils/base_change_notifier.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/arena/data/arena_backend_service.dart';
 import 'package:chumbucket/features/arena/data/arena_models.dart';
 import 'package:chumbucket/features/arena/data/match_arena_service.dart';
+
+enum ArenaFeedMode { global, following }
 
 /// State + orchestration for the Arena feature.
 ///
@@ -41,10 +47,60 @@ class ArenaProvider extends BaseChangeNotifier {
   List<ArenaActivityEvent> _activity = [];
   bool _isLoadingActivity = false;
   String? _activityError;
+  ArenaFeedMode _feedMode = ArenaFeedMode.global;
+
+  List<ArenaLeaderboardRow> _hotCallers = [];
+  bool _isLoadingHotCallers = false;
+
+  final Map<String, List<ArenaMatchCaller>> _matchCallersByMatchId = {};
+  final Set<String> _loadingMatchCallerIds = {};
+  final Set<String> _matchCallerErrorIds = {};
+
+  final Map<String, ArenaSocialProfile> _profileCache = {};
+  final Set<String> _followedWallets = {};
+  final Set<String> _followBusyWallets = {};
+  String? _profileError;
+
+  List<ArenaServerPosition> _claimablePositions = [];
+  bool _isLoadingClaimable = false;
+  String? _claimableError;
+
+  List<ArenaNotification> _notifications = [];
+  int _unreadNotificationCount = 0;
+  bool _isLoadingNotifications = false;
+  String? _notificationsError;
+  RealtimeChannel? _notificationChannel;
+  String? _notificationWallet;
+  bool _isLinkingIdentity = false;
 
   List<ArenaActivityEvent> get activity => List.unmodifiable(_activity);
   bool get isLoadingActivity => _isLoadingActivity;
   String? get activityError => _activityError;
+  ArenaFeedMode get feedMode => _feedMode;
+  List<ArenaLeaderboardRow> get hotCallers => List.unmodifiable(_hotCallers);
+  bool get isLoadingHotCallers => _isLoadingHotCallers;
+  String? get profileError => _profileError;
+  List<ArenaServerPosition> get claimablePositions =>
+      List.unmodifiable(_claimablePositions);
+  bool get isLoadingClaimable => _isLoadingClaimable;
+  String? get claimableError => _claimableError;
+  List<ArenaNotification> get notifications =>
+      List.unmodifiable(_notifications);
+  int get unreadNotificationCount => _unreadNotificationCount;
+  bool get isLoadingNotifications => _isLoadingNotifications;
+  String? get notificationsError => _notificationsError;
+  bool get isLinkingIdentity => _isLinkingIdentity;
+
+  List<ArenaMatchCaller> matchCallersFor(String matchId) =>
+      List.unmodifiable(_matchCallersByMatchId[matchId] ?? const []);
+  bool isLoadingMatchCallers(String matchId) =>
+      _loadingMatchCallerIds.contains(matchId);
+  bool matchCallersHadError(String matchId) =>
+      _matchCallerErrorIds.contains(matchId);
+
+  bool isFollowing(String wallet) => _followedWallets.contains(wallet);
+  bool isFollowBusy(String wallet) => _followBusyWallets.contains(wallet);
+  ArenaSocialProfile? cachedProfile(String wallet) => _profileCache[wallet];
 
   /// Lazily create the MatchArenaService the first time it's needed (e.g.
   /// when the user opens the Arena tab). Safe to call repeatedly - a no-op
@@ -99,6 +155,7 @@ class ArenaProvider extends BaseChangeNotifier {
     required ArenaMatchEntry match,
     required int bucket,
     required double amountUsdc,
+    required MwaAuthProvider authProvider,
   }) async {
     final service = _arenaService;
     if (service == null) {
@@ -124,21 +181,33 @@ class ArenaProvider extends BaseChangeNotifier {
     );
 
     unawaited(
-      _backendService
-          .recordPredictionCall(
-            walletAddress: service.walletAddress,
+      _signCallProof(
+            authProvider: authProvider,
             matchId: match.fixture.matchId,
-            bucket: bucket,
+            bucket: ArenaBucketIndex.toLabel(bucket),
             stakeBaseUnits: BigInt.from(
               MatchArenaService.usdcToBaseUnits(amountUsdc),
             ),
             txSignature: signature,
-            metadata: {
-              'home': match.fixture.home,
-              'away': match.fixture.away,
-              'competition': match.fixture.competition,
-              'kickoff': match.fixture.kickoff.toIso8601String(),
-            },
+          )
+          .then(
+            (proof) => _backendService.recordPredictionCall(
+              walletAddress: service.walletAddress,
+              matchId: match.fixture.matchId,
+              bucket: bucket,
+              stakeBaseUnits: BigInt.from(
+                MatchArenaService.usdcToBaseUnits(amountUsdc),
+              ),
+              txSignature: signature,
+              timestamp: proof.timestamp,
+              signature: proof.signature,
+              metadata: {
+                'home': match.fixture.home,
+                'away': match.fixture.away,
+                'competition': match.fixture.competition,
+                'kickoff': match.fixture.kickoff.toIso8601String(),
+              },
+            ),
           )
           .catchError((e) {
             // Social mirroring is best-effort here. The transaction already landed
@@ -296,16 +365,27 @@ class ArenaProvider extends BaseChangeNotifier {
     }
   }
 
-  Future<void> loadActivity({String? walletAddress, String? matchId}) async {
+  Future<void> loadActivity({
+    String? walletAddress,
+    String? matchId,
+    ArenaFeedMode? mode,
+  }) async {
+    if (mode != null) _feedMode = mode;
     _isLoadingActivity = true;
     _activityError = null;
     notifyListeners();
 
     try {
-      _activity = await _backendService.fetchActivity(
-        walletAddress: walletAddress,
-        matchId: matchId,
-      );
+      if (_feedMode == ArenaFeedMode.following && walletAddress != null) {
+        _activity = await _backendService.fetchFollowingFeed(
+          walletAddress: walletAddress,
+        );
+      } else {
+        _activity = await _backendService.fetchActivity(
+          walletAddress: matchId == null ? null : walletAddress,
+          matchId: matchId,
+        );
+      }
     } catch (e) {
       log('❌ ArenaProvider.loadActivity failed: $e');
       _activityError = e.toString();
@@ -314,4 +394,372 @@ class ArenaProvider extends BaseChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<void> loadHotCallers() async {
+    _isLoadingHotCallers = true;
+    notifyListeners();
+    try {
+      _hotCallers = await _backendService.fetchSocialLeaderboard(limit: 12);
+    } catch (e) {
+      log('⚠️ ArenaProvider.loadHotCallers failed: $e');
+    } finally {
+      _isLoadingHotCallers = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadClaimable({required String walletAddress}) async {
+    _isLoadingClaimable = true;
+    _claimableError = null;
+    notifyListeners();
+    try {
+      _claimablePositions = await _backendService.fetchClaimable(
+        walletAddress: walletAddress,
+      );
+    } catch (e) {
+      log('ArenaProvider.loadClaimable failed: $e');
+      _claimableError = e.toString();
+    } finally {
+      _isLoadingClaimable = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadNotifications({required String walletAddress}) async {
+    _isLoadingNotifications = true;
+    _notificationsError = null;
+    notifyListeners();
+    try {
+      final results = await Future.wait([
+        _backendService.fetchNotifications(walletAddress: walletAddress),
+        _backendService.fetchUnreadNotificationCount(
+          walletAddress: walletAddress,
+        ),
+      ]);
+      _notifications = results[0] as List<ArenaNotification>;
+      _unreadNotificationCount = results[1] as int;
+    } catch (e) {
+      log('ArenaProvider.loadNotifications failed: $e');
+      _notificationsError = e.toString();
+    } finally {
+      _isLoadingNotifications = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadSocialInbox({required String walletAddress}) async {
+    await Future.wait([
+      loadClaimable(walletAddress: walletAddress),
+      loadNotifications(walletAddress: walletAddress),
+    ]);
+  }
+
+  Future<void> subscribeNotifications({required String walletAddress}) async {
+    if (_notificationWallet == walletAddress && _notificationChannel != null) {
+      return;
+    }
+    await _unsubscribeNotifications();
+    _notificationWallet = walletAddress;
+    final channel = Supabase.instance.client.channel(
+      'arena-notifications:$walletAddress',
+    );
+    _notificationChannel = channel;
+    channel
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'notification_outbox',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'recipient_wallet_address',
+            value: walletAddress,
+          ),
+          callback: (_) {
+            unawaited(loadSocialInbox(walletAddress: walletAddress));
+          },
+        )
+        .subscribe();
+  }
+
+  Future<void> markNotificationsRead({
+    required MwaAuthProvider authProvider,
+    List<String>? notificationIds,
+  }) async {
+    final wallet = authProvider.walletAddress;
+    if (wallet == null) throw StateError('Connect your wallet first.');
+    final proof = await _signGenericAction(
+      authProvider: authProvider,
+      action: 'read_notifications',
+    );
+    await _backendService.markNotificationsRead(
+      walletAddress: wallet,
+      notificationIds: notificationIds,
+      timestamp: proof.timestamp,
+      signature: proof.signature,
+    );
+    final readAt = DateTime.now();
+    _notifications =
+        _notifications
+            .map(
+              (notification) =>
+                  notificationIds == null ||
+                          notificationIds.contains(notification.id)
+                      ? notification.copyWith(readAt: readAt)
+                      : notification,
+            )
+            .toList();
+    _unreadNotificationCount =
+        _notifications.where((item) => item.isUnread).length;
+    notifyListeners();
+  }
+
+  Future<void> linkOAuthIdentity({
+    required MwaAuthProvider authProvider,
+    required OAuthProvider provider,
+  }) async {
+    final wallet = authProvider.walletAddress;
+    if (wallet == null) throw StateError('Connect your wallet first.');
+    if (provider != OAuthProvider.google && provider != OAuthProvider.twitter) {
+      throw ArgumentError('Only Google and X can be linked here.');
+    }
+
+    _isLinkingIdentity = true;
+    notifyListeners();
+    StreamSubscription<AuthState>? subscription;
+    try {
+      final signedIn = Completer<Session>();
+      subscription = Supabase.instance.client.auth.onAuthStateChange.listen((
+        state,
+      ) {
+        if (state.event == AuthChangeEvent.signedIn &&
+            state.session != null &&
+            !signedIn.isCompleted) {
+          signedIn.complete(state.session!);
+        }
+      });
+      await Supabase.instance.client.auth.signInWithOAuth(
+        provider,
+        redirectTo: 'dev.cleva.chumbucket://login-callback',
+        authScreenLaunchMode: LaunchMode.externalApplication,
+      );
+      final session = await signedIn.future.timeout(const Duration(minutes: 2));
+      final proof = await _signGenericAction(
+        authProvider: authProvider,
+        action: 'link_identity',
+      );
+      await _backendService.linkIdentity(
+        walletAddress: wallet,
+        accessToken: session.accessToken,
+        timestamp: proof.timestamp,
+        signature: proof.signature,
+      );
+    } finally {
+      await subscription?.cancel();
+      _isLinkingIdentity = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadMatchCallers({
+    required String matchId,
+    int limit = 50,
+    bool force = false,
+  }) async {
+    if (!force &&
+        (_matchCallersByMatchId.containsKey(matchId) ||
+            _loadingMatchCallerIds.contains(matchId))) {
+      return;
+    }
+
+    _loadingMatchCallerIds.add(matchId);
+    _matchCallerErrorIds.remove(matchId);
+    notifyListeners();
+    try {
+      _matchCallersByMatchId[matchId] = await _backendService.fetchMatchCallers(
+        matchId: matchId,
+        limit: limit,
+      );
+    } catch (e) {
+      log('⚠️ ArenaProvider.loadMatchCallers failed: $e');
+      _matchCallerErrorIds.add(matchId);
+    } finally {
+      _loadingMatchCallerIds.remove(matchId);
+      notifyListeners();
+    }
+  }
+
+  Future<ArenaSocialProfile?> loadProfile({
+    required String targetWallet,
+    String? viewerWallet,
+  }) async {
+    _profileError = null;
+    notifyListeners();
+    try {
+      final profile = await _backendService.fetchProfile(
+        walletAddress: targetWallet,
+      );
+      _profileCache[targetWallet] = profile;
+      if (viewerWallet != null && viewerWallet != targetWallet) {
+        final following = await _backendService.isFollowing(
+          viewerWallet: viewerWallet,
+          targetWallet: targetWallet,
+        );
+        if (following) {
+          _followedWallets.add(targetWallet);
+        } else {
+          _followedWallets.remove(targetWallet);
+        }
+      }
+      return profile;
+    } catch (e) {
+      log('❌ ArenaProvider.loadProfile failed: $e');
+      _profileError = e.toString();
+      return null;
+    } finally {
+      notifyListeners();
+    }
+  }
+
+  Future<void> toggleFollow({
+    required MwaAuthProvider authProvider,
+    required String targetWallet,
+  }) async {
+    final wallet = authProvider.walletAddress;
+    if (wallet == null) {
+      throw StateError('Connect your wallet first.');
+    }
+    if (wallet == targetWallet) return;
+
+    final currentlyFollowing = _followedWallets.contains(targetWallet);
+    _followBusyWallets.add(targetWallet);
+    notifyListeners();
+
+    try {
+      final action = currentlyFollowing ? 'unfollow' : 'follow';
+      final proof = await _signSocialAction(
+        authProvider: authProvider,
+        action: action,
+        targetWallet: targetWallet,
+      );
+      if (currentlyFollowing) {
+        await _backendService.unfollowWallet(
+          walletAddress: wallet,
+          targetWallet: targetWallet,
+          timestamp: proof.timestamp,
+          signature: proof.signature,
+        );
+        _followedWallets.remove(targetWallet);
+      } else {
+        await _backendService.followWallet(
+          walletAddress: wallet,
+          targetWallet: targetWallet,
+          timestamp: proof.timestamp,
+          signature: proof.signature,
+        );
+        _followedWallets.add(targetWallet);
+      }
+      unawaited(loadActivity(walletAddress: wallet));
+    } finally {
+      _followBusyWallets.remove(targetWallet);
+      notifyListeners();
+    }
+  }
+
+  Future<_SignedProof> _signSocialAction({
+    required MwaAuthProvider authProvider,
+    required String action,
+    required String targetWallet,
+  }) async {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final message =
+        'ChumBucket: $action $targetWallet\n'
+        'net:${NetworkConfig.currentNetwork}\n'
+        'ts:$timestamp';
+    return _signMessage(authProvider, message, timestamp);
+  }
+
+  Future<_SignedProof> _signCallProof({
+    required MwaAuthProvider authProvider,
+    required String matchId,
+    required String bucket,
+    required BigInt stakeBaseUnits,
+    required String txSignature,
+  }) async {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final message =
+        'ChumBucket: call $matchId $bucket $stakeBaseUnits $txSignature\n'
+        'net:${NetworkConfig.currentNetwork}\n'
+        'ts:$timestamp';
+    return _signMessage(authProvider, message, timestamp);
+  }
+
+  Future<_SignedProof> _signGenericAction({
+    required MwaAuthProvider authProvider,
+    required String action,
+  }) async {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final message =
+        'ChumBucket: $action\n'
+        'net:${NetworkConfig.currentNetwork}\n'
+        'ts:$timestamp';
+    return _signMessage(authProvider, message, timestamp);
+  }
+
+  Future<void> _unsubscribeNotifications() async {
+    final channel = _notificationChannel;
+    _notificationChannel = null;
+    _notificationWallet = null;
+    if (channel != null) {
+      await Supabase.instance.client.removeChannel(channel);
+    }
+  }
+
+  @override
+  void dispose() {
+    unawaited(_unsubscribeNotifications());
+    super.dispose();
+  }
+
+  Future<_SignedProof> _signMessage(
+    MwaAuthProvider authProvider,
+    String message,
+    int timestamp,
+  ) async {
+    final publicKeyBytes = authProvider.publicKeyBytes;
+    if (publicKeyBytes == null) {
+      throw StateError('Wallet public key is not available.');
+    }
+    final session = await authProvider.createSigningSession();
+    if (session == null) {
+      throw StateError('Could not open wallet signing session.');
+    }
+    try {
+      final result = await session.signMessages(
+        messages: [Uint8List.fromList(utf8.encode(message))],
+        addresses: [publicKeyBytes],
+      );
+      final signed =
+          result.signedMessages.isNotEmpty ? result.signedMessages.first : null;
+      final signatureBytes =
+          signed != null && signed.signatures.isNotEmpty
+              ? signed.signatures.first
+              : null;
+      if (signatureBytes == null) {
+        throw StateError('Wallet did not sign the message.');
+      }
+      return _SignedProof(
+        timestamp: timestamp,
+        signature: base58encode(signatureBytes),
+      );
+    } finally {
+      await session.close();
+    }
+  }
+}
+
+class _SignedProof {
+  final int timestamp;
+  final String signature;
+
+  const _SignedProof({required this.timestamp, required this.signature});
 }

@@ -1,7 +1,11 @@
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
+import 'package:chumbucket/features/arena/data/arena_models.dart';
+import 'package:chumbucket/features/arena/presentation/screens/my_pots_screen.dart';
+import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:intl/intl.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/features/profile/providers/profile_provider.dart';
@@ -11,9 +15,17 @@ import 'package:chumbucket/features/profile/presentation/screens/edit_profile_sc
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_header.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_wallet_card.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_settings_sheet.dart';
+import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  final bool embedded;
+  final VoidCallback? onOpenChallenges;
+
+  const ProfileScreen({
+    super.key,
+    this.embedded = false,
+    this.onOpenChallenges,
+  });
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -97,11 +109,21 @@ class _ProfileScreenState extends State<ProfileScreen>
         }
       }
 
+      if (!mounted) return;
       final walletProvider = Provider.of<MwaWalletProvider>(
         context,
         listen: false,
       );
       walletProvider.refreshWalletBalance();
+
+      final wallet = authProvider.walletAddress;
+      if (wallet != null && mounted) {
+        final arena = context.read<ArenaProvider>();
+        await Future.wait([
+          arena.loadMyPots(walletAddress: wallet),
+          arena.loadProfile(targetWallet: wallet, viewerWallet: wallet),
+        ]);
+      }
     } catch (e) {
       debugPrint('❌ Error loading profile: $e');
     }
@@ -126,99 +148,249 @@ class _ProfileScreenState extends State<ProfileScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16.w),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: IntrinsicHeight(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          mainAxisSize: MainAxisSize.max,
-                          children: [
-                            SizedBox(height: 16.h),
-
-                            // Top navigation bar
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                // Settings button
-                                IconButton(
-                                  onPressed:
-                                      () => showProfileSettingsSheet(context),
-                                  icon: Icon(
-                                    PhosphorIcons.gearSix(),
-                                    size: 30.w,
-                                    color: const Color(0xFFFF5A76),
-                                  ),
-                                ),
-
-                                // Close button
-                                IconButton(
-                                  onPressed: () => Navigator.of(context).pop(),
-                                  icon: PhosphorIcon(
-                                    PhosphorIcons.xCircle(),
-                                    size: 33.w,
-                                    color: Colors.grey.shade600,
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            // Profile Header
-                            ProfileHeader(
-                              username: _username,
-                              bio: _bio,
-                              onEditProfile: _onEditProfile,
-                            ),
-
-                            SizedBox(height: 20.h),
-
-                            // Wallet Balance Card
-                            ProfileWalletCard(),
-                          ],
-                        ),
-
-                        Spacer(),
-
-                        // Footer
-                        Center(
-                          child: Text.rich(
-                            TextSpan(
-                              text: 'Chum Bucket v0.0.1 • ',
-                              style: TextStyle(
-                                fontSize: 14.sp,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.grey.shade500,
-                              ),
-                              children: [
-                                TextSpan(
-                                  text: 'Privacy Policy',
-                                  style: TextStyle(
-                                    fontSize: 14.sp,
-                                    height: 1.5,
-                                    color: const Color(0xFFFF5A76),
-                                    decoration: TextDecoration.underline,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
+        bottom: false,
+        child: RefreshIndicator(
+          color: AppColors.primary,
+          onRefresh: _loadProfileData,
+          child: ListView(
+            key: const PageStorageKey('profile-root'),
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(
+              20.w,
+              12.h,
+              20.w,
+              widget.embedded ? 112.h : 32.h,
+            ),
+            children: [
+              Row(
+                children: [
+                  IconButton(
+                    tooltip: 'Settings',
+                    onPressed: () => showProfileSettingsSheet(context),
+                    icon: Icon(
+                      PhosphorIcons.gearSix(),
+                      size: 28.w,
+                      color: AppColors.primary,
                     ),
                   ),
+                  const Spacer(),
+                  if (!widget.embedded)
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: PhosphorIcon(
+                        PhosphorIcons.xCircle(),
+                        size: 30.w,
+                        color: AppColors.textSecondary,
+                      ),
+                    )
+                  else
+                    SizedBox(width: 48.w),
+                ],
+              ),
+              ProfileHeader(
+                username: _username,
+                bio: _bio,
+                onEditProfile: _onEditProfile,
+              ),
+              SizedBox(height: 20.h),
+              const ProfileWalletCard(),
+              SizedBox(height: 24.h),
+              Consumer2<ArenaProvider, MwaAuthProvider>(
+                builder: (context, arena, auth, _) {
+                  final wallet = auth.walletAddress;
+                  final profile =
+                      wallet == null ? null : arena.cachedProfile(wallet);
+                  return _PredictionSummary(profile: profile);
+                },
+              ),
+              SizedBox(height: 24.h),
+              Text(
+                'Your activity',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.w700,
                 ),
-              );
-            },
+              ),
+              SizedBox(height: 12.h),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20.r),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: [
+                    Consumer<ArenaProvider>(
+                      builder:
+                          (context, arena, _) => _ProfileActionRow(
+                            icon: PhosphorIconsRegular.broadcast,
+                            title: 'Prediction history',
+                            detail:
+                                '${arena.myPots.length} ${arena.myPots.length == 1 ? 'position' : 'positions'}',
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const MyPotsScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                    ),
+                    Divider(
+                      height: 1,
+                      indent: 16.w,
+                      endIndent: 16.w,
+                      color: AppColors.divider,
+                    ),
+                    Consumer<ChallengeStateProvider>(
+                      builder:
+                          (context, challengeState, _) => _ProfileActionRow(
+                            icon: PhosphorIconsRegular.usersThree,
+                            title: 'Challenge history',
+                            detail:
+                                '${challengeState.challenges.length} ${challengeState.challenges.length == 1 ? 'challenge' : 'challenges'}',
+                            onTap: widget.onOpenChallenges,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 34.h),
+              Center(
+                child: Text(
+                  'Chum Bucket v0.0.1',
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textTertiary,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
+}
+
+class _PredictionSummary extends StatelessWidget {
+  final ArenaSocialProfile? profile;
+
+  const _PredictionSummary({required this.profile});
+
+  @override
+  Widget build(BuildContext context) {
+    final stats = profile?.stats;
+    final calls = stats?.callsMade ?? 0;
+    final winRate = stats?.winRate ?? 0.0;
+    final pnl = stats?.pnlBaseUnits ?? BigInt.zero;
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 18.h),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20.r),
+      ),
+      child: Row(
+        children: [
+          _SummaryStat(label: 'Calls', value: '$calls'),
+          _SummaryStat(label: 'Win rate', value: '${(winRate * 100).round()}%'),
+          _SummaryStat(
+            label: 'PnL',
+            value: _formatPnl(pnl),
+            color:
+                pnl > BigInt.zero
+                    ? AppColors.success
+                    : pnl < BigInt.zero
+                    ? AppColors.error
+                    : AppColors.textSecondary,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color? color;
+
+  const _SummaryStat({required this.label, required this.value, this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: color ?? AppColors.textPrimary,
+              fontSize: 16.sp,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          SizedBox(height: 4.h),
+          Text(
+            label,
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 11.sp),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileActionRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String detail;
+  final VoidCallback? onTap;
+
+  const _ProfileActionRow({
+    required this.icon,
+    required this.title,
+    required this.detail,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      onTap: onTap,
+      contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 4.h),
+      leading: Container(
+        width: 42.w,
+        height: 42.w,
+        decoration: const BoxDecoration(
+          color: AppColors.primaryContainer,
+          shape: BoxShape.circle,
+        ),
+        child: PhosphorIcon(icon, color: AppColors.primary, size: 20.w),
+      ),
+      title: Text(
+        title,
+        style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
+      ),
+      subtitle: Text(
+        detail,
+        style: TextStyle(color: AppColors.textSecondary, fontSize: 11.sp),
+      ),
+      trailing: const PhosphorIcon(
+        PhosphorIconsRegular.caretRight,
+        color: AppColors.textTertiary,
+      ),
+    );
+  }
+}
+
+String _formatPnl(BigInt baseUnits) {
+  final amount = baseUnits.toDouble() / 1000000;
+  final sign = amount > 0 ? '+' : '';
+  return '$sign${NumberFormat.compactCurrency(symbol: '\$', decimalDigits: 1).format(amount)}';
 }

@@ -11,12 +11,14 @@ import 'package:chumbucket/features/authentication/presentation/screens/mwa_logi
 import 'package:chumbucket/features/profile/presentation/screens/widgets/menu_tile.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_buttons.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_settings_sheet.dart';
+import 'package:chumbucket/features/profile/presentation/screens/widgets/identity_link_sheet.dart';
 import 'package:chumbucket/features/profile/providers/profile_provider.dart';
 import 'package:chumbucket/features/authentication/providers/onboarding_provider.dart';
 import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
 import 'package:chumbucket/core/services/chat_service.dart';
 import 'package:chumbucket/core/services/realtime_service.dart';
 import 'package:chumbucket/core/services/app_lifecycle_service.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'dart:ui';
 import 'dart:io';
 
@@ -90,6 +92,13 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
             subtitle: "Get help when you need it",
             onTap: () => _openSupport(context),
             iconColor: Colors.blue,
+          ),
+          MenuTile(
+            icon: CupertinoIcons.person_crop_circle_badge_plus,
+            title: "Link Google or X",
+            subtitle: "Put a name behind your calls",
+            onTap: () => _showIdentityLink(context),
+            iconColor: Theme.of(context).colorScheme.primary,
           ),
           MenuTile(
             icon: CupertinoIcons.delete_solid,
@@ -229,5 +238,18 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
         );
       }
     }
+  }
+
+  void _showIdentityLink(BuildContext context) {
+    final navigator = Navigator.of(context);
+    final hostContext = navigator.context;
+    navigator.pop();
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (!hostContext.mounted) return;
+      showChumbucketWavySheet<void>(
+        context: hostContext,
+        builder: (_) => const IdentityLinkSheet(),
+      );
+    });
   }
 }

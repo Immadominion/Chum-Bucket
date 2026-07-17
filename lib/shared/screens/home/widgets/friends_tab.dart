@@ -19,6 +19,8 @@ class FriendsTab extends StatefulWidget {
   final VoidCallback
   onViewAllChallenges; // New callback for viewing all challenges
   final Function(Map<String, dynamic>, bool) onMarkChallengeCompleted;
+  final bool showChallengesPreview;
+  final double bottomPadding;
 
   const FriendsTab({
     super.key,
@@ -27,6 +29,8 @@ class FriendsTab extends StatefulWidget {
     required this.buildViewMoreItem,
     required this.onViewAllChallenges,
     required this.onMarkChallengeCompleted,
+    this.showChallengesPreview = true,
+    this.bottomPadding = 0,
   });
   @override
   State<FriendsTab> createState() => _FriendsTabState();
@@ -325,65 +329,64 @@ class _FriendsTabState extends State<FriendsTab>
               ],
             ),
           ),
-          SizedBox(height: 24.h),
-          Stack(
-            children: [
-              Center(
-                child: Opacity(
-                  opacity: 0.9,
-                  child: Text(
-                    'Challenges',
-                    style: TextStyle(
-                      fontSize: 22.sp,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey,
+          if (widget.showChallengesPreview) ...[
+            SizedBox(height: 24.h),
+            Stack(
+              children: [
+                Center(
+                  child: Opacity(
+                    opacity: 0.9,
+                    child: Text(
+                      'Challenges',
+                      style: TextStyle(
+                        fontSize: 22.sp,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              Positioned(
-                right: 0,
-                top: -2,
-                // bottom: 0,
-                child: GestureDetector(
-                  onTap: widget.onViewAllChallenges,
-                  child: Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: 16.w,
-                      vertical: 8.h,
-                    ),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20.r),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'View All',
-                          style: TextStyle(
-                            fontSize: 14.sp,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey.shade700,
+                Positioned(
+                  right: 0,
+                  top: -2,
+                  child: GestureDetector(
+                    onTap: widget.onViewAllChallenges,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 16.w,
+                        vertical: 8.h,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'View All',
+                            style: TextStyle(
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade700,
+                            ),
                           ),
-                        ),
-                        SizedBox(width: 4.w),
-                        PhosphorIcon(
-                          PhosphorIconsRegular.arrowRight,
-                          color: Colors.grey.shade700,
-                          size: 18.sp,
-                        ),
-                      ],
+                          SizedBox(width: 4.w),
+                          PhosphorIcon(
+                            PhosphorIconsRegular.arrowRight,
+                            color: Colors.grey.shade700,
+                            size: 18.sp,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          SizedBox(height: 12.h),
-          ChallengesPreview(
-            onViewAll: widget.onViewAllChallenges,
-            onMarkChallengeCompleted: widget.onMarkChallengeCompleted,
-          ),
+              ],
+            ),
+            SizedBox(height: 12.h),
+            ChallengesPreview(
+              onViewAll: widget.onViewAllChallenges,
+              onMarkChallengeCompleted: widget.onMarkChallengeCompleted,
+            ),
+          ],
+          SizedBox(height: widget.bottomPadding.h),
         ],
       ),
     );

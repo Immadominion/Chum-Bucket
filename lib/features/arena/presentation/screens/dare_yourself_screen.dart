@@ -97,6 +97,7 @@ class _DareYourselfScreenState extends State<DareYourselfScreen> {
         match: widget.match,
         bucket: _selectedBucket!,
         amountUsdc: _amount,
+        authProvider: Provider.of<MwaAuthProvider>(context, listen: false),
       );
       if (!mounted) return;
       SnackBarUtils.showSuccess(
