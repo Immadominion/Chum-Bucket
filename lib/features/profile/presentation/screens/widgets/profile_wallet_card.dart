@@ -10,7 +10,6 @@ import 'package:chumbucket/core/utils/base_change_notifier.dart'
     show LoadingState;
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/wallet_modal.dart';
-import 'package:chumbucket/features/profile/presentation/screens/widgets/send_sol_sheet.dart';
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
 
 /// Redesigned wallet balance card following the app's design system
@@ -166,74 +165,25 @@ class ProfileWalletCard extends StatelessWidget {
                             Spacer(),
                           ],
                         ),
-                      SizedBox(height: 8.h),
-                      Text(
-                        "All funds are stored in Solana. Amount may fluctuate.",
-                        style: TextStyle(
-                          fontSize: 12.sp,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey.shade500,
-                        ),
-                      ),
                     ],
                   ),
 
                   SizedBox(height: 20.h),
 
-                  // Action buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ChallengeButton(
-                          createNewChallenge: () => showSendSolSheet(context),
-                          label: 'Withdraw',
-                        ),
-                      ),
-                      SizedBox(width: 12.w),
-                      Expanded(
-                        child: _buildSecondaryButton(
-                          'Add SOL',
-                          () => showWalletModal(context),
-                        ),
-                      ),
-                    ],
+                  // Withdraw doesn't apply here — this is the player's own
+                  // MWA-connected wallet, not a custodied balance the app
+                  // could hold back. That flow existed from an earlier
+                  // custodial-wallet model; only Add SOL (topping up their
+                  // own wallet) is a real action from this card now.
+                  ChallengeButton(
+                    createNewChallenge: () => showWalletModal(context),
+                    label: 'Add SOL',
                   ),
                 ],
               );
             },
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildSecondaryButton(String text, VoidCallback onPressed) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16.r),
-        color: Colors.grey.shade100,
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          elevation: 0,
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16.r),
-          ),
-          padding: EdgeInsets.symmetric(vertical: 14.h),
-        ),
-        child: Text(
-          text,
-          style: TextStyle(
-            fontSize: 16.sp,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey.shade700,
-          ),
-        ),
       ),
     );
   }

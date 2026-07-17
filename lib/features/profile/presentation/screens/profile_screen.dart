@@ -163,6 +163,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
             children: [
               Row(
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   IconButton(
                     tooltip: 'Settings',
@@ -173,7 +174,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                       color: AppColors.primary,
                     ),
                   ),
-                  const Spacer(),
                   if (!widget.embedded)
                     IconButton(
                       tooltip: 'Close',
@@ -183,9 +183,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                         size: 30.w,
                         color: AppColors.textSecondary,
                       ),
-                    )
-                  else
-                    SizedBox(width: 48.w),
+                    ),
                 ],
               ),
               ProfileHeader(
@@ -276,6 +274,10 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 }
 
+// Plain inline stat row — no card chrome. The wallet balance above and the
+// "Your activity" list below are already white cards; a third white box in
+// between just reads as more of the same rather than as its own thing.
+// Thin dividers give it separation without another rounded rectangle.
 class _PredictionSummary extends StatelessWidget {
   final ArenaSocialProfile? profile;
 
@@ -287,29 +289,33 @@ class _PredictionSummary extends StatelessWidget {
     final calls = stats?.callsMade ?? 0;
     final winRate = stats?.winRate ?? 0.0;
     final pnl = stats?.pnlBaseUnits ?? BigInt.zero;
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 18.h),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20.r),
-      ),
-      child: Row(
-        children: [
-          _SummaryStat(label: 'Calls', value: '$calls'),
-          _SummaryStat(label: 'Win rate', value: '${(winRate * 100).round()}%'),
-          _SummaryStat(
-            label: 'PnL',
-            value: _formatPnl(pnl),
-            color:
-                pnl > BigInt.zero
-                    ? AppColors.success
-                    : pnl < BigInt.zero
-                    ? AppColors.error
-                    : AppColors.textSecondary,
-          ),
-        ],
-      ),
+    return Row(
+      children: [
+        _SummaryStat(label: 'Calls', value: '$calls'),
+        const _StatDivider(),
+        _SummaryStat(label: 'Win rate', value: '${(winRate * 100).round()}%'),
+        const _StatDivider(),
+        _SummaryStat(
+          label: 'PnL',
+          value: _formatPnl(pnl),
+          color:
+              pnl > BigInt.zero
+                  ? AppColors.success
+                  : pnl < BigInt.zero
+                  ? AppColors.error
+                  : AppColors.textSecondary,
+        ),
+      ],
     );
+  }
+}
+
+class _StatDivider extends StatelessWidget {
+  const _StatDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(width: 1, height: 32.h, color: AppColors.divider);
   }
 }
 

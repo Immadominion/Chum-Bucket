@@ -131,7 +131,10 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
                 SliverPadding(
                   padding: EdgeInsets.fromLTRB(20.w, 4.h, 20.w, 0),
                   sliver: SliverToBoxAdapter(
-                    child: ChumbucketAppHeader(onProfileTap: widget.onProfileTap),
+                    child: ChumbucketAppHeader(
+                      title: 'Home',
+                      onProfileTap: widget.onProfileTap,
+                    ),
                   ),
                 ),
                 if (arena.claimablePositions.isNotEmpty)
