@@ -3,7 +3,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
@@ -17,6 +16,7 @@ import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class ArenaActivityScreen extends StatefulWidget {
   const ArenaActivityScreen({super.key});
@@ -211,10 +211,7 @@ class _ArenaActivityScreenState extends State<ArenaActivityScreen> {
           ),
           IconButton(
             tooltip: 'Refresh',
-            icon: PhosphorIcon(
-              PhosphorIcons.arrowsClockwise(),
-              color: AppColors.textPrimary,
-            ),
+            icon: BasilIcon('refresh-outline', color: AppColors.textPrimary),
             onPressed: _loadInitial,
           ),
         ],
@@ -268,7 +265,7 @@ class _ArenaActivityScreenState extends State<ArenaActivityScreen> {
                   SliverFillRemaining(
                     hasScrollBody: false,
                     child: _FeedStateMessage(
-                      icon: Icons.cloud_off_outlined,
+                      icon: 'cloud-off-outline',
                       title: 'Could not load calls',
                       subtitle: arena.activityError!,
                       actionLabel: 'Try again',
@@ -289,7 +286,7 @@ class _ArenaActivityScreenState extends State<ArenaActivityScreen> {
                   SliverFillRemaining(
                     hasScrollBody: false,
                     child: _FeedStateMessage(
-                      icon: Icons.dynamic_feed_outlined,
+                      icon: 'stack-outline',
                       title:
                           arena.feedMode == ArenaFeedMode.following
                               ? 'Your following feed is quiet'
@@ -357,8 +354,8 @@ class _NotificationBell extends StatelessWidget {
         label: Text(unreadCount > 9 ? '9+' : '$unreadCount'),
         backgroundColor: AppColors.primary,
         textColor: Colors.white,
-        child: Icon(
-          Icons.notifications_none_outlined,
+        child: BasilIcon(
+          'notification-outline',
           color: AppColors.textPrimary,
         ),
       ),
@@ -414,8 +411,8 @@ class _ClaimableBanner extends StatelessWidget {
                 color: Colors.white,
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                Icons.account_balance_wallet_outlined,
+              child: BasilIcon(
+                'wallet-outline',
                 color: AppColors.success,
                 size: 22.sp,
               ),
@@ -451,7 +448,11 @@ class _ClaimableBanner extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(Icons.chevron_right, color: AppColors.success, size: 22.sp),
+            BasilIcon(
+              'caret-right-outline',
+              color: AppColors.success,
+              size: 22.sp,
+            ),
           ],
         ),
       ),
@@ -487,8 +488,8 @@ class _ClaimableRetry extends StatelessWidget {
     ),
     child: Row(
       children: [
-        Icon(
-          Icons.cloud_off_outlined,
+        BasilIcon(
+          'cloud-off-outline',
           size: 18.sp,
           color: AppColors.textSecondary,
         ),
@@ -710,8 +711,8 @@ class _HotCallerChip extends StatelessWidget {
                     child: const CircularProgressIndicator(strokeWidth: 2),
                   )
                 else
-                  Icon(
-                    Icons.local_fire_department,
+                  BasilIcon(
+                    'fire-outline',
                     size: 16.sp,
                     color: AppColors.primary,
                   ),
@@ -924,7 +925,7 @@ class _PredictionFeedCard extends StatelessWidget {
                   child: IconButton(
                     tooltip: 'Open profile',
                     onPressed: onProfileTap,
-                    icon: const PhosphorIcon(PhosphorIconsRegular.user),
+                    icon: const BasilIcon('user-outline'),
                     color: AppColors.textPrimary,
                   ),
                 ),
@@ -1474,8 +1475,8 @@ class _CallerAvatar extends StatelessWidget {
               (_, __, ___) => Container(
                 color: AppColors.primaryContainer,
                 alignment: Alignment.center,
-                child: PhosphorIcon(
-                  PhosphorIcons.user(),
+                child: BasilIcon(
+                  'user-outline',
                   size: size * 0.48,
                   color: AppColors.primary,
                 ),
@@ -1487,7 +1488,7 @@ class _CallerAvatar extends StatelessWidget {
 }
 
 class _FeedStateMessage extends StatelessWidget {
-  final IconData icon;
+  final String icon;
   final String title;
   final String subtitle;
   final String actionLabel;
@@ -1508,7 +1509,7 @@ class _FeedStateMessage extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 42.sp, color: AppColors.textTertiary),
+          BasilIcon(icon, size: 42.sp, color: AppColors.textTertiary),
           SizedBox(height: 12.h),
           Text(
             title,

@@ -2,13 +2,13 @@ import 'package:chumbucket/shared/screens/home/widgets/challenges_tab.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
 import 'package:chumbucket/shared/utils/challenge_status_utils.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'resolve_challenge_sheet.dart';
 
 class ChallengesPreview extends StatefulWidget {
@@ -207,7 +207,7 @@ class _ChallengesPreviewState extends State<ChallengesPreview>
       ),
       child: Row(
         children: [
-          PhosphorIcon(statusIcon, size: 18.w, color: statusColor),
+          BasilIcon(statusIcon, size: 18.w, color: statusColor),
           SizedBox(width: 12.w),
           // Challenge info
           Expanded(
@@ -258,8 +258,8 @@ class _ChallengesPreviewState extends State<ChallengesPreview>
             ),
           ),
           SizedBox(width: 8.w),
-          PhosphorIcon(
-            PhosphorIconsRegular.caretRight,
+          BasilIcon(
+            'caret-right-outline',
             color: Colors.grey.shade400,
             size: 24.sp,
           ),

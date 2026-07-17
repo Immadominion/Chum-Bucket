@@ -4,7 +4,7 @@ import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/shared/screens/home/home.dart';
 import 'package:chumbucket/features/authentication/providers/onboarding_provider.dart';
@@ -156,8 +156,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         leading:
             widget.showCancelIcon
                 ? IconButton(
-                  icon: Icon(
-                    PhosphorIcons.xCircle(),
+                  icon: BasilIcon(
+                    'cancel-outline',
                     color: Theme.of(context).colorScheme.primary,
                     size: 33.w,
                   ),

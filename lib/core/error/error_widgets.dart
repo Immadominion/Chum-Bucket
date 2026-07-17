@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import '../error/error_handler.dart';
 
 /// Error boundary widget that catches and handles widget tree errors
@@ -134,7 +135,7 @@ class DefaultErrorWidget extends StatelessWidget {
             SizedBox(height: 24.h),
             ElevatedButton.icon(
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
+              icon: const BasilIcon('refresh-outline'),
               label: const Text('Try Again'),
             ),
           ],
@@ -224,7 +225,7 @@ class NetworkErrorWidget extends StatelessWidget {
             SizedBox(height: 24.h),
             ElevatedButton.icon(
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
+              icon: const BasilIcon('refresh-outline'),
               label: const Text('Try Again'),
             ),
           ],
@@ -273,7 +274,7 @@ class LoadingErrorWidget extends StatelessWidget {
             SizedBox(height: 16.h),
             TextButton.icon(
               onPressed: onRetry,
-              icon: Icon(Icons.refresh, size: 16.w),
+              icon: BasilIcon('refresh-outline', size: 16.w),
               label: const Text('Retry'),
             ),
           ],

@@ -1,6 +1,6 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class MenuTile extends StatelessWidget {
   final IconData icon;
@@ -72,8 +72,8 @@ class MenuTile extends StatelessWidget {
                   ),
                 )
                 : null,
-        trailing: Icon(
-          CupertinoIcons.chevron_right,
+        trailing: BasilIcon(
+          'caret-right-outline',
           size: 16.sp,
           color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
         ),

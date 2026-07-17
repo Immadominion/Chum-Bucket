@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
@@ -14,6 +13,7 @@ import 'package:chumbucket/features/arena/presentation/widgets/arena_format.dart
 import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_tabs.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class CallsScreen extends StatefulWidget {
   const CallsScreen({super.key});
@@ -192,7 +192,7 @@ class _CallsScreenState extends State<CallsScreen>
                   SliverFillRemaining(
                     hasScrollBody: false,
                     child: _CallsState(
-                      icon: Icons.cloud_off_outlined,
+                      icon: 'cloud-off-outline',
                       title: 'Could not load calls',
                       detail: 'Pull down or try again.',
                       action: _load,
@@ -211,7 +211,7 @@ class _CallsScreenState extends State<CallsScreen>
                   SliverFillRemaining(
                     hasScrollBody: false,
                     child: _CallsState(
-                      icon: PhosphorIconsRegular.broadcast,
+                      icon: 'hotspot-outline',
                       title:
                           arena.feedMode == ArenaFeedMode.following
                               ? 'Your following feed is quiet'
@@ -274,8 +274,8 @@ class _NotificationButton extends StatelessWidget {
         isLabelVisible: count > 0,
         label: Text(count > 9 ? '9+' : '$count'),
         backgroundColor: AppColors.primary,
-        child: const PhosphorIcon(
-          PhosphorIconsRegular.bell,
+        child: const BasilIcon(
+          'notification-outline',
           color: AppColors.textPrimary,
         ),
       ),
@@ -486,8 +486,8 @@ class _CompactCallToo extends StatelessWidget {
                   ),
                 )
               else
-                PhosphorIcon(
-                  PhosphorIconsFill.broadcast,
+                BasilIcon(
+                  'hotspot-solid',
                   color: Colors.white,
                   size: 13.sp,
                 ),
@@ -509,7 +509,7 @@ class _CompactCallToo extends StatelessWidget {
 }
 
 class _CallsState extends StatelessWidget {
-  final IconData icon;
+  final String icon;
   final String title;
   final String detail;
   final VoidCallback action;
@@ -529,7 +529,7 @@ class _CallsState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            PhosphorIcon(icon, size: 40.w, color: AppColors.textTertiary),
+            BasilIcon(icon, size: 40.w, color: AppColors.textTertiary),
             SizedBox(height: 12.h),
             Text(
               title,

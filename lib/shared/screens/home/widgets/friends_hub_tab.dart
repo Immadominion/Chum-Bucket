@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
@@ -11,6 +10,7 @@ import 'package:chumbucket/features/arena/presentation/widgets/arena_format.dart
 import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/friends_tab.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_tabs.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class FriendsHubTab extends StatefulWidget {
   final int refreshKey;
@@ -111,8 +111,8 @@ class _Leaderboard extends StatelessWidget {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: EdgeInsets.fromLTRB(32.w, 100.h, 32.w, 112.h),
             children: [
-              const PhosphorIcon(
-                PhosphorIconsRegular.trophy,
+              const BasilIcon(
+                'award-outline',
                 size: 42,
                 color: AppColors.textTertiary,
               ),

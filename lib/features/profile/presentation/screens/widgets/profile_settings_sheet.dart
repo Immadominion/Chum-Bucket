@@ -3,7 +3,6 @@ import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'dart:ui';
 import 'dart:io';
@@ -15,6 +14,7 @@ import 'package:chumbucket/features/authentication/presentation/screens/mwa_logi
 import 'package:chumbucket/core/services/chat_service.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/identity_link_sheet.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 /// Settings modal sheet following the app's design conventions
 class ProfileSettingsSheet extends StatelessWidget {
@@ -143,7 +143,7 @@ class ProfileSettingsSheet extends StatelessWidget {
                           // wallet is connected via MWA (Mobile Wallet Adapter)
                           // Users manage their keys in their wallet app (Phantom, etc.)
                           ProfileMenuItem(
-                            icon: PhosphorIcons.star(),
+                            basilIcon: 'star-outline',
                             title: 'Rate Chum Bucket',
                             subtitle: 'Share your experience',
                             iconColor: Colors.amber,
@@ -151,7 +151,7 @@ class ProfileSettingsSheet extends StatelessWidget {
                           ),
 
                           ProfileMenuItem(
-                            icon: PhosphorIcons.question(),
+                            icon: Icons.help_outline,
                             title: 'Talk To Support',
                             subtitle: 'Get help when you need it',
                             iconColor: Colors.blue,
@@ -160,7 +160,7 @@ class ProfileSettingsSheet extends StatelessWidget {
                           ),
 
                           ProfileMenuItem(
-                            icon: PhosphorIcons.user(),
+                            basilIcon: 'user-outline',
                             title: 'Link Google or X',
                             subtitle: 'Put a name behind your calls',
                             iconColor: AppColors.primary,
@@ -168,7 +168,7 @@ class ProfileSettingsSheet extends StatelessWidget {
                           ),
 
                           ProfileMenuItem(
-                            icon: PhosphorIcons.trash(),
+                            basilIcon: 'trash-outline',
                             title: 'Delete Your Account',
                             subtitle: 'Permanently remove your account',
                             isDanger: true,
@@ -324,7 +324,7 @@ class _WalletExportWarningSheetState extends State<WalletExportWarningSheet> {
                           SizedBox(height: 24.h),
                           // Warning icon
                           Icon(
-                            PhosphorIcons.smileyNervous(),
+                            Icons.sentiment_dissatisfied,
                             size: 80.w,
                             color: AppColors.challengeFailed,
                           ),
@@ -596,8 +596,8 @@ class WalletCopySheet extends StatelessWidget {
                           ),
                           SizedBox(height: 24.h),
                           // Copy icon
-                          Icon(
-                            PhosphorIcons.copy(),
+                          BasilIcon(
+                            'copy-outline',
                             size: 80.w,
                             color: Colors.white,
                           ),
@@ -801,8 +801,8 @@ class WalletExportNotAvailableSheet extends StatelessWidget {
                           ),
                           SizedBox(height: 24.h),
                           // Info icon
-                          Icon(
-                            PhosphorIcons.info(),
+                          BasilIcon(
+                            'info-circle-outline',
                             size: 80.w,
                             color: Colors.white,
                           ),

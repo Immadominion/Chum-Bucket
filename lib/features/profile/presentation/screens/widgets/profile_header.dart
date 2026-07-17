@@ -1,7 +1,7 @@
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:provider/provider.dart';
 // MWA Auth Provider for wallet-based authentication
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
@@ -52,8 +52,8 @@ class ProfileHeader extends StatelessWidget {
                   return CircleAvatar(
                     radius: 45.w,
                     backgroundColor: Colors.black.withOpacity(0.2),
-                    child: Icon(
-                      PhosphorIcons.user(),
+                    child: BasilIcon(
+                      'user-outline',
                       size: 50.w,
                       color: Colors.black,
                     ),
@@ -93,8 +93,8 @@ class ProfileHeader extends StatelessWidget {
                                     : null,
                             child:
                                 !snapshot.hasData || snapshot.data == null
-                                    ? Icon(
-                                      PhosphorIcons.user(),
+                                    ? BasilIcon(
+                                      'user-outline',
                                       size: 50.w,
                                       color: Colors.black,
                                     )
@@ -114,8 +114,8 @@ class ProfileHeader extends StatelessWidget {
                                   width: 2.w,
                                 ),
                               ),
-                              child: Icon(
-                                PhosphorIcons.pencilSimple(),
+                              child: BasilIcon(
+                                'edit-outline',
                                 color: Colors.white,
                                 size: 16.w,
                               ),

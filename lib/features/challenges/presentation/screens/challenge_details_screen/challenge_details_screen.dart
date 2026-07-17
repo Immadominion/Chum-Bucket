@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/widgets/friend_avatar.dart';
 import 'package:chumbucket/widgets/wavy_container.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class ChallengeDetailsScreen extends StatefulWidget {
   final String friendName;
@@ -98,7 +99,7 @@ class _ChallengeDetailsScreenState extends State<ChallengeDetailsScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           IconButton(
-            icon: Icon(Icons.arrow_back, size: 24.sp),
+            icon: BasilIcon('caret-left-outline', size: 24.sp),
             onPressed: () => Navigator.pop(context),
           ),
           const Spacer(),

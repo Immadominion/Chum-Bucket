@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -10,6 +9,7 @@ import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class IdentityLinkSheet extends StatefulWidget {
   const IdentityLinkSheet({super.key});
@@ -60,10 +60,7 @@ class _IdentityLinkSheetState extends State<IdentityLinkSheet> {
                   arena.isLinkingIdentity
                       ? null
                       : () => Navigator.of(context).pop(),
-              icon: const PhosphorIcon(
-                PhosphorIconsRegular.xCircle,
-                color: Colors.white,
-              ),
+              icon: const BasilIcon('cancel-outline', color: Colors.white),
             ),
             body: SingleChildScrollView(
               padding: EdgeInsets.fromLTRB(20.w, 10.h, 20.w, 24.h),
@@ -184,12 +181,19 @@ class _IdentityProviderOption extends StatelessWidget {
                   ],
                 ),
               ),
-              PhosphorIcon(
-                selected
-                    ? PhosphorIconsFill.checkCircle
-                    : PhosphorIconsRegular.circle,
-                color: selected ? AppColors.primary : AppColors.textTertiary,
-              ),
+              selected
+                  ? BasilIcon('check-solid', color: AppColors.primary)
+                  : Container(
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppColors.textTertiary,
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
             ],
           ),
         ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class AnimatedOnboardingImage extends StatelessWidget {
   final String illustration;
@@ -143,7 +144,7 @@ class AnimatedOnboardingImage extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.image_not_supported, size: 64.w, color: Colors.white),
+            BasilIcon('image-outline', size: 64.w, color: Colors.white),
             SizedBox(height: 8.h),
             Text(
               "Image not available",

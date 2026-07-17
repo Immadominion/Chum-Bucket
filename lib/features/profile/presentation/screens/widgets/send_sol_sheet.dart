@@ -1,7 +1,7 @@
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:provider/provider.dart';
 // MWA Wallet Provider for Pinocchio program integration
 import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
@@ -261,8 +261,8 @@ class _SendSolSheetState extends State<SendSolSheet> {
                               color: Colors.white.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(18.r),
                             ),
-                            child: Icon(
-                              PhosphorIcons.paperPlaneTilt(),
+                            child: BasilIcon(
+                              'send-outline',
                               size: 32.w,
                               color: Colors.white,
                             ),

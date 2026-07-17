@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/core/config/network_config.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 /// Bottom section of the resolve challenge sheet containing the challenge text
 /// and action buttons for completing or failing the challenge.
@@ -96,8 +96,8 @@ class ResolveSheetContent extends StatelessWidget {
               SizedBox(height: 12.h),
               TextButton.icon(
                 onPressed: () => _openExplorer(context),
-                icon: PhosphorIcon(
-                  PhosphorIconsRegular.arrowSquareOut,
+                icon: BasilIcon(
+                  'share-box-outline',
                   size: 18.w,
                   color: Colors.blue.shade600,
                 ),
@@ -148,8 +148,8 @@ class ResolveSheetContent extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    PhosphorIcon(
-                      PhosphorIconsRegular.hourglass,
+                    BasilIcon(
+                      'sand-watch-outline',
                       color: Colors.orange.shade600,
                       size: 20.w,
                     ),
@@ -180,8 +180,8 @@ class ResolveSheetContent extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    PhosphorIcon(
-                      PhosphorIconsRegular.checkCircle,
+                    BasilIcon(
+                      'check-outline',
                       color: Colors.green.shade600,
                       size: 20.w,
                     ),

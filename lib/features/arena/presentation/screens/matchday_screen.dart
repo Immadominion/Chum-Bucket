@@ -16,6 +16,7 @@ import 'package:chumbucket/features/arena/presentation/widgets/arena_format.dart
 import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 /// Arena matchday list - open fixtures with live pot totals per bucket
 /// (HOME/DRAW/AWAY), so a user can see the pool they'd be joining before
@@ -75,10 +76,7 @@ class _MatchdayScreenState extends State<MatchdayScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(
-              Icons.dynamic_feed_outlined,
-              color: Colors.black87,
-            ),
+            icon: const BasilIcon('stack-outline', color: Colors.black87),
             tooltip: 'Activity',
             onPressed: () {
               Navigator.push(
@@ -88,7 +86,7 @@ class _MatchdayScreenState extends State<MatchdayScreen> {
             },
           ),
           IconButton(
-            icon: const Icon(Icons.history, color: Colors.black87),
+            icon: const BasilIcon('history-outline', color: Colors.black87),
             tooltip: 'My Pots',
             onPressed: () {
               Navigator.push(
@@ -120,7 +118,7 @@ class _MatchdayScreenState extends State<MatchdayScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 80.h),
         children: [
-          Icon(Icons.cloud_off, size: 48.sp, color: Colors.grey),
+          BasilIcon('cloud-off-outline', size: 48.sp, color: Colors.grey),
           SizedBox(height: 12.h),
           Text(
             'Could not load matchday.\n${arena.matchdayError}',
@@ -341,8 +339,8 @@ class _MatchSocialProofRow extends StatelessWidget {
                   color: AppColors.primaryContainer,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  Icons.person_add_alt_1,
+                child: BasilIcon(
+                  'user-plus-outline',
                   size: 16.sp,
                   color: AppColors.primary,
                 ),
@@ -395,8 +393,8 @@ class _MatchSocialProofRow extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right,
+            BasilIcon(
+              'caret-right-outline',
               size: 20.sp,
               color: AppColors.textTertiary,
             ),
@@ -764,7 +762,7 @@ class _EmptyCallers extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Icon(Icons.campaign_outlined, size: 34.sp, color: AppColors.primary),
+          BasilIcon('bullhorn-outline', size: 34.sp, color: AppColors.primary),
           SizedBox(height: 10.h),
           Text(
             'No public calls yet',
@@ -873,8 +871,8 @@ class _CallerAvatar extends StatelessWidget {
               (_, __, ___) => Container(
                 color: AppColors.primaryContainer,
                 alignment: Alignment.center,
-                child: Icon(
-                  Icons.person_outline,
+                child: BasilIcon(
+                  'user-outline',
                   size: size * 0.48,
                   color: AppColors.primary,
                 ),

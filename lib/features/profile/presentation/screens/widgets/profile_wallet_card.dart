@@ -2,7 +2,7 @@ import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:provider/provider.dart';
 // MWA Wallet Provider for Pinocchio program integration
 import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
@@ -45,8 +45,8 @@ class ProfileWalletCard extends StatelessWidget {
                   ),
                   borderRadius: BorderRadius.circular(12.r),
                 ),
-                child: Icon(
-                  PhosphorIcons.wallet(),
+                child: BasilIcon(
+                  'wallet-outline',
                   size: 20.w,
                   color: Colors.white,
                 ),
@@ -112,8 +112,8 @@ class ProfileWalletCard extends StatelessWidget {
                         onTap: () {
                           walletProvider.refreshWalletBalance();
                         },
-                        child: Icon(
-                          PhosphorIcons.arrowsClockwise(),
+                        child: BasilIcon(
+                          'refresh-outline',
                           size: 18.w,
                           color: const Color(0xFFFF5A76),
                         ),
@@ -157,8 +157,8 @@ class ProfileWalletCard extends StatelessWidget {
                                   );
                                 }
                               },
-                              child: Icon(
-                                PhosphorIcons.copySimple(),
+                              child: BasilIcon(
+                                'copy-outline',
                                 size: 14.w,
                                 color: Colors.grey.shade600,
                               ),

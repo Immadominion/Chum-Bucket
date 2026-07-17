@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:lottie/lottie.dart';
 import 'package:chumbucket/features/authentication/presentation/screens/widgets/mwa_connect_button.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 /// MWA-based login screen for Solana Mobile compatibility
 /// Replaces the email-based Privy login with wallet connection
@@ -173,8 +174,8 @@ class MwaLoginScreen extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.verified_outlined,
+          BasilIcon(
+            'shield-outline',
             size: 16.sp,
             color: AppColors.solanaGreen,
           ),

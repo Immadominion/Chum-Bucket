@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class SnackBarUtils {
   // Private constructor to prevent instantiation
@@ -279,7 +279,7 @@ class SnackBarUtils {
     BuildContext context, {
     required String title,
     required String subtitle,
-    IconData? icon,
+    String? icon,
     Duration duration = const Duration(seconds: 4),
   }) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -295,8 +295,8 @@ class SnackBarUtils {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(10.r),
                 ),
-                child: Icon(
-                  icon ?? Icons.info_outline,
+                child: BasilIcon(
+                  icon ?? 'info-circle-outline',
                   size: 16.w,
                   color: Colors.blue.shade600,
                 ),
@@ -372,7 +372,8 @@ class SnackBarUtils {
           userWon
               ? 'Congratulations on your victory!'
               : 'Better luck next time!',
-      icon: userWon ? PhosphorIcons.smileyWink() : PhosphorIcons.smileyMeh(),
+      icon:
+          userWon ? Icons.sentiment_satisfied_alt : Icons.sentiment_neutral,
     );
   }
 

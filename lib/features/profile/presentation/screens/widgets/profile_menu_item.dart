@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 /// Individual settings menu item with consistent styling
 class ProfileMenuItem extends StatelessWidget {
-  final IconData icon;
+  /// Basil slug (preferred) or a Material fallback for the rare icon Basil
+  /// doesn't cover — exactly one of the two must be set.
+  final String? basilIcon;
+  final IconData? icon;
   final String title;
   final String? subtitle;
   final VoidCallback onTap;
@@ -13,14 +17,15 @@ class ProfileMenuItem extends StatelessWidget {
 
   const ProfileMenuItem({
     super.key,
-    required this.icon,
+    this.basilIcon,
+    this.icon,
     required this.title,
     this.subtitle,
     required this.onTap,
     this.iconColor,
     this.iconSize,
     this.isDanger = false,
-  });
+  }) : assert(basilIcon != null || icon != null, 'provide basilIcon or icon');
 
   @override
   Widget build(BuildContext context) {
@@ -52,11 +57,18 @@ class ProfileMenuItem extends StatelessWidget {
                     color: effectiveIconColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(25.r),
                   ),
-                  child: Icon(
-                    icon,
-                    size: iconSize ?? 26.w,
-                    color: effectiveIconColor,
-                  ),
+                  child:
+                      basilIcon != null
+                          ? BasilIcon(
+                            basilIcon!,
+                            size: iconSize ?? 26.w,
+                            color: effectiveIconColor,
+                          )
+                          : Icon(
+                            icon,
+                            size: iconSize ?? 26.w,
+                            color: effectiveIconColor,
+                          ),
                 ),
 
                 SizedBox(width: 16.w),
@@ -90,8 +102,8 @@ class ProfileMenuItem extends StatelessWidget {
                 ),
 
                 // Arrow
-                Icon(
-                  Icons.chevron_right,
+                BasilIcon(
+                  'caret-right-outline',
                   size: 18.w,
                   color: Colors.grey.shade400,
                 ),

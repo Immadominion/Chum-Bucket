@@ -3,12 +3,12 @@ import 'package:chumbucket/shared/screens/home/widgets/friends_grid.dart';
 import 'package:chumbucket/shared/screens/home/widgets/view_more_friends_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenges_preview.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/shared/services/unified_database_service.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class FriendsTab extends StatefulWidget {
   final VoidCallback createNewChallenge;
@@ -368,8 +368,8 @@ class _FriendsTabState extends State<FriendsTab>
                             ),
                           ),
                           SizedBox(width: 4.w),
-                          PhosphorIcon(
-                            PhosphorIconsRegular.arrowRight,
+                          BasilIcon(
+                            'arrow-right-outline',
                             color: Colors.grey.shade700,
                             size: 18.sp,
                           ),

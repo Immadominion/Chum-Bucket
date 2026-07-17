@@ -1,4 +1,5 @@
 import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
@@ -6,7 +7,7 @@ class GradientButton extends StatelessWidget {
   final String text;
   final VoidCallback onPressed;
   final List<Color>? gradientColors;
-  final IconData? icon;
+  final String? icon;
 
   const GradientButton({
     Key? key,
@@ -52,8 +53,8 @@ class GradientButton extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (icon != null) ...[
-              Icon(
-                icon,
+              BasilIcon(
+                icon!,
                 size: 20.sp,
                 color: Theme.of(context).colorScheme.onPrimaryContainer,
               ),

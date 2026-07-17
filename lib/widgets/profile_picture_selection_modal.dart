@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/features/profile/providers/profile_provider.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
@@ -291,8 +292,8 @@ class _ProfilePictureSelectionModalState
                                   color: Color(0xFFFF5A76),
                                   shape: BoxShape.circle,
                                 ),
-                                child: Icon(
-                                  Icons.check,
+                                child: BasilIcon(
+                                  'check-outline',
                                   size: 16.r,
                                   color: Colors.white,
                                 ),

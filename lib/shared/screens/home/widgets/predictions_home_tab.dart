@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 
 import 'package:chumbucket/core/config/network_config.dart';
@@ -17,6 +16,7 @@ import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenges_preview.dart';
 import 'package:chumbucket/shared/screens/home/widgets/header.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class PredictionsHomeTab extends StatefulWidget {
   final VoidCallback onProfileTap;
@@ -169,7 +169,7 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
                     padding: EdgeInsets.symmetric(horizontal: 20.w),
                     sliver: SliverToBoxAdapter(
                       child: _HomeState(
-                        icon: PhosphorIconsRegular.broadcast,
+                        basilIcon: 'hotspot-outline',
                         title: 'Markets are taking a moment',
                         detail: 'Pull down to try again.',
                         onTap: _load,
@@ -318,8 +318,8 @@ class _SeeMoreMarketsButton extends StatelessWidget {
                 ),
               ),
               SizedBox(width: 6.w),
-              PhosphorIcon(
-                PhosphorIconsRegular.caretRight,
+              BasilIcon(
+                'caret-right-outline',
                 color: AppColors.primary,
                 size: 16.sp,
               ),
@@ -357,10 +357,7 @@ class _ClaimableStrip extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
                 child: const Center(
-                  child: PhosphorIcon(
-                    PhosphorIconsFill.checkCircle,
-                    color: AppColors.primary,
-                  ),
+                  child: BasilIcon('check-solid', color: AppColors.primary),
                 ),
               ),
               SizedBox(width: 12.w),
@@ -387,10 +384,7 @@ class _ClaimableStrip extends StatelessWidget {
                   ],
                 ),
               ),
-              const PhosphorIcon(
-                PhosphorIconsRegular.caretRight,
-                color: AppColors.primary,
-              ),
+              const BasilIcon('caret-right-outline', color: AppColors.primary),
             ],
           ),
         ),
@@ -517,8 +511,8 @@ class _MarketRow extends StatelessWidget {
                   padding: EdgeInsets.symmetric(vertical: 4.h),
                   child: Row(
                     children: [
-                      PhosphorIcon(
-                        PhosphorIconsRegular.usersThree,
+                      BasilIcon(
+                        'contacts-outline',
                         size: 17.w,
                         color: AppColors.textSecondary,
                       ),
@@ -535,8 +529,8 @@ class _MarketRow extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const PhosphorIcon(
-                        PhosphorIconsRegular.caretRight,
+                      const BasilIcon(
+                        'caret-right-outline',
                         color: AppColors.textTertiary,
                       ),
                     ],
@@ -552,17 +546,24 @@ class _MarketRow extends StatelessWidget {
 }
 
 class _HomeState extends StatelessWidget {
-  final IconData icon;
+  /// Basil slug (preferred) or a Material fallback for the rare icon Basil
+  /// doesn't cover — exactly one of the two must be set.
+  final String? basilIcon;
+  final IconData? icon;
   final String title;
   final String detail;
   final VoidCallback? onTap;
 
   const _HomeState({
-    required this.icon,
+    this.basilIcon,
+    this.icon,
     required this.title,
     required this.detail,
     this.onTap,
-  });
+  }) : assert(
+         basilIcon != null || icon != null,
+         'provide basilIcon or icon',
+       );
 
   @override
   Widget build(BuildContext context) {
@@ -575,7 +576,9 @@ class _HomeState extends StatelessWidget {
       ),
       child: Column(
         children: [
-          PhosphorIcon(icon, size: 30.w, color: AppColors.textTertiary),
+          basilIcon != null
+              ? BasilIcon(basilIcon!, size: 30.w, color: AppColors.textTertiary)
+              : Icon(icon, size: 30.w, color: AppColors.textTertiary),
           SizedBox(height: 10.h),
           Text(
             title,

@@ -1,5 +1,6 @@
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/shared/screens/splash/widgets/splash_animations.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
@@ -28,8 +29,8 @@ class BucketWidget extends StatelessWidget {
                   'assets/images/ai_gen/logo/bucket_logo.png',
                   fit: BoxFit.fitHeight,
                   errorBuilder: (context, error, stackTrace) {
-                    return Icon(
-                      Icons.home,
+                    return BasilIcon(
+                      'home-outline',
                       size: 200.w,
                       color: AppColors.primary,
                     );

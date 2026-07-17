@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'dart:ui';
 import 'dart:io';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 /// Modal bottom sheet for viewing all friends with iOS circular picker-style animation
 class ViewMoreFriendsSheet extends StatefulWidget {
@@ -302,8 +302,8 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
                   errorBuilder: (context, error, stackTrace) {
                     return Container(
                       color: AppColors.primary.withOpacity(0.1),
-                      child: Icon(
-                        PhosphorIcons.user(),
+                      child: BasilIcon(
+                        'user-outline',
                         size: 26.sp,
                         color: AppColors.primary.withOpacity(0.7),
                       ),
@@ -362,8 +362,8 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
             ),
 
             // iOS-style arrow indicator
-            Icon(
-              PhosphorIcons.caretRight(PhosphorIconsStyle.bold),
+            BasilIcon(
+              'caret-right-solid',
               size: 16.sp,
               color: Colors.grey.shade400,
             ),

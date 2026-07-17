@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenges_tab.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class ChallengeHistoryScreen extends StatelessWidget {
   final int refreshKey;
@@ -31,7 +31,7 @@ class ChallengeHistoryScreen extends StatelessWidget {
                   IconButton(
                     tooltip: 'Back',
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const PhosphorIcon(PhosphorIconsRegular.caretLeft),
+                    icon: const BasilIcon('caret-left-outline'),
                   ),
                   SizedBox(width: 4.w),
                   Text(

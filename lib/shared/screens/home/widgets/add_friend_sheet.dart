@@ -4,13 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'dart:ui';
 import 'dart:io';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
 import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:chumbucket/shared/widgets/widgets.dart';
 import 'package:chumbucket/shared/services/unified_database_service.dart';
 import 'package:chumbucket/shared/utils/safe_modal_utils.dart';
@@ -143,17 +143,9 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
           ),
         );
       case AddressValidationState.valid:
-        return PhosphorIcon(
-          PhosphorIconsFill.checkCircle,
-          color: Colors.green,
-          size: 22.w,
-        );
+        return BasilIcon('check-solid', color: Colors.green, size: 22.w);
       case AddressValidationState.invalid:
-        return PhosphorIcon(
-          PhosphorIconsFill.xCircle,
-          color: Colors.red,
-          size: 22.w,
-        );
+        return BasilIcon('cancel-solid', color: Colors.red, size: 22.w);
     }
   }
 
@@ -406,8 +398,8 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
                             width: 20.w,
                             height: 20.w,
                             alignment: Alignment.center,
-                            child: PhosphorIcon(
-                              PhosphorIconsRegular.user,
+                            child: BasilIcon(
+                              'user-outline',
                               color: const Color(0xFFFF5A76),
                               size: 20.w,
                             ),
@@ -449,8 +441,8 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
                             width: 20.w,
                             height: 20.w,
                             alignment: Alignment.center,
-                            child: PhosphorIcon(
-                              PhosphorIconsRegular.wallet,
+                            child: BasilIcon(
+                              'wallet-outline',
                               color: const Color(0xFFFF5A76),
                               size: 20.w,
                             ),

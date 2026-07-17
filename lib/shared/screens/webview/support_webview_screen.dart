@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:chumbucket/core/utils/app_logger.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class SupportWebViewScreen extends StatefulWidget {
   final String url;
@@ -95,8 +96,8 @@ class _SupportWebViewScreenState extends State<SupportWebViewScreen> {
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(
-            CupertinoIcons.back,
+          icon: BasilIcon(
+            'caret-left-outline',
             color: Theme.of(context).colorScheme.onSurface,
             size: 24.sp,
           ),

@@ -6,7 +6,7 @@ import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/features/profile/providers/profile_provider.dart';
 // MWA Auth Provider for wallet-based authentication
@@ -167,8 +167,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                   IconButton(
                     tooltip: 'Settings',
                     onPressed: () => showProfileSettingsSheet(context),
-                    icon: Icon(
-                      PhosphorIcons.gearSix(),
+                    icon: BasilIcon(
+                      'settings-outline',
                       size: 28.w,
                       color: AppColors.primary,
                     ),
@@ -178,8 +178,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                     IconButton(
                       tooltip: 'Close',
                       onPressed: () => Navigator.of(context).pop(),
-                      icon: PhosphorIcon(
-                        PhosphorIcons.xCircle(),
+                      icon: BasilIcon(
+                        'cancel-outline',
                         size: 30.w,
                         color: AppColors.textSecondary,
                       ),
@@ -225,7 +225,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     Consumer<ArenaProvider>(
                       builder:
                           (context, arena, _) => _ProfileActionRow(
-                            icon: PhosphorIconsRegular.broadcast,
+                            icon: 'hotspot-outline',
                             title: 'Prediction history',
                             detail:
                                 '${arena.myPots.length} ${arena.myPots.length == 1 ? 'position' : 'positions'}',
@@ -247,7 +247,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     Consumer<ChallengeStateProvider>(
                       builder:
                           (context, challengeState, _) => _ProfileActionRow(
-                            icon: PhosphorIconsRegular.usersThree,
+                            icon: 'contacts-outline',
                             title: 'Challenge history',
                             detail:
                                 '${challengeState.challenges.length} ${challengeState.challenges.length == 1 ? 'challenge' : 'challenges'}',
@@ -347,7 +347,7 @@ class _SummaryStat extends StatelessWidget {
 }
 
 class _ProfileActionRow extends StatelessWidget {
-  final IconData icon;
+  final String icon;
   final String title;
   final String detail;
   final VoidCallback? onTap;
@@ -371,7 +371,7 @@ class _ProfileActionRow extends StatelessWidget {
           color: AppColors.primaryContainer,
           shape: BoxShape.circle,
         ),
-        child: PhosphorIcon(icon, color: AppColors.primary, size: 20.w),
+        child: BasilIcon(icon, color: AppColors.primary, size: 20.w),
       ),
       title: Text(
         title,
@@ -381,8 +381,8 @@ class _ProfileActionRow extends StatelessWidget {
         detail,
         style: TextStyle(color: AppColors.textSecondary, fontSize: 11.sp),
       ),
-      trailing: const PhosphorIcon(
-        PhosphorIconsRegular.caretRight,
+      trailing: const BasilIcon(
+        'caret-right-outline',
         color: AppColors.textTertiary,
       ),
     );

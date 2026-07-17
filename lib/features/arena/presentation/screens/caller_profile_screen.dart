@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
@@ -11,6 +10,7 @@ import 'package:chumbucket/features/arena/presentation/widgets/arena_format.dart
 import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class CallerProfileScreen extends StatefulWidget {
   final String walletAddress;
@@ -96,9 +96,7 @@ class _CallerProfileScreenState extends State<CallerProfileScreen> {
                       IconButton(
                         tooltip: 'Back',
                         onPressed: () => Navigator.of(context).pop(),
-                        icon: const PhosphorIcon(
-                          PhosphorIconsRegular.caretLeft,
-                        ),
+                        icon: const BasilIcon('caret-left-outline'),
                         style: IconButton.styleFrom(
                           foregroundColor: AppColors.textPrimary,
                         ),
@@ -356,8 +354,8 @@ class _ProfileError extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const PhosphorIcon(
-            PhosphorIconsRegular.userCircle,
+          const BasilIcon(
+            'user-outline',
             color: AppColors.textTertiary,
             size: 42,
           ),

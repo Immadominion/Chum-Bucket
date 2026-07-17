@@ -19,6 +19,7 @@ import 'package:chumbucket/core/services/chat_service.dart';
 import 'package:chumbucket/core/services/realtime_service.dart';
 import 'package:chumbucket/core/services/app_lifecycle_service.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'dart:ui';
 import 'dart:io';
 
@@ -49,7 +50,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               IconButton(
-                icon: Icon(CupertinoIcons.xmark, size: 18.sp),
+                icon: BasilIcon('cross-outline', size: 18.sp),
                 onPressed: () => Navigator.of(context).pop(),
               ),
               SizedBox(width: 24.w),
@@ -168,7 +169,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
                 );
               }
             },
-            icon: CupertinoIcons.square_arrow_right,
+            icon: 'arrow-right-outline',
             gradientColors: [Colors.grey.shade600, Colors.grey.shade700],
           ),
 

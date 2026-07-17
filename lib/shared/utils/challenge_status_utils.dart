@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 /// Shared utility for challenge status display across the app.
 /// Centralizes status logic to avoid duplication and ensure consistency.
@@ -28,21 +27,22 @@ class ChallengeStatusUtils {
     }
   }
 
-  /// Get icon for challenge status
-  static IconData getStatusIcon(String status) {
+  /// Get the Basil icon slug (see lib/shared/widgets/icons/basil_icon.dart)
+  /// for a challenge status.
+  static String getStatusIcon(String status) {
     switch (status.toLowerCase()) {
       case 'completed':
-        return PhosphorIconsRegular.checkCircle;
+        return 'check-outline';
       case 'failed':
-        return PhosphorIconsRegular.xCircle;
+        return 'cancel-outline';
       case 'expired':
-        return PhosphorIconsRegular.clockCountdown;
+        return 'timer-outline';
       case 'cancelled':
-        return PhosphorIconsRegular.prohibit;
+        return 'trash-outline'; // discarded — distinct from "failed"
       case 'pending':
       case 'active':
       default:
-        return PhosphorIconsRegular.circle; // Ongoing/unfilled circle
+        return 'sand-watch-outline'; // ongoing/in-progress
     }
   }
 

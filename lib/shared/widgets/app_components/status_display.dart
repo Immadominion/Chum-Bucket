@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/shared/models/models.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 /// Status badge for challenges with consistent styling
 class ChallengeStatusBadge extends StatelessWidget {
@@ -170,8 +171,8 @@ class WalletAddressDisplay extends StatelessWidget {
           children: [
             text,
             SizedBox(width: 4.w),
-            Icon(
-              Icons.copy,
+            BasilIcon(
+              'copy-outline',
               size: 12.sp,
               color: color ?? AppColors.onSurfaceVariant,
             ),

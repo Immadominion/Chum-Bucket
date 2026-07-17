@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_dimensions.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 /// Standard app header with consistent styling
 class AppHeader extends StatelessWidget {
@@ -44,8 +45,8 @@ class AppHeader extends StatelessWidget {
                   IconButton(
                     onPressed:
                         onBackPressed ?? () => Navigator.of(context).pop(),
-                    icon: Icon(
-                      Icons.arrow_back_ios,
+                    icon: BasilIcon(
+                      'caret-left-outline',
                       color: AppColors.onSurface,
                       size: 20.sp,
                     ),

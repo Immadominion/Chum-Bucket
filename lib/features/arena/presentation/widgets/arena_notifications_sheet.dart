@@ -9,6 +9,7 @@ import 'package:chumbucket/features/arena/data/arena_models.dart';
 import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class ArenaNotificationsSheet extends StatefulWidget {
   final VoidCallback onOpenClaimable;
@@ -142,7 +143,7 @@ class _InboxHeader extends StatelessWidget {
                     IconButton(
                       tooltip: 'Close notifications',
                       onPressed: onClose,
-                      icon: const Icon(Icons.close, color: Colors.white),
+                      icon: const BasilIcon('cross-outline', color: Colors.white),
                     ),
                   ],
                 ),
@@ -228,8 +229,8 @@ class _InboxBody extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.cloud_off_outlined,
+              BasilIcon(
+                'cloud-off-outline',
                 size: 36.sp,
                 color: AppColors.textSecondary,
               ),
@@ -252,8 +253,8 @@ class _InboxBody extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.notifications_none_outlined,
+              BasilIcon(
+                'notification-outline',
                 size: 40.sp,
                 color: AppColors.textSecondary,
               ),
@@ -329,10 +330,8 @@ class _NotificationRow extends StatelessWidget {
                   color: tone.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  isClaim
-                      ? Icons.account_balance_wallet_outlined
-                      : Icons.dynamic_feed_outlined,
+                child: BasilIcon(
+                  isClaim ? 'wallet-outline' : 'stack-outline',
                   size: 20.sp,
                   color: tone,
                 ),
@@ -385,8 +384,8 @@ class _NotificationRow extends StatelessWidget {
                   ),
                 )
               else if (onTap != null)
-                Icon(
-                  Icons.chevron_right,
+                BasilIcon(
+                  'caret-right-outline',
                   size: 20.sp,
                   color: AppColors.textTertiary,
                 ),

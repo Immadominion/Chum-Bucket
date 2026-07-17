@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:lottie/lottie.dart';
 import 'package:chumbucket/shared/models/models.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import '../models/challenge_status_data.dart';
 
 /// Widget that displays the challenge status animation and text
@@ -73,7 +74,7 @@ class ChallengeStatusWidget extends StatelessWidget {
         );
       case ChallengeStatus.failed:
       case ChallengeStatus.cancelled:
-        return _buildStatusAnimation(Icons.cancel_outlined, Colors.red, true);
+        return _buildStatusAnimation('cancel-outline', Colors.red, true);
       case ChallengeStatus.pending:
         return Lottie.asset(
           'assets/animations/lottie/loading.json',
@@ -83,11 +84,11 @@ class ChallengeStatusWidget extends StatelessWidget {
           repeat: false,
         );
       case ChallengeStatus.expired:
-        return _buildStatusAnimation(Icons.access_time, Colors.orange, false);
+        return _buildStatusAnimation('clock-outline', Colors.orange, false);
     }
   }
 
-  Widget _buildStatusAnimation(IconData icon, Color color, bool animated) {
+  Widget _buildStatusAnimation(String icon, Color color, bool animated) {
     return Center(
       child:
           animated
@@ -101,13 +102,13 @@ class ChallengeStatusWidget extends StatelessWidget {
                     scale: 0.8 + (clampedValue * 0.2),
                     child: Opacity(
                       opacity: clampedValue,
-                      child: Icon(icon, size: 120, color: color),
+                      child: BasilIcon(icon, size: 120, color: color),
                     ),
                   );
                 },
                 curve: Curves.elasticOut,
               )
-              : Icon(icon, size: 120, color: color),
+              : BasilIcon(icon, size: 120, color: color),
     );
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_dimensions.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'app_avatar.dart';
 
 /// Standard list tile with consistent styling
@@ -228,8 +229,8 @@ class TransactionListItem extends StatelessWidget {
           ),
           shape: BoxShape.circle,
         ),
-        child: Icon(
-          isIncoming ? Icons.arrow_downward : Icons.arrow_upward,
+        child: BasilIcon(
+          isIncoming ? 'arrow-down-outline' : 'arrow-up-outline',
           color: isIncoming ? AppColors.success : AppColors.error,
           size: 20.sp,
         ),
@@ -299,8 +300,8 @@ class MenuListItem extends StatelessWidget {
       subtitle: subtitle,
       trailing:
           trailing ??
-          Icon(
-            Icons.chevron_right,
+          BasilIcon(
+            'caret-right-outline',
             color: AppColors.onSurfaceVariant,
             size: 20.sp,
           ),

@@ -8,6 +8,7 @@ import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 /// MWA (Mobile Wallet Adapter) connect button for Solana wallet authentication
 /// Replaces email-based Privy authentication with native wallet connection
@@ -216,7 +217,7 @@ class MwaConnectButtonCompact extends StatelessWidget {
         // Show connect button when not connected
         return TextButton.icon(
           onPressed: onPressed,
-          icon: Icon(Icons.account_balance_wallet_outlined, size: 18.sp),
+          icon: BasilIcon('wallet-outline', size: 18.sp),
           label: Text('Connect', style: TextStyle(fontSize: 13.sp)),
           style: TextButton.styleFrom(foregroundColor: AppColors.solanaGreen),
         );

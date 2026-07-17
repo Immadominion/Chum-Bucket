@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
@@ -10,6 +9,7 @@ import 'package:chumbucket/features/arena/data/arena_models.dart';
 import 'package:chumbucket/features/arena/presentation/screens/my_pots_screen.dart';
 import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class ArenaNotificationsScreen extends StatefulWidget {
   const ArenaNotificationsScreen({super.key});
@@ -84,9 +84,7 @@ class _ArenaNotificationsScreenState extends State<ArenaNotificationsScreen> {
                           IconButton(
                             tooltip: 'Back',
                             onPressed: () => Navigator.of(context).pop(),
-                            icon: const PhosphorIcon(
-                              PhosphorIconsRegular.caretLeft,
-                            ),
+                            icon: const BasilIcon('caret-left-outline'),
                           ),
                           Expanded(
                             child: Text(
@@ -132,7 +130,7 @@ class _ArenaNotificationsScreenState extends State<ArenaNotificationsScreen> {
                     SliverFillRemaining(
                       hasScrollBody: false,
                       child: _InboxState(
-                        icon: Icons.cloud_off_outlined,
+                        icon: 'cloud-off-outline',
                         title: 'Could not load your inbox',
                         action: _load,
                       ),
@@ -141,7 +139,7 @@ class _ArenaNotificationsScreenState extends State<ArenaNotificationsScreen> {
                     const SliverFillRemaining(
                       hasScrollBody: false,
                       child: _InboxState(
-                        icon: PhosphorIconsRegular.bell,
+                        icon: 'notification-outline',
                         title: 'You are all caught up',
                         detail:
                             'Followed calls and claim-ready winnings will appear here.',
@@ -200,10 +198,8 @@ class _NotificationRow extends StatelessWidget {
                   color: tone.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
-                child: PhosphorIcon(
-                  claim
-                      ? PhosphorIconsFill.checkCircle
-                      : PhosphorIconsRegular.broadcast,
+                child: BasilIcon(
+                  claim ? 'check-solid' : 'hotspot-outline',
                   color: tone,
                   size: 21.w,
                 ),
@@ -276,7 +272,7 @@ class _NotificationRow extends StatelessWidget {
 }
 
 class _InboxState extends StatelessWidget {
-  final IconData icon;
+  final String icon;
   final String title;
   final String? detail;
   final VoidCallback? action;
@@ -296,7 +292,7 @@ class _InboxState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            PhosphorIcon(icon, size: 40.w, color: AppColors.textTertiary),
+            BasilIcon(icon, size: 40.w, color: AppColors.textTertiary),
             SizedBox(height: 12.h),
             Text(
               title,

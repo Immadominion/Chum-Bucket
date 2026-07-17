@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:chumbucket/shared/utils/challenge_status_utils.dart';
 
 class ChallengeCard extends StatelessWidget {
@@ -129,8 +129,8 @@ class ChallengeCard extends StatelessWidget {
               if (isInteractable && challenge['expiresAt'] != null) ...[
                 Row(
                   children: [
-                    PhosphorIcon(
-                      PhosphorIconsRegular.clock,
+                    BasilIcon(
+                      'clock-outline',
                       size: 16.w,
                       color: Colors.grey.shade600,
                     ),

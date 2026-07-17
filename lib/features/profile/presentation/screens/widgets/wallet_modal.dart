@@ -3,7 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/core/utils/base_change_notifier.dart'
     show LoadingState;
@@ -299,8 +299,8 @@ class _WalletModalState extends State<WalletModal> {
                     ),
           ),
           SizedBox(width: 4.w),
-          Icon(
-            PhosphorIcons.copySimple(),
+          BasilIcon(
+            'copy-outline',
             size: 18.w,
             color: const Color(0xFFFF5A76),
           ),
