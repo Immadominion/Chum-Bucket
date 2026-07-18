@@ -1,69 +1,93 @@
-# Chum Bucket
+# Chumbucket
 
-Challenge your friends, bet crypto, stay accountable! 🚀
+**Follow the call. Challenge a friend. Let the match settle it.**
 
-Chum Bucket is a social Web3 app on Solana where you can create fun challenges with friends, lock SOL or CHUM tokens in secure escrow, and keep each other motivated through friendly competition.
+Chumbucket is a social prediction product on Solana. It began as a mobile app
+for creating challenges with friends and locking SOL until the challenge was
+resolved. Arena expands that idea into social football predictions: follow
+callers, copy a prediction, challenge a friend, and settle the result from
+TxLINE proofs instead of trusting an operator.
 
-**Inspired by:** [This viral Twitter post](https://x.com/IrffanAsiff/status/1923050813615718699) that sparked the idea for crypto-powered accountability.
+The Flutter app connects through Solana Mobile Wallet Adapter and is the native
+companion to the [Chumbucket Arena](https://github.com/Immadominion/chumbucket-arena)
+web and settlement stack.
 
-## ✨ Features
+## Product
 
-- **Social Challenges:** Create dares with friends using email or wallet address
-- **Secure Escrow:** Lock SOL/CHUM tokens in Solana smart contracts
-- **Winner Takes All:** Challenge creator decides the winner
-- **Transparent Fees:** 1% fee (max $10) - 50% team, 50% community airdrops
-- **Mobile-First:** Built with Flutter for iOS & Android
+- Create direct challenges with friends and lock SOL in the original mainnet
+  Pinocchio escrow.
+- Browse TxLINE football fixtures and call HOME, DRAW, or AWAY in Arena.
+- Follow people, copy calls, challenge friends, and track settled positions.
+- Connect and sign with an MWA-compatible Solana wallet; Chumbucket never
+  custodies a user's wallet key.
+- Keep profiles, friendships, feeds, notifications, and challenge records in a
+  Supabase social read model.
+- Resolve Arena pots through Chumbucket's Solana program only after its CPI to
+  TxLINE `validate_stat` returns a true result.
 
-## 📱 Screenshots
+The existing friend-challenge protocol is on Solana mainnet. The TxLINE Arena
+program and its test USDC-like asset are currently on Solana devnet.
 
-<p align="center">
-  <img src="assets/images/open_sourced_design_inspiration/irfan/img1.jpeg" alt="Chum Bucket App Design 1" height="400" />
-  <img src="assets/images/open_sourced_design_inspiration/irfan/img2.jpeg" alt="Chum Bucket App Design 2" height="400" />
-  <img src="assets/images/open_sourced_design_inspiration/irfan/img3.jpeg" alt="Chum Bucket App Design 3" height="400" />
-</p>
+## Verified Usage
 
-## 🔧 Tech Stack
+Verified on July 18, 2026:
 
-- **Frontend:** Flutter (iOS/Android)
-- **Backend:** Supabase + Privy Auth
-- **Blockchain:** Solana + Anchor (Rust)
-- **Database:** Supabase PostgreSQL
+- `185` production profiles, `183` linked wallets, `160` push-notification
+  tokens, `48` friend relationships, and `49` challenge records.
+- The public mainnet escrow confirms `15` funded challenge creations locking
+  `0.19 SOL`, `13` successful resolutions, and `0.00325 SOL` in protocol fees.
 
-## 🚀 Getting Started
+Database profiles and funded on-chain challenges are separate measurements; a
+profile is not presented as an on-chain bettor.
 
-1. **Clone & Install:**
-```bash
-git clone https://github.com/Immadominion/Chum-Bucket.git
-cd Chum-Bucket/chumbucket
-flutter pub get
+## Architecture
+
+```text
+Flutter app
+  |-- Solana Mobile Wallet Adapter: authentication and transaction signatures
+  |-- Supabase: profiles, friends, realtime updates, and push notifications
+  |-- Pinocchio escrow: original SOL friend challenges on mainnet
+  `-- Arena API + Anchor program: TxLINE-settled prediction pots on devnet
 ```
 
-2. **Setup Environment:**
-   - Add Supabase credentials to `.env`
-   - Configure Privy authentication
-   - Deploy Anchor smart contract
+- Original friend-challenge program:
+  [`D6mj...9sF1`](https://explorer.solana.com/address/D6mjMGW1fX8oH3UcwZDh3teWcHEWvghUqaR2aeWD9sF1)
+- Arena program:
+  [`AMFp...K9CG`](https://explorer.solana.com/address/AMFpYiYPCUwiVbYMkhnaCmnSDv226yew17QXLhVWk9CG?cluster=devnet)
+- Verified TxLINE settlement:
+  [Argentina 3-2 Egypt](https://explorer.solana.com/tx/553CkpvcpddtBzEmPPxvMJHzJXFS73f2aJ79J5BtrrdAUBrhnrLfKQKikUZcDxzRZwz39JR2FxsJFZzUfAVJrAB8?cluster=devnet)
 
-3. **Run:**
+## Run On Android
+
+Requirements:
+
+- Flutter 3.x with Dart 3.7 or newer
+- Android device with an MWA-compatible wallet
+- Supabase and Solana RPC configuration
+
 ```bash
+cp .env.example .env
+flutter pub get
 flutter run
 ```
 
-## 🏗️ Architecture
+The environment template documents the required Solana, Helius, Arena API, and
+Supabase keys. Do not commit the populated `.env` file.
 
-- **Smart Contract:** Secure escrow with program-derived addresses (PDAs)
-- **Fee Structure:** Transparent 1% fee (capped at $10) sent to public wallet
-- **Auth Flow:** Privy Google OAuth synced with Supabase
-- **Real-time Updates:** Live challenge status via Supabase
+Run the focused test suite with:
 
-## 📄 License
+```bash
+flutter test
+```
 
-MIT License - See [LICENSE](LICENSE) file for details.
+## Related Work
 
-## 📞 Contact
+- Arena backend, web client, keeper, proof receipt, and Solana program:
+  [Immadominion/chumbucket-arena](https://github.com/Immadominion/chumbucket-arena)
+- Original Pinocchio escrow:
+  [ubadineke/chumbucket-escrow](https://github.com/ubadineke/chumbucket-escrow)
+- Founder: [@HeIsJoel0x](https://x.com/HeIsJoel0x)
 
-**Built by:** [@Heisjoel0x](https://twitter.com/Heisjoel0x)  
-**Email:** immadominion@gmail.com
+## License
 
----
-
-*Going production-beta soon! 🎉*
+See [LICENSE](LICENSE).
