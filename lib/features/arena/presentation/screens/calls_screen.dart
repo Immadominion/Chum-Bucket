@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
@@ -46,6 +48,12 @@ class _CallsScreenState extends State<CallsScreen>
       requests.add(arena.subscribeNotifications(walletAddress: wallet));
     }
     await Future.wait(requests);
+    // Best-effort: resolve @handles for whoever just loaded into the feed.
+    unawaited(
+      arena.loadWalletProfiles(
+        arena.activity.map((e) => e.walletAddress).toList(),
+      ),
+    );
   }
 
   Future<void> _openCall(ArenaActivityEvent event) async {
@@ -212,6 +220,7 @@ class _CallsScreenState extends State<CallsScreen>
                         return _CallCard(
                           event: event,
                           isMe: isMe,
+                          xLabel: arena.walletProfile(event.walletAddress)?.label,
                           isFollowing: arena.isFollowing(event.walletAddress),
                           isFollowBusy: arena.isFollowBusy(event.walletAddress),
                           isOpening:
@@ -239,6 +248,7 @@ class _CallsScreenState extends State<CallsScreen>
 class _CallCard extends StatelessWidget {
   final ArenaActivityEvent event;
   final bool isMe;
+  final String? xLabel;
   final bool isFollowing;
   final bool isFollowBusy;
   final bool isOpening;
@@ -249,6 +259,7 @@ class _CallCard extends StatelessWidget {
   const _CallCard({
     required this.event,
     required this.isMe,
+    this.xLabel,
     required this.isFollowing,
     required this.isFollowBusy,
     required this.isOpening,
@@ -291,7 +302,9 @@ class _CallCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          isMe ? 'You' : _shortWallet(event.walletAddress),
+                          isMe
+                              ? 'You'
+                              : xLabel ?? _shortWallet(event.walletAddress),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(

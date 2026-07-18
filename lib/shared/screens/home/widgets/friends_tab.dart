@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/friends_grid.dart';
 import 'package:chumbucket/shared/screens/home/widgets/view_more_friends_sheet.dart';
@@ -9,6 +12,20 @@ import 'package:chumbucket/shared/screens/home/widgets/challenges_preview.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/shared/services/unified_database_service.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
+
+/// Merge in each friend's resolved X-handle/display-name label, when the
+/// wallet-profile cache already has one — leaves the map untouched otherwise
+/// so the existing `full_name`/wallet fallback keeps working.
+List<Map<String, String>> _withXLabels(
+  List<Map<String, String>> friends,
+  ArenaProvider arena,
+) {
+  return friends.map((f) {
+    final wallet = f['walletAddress'] ?? '';
+    final label = wallet.isEmpty ? null : arena.walletProfile(wallet)?.label;
+    return label == null ? f : {...f, 'xLabel': label};
+  }).toList();
+}
 
 class FriendsTab extends StatefulWidget {
   final VoidCallback createNewChallenge;
@@ -200,9 +217,10 @@ class _FriendsTabState extends State<FriendsTab>
   }
 
   void _showAllFriends() {
+    final arena = context.read<ArenaProvider>();
     showViewMoreFriendsSheet(
       context,
-      friends: friends,
+      friends: _withXLabels(friends, arena),
       onFriendSelected: (friendName) {
         final friend = friends.firstWhere(
           (f) => f['name'] == friendName,
@@ -243,6 +261,15 @@ class _FriendsTabState extends State<FriendsTab>
           _isFirstLoad = false; // No longer first load
           _lastLoadTime = DateTime.now(); // Track load time
         });
+        // Best-effort: resolve @handles for whoever just loaded into the list.
+        unawaited(
+          context.read<ArenaProvider>().loadWalletProfiles(
+            uiFriends
+                .map((f) => f['walletAddress'] ?? '')
+                .where((w) => w.isNotEmpty)
+                .toList(),
+          ),
+        );
       }
 
       print('FriendsTab: UI updated with ${friends.length} friends');
@@ -307,22 +334,26 @@ class _FriendsTabState extends State<FriendsTab>
                       margin: EdgeInsets.all(30.r),
                       child: const CircularProgressIndicator(),
                     )
-                    : FriendsGrid(
-                      friends: friends,
-                      onFriendSelected: (friendName) {
-                        final friend = friends.firstWhere(
-                          (f) => f['name'] == friendName,
-                          orElse: () => {'walletAddress': ''},
-                        );
-                        // Pass raw wallet address; resolution will happen where displayed
-                        widget.onFriendSelected(
-                          friendName,
-                          friend['walletAddress'] ?? '',
-                        );
-                      },
-                      buildViewMoreItem: widget.buildViewMoreItem,
-                      onViewMorePressed: _showAllFriends,
-                      maxVisibleFriends: 5, // Show 5 friends before "View More"
+                    : Consumer<ArenaProvider>(
+                      builder:
+                          (context, arena, _) => FriendsGrid(
+                            friends: _withXLabels(friends, arena),
+                            onFriendSelected: (friendName) {
+                              final friend = friends.firstWhere(
+                                (f) => f['name'] == friendName,
+                                orElse: () => {'walletAddress': ''},
+                              );
+                              // Pass raw wallet address; resolution will happen where displayed
+                              widget.onFriendSelected(
+                                friendName,
+                                friend['walletAddress'] ?? '',
+                              );
+                            },
+                            buildViewMoreItem: widget.buildViewMoreItem,
+                            onViewMorePressed: _showAllFriends,
+                            maxVisibleFriends:
+                                5, // Show 5 friends before "View More"
+                          ),
                     ),
                 // SizedBox(height: 15.h),
                 ChallengeButton(createNewChallenge: widget.createNewChallenge),

@@ -61,6 +61,9 @@ class ArenaProvider extends BaseChangeNotifier {
   final Set<String> _followBusyWallets = {};
   String? _profileError;
 
+  final Map<String, ArenaWalletProfile> _walletProfileCache = {};
+  final Set<String> _walletProfilesInFlight = {};
+
   List<ArenaServerPosition> _claimablePositions = [];
   bool _isLoadingClaimable = false;
   String? _claimableError;
@@ -101,6 +104,11 @@ class ArenaProvider extends BaseChangeNotifier {
   bool isFollowing(String wallet) => _followedWallets.contains(wallet);
   bool isFollowBusy(String wallet) => _followBusyWallets.contains(wallet);
   ArenaSocialProfile? cachedProfile(String wallet) => _profileCache[wallet];
+
+  /// The linked-identity label (X handle/display name) for a wallet, once
+  /// [loadWalletProfiles] has resolved it — null until then or if unlinked.
+  ArenaWalletProfile? walletProfile(String wallet) =>
+      _walletProfileCache[wallet];
 
   /// Lazily create the MatchArenaService the first time it's needed (e.g.
   /// when the user opens the Arena tab). Safe to call repeatedly - a no-op
@@ -617,6 +625,38 @@ class ArenaProvider extends BaseChangeNotifier {
       return null;
     } finally {
       notifyListeners();
+    }
+  }
+
+  /// Batch-resolve wallets to their linked X/Google identity, caching results
+  /// so repeated calls (e.g. from a rebuilding list) skip wallets already
+  /// cached or already in flight. Best-effort — a failure here just leaves
+  /// [walletProfile] returning null, falling back to a raw-wallet display.
+  Future<void> loadWalletProfiles(List<String> wallets) async {
+    final toFetch =
+        wallets
+            .toSet()
+            .where(
+              (w) =>
+                  w.isNotEmpty &&
+                  !_walletProfileCache.containsKey(w) &&
+                  !_walletProfilesInFlight.contains(w),
+            )
+            .toList();
+    if (toFetch.isEmpty) return;
+    _walletProfilesInFlight.addAll(toFetch);
+    try {
+      final profiles = await _backendService.fetchWalletProfiles(
+        wallets: toFetch,
+      );
+      for (final p in profiles) {
+        _walletProfileCache[p.walletAddress] = p;
+      }
+      notifyListeners();
+    } catch (e) {
+      log('❌ ArenaProvider.loadWalletProfiles failed: $e');
+    } finally {
+      _walletProfilesInFlight.removeAll(toFetch);
     }
   }
 

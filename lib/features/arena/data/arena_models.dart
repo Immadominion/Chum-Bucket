@@ -606,6 +606,44 @@ class ArenaMatchCaller {
   );
 }
 
+class ArenaWalletProfile {
+  final String walletAddress;
+  final String? handle;
+  final String? displayName;
+  final String? avatarUrl;
+  final String? xHandle;
+  final bool verified;
+
+  const ArenaWalletProfile({
+    required this.walletAddress,
+    required this.handle,
+    required this.displayName,
+    required this.avatarUrl,
+    required this.xHandle,
+    required this.verified,
+  });
+
+  /// `@handle` if an X account is linked, else the display name/handle Supabase
+  /// already has, else null — caller decides the wallet-shortened fallback.
+  String? get label {
+    if (xHandle != null && xHandle!.isNotEmpty) return '@$xHandle';
+    if (displayName != null && displayName!.isNotEmpty) return displayName;
+    if (handle != null && handle!.isNotEmpty) return handle;
+    return null;
+  }
+
+  factory ArenaWalletProfile.fromJson(
+    Map<String, dynamic> json,
+  ) => ArenaWalletProfile(
+    walletAddress: json['wallet_address'] as String? ?? '',
+    handle: json['handle'] as String?,
+    displayName: json['display_name'] as String?,
+    avatarUrl: json['avatar_url'] as String?,
+    xHandle: json['x_handle'] as String?,
+    verified: json['verified'] as bool? ?? false,
+  );
+}
+
 class ArenaLeaderboardRow {
   final String walletAddress;
   final int callsMade;

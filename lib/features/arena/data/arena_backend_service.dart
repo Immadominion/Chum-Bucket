@@ -163,6 +163,28 @@ class ArenaBackendService {
         .toList();
   }
 
+  /// Batch-resolve wallets to their linked-identity profile (X handle, display
+  /// name, avatar) — the same `walletProfiles` procedure the web app calls.
+  Future<List<ArenaWalletProfile>> fetchWalletProfiles({
+    required List<String> wallets,
+  }) async {
+    if (wallets.isEmpty) return const [];
+    final inputJson = jsonEncode({
+      'json': {'wallets': wallets},
+    });
+    final uri = Uri.parse(
+      '$baseUrl/walletProfiles',
+    ).replace(queryParameters: {'input': inputJson});
+    log('🏟️ ArenaBackendService: GET $uri');
+
+    final response = await http.get(uri).timeout(const Duration(seconds: 15));
+    final json = _decodeTrpcResponse(response, procedurePath: 'walletProfiles');
+    final list = json as List<dynamic>;
+    return list
+        .map((e) => ArenaWalletProfile.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   Future<ArenaSocialProfile> fetchProfile({
     required String walletAddress,
     int limit = 20,

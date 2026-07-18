@@ -323,7 +323,7 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
                 children: [
                   // Friend name
                   Text(
-                    friend['name'] ?? 'Friend',
+                    friend['xLabel'] ?? friend['name'] ?? 'Friend',
                     style: TextStyle(
                       fontSize: 16.sp,
                       fontWeight: FontWeight.w600,

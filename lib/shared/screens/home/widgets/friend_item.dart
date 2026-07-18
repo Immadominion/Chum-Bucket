@@ -23,7 +23,7 @@ Widget buildFriendItem(Map<String, String> friend, onFriendSelected) {
         // Make text flexible
         flex: 1,
         child: Text(
-          friend['name']!,
+          friend['xLabel'] ?? friend['name']!,
           style: TextStyle(
             fontSize: 12.sp, // Reduced from 14.sp
             fontWeight: FontWeight.w600,
