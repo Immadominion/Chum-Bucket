@@ -27,7 +27,8 @@ The supplied profile-card references inform the composition and density only. Ch
 
 - Use a 72px-equivalent circular Chumbucket avatar on the left.
 - Place the name and a maximum two-line bio to its right.
-- Place a 40px-or-larger pink-tinted pen icon button in the top-right area.
+- Place a containerless pen icon immediately after the name. The name yields
+  space and ellipsizes before the icon when display names are long.
 - Pressing the pen opens the existing full Edit Profile screen.
 - Pressing the avatar retains the existing profile-picture selector behavior.
 - Remove the full-width `Edit Profile` button.
@@ -35,14 +36,22 @@ The supplied profile-card references inform the composition and density only. Ch
 ### Wallet Section
 
 - Separate the wallet section from identity with an inset divider.
-- Show the wallet icon and `Wallet` label, then the current SOL balance as the strongest number in the section.
-- Keep balance refresh, resolved domain/address, copy action, loading behavior, and Add SOL behavior.
-- Present `Add SOL` as a compact command aligned with the wallet content rather than a full-width primary CTA.
+- Start with the current SOL balance as the strongest number; do not show a
+  wallet label or decorative wallet icon.
+- Place the resolved domain/address and copy action directly below the balance.
+- Replace the persistent refresh button with a small progress indicator that is
+  visible only while the provider is refreshing. Pull-to-refresh remains the
+  manual refresh gesture.
+- Present `Add SOL` as a compact, solid-primary command aligned with the balance
+  rather than a full-width or translucent CTA.
 - Do not reintroduce Withdraw or custodial-wallet wording.
 
 ### Prediction Summary Footer
 
-- Integrate Calls, Win rate, and PnL as a light neutral footer band within the same card.
+- Integrate Calls, Win rate, and PnL as a light neutral footer panel within the same card.
+- Give the footer pronounced rounded top corners and raise it slightly over the
+  wallet section. It remains full width so the top corners rise into the card
+  while its sides meet the outer card edges.
 - Use three equal columns with slim vertical dividers.
 - Keep success/error coloring only for positive/negative PnL.
 - Preserve all existing Arena profile data and zero-value fallbacks.
