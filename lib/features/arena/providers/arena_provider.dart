@@ -64,6 +64,11 @@ class ArenaProvider extends BaseChangeNotifier {
   final Map<String, ArenaWalletProfile> _walletProfileCache = {};
   final Set<String> _walletProfilesInFlight = {};
 
+  List<ArenaPendingTarget> _pendingTargets = [];
+  bool _isLoadingPendingTargets = false;
+  String? _pendingTargetsError;
+  final Set<String> _pendingTargetBusyHandles = {};
+
   List<ArenaServerPosition> _claimablePositions = [];
   bool _isLoadingClaimable = false;
   String? _claimableError;
@@ -109,6 +114,29 @@ class ArenaProvider extends BaseChangeNotifier {
   /// [loadWalletProfiles] has resolved it — null until then or if unlinked.
   ArenaWalletProfile? walletProfile(String wallet) =>
       _walletProfileCache[wallet];
+
+  /// Venmo-style "pending, resolves automatically" targets the current
+  /// wallet has created (e.g. friends added by X handle who haven't linked
+  /// a wallet yet). Populated by [loadPendingTargets].
+  List<ArenaPendingTarget> get pendingTargets =>
+      List.unmodifiable(_pendingTargets);
+  bool get isLoadingPendingTargets => _isLoadingPendingTargets;
+  String? get pendingTargetsError => _pendingTargetsError;
+  bool isPendingTargetBusy(String handle) =>
+      _pendingTargetBusyHandles.contains(_normalizeHandle(handle));
+
+  /// Still-unresolved pending target for [handle], if the viewer has one
+  /// outstanding — null once it resolves (or if none was ever created).
+  ArenaPendingTarget? pendingTargetForHandle(String handle) {
+    final normalized = _normalizeHandle(handle);
+    for (final target in _pendingTargets) {
+      if (!target.isResolved &&
+          target.providerUsername.toLowerCase() == normalized) {
+        return target;
+      }
+    }
+    return null;
+  }
 
   /// Lazily create the MatchArenaService the first time it's needed (e.g.
   /// when the user opens the Arena tab). Safe to call repeatedly - a no-op
@@ -704,6 +732,78 @@ class ArenaProvider extends BaseChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<void> loadPendingTargets({
+    required String walletAddress,
+    int limit = 50,
+  }) async {
+    _isLoadingPendingTargets = true;
+    _pendingTargetsError = null;
+    notifyListeners();
+    try {
+      _pendingTargets = await _backendService.fetchPendingTargets(
+        wallet: walletAddress,
+        limit: limit,
+      );
+    } catch (e) {
+      log('⚠️ ArenaProvider.loadPendingTargets failed: $e');
+      _pendingTargetsError = e.toString();
+    } finally {
+      _isLoadingPendingTargets = false;
+      notifyListeners();
+    }
+  }
+
+  /// Add a friend by X handle when they haven't joined ChumBucket yet - the
+  /// Venmo-style "pending, resolves automatically once they link that handle
+  /// for real" pattern. If [xHandle] already belongs to a linked wallet, the
+  /// backend hands that wallet straight back (`alreadyResolved: true`) and
+  /// the caller should treat it exactly like a normal add-by-wallet; if not,
+  /// it's recorded server-side and this method's return value carries no
+  /// wallet - never imply the target is aware of the pending invite.
+  Future<ArenaCreatePendingTargetResult> addPendingTargetByHandle({
+    required MwaAuthProvider authProvider,
+    required String xHandle,
+  }) async {
+    final wallet = authProvider.walletAddress;
+    if (wallet == null) {
+      throw StateError('Connect your wallet first.');
+    }
+
+    final normalized = _normalizeHandle(xHandle);
+    if (normalized.isEmpty) {
+      throw ArgumentError('Enter a valid X handle.');
+    }
+
+    _pendingTargetBusyHandles.add(normalized);
+    notifyListeners();
+    try {
+      final proof = await _signSocialAction(
+        authProvider: authProvider,
+        action: 'add_pending_target',
+        targetWallet: normalized,
+      );
+      final result = await _backendService.createPendingTarget(
+        wallet: wallet,
+        providerUsername: normalized,
+        timestamp: proof.timestamp,
+        signature: proof.signature,
+      );
+      unawaited(loadPendingTargets(walletAddress: wallet));
+      return result;
+    } finally {
+      _pendingTargetBusyHandles.remove(normalized);
+      notifyListeners();
+    }
+  }
+
+  /// Lowercase, strip any leading '@' - MUST match the backend's
+  /// normalization exactly, since the same string is both what gets signed
+  /// (as the `target` token in the `add_pending_target` message) and what's
+  /// sent as `providerUsername`; the backend re-derives the message from
+  /// `providerUsername` to verify the signature byte-for-byte.
+  static String _normalizeHandle(String raw) =>
+      raw.trim().replaceFirst(RegExp(r'^@+'), '').toLowerCase();
 
   Future<_SignedProof> _signSocialAction({
     required MwaAuthProvider authProvider,

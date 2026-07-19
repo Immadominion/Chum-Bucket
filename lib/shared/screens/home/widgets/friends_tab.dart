@@ -178,6 +178,14 @@ class _FriendsTabState extends State<FriendsTab>
 
     print('FriendsTab: Loading friends for user: $walletAddress');
 
+    // Best-effort: load this wallet's pending "added by X handle, not
+    // joined yet" targets so the section below the grid can show them.
+    unawaited(
+      context.read<ArenaProvider>().loadPendingTargets(
+        walletAddress: walletAddress,
+      ),
+    );
+
     // Load friends from Supabase
     final friendsData = await UnifiedDatabaseService.getUserFriends(
       walletAddress,
@@ -360,6 +368,7 @@ class _FriendsTabState extends State<FriendsTab>
               ],
             ),
           ),
+          const _PendingInvitesSection(),
           if (widget.showChallengesPreview) ...[
             SizedBox(height: 24.h),
             Stack(
@@ -420,6 +429,94 @@ class _FriendsTabState extends State<FriendsTab>
           SizedBox(height: widget.bottomPadding.h),
         ],
       ),
+    );
+  }
+}
+
+/// "@handle · not joined yet" - friends added by X handle who haven't
+/// linked a wallet (and therefore couldn't be added to the real friends
+/// list yet). Resolved targets drop off automatically once
+/// [ArenaProvider.loadPendingTargets] refreshes (they've become real
+/// friends by then via the normal add-by-wallet path).
+class _PendingInvitesSection extends StatelessWidget {
+  const _PendingInvitesSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ArenaProvider>(
+      builder: (context, arena, _) {
+        final unresolved =
+            arena.pendingTargets.where((t) => !t.isResolved).toList();
+        if (unresolved.isEmpty) return const SizedBox.shrink();
+
+        return Padding(
+          padding: EdgeInsets.only(top: 16.h),
+          child: Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(16.h),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(26.r),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.2),
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  // Matches web's wording (app/(app)/friends/page.tsx) —
+                  // "invite" overstates it since the target is never notified.
+                  'Waiting to join',
+                  style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w700),
+                ),
+                SizedBox(height: 4.h),
+                Text(
+                  "They'll be added automatically once they link this handle.",
+                  style: TextStyle(fontSize: 11.sp, color: Colors.grey.shade500),
+                ),
+                SizedBox(height: 8.h),
+                ...unresolved.map(
+                  (target) => Padding(
+                    padding: EdgeInsets.symmetric(vertical: 6.h),
+                    child: Row(
+                      children: [
+                        BasilIcon(
+                          'twitter-outline',
+                          size: 16.w,
+                          color: Colors.grey.shade500,
+                        ),
+                        SizedBox(width: 8.w),
+                        Expanded(
+                          child: Text(
+                            '@${target.providerUsername}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 14.sp,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          'Not joined yet',
+                          style: TextStyle(
+                            fontSize: 11.sp,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

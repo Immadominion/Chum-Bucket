@@ -644,6 +644,75 @@ class ArenaWalletProfile {
   );
 }
 
+/// A Venmo-style "pending, resolves automatically" row: someone was added by
+/// an off-chain identity (e.g. an X handle) that hasn't linked a wallet yet.
+/// Mirrors `pending_identity_targets` (`pending_targets_for_wallet` RPC).
+class ArenaPendingTarget {
+  final String id;
+  final String network;
+  final String provider;
+  final String providerUsername;
+  final String createdByWallet;
+  final String targetType;
+  final String? targetRef;
+  final String? resolvedWalletAddress;
+  final DateTime createdAt;
+  final DateTime? resolvedAt;
+
+  const ArenaPendingTarget({
+    required this.id,
+    required this.network,
+    required this.provider,
+    required this.providerUsername,
+    required this.createdByWallet,
+    required this.targetType,
+    required this.targetRef,
+    required this.resolvedWalletAddress,
+    required this.createdAt,
+    required this.resolvedAt,
+  });
+
+  bool get isResolved => resolvedWalletAddress != null;
+
+  factory ArenaPendingTarget.fromJson(Map<String, dynamic> json) =>
+      ArenaPendingTarget(
+        id: json['id'].toString(),
+        network: json['network'] as String? ?? '',
+        provider: json['provider'] as String? ?? '',
+        providerUsername: json['provider_username'] as String? ?? '',
+        createdByWallet: json['created_by_wallet'] as String? ?? '',
+        targetType: json['target_type'] as String? ?? '',
+        targetRef: json['target_ref'] as String?,
+        resolvedWalletAddress: json['resolved_wallet_address'] as String?,
+        createdAt:
+            DateTime.tryParse(json['created_at'] as String? ?? '') ??
+            DateTime.now(),
+        resolvedAt: DateTime.tryParse(json['resolved_at'] as String? ?? ''),
+      );
+}
+
+/// Result of `createPendingTarget` - the raw JSONB shape the `create_pending_target`
+/// Postgres function returns (camelCase, NOT a table row - do not confuse with
+/// [ArenaPendingTarget]'s snake_case row shape).
+class ArenaCreatePendingTargetResult {
+  final String id;
+  final String? resolvedWalletAddress;
+  final bool alreadyResolved;
+
+  const ArenaCreatePendingTargetResult({
+    required this.id,
+    required this.resolvedWalletAddress,
+    required this.alreadyResolved,
+  });
+
+  factory ArenaCreatePendingTargetResult.fromJson(Map<String, dynamic> json) =>
+      ArenaCreatePendingTargetResult(
+        id: json['id'].toString(),
+        resolvedWalletAddress: json['resolvedWalletAddress'] as String?,
+        alreadyResolved: json['alreadyResolved'] as bool? ?? false,
+      );
+}
+
 class ArenaLeaderboardRow {
   final String walletAddress;
   final int callsMade;

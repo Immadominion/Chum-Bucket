@@ -6,6 +6,8 @@ import 'dart:ui';
 import 'dart:io';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
+import 'package:chumbucket/features/arena/data/arena_models.dart';
+import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
 import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
@@ -27,12 +29,21 @@ class AddFriendSheet extends StatefulWidget {
 /// Validation state for address input
 enum AddressValidationState { idle, validating, valid, invalid }
 
+/// Which identifier the user is adding a friend by - a real wallet
+/// address/domain (resolved immediately), or an X handle (may not have
+/// joined ChumBucket yet, in which case the add is recorded as pending and
+/// resolves automatically once that handle links a wallet).
+enum _FriendInputMode { wallet, xHandle }
+
 class _AddFriendSheetState extends State<AddFriendSheet> {
   final _nameController = TextEditingController();
   final _addressController = TextEditingController();
+  final _xHandleController = TextEditingController();
   final FocusNode _nameFocusNode = FocusNode();
   final FocusNode _addressFocusNode = FocusNode();
+  final FocusNode _xHandleFocusNode = FocusNode();
   bool _isLoading = false;
+  _FriendInputMode _inputMode = _FriendInputMode.wallet;
 
   // Address validation state
   AddressValidationState _addressValidation = AddressValidationState.idle;
@@ -51,6 +62,10 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
     _addressFocusNode.addListener(() {
       setState(() {}); // Update border color when focus changes
     });
+
+    _xHandleFocusNode.addListener(() {
+      setState(() {}); // Update border color when focus changes
+    });
   }
 
   @override
@@ -58,8 +73,10 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
     _debounceTimer?.cancel();
     _nameController.dispose();
     _addressController.dispose();
+    _xHandleController.dispose();
     _nameFocusNode.dispose();
     _addressFocusNode.dispose();
+    _xHandleFocusNode.dispose();
     super.dispose();
   }
 
@@ -149,7 +166,96 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
     }
   }
 
+  /// Segmented control switching between adding a friend by real wallet
+  /// address/domain, or by X handle (pending until that handle joins).
+  Widget _buildInputModeToggle() {
+    return Container(
+      padding: EdgeInsets.all(4.w),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(14.r),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildInputModeButton(
+              mode: _FriendInputMode.wallet,
+              label: 'Wallet',
+              icon: 'wallet-outline',
+            ),
+          ),
+          Expanded(
+            child: _buildInputModeButton(
+              mode: _FriendInputMode.xHandle,
+              label: 'X handle',
+              icon: 'twitter-outline',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInputModeButton({
+    required _FriendInputMode mode,
+    required String label,
+    required String icon,
+  }) {
+    final selected = _inputMode == mode;
+    return GestureDetector(
+      onTap: () {
+        if (_inputMode == mode) return;
+        setState(() => _inputMode = mode);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: EdgeInsets.symmetric(vertical: 10.h),
+        decoration: BoxDecoration(
+          color: selected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(11.r),
+          boxShadow:
+              selected
+                  ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                  : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            BasilIcon(
+              icon,
+              size: 15.w,
+              color:
+                  selected ? const Color(0xFFFF5A76) : Colors.grey.shade500,
+            ),
+            SizedBox(width: 6.w),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13.sp,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                color:
+                    selected ? const Color(0xFFFF3355) : Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _addFriend() async {
+    if (_inputMode == _FriendInputMode.xHandle) {
+      await _addFriendByHandle();
+      return;
+    }
+
     final name = _nameController.text.trim();
     final addressInput = _addressController.text.trim();
 
@@ -248,6 +354,121 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
           );
         }
       }
+    } catch (e) {
+      if (mounted) {
+        SnackBarUtils.showError(
+          context,
+          title: 'Error adding friend',
+          subtitle: e.toString(),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  /// Add-by-handle path: signs an `add_pending_target` proof and hands it to
+  /// [ArenaProvider]. If the handle already belongs to a linked wallet, the
+  /// backend resolves it immediately and this behaves like a normal
+  /// add-by-wallet; otherwise it's recorded server-side as a Venmo-style
+  /// pending target and resolves automatically once that handle links a
+  /// wallet - the UI must never imply the target is aware of the invite yet.
+  Future<void> _addFriendByHandle() async {
+    final name = _nameController.text.trim();
+    final handleInput = _xHandleController.text.trim();
+
+    if (name.isEmpty || handleInput.isEmpty) {
+      SnackBarUtils.showError(
+        context,
+        title: 'Input Error',
+        subtitle: 'Please enter both name and X handle',
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final authProvider = Provider.of<MwaAuthProvider>(context, listen: false);
+      final walletAddress = authProvider.walletAddress;
+      if (walletAddress == null) throw Exception('User not authenticated');
+
+      final arenaProvider = Provider.of<ArenaProvider>(context, listen: false);
+      final ArenaCreatePendingTargetResult result = await arenaProvider
+          .addPendingTargetByHandle(
+            authProvider: authProvider,
+            xHandle: handleInput,
+          );
+
+      final normalizedHandle = handleInput
+          .trim()
+          .replaceFirst(RegExp(r'^@+'), '')
+          .toLowerCase();
+
+      if (result.alreadyResolved && result.resolvedWalletAddress != null) {
+        // Mirror the web client's guard: the resolved handle might be the
+        // caller's own linked X account, which must never be addable as a
+        // "friend" of yourself.
+        if (result.resolvedWalletAddress == walletAddress) {
+          if (mounted) {
+            SnackBarUtils.showError(
+              context,
+              title: 'Input Error',
+              subtitle: "That's your own account.",
+            );
+          }
+          return;
+        }
+
+        // The handle already belongs to a linked wallet - add it exactly
+        // like a normal wallet-address friend.
+        final success = await UnifiedDatabaseService.addFriend(
+          userPrivyId: walletAddress,
+          friendName: name,
+          friendWalletAddress: result.resolvedWalletAddress!,
+        );
+
+        if (success) {
+          await SafeModalUtils.safeCloseAndExecute(
+            context,
+            mounted: mounted,
+            onComplete: () {
+              widget.onFriendAdded();
+              if (mounted) {
+                SnackBarUtils.showSuccess(
+                  context,
+                  title: '$name added as friend!',
+                  subtitle: 'You can now challenge them to duels',
+                );
+              }
+            },
+          );
+        } else if (mounted) {
+          SnackBarUtils.showError(
+            context,
+            title: 'Failed to add friend',
+            subtitle: 'Could not add $name as a friend. Please try again.',
+          );
+        }
+        return;
+      }
+
+      // Not resolved yet - pending, Venmo-style. Never imply @handle knows.
+      await SafeModalUtils.safeCloseAndExecute(
+        context,
+        mounted: mounted,
+        onComplete: () {
+          if (mounted) {
+            SnackBarUtils.showInfo(
+              context,
+              title: "You'll be notified",
+              subtitle:
+                  "@$normalizedHandle hasn't joined ChumBucket yet. We'll "
+                  "add $name automatically once they link that handle.",
+            );
+          }
+        },
+      );
     } catch (e) {
       if (mounted) {
         SnackBarUtils.showError(
@@ -384,9 +605,11 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
                         },
                         textInputAction: TextInputAction.next,
                         onSubmitted: (_) {
-                          FocusScope.of(
-                            context,
-                          ).requestFocus(_addressFocusNode);
+                          FocusScope.of(context).requestFocus(
+                            _inputMode == _FriendInputMode.wallet
+                                ? _addressFocusNode
+                                : _xHandleFocusNode,
+                          );
                         },
                         decoration: InputDecoration(
                           hintText: 'Friend\'s name',
@@ -417,85 +640,149 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
                       ),
                       SizedBox(height: 16.h),
 
-                      // Address input with validation
-                      TextField(
-                        controller: _addressController,
-                        focusNode: _addressFocusNode,
-                        onTap: () {
-                          setState(
-                            () {},
-                          ); // Force rebuild to update border color
-                        },
-                        onChanged: (value) {
-                          _validateAddress(value);
-                        },
-                        textInputAction: TextInputAction.done,
-                        onSubmitted: (_) => FocusScope.of(context).unfocus(),
-                        decoration: InputDecoration(
-                          hintText: 'Wallet address or domain (.skr, .abc, ...)',
-                          hintStyle: TextStyle(
-                            color: Colors.grey.shade500,
+                      // Mode toggle: real wallet address/domain, or an X
+                      // handle (may not have joined ChumBucket yet).
+                      _buildInputModeToggle(),
+                      SizedBox(height: 16.h),
+
+                      if (_inputMode == _FriendInputMode.wallet) ...[
+                        // Address input with validation
+                        TextField(
+                          controller: _addressController,
+                          focusNode: _addressFocusNode,
+                          onTap: () {
+                            setState(
+                              () {},
+                            ); // Force rebuild to update border color
+                          },
+                          onChanged: (value) {
+                            _validateAddress(value);
+                          },
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                          decoration: InputDecoration(
+                            hintText:
+                                'Wallet address or domain (.skr, .abc, ...)',
+                            hintStyle: TextStyle(
+                              color: Colors.grey.shade500,
+                              fontSize: 16.sp,
+                            ),
+                            prefixIcon: Container(
+                              width: 20.w,
+                              height: 20.w,
+                              alignment: Alignment.center,
+                              child: BasilIcon(
+                                'wallet-outline',
+                                color: const Color(0xFFFF5A76),
+                                size: 20.w,
+                              ),
+                            ),
+                            suffixIcon:
+                                _buildValidationIndicator() != null
+                                    ? Container(
+                                      width: 20.w,
+                                      height: 20.w,
+                                      alignment: Alignment.center,
+                                      child: _buildValidationIndicator(),
+                                    )
+                                    : null,
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 16.w,
+                              vertical: 16.h,
+                            ),
+                          ),
+                          style: TextStyle(
                             fontSize: 16.sp,
+                            fontWeight: FontWeight.w500,
                           ),
-                          prefixIcon: Container(
-                            width: 20.w,
-                            height: 20.w,
-                            alignment: Alignment.center,
-                            child: BasilIcon(
-                              'wallet-outline',
-                              color: const Color(0xFFFF5A76),
-                              size: 20.w,
+                        ),
+                        // Show resolved address hint when domain is validated
+                        if (_addressValidation ==
+                                AddressValidationState.valid &&
+                            _resolvedAddress != null &&
+                            AddressNameResolver.isSupportedDomain(
+                              _addressController.text.trim(),
+                            ))
+                          Padding(
+                            padding: EdgeInsets.only(left: 8.w, top: 4.h),
+                            child: Text(
+                              'Resolves to: ${_resolvedAddress!.substring(0, 6)}...${_resolvedAddress!.substring(_resolvedAddress!.length - 4)}',
+                              style: TextStyle(
+                                fontSize: 12.sp,
+                                color: Colors.green.shade600,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
-                          suffixIcon:
-                              _buildValidationIndicator() != null
-                                  ? Container(
-                                    width: 20.w,
-                                    height: 20.w,
-                                    alignment: Alignment.center,
-                                    child: _buildValidationIndicator(),
-                                  )
-                                  : null,
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 16.w,
-                            vertical: 16.h,
+                        if (_addressValidation ==
+                            AddressValidationState.invalid)
+                          Padding(
+                            padding: EdgeInsets.only(left: 8.w, top: 4.h),
+                            child: Text(
+                              'Invalid address or domain not found',
+                              style: TextStyle(
+                                fontSize: 12.sp,
+                                color: Colors.red.shade600,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                      ] else ...[
+                        // X handle input - no live validation: an unclaimed
+                        // handle is a valid input, it just means the add
+                        // resolves as pending until that handle joins.
+                        TextField(
+                          controller: _xHandleController,
+                          focusNode: _xHandleFocusNode,
+                          onTap: () {
+                            setState(() {});
+                          },
+                          onChanged: (value) {
+                            setState(() {});
+                          },
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                          decoration: InputDecoration(
+                            hintText: 'X handle (e.g. @username)',
+                            hintStyle: TextStyle(
+                              color: Colors.grey.shade500,
+                              fontSize: 16.sp,
+                            ),
+                            prefixIcon: Container(
+                              width: 20.w,
+                              height: 20.w,
+                              alignment: Alignment.center,
+                              child: BasilIcon(
+                                'twitter-outline',
+                                color: const Color(0xFFFF5A76),
+                                size: 20.w,
+                              ),
+                            ),
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 16.w,
+                              vertical: 16.h,
+                            ),
+                          ),
+                          style: TextStyle(
+                            fontSize: 16.sp,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                        style: TextStyle(
-                          fontSize: 16.sp,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      // Show resolved address hint when domain is validated
-                      if (_addressValidation == AddressValidationState.valid &&
-                          _resolvedAddress != null &&
-                          AddressNameResolver.isSupportedDomain(
-                            _addressController.text.trim(),
-                          ))
                         Padding(
                           padding: EdgeInsets.only(left: 8.w, top: 4.h),
                           child: Text(
-                            'Resolves to: ${_resolvedAddress!.substring(0, 6)}...${_resolvedAddress!.substring(_resolvedAddress!.length - 4)}',
+                            "Haven't joined yet? We'll add them automatically "
+                            'the moment they link this handle.',
                             style: TextStyle(
                               fontSize: 12.sp,
-                              color: Colors.green.shade600,
+                              color: Colors.grey.shade600,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
                         ),
-                      if (_addressValidation == AddressValidationState.invalid)
-                        Padding(
-                          padding: EdgeInsets.only(left: 8.w, top: 4.h),
-                          child: Text(
-                            'Invalid address or domain not found',
-                            style: TextStyle(
-                              fontSize: 12.sp,
-                              color: Colors.red.shade600,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
+                      ],
 
                       SizedBox(height: 20.h),
 
