@@ -75,10 +75,19 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
     await Future.wait(requests);
   }
 
-  void _openMatch(ArenaMatchEntry match) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => DareYourselfScreen(match: match)));
+  Future<void> _openMatch(ArenaMatchEntry match) async {
+    final placed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => DareYourselfScreen(match: match)),
+    );
+    if (!mounted) return;
+    if (placed == true) {
+      // H13: after a successful bet, take the user straight to where their
+      // bet lives and gets paid — instead of dropping them back on the list
+      // with no sign of where the money went.
+      await _load();
+      if (!mounted) return;
+      _openPositions();
+    }
   }
 
   Future<void> _openCallers(ArenaMatchEntry match) async {
@@ -134,6 +143,10 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
                   onProfileTap: widget.onProfileTap,
                 ),
               ),
+              // H13: a persistent, labelled way into "My bets" — the emphasised
+              // claimable strip when there are winnings to collect, otherwise a
+              // quiet link that's always there so the bet/payout path is never
+              // invisible.
               if (arena.claimablePositions.isNotEmpty)
                 Padding(
                   padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 20.h),
@@ -141,6 +154,11 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
                     count: arena.claimablePositions.length,
                     onTap: _openPositions,
                   ),
+                )
+              else
+                Padding(
+                  padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 12.h),
+                  child: _MyBetsButton(onTap: _openPositions),
                 ),
               // Personal stuff first: your challenges are more relevant to
               // you than the global markets list, so they no longer sit
@@ -164,11 +182,11 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
               Padding(
                 padding: EdgeInsets.fromLTRB(20.w, 28.h, 20.w, 12.h),
                 child: _SectionHeader(
-                  title: "Today's markets",
+                  title: "Today's matches",
                   // "See calls" read as ambiguous — this is OTHER people's
-                  // activity (the social feed), not a "see more markets"
+                  // activity (the social feed), not a "see more matches"
                   // browser. Say so.
-                  action: "Who's calling",
+                  action: "Who's predicting",
                   onAction: widget.onViewCalls,
                 ),
               ),
@@ -183,11 +201,26 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
                       if (arena.isLoadingMatchday && matches.isEmpty)
                         SliverPadding(
                           padding: EdgeInsets.symmetric(horizontal: 20.w),
-                          sliver: SliverList.separated(
-                            itemCount: 3,
-                            separatorBuilder:
-                                (_, __) => SizedBox(height: 12.h),
-                            itemBuilder: (_, __) => const _MarketSkeleton(),
+                          sliver: SliverList(
+                            delegate: SliverChildListDelegate([
+                              // M7: caption so the skeletons read as loading,
+                              // not broken empty cards.
+                              Padding(
+                                padding: EdgeInsets.only(bottom: 12.h),
+                                child: Text(
+                                  'Loading matches…',
+                                  style: TextStyle(
+                                    fontSize: 12.sp,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                              const _MarketSkeleton(),
+                              SizedBox(height: 12.h),
+                              const _MarketSkeleton(),
+                              SizedBox(height: 12.h),
+                              const _MarketSkeleton(),
+                            ]),
                           ),
                         )
                       else if (arena.matchdayError != null && matches.isEmpty)
@@ -196,7 +229,7 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
                           sliver: SliverToBoxAdapter(
                             child: _HomeState(
                               basilIcon: 'hotspot-outline',
-                              title: 'Markets are taking a moment',
+                              title: 'Couldn\'t load matches',
                               detail: 'Pull down to try again.',
                               onTap: _load,
                             ),
@@ -208,9 +241,9 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
                           sliver: const SliverToBoxAdapter(
                             child: _HomeState(
                               icon: Icons.sports_soccer_outlined,
-                              title: 'No open markets right now',
+                              title: 'No matches to predict right now',
                               detail:
-                                  'New fixtures will appear here when calls open.',
+                                  'New matches will show up here when they open.',
                             ),
                           ),
                         )
@@ -317,7 +350,7 @@ class _SeeMoreMarketsButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.primary.withOpacity(0.08),
+      color: AppColors.primary.withValues(alpha: 0.08),
       borderRadius: BorderRadius.circular(16.r),
       child: InkWell(
         onTap: onTap,
@@ -328,7 +361,7 @@ class _SeeMoreMarketsButton extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                'See $remaining more ${remaining == 1 ? 'market' : 'markets'}',
+                'See $remaining more ${remaining == 1 ? 'match' : 'matches'}',
                 style: TextStyle(
                   color: AppColors.primary,
                   fontSize: 14.sp,
@@ -393,7 +426,7 @@ class _ClaimableStrip extends StatelessWidget {
                     ),
                     SizedBox(height: 2.h),
                     Text(
-                      'Claim from your prediction history',
+                      'Tap to collect your winnings',
                       style: TextStyle(
                         fontSize: 12.sp,
                         color: AppColors.textSecondary,
@@ -403,6 +436,54 @@ class _ClaimableStrip extends StatelessWidget {
                 ),
               ),
               const BasilIcon('caret-right-outline', color: AppColors.primary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Persistent, labelled entry into "My bets" — shown whenever there are no
+/// claimable winnings, so the "where's my bet / how do I get paid" path is
+/// always visible (H13).
+class _MyBetsButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _MyBetsButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16.r),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16.r),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+          child: Row(
+            children: [
+              BasilIcon(
+                'wallet-outline',
+                size: 18.w,
+                color: AppColors.primary,
+              ),
+              SizedBox(width: 10.w),
+              Expanded(
+                child: Text(
+                  'My bets',
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              const BasilIcon(
+                'caret-right-outline',
+                color: AppColors.textTertiary,
+              ),
             ],
           ),
         ),
@@ -493,9 +574,17 @@ class _MarketRow extends StatelessWidget {
                               ),
                               child: Column(
                                 children: [
+                                  // H2: real team name / "Draw", never the raw
+                                  // HOME/DRAW/AWAY code.
                                   Text(
-                                    bucket.bucket,
+                                    ArenaFormat.outcomeName(
+                                      bucket.bucket,
+                                      home: match.fixture.home,
+                                      away: match.fixture.away,
+                                    ),
                                     maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
                                     style: TextStyle(
                                       color: AppColors.textSecondary,
                                       fontSize: 10.sp,
@@ -503,6 +592,16 @@ class _MarketRow extends StatelessWidget {
                                     ),
                                   ),
                                   SizedBox(height: 2.h),
+                                  // H7: name the number — it's the pool backing
+                                  // this outcome, not odds or a payout.
+                                  Text(
+                                    'Backed',
+                                    style: TextStyle(
+                                      color: AppColors.textTertiary,
+                                      fontSize: 8.5.sp,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
                                   Text(
                                     ArenaFormat.usdcFromBaseUnits(bucket.stake),
                                     maxLines: 1,
@@ -538,8 +637,8 @@ class _MarketRow extends StatelessWidget {
                       Expanded(
                         child: Text(
                           market == null || market.participantCount == 0
-                              ? 'Be the first to call it'
-                              : '${market.participantCount} ${market.participantCount == 1 ? 'caller' : 'callers'}',
+                              ? 'Be the first to predict this match'
+                              : '${market.participantCount} ${market.participantCount == 1 ? 'prediction' : 'predictions'}',
                           style: TextStyle(
                             color: AppColors.textSecondary,
                             fontSize: 12.sp,

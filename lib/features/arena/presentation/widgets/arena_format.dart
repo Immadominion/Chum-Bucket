@@ -37,4 +37,47 @@ class ArenaFormat {
         return '?';
     }
   }
+
+  /// Map a raw outcome code ("HOME"/"DRAW"/"AWAY"/"OVER"/"UNDER") to a plain,
+  /// user-facing name. HOME/AWAY become the actual team names; DRAW becomes
+  /// "Draw"; line-market codes are shown in title case. Newcomers must never
+  /// see the raw codes.
+  static String outcomeName(
+    String code, {
+    required String home,
+    required String away,
+  }) {
+    switch (code.toUpperCase()) {
+      case 'HOME':
+        return home;
+      case 'AWAY':
+        return away;
+      case 'DRAW':
+        return 'Draw';
+      case 'OVER':
+        return 'Over';
+      case 'UNDER':
+        return 'Under';
+      default:
+        return code;
+    }
+  }
+
+  /// Same as [outcomeName] but from the on-chain bucket index (0/1/2).
+  static String outcomeNameFromIndex(
+    int bucket, {
+    required String home,
+    required String away,
+  }) {
+    switch (bucket) {
+      case MatchArenaService.bucketHome:
+        return home;
+      case MatchArenaService.bucketAway:
+        return away;
+      case MatchArenaService.bucketDraw:
+        return 'Draw';
+      default:
+        return 'this pick';
+    }
+  }
 }

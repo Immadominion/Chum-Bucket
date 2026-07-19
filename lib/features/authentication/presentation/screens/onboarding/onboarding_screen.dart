@@ -164,27 +164,27 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   Widget _getCurrentPage(int currentPage) {
     const pages = [
       OnboardingPage(
-        title: "Dare Your Friends",
+        title: "Put money on the match",
         description:
-            "Create fun challenges with friends, stake coins, and keep each other accountable.",
+            "Challenge a friend or back a match — put money on who you think wins. It's play money on a practice network, so nothing here costs real cash.",
         illustration: "assets/animations/whisk_ai_generate/onb_animation_1.gif",
         isAnimated: true,
         fallback:
             "assets/images/ai_gen/whisk_animation_fallback/animation_image_1.jpg",
       ),
       OnboardingPage(
-        title: "Lock Coins. Play Fair.",
+        title: "Your money's safe till full-time",
         description:
-            "Add a wallet or .skr name, set the challenge, and lock funds. Winner takes all.",
+            "Add a wallet or .skr name and put money on your pick. It's held safely until the match ends — never in anyone else's wallet.",
         illustration: "assets/animations/whisk_ai_generate/onb_animation_2.gif",
         fallback:
             "assets/images/ai_gen/whisk_animation_fallback/animation_image_2.jpg",
         isAnimated: true,
       ),
       OnboardingPage(
-        title: "On-Chain. No Trust Needed.",
+        title: "The real score decides — nobody can cheat",
         description:
-            "Witness approval automatically release 100% to the winner. Challenger Disputes split 50/50.",
+            "The real match result is checked automatically, then winners get paid. No one can fake it.",
         illustration: "assets/animations/whisk_ai_generate/onb_animation_3.gif",
         fallback:
             "assets/images/ai_gen/whisk_animation_fallback/animation_image_3.jpg",

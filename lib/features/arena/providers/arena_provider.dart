@@ -229,46 +229,72 @@ class ArenaProvider extends BaseChangeNotifier {
       ),
     );
 
-    unawaited(
-      _signCallProof(
-            authProvider: authProvider,
-            matchId: match.fixture.matchId,
-            bucket: bucketLabel,
-            stakeBaseUnits: BigInt.from(
-              MatchArenaService.usdcToBaseUnits(amountUsdc),
-            ),
-            txSignature: signature,
-          )
-          .then(
-            (proof) => _backendService.recordPredictionCall(
-              walletAddress: service.walletAddress,
-              matchId: match.fixture.matchId,
-              marketId: market.marketId,
-              bucketLabel: bucketLabel,
-              stakeBaseUnits: BigInt.from(
-                MatchArenaService.usdcToBaseUnits(amountUsdc),
-              ),
-              txSignature: signature,
-              timestamp: proof.timestamp,
-              signature: proof.signature,
-              metadata: {
-                'home': match.fixture.home,
-                'away': match.fixture.away,
-                'competition': match.fixture.competition,
-                'kickoff': match.fixture.kickoff.toIso8601String(),
-                'market': market.label,
-              },
-            ),
-          )
-          .catchError((e) {
-            // Social mirroring is best-effort here. The transaction already landed
-            // and the backend indexer can reconcile by signature later.
-            log('⚠️ ArenaProvider.recordPredictionCall failed: $e');
-          }),
-    );
-
+    // NOTE: the social-mirror proof signature (a SECOND wallet prompt) used to
+    // fire here unawaited, which meant the wallet could pop AFTER the user had
+    // already left this screen — reading like a glitch. It's now driven by the
+    // caller via [signAndRecordCallProof] so the second approval happens inside
+    // the visible submit flow, with on-screen copy explaining it. Money routing
+    // is unchanged — this only records the off-chain social read model.
     return signature;
   }
+
+  /// Best-effort: sign the social-mirror proof (a second, lightweight wallet
+  /// message signature — NOT another money transaction) and record the pick in
+  /// the off-chain read model. The on-chain bet has already landed by the time
+  /// this runs; a failure or a user-cancelled signature here is harmless (the
+  /// indexer reconciles by signature later), so callers should treat any throw
+  /// as non-fatal and NOT surface it as a failed bet.
+  Future<void> signAndRecordCallProof({
+    required MwaAuthProvider authProvider,
+    required ArenaMatchEntry match,
+    required ArenaMarket market,
+    required String bucketLabel,
+    required double amountUsdc,
+    required String txSignature,
+  }) async {
+    final service = _arenaService;
+    if (service == null) return;
+    final stakeBaseUnits = BigInt.from(
+      MatchArenaService.usdcToBaseUnits(amountUsdc),
+    );
+    final proof = await _signCallProof(
+      authProvider: authProvider,
+      matchId: match.fixture.matchId,
+      bucket: bucketLabel,
+      stakeBaseUnits: stakeBaseUnits,
+      txSignature: txSignature,
+    );
+    await _backendService.recordPredictionCall(
+      walletAddress: service.walletAddress,
+      matchId: match.fixture.matchId,
+      marketId: market.marketId,
+      bucketLabel: bucketLabel,
+      stakeBaseUnits: stakeBaseUnits,
+      txSignature: txSignature,
+      timestamp: proof.timestamp,
+      signature: proof.signature,
+      metadata: {
+        'home': match.fixture.home,
+        'away': match.fixture.away,
+        'competition': match.fixture.competition,
+        'kickoff': match.fixture.kickoff.toIso8601String(),
+        'market': market.label,
+      },
+    );
+  }
+
+  /// Live in-play score + phase for a match (display-only; the on-chain proof
+  /// settles bets). Null until the feed has a live snapshot. Passthrough so the
+  /// live match strip doesn't reach into the backend service directly.
+  Future<ArenaLiveScore?> fetchLiveScore(String matchId) =>
+      _backendService.fetchLiveScore(matchId);
+
+  /// Self-serve devnet faucet: mint 100 test USDC of the program's pinned mint
+  /// to [wallet] so a tester/judge can fund themselves before betting. Returns
+  /// whether the wallet was actually funded (false when it already had enough).
+  /// Passthrough so the bet screen doesn't reach into the backend service.
+  Future<bool> requestFaucet(String wallet) =>
+      _backendService.requestFaucet(wallet);
 
   /// Pull the payout/refund for a previously-placed call.
   Future<String> claim(MyPotRecord record) async {

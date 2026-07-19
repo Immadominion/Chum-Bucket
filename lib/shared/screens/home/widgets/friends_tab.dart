@@ -59,6 +59,7 @@ class _FriendsTabState extends State<FriendsTab>
   bool isLoading = false; // Start as false - only show loading on first load
   bool hasAttemptedLoad = false; // Track if we've tried to load
   bool _isFirstLoad = true; // Track if this is the first load
+  bool _hasLoadError = false; // M8: surfaced as a retryable error card
   MwaWalletProvider?
   _walletProvider; // Store provider reference for safe disposal
 
@@ -255,6 +256,7 @@ class _FriendsTabState extends State<FriendsTab>
           // Only show loading spinner on first load, not on tab switches
           isLoading = _isFirstLoad;
           hasAttemptedLoad = true;
+          _hasLoadError = false;
         });
       }
 
@@ -283,10 +285,21 @@ class _FriendsTabState extends State<FriendsTab>
       print('FriendsTab: UI updated with ${friends.length} friends');
     } catch (e) {
       print('Error loading friends: $e');
+      // M8: remember the failure so the UI can offer a real retry instead of
+      // silently dropping to a blank grid.
       if (mounted) {
-        setState(() => isLoading = false);
+        setState(() {
+          isLoading = false;
+          _hasLoadError = true;
+        });
       }
     }
+  }
+
+  Future<void> _retryLoadFriends() async {
+    _friendsFuture = null;
+    hasAttemptedLoad = false;
+    await _loadFriends();
   }
 
   @override
@@ -335,34 +348,81 @@ class _FriendsTabState extends State<FriendsTab>
                 ),
                 // Only show spinner on first load when no data exists
                 // Otherwise show the grid (even if empty or refreshing in background)
-                (isLoading && friends.isEmpty)
-                    ? Container(
-                      width: 24.w,
-                      height: 24.h,
-                      margin: EdgeInsets.all(30.r),
-                      child: const CircularProgressIndicator(),
-                    )
-                    : Consumer<ArenaProvider>(
-                      builder:
-                          (context, arena, _) => FriendsGrid(
-                            friends: _withXLabels(friends, arena),
-                            onFriendSelected: (friendName) {
-                              final friend = friends.firstWhere(
-                                (f) => f['name'] == friendName,
-                                orElse: () => {'walletAddress': ''},
-                              );
-                              // Pass raw wallet address; resolution will happen where displayed
-                              widget.onFriendSelected(
-                                friendName,
-                                friend['walletAddress'] ?? '',
-                              );
-                            },
-                            buildViewMoreItem: widget.buildViewMoreItem,
-                            onViewMorePressed: _showAllFriends,
-                            maxVisibleFriends:
-                                5, // Show 5 friends before "View More"
+                if (isLoading && friends.isEmpty)
+                  Padding(
+                    padding: EdgeInsets.all(24.r),
+                    child: Column(
+                      children: [
+                        SizedBox(
+                          width: 24.w,
+                          height: 24.h,
+                          child: const CircularProgressIndicator(),
+                        ),
+                        SizedBox(height: 12.h),
+                        // M7: caption so the spinner reads as loading, not stuck.
+                        Text(
+                          'Loading your friends…',
+                          style: TextStyle(
+                            fontSize: 12.sp,
+                            color: Colors.grey.shade600,
                           ),
+                        ),
+                      ],
                     ),
+                  )
+                else if (_hasLoadError && friends.isEmpty)
+                  // M8: real error card with a Try again button.
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: 20.h),
+                    child: Column(
+                      children: [
+                        BasilIcon(
+                          'cloud-off-outline',
+                          size: 30.sp,
+                          color: Colors.grey,
+                        ),
+                        SizedBox(height: 10.h),
+                        Text(
+                          'Couldn\'t load — check your connection',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 13.sp,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                        SizedBox(height: 8.h),
+                        TextButton(
+                          onPressed: _retryLoadFriends,
+                          child: const Text('Try again'),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Consumer<ArenaProvider>(
+                    builder:
+                        (context, arena, _) => FriendsGrid(
+                          friends: _withXLabels(friends, arena),
+                          onFriendSelected: (friendName) {
+                            final friend = friends.firstWhere(
+                              (f) => f['name'] == friendName,
+                              orElse: () => {'walletAddress': ''},
+                            );
+                            // Pass raw wallet address; resolution will happen where displayed
+                            widget.onFriendSelected(
+                              friendName,
+                              friend['walletAddress'] ?? '',
+                            );
+                          },
+                          buildViewMoreItem: widget.buildViewMoreItem,
+                          onViewMorePressed: _showAllFriends,
+                          // H14: empty-state "Add a friend" opens the same flow
+                          // as the button below.
+                          onAddFriend: widget.createNewChallenge,
+                          maxVisibleFriends:
+                              5, // Show 5 friends before "View More"
+                        ),
+                  ),
                 // SizedBox(height: 15.h),
                 ChallengeButton(createNewChallenge: widget.createNewChallenge),
               ],
@@ -475,7 +535,7 @@ class _PendingInvitesSection extends StatelessWidget {
                 ),
                 SizedBox(height: 4.h),
                 Text(
-                  "They'll be added automatically once they link this handle.",
+                  "They'll be added automatically once they join ChumBucket with this X account.",
                   style: TextStyle(fontSize: 11.sp, color: Colors.grey.shade500),
                 ),
                 SizedBox(height: 8.h),

@@ -86,8 +86,8 @@ class _MatchdayScreenState extends State<MatchdayScreen> {
             },
           ),
           IconButton(
-            icon: const BasilIcon('history-outline', color: Colors.black87),
-            tooltip: 'My Pots',
+            icon: const BasilIcon('wallet-outline', color: Colors.black87),
+            tooltip: 'My bets',
             onPressed: () {
               Navigator.push(
                 context,
@@ -114,6 +114,7 @@ class _MatchdayScreenState extends State<MatchdayScreen> {
     }
 
     if (arena.matchdayError != null && arena.matchday.isEmpty) {
+      // M8: plain message + a real Try again button; never dump the raw error.
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 80.h),
@@ -121,9 +122,16 @@ class _MatchdayScreenState extends State<MatchdayScreen> {
           BasilIcon('cloud-off-outline', size: 48.sp, color: Colors.grey),
           SizedBox(height: 12.h),
           Text(
-            'Could not load matchday.\n${arena.matchdayError}',
+            'Couldn\'t load — check your connection.',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.grey.shade700, fontSize: 13.sp),
+          ),
+          SizedBox(height: 8.h),
+          Center(
+            child: TextButton(
+              onPressed: arena.loadMatchday,
+              child: const Text('Try again'),
+            ),
           ),
         ],
       );
@@ -141,7 +149,7 @@ class _MatchdayScreenState extends State<MatchdayScreen> {
           Icon(Icons.sports_soccer, size: 48.sp, color: Colors.grey),
           SizedBox(height: 12.h),
           Text(
-            'No open matches to call right now.\nCheck back soon.',
+            'No matches to predict right now.\nCheck back soon.',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.grey.shade700, fontSize: 13.sp),
           ),
@@ -264,7 +272,12 @@ class _MatchCardState extends State<_MatchCard> {
               ),
             ),
             SizedBox(height: 12.h),
-            if (market != null) _BucketTotalsRow(market: market),
+            if (market != null)
+              _BucketTotalsRow(
+                market: market,
+                home: match.fixture.home,
+                away: match.fixture.away,
+              ),
             SizedBox(height: 12.h),
             Consumer<ArenaProvider>(
               builder: (context, arena, _) {
@@ -276,6 +289,8 @@ class _MatchCardState extends State<_MatchCard> {
                       callers.isEmpty,
                   hadError: arena.matchCallersHadError(match.fixture.matchId),
                   totalCallers: market?.participantCount ?? callers.length,
+                  home: match.fixture.home,
+                  away: match.fixture.away,
                   onTap: _showCallers,
                 );
               },
@@ -292,6 +307,8 @@ class _MatchSocialProofRow extends StatelessWidget {
   final bool isLoading;
   final bool hadError;
   final int totalCallers;
+  final String home;
+  final String away;
   final VoidCallback onTap;
 
   const _MatchSocialProofRow({
@@ -299,6 +316,8 @@ class _MatchSocialProofRow extends StatelessWidget {
     required this.isLoading,
     required this.hadError,
     required this.totalCallers,
+    required this.home,
+    required this.away,
     required this.onTap,
   });
 
@@ -307,10 +326,10 @@ class _MatchSocialProofRow extends StatelessWidget {
     final visible = callers.take(4).toList();
     final label =
         hadError
-            ? 'Could not load callers'
+            ? 'Couldn\'t load who\'s predicting'
             : totalCallers > 0
-            ? '$totalCallers ${totalCallers == 1 ? 'caller' : 'callers'} on this'
-            : 'Be the first caller';
+            ? '$totalCallers ${totalCallers == 1 ? 'prediction' : 'predictions'} on this'
+            : 'Be the first to predict';
 
     return InkWell(
       onTap: onTap,
@@ -380,8 +399,8 @@ class _MatchSocialProofRow extends StatelessWidget {
                   SizedBox(height: 2.h),
                   Text(
                     visible.isEmpty
-                        ? 'Open the caller board'
-                        : _bucketSummary(visible),
+                        ? 'See who\'s predicting'
+                        : _bucketSummary(visible, home: home, away: away),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -407,8 +426,14 @@ class _MatchSocialProofRow extends StatelessWidget {
 
 class _BucketTotalsRow extends StatelessWidget {
   final ArenaMarket market;
+  final String home;
+  final String away;
 
-  const _BucketTotalsRow({required this.market});
+  const _BucketTotalsRow({
+    required this.market,
+    required this.home,
+    required this.away,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -427,7 +452,14 @@ class _BucketTotalsRow extends StatelessWidget {
                     child: Column(
                       children: [
                         Text(
-                          bucket.bucket,
+                          // H2: real team name, never the raw code.
+                          ArenaFormat.outcomeName(
+                            bucket.bucket,
+                            home: home,
+                            away: away,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 10.sp,
                             fontWeight: FontWeight.w700,
@@ -495,7 +527,7 @@ class _MatchCallersSheet extends StatelessWidget {
                       sliver: SliverList(
                         delegate: SliverChildListDelegate([
                           ChallengeButton(
-                            label: 'Call this match',
+                            label: 'Back this match',
                             blurRadius: false,
                             createNewChallenge: () {
                               Navigator.pop(context);
@@ -510,7 +542,7 @@ class _MatchCallersSheet extends StatelessWidget {
                           ),
                           SizedBox(height: 18.h),
                           Text(
-                            'Caller board',
+                            'Who\'s predicting',
                             style: TextStyle(
                               fontSize: 16.sp,
                               fontWeight: FontWeight.w900,
@@ -532,7 +564,11 @@ class _MatchCallersSheet extends StatelessWidget {
                             ...callers.map(
                               (caller) => Padding(
                                 padding: EdgeInsets.only(bottom: 10.h),
-                                child: _CallerRow(caller: caller),
+                                child: _CallerRow(
+                                  caller: caller,
+                                  home: match.fixture.home,
+                                  away: match.fixture.away,
+                                ),
                               ),
                             ),
                         ]),
@@ -647,8 +683,14 @@ class _CallersSheetHeader extends StatelessWidget {
 
 class _CallerRow extends StatelessWidget {
   final ArenaMatchCaller caller;
+  final String home;
+  final String away;
 
-  const _CallerRow({required this.caller});
+  const _CallerRow({
+    required this.caller,
+    required this.home,
+    required this.away,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -696,7 +738,7 @@ class _CallerRow extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              _BucketPill(bucket: caller.bucket),
+              _BucketPill(bucket: caller.bucket, home: home, away: away),
               if (payout != null) ...[
                 SizedBox(height: 4.h),
                 Text(
@@ -720,8 +762,14 @@ class _CallerRow extends StatelessWidget {
 
 class _BucketPill extends StatelessWidget {
   final String bucket;
+  final String home;
+  final String away;
 
-  const _BucketPill({required this.bucket});
+  const _BucketPill({
+    required this.bucket,
+    required this.home,
+    required this.away,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -733,7 +781,7 @@ class _BucketPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(999.r),
       ),
       child: Text(
-        bucket,
+        ArenaFormat.outcomeName(bucket, home: home, away: away),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
@@ -765,7 +813,7 @@ class _EmptyCallers extends StatelessWidget {
           BasilIcon('bullhorn-outline', size: 34.sp, color: AppColors.primary),
           SizedBox(height: 10.h),
           Text(
-            'No public calls yet',
+            'No predictions yet',
             style: TextStyle(
               fontSize: 16.sp,
               fontWeight: FontWeight.w900,
@@ -774,7 +822,7 @@ class _EmptyCallers extends StatelessWidget {
           ),
           SizedBox(height: 4.h),
           Text(
-            'Start the board for ${match.fixture.home} vs ${match.fixture.away}.',
+            'Be the first to predict ${match.fixture.home} vs ${match.fixture.away}.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 12.sp,
@@ -883,12 +931,21 @@ class _CallerAvatar extends StatelessWidget {
   }
 }
 
-String _bucketSummary(List<ArenaMatchCaller> callers) {
+String _bucketSummary(
+  List<ArenaMatchCaller> callers, {
+  required String home,
+  required String away,
+}) {
   final counts = <String, int>{};
   for (final caller in callers) {
     counts[caller.bucket] = (counts[caller.bucket] ?? 0) + 1;
   }
-  return counts.entries.map((e) => '${e.value} ${e.key}').join(' • ');
+  return counts.entries
+      .map(
+        (e) =>
+            '${e.value} ${ArenaFormat.outcomeName(e.key, home: home, away: away)}',
+      )
+      .join(' • ');
 }
 
 String _shortWallet(String wallet) {

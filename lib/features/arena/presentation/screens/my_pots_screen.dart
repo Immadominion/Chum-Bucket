@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
@@ -62,15 +64,18 @@ class _MyPotsScreenState extends State<MyPotsScreen> {
       if (!mounted) return;
       SnackBarUtils.showSuccess(
         context,
-        title: 'Claimed',
-        subtitle: '${record.home} vs ${record.away} payout claimed.',
+        title: 'Winnings collected',
+        subtitle:
+            'Your winnings from ${record.home} vs ${record.away} are on the '
+            'way to your balance.',
       );
     } catch (e) {
+      developer.log('MyPotsScreen._claim failed: $e');
       if (!mounted) return;
       SnackBarUtils.showError(
         context,
-        title: 'Could not claim',
-        subtitle: e.toString(),
+        title: 'Couldn\'t collect winnings',
+        subtitle: _friendlyClaimError(e),
       );
     } finally {
       if (mounted) setState(() => _claiming.remove(record.matchId));
@@ -85,7 +90,7 @@ class _MyPotsScreenState extends State<MyPotsScreen> {
         backgroundColor: AppColors.background,
         elevation: 0,
         title: Text(
-          'My Pots',
+          'My bets',
           style: TextStyle(
             fontSize: 20.sp,
             fontWeight: FontWeight.w700,
@@ -114,7 +119,8 @@ class _MyPotsScreenState extends State<MyPotsScreen> {
           BasilIcon('award-outline', size: 48.sp, color: Colors.grey),
           SizedBox(height: 12.h),
           Text(
-            'You haven\'t dared yourself on any matches yet.',
+            'You haven\'t backed any matches yet. Pick a match and put '
+            'something on it.',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.grey.shade700, fontSize: 13.sp),
           ),
@@ -190,8 +196,9 @@ class _PotCard extends StatelessWidget {
           ),
           SizedBox(height: 6.h),
           Text(
-            'Called ${ArenaFormat.bucketLabel(record.bucket)} • '
-            '${ArenaFormat.usdc(record.amountUsdc)}',
+            // H2: real team name, never HOME/DRAW/AWAY.
+            'Bet ${ArenaFormat.usdc(record.amountUsdc)} on '
+            '${ArenaFormat.outcomeNameFromIndex(record.bucket, home: record.home, away: record.away)}',
             style: TextStyle(fontSize: 12.5.sp, color: Colors.grey.shade700),
           ),
           SizedBox(height: 2.h),
@@ -200,6 +207,15 @@ class _PotCard extends StatelessWidget {
             style: TextStyle(fontSize: 11.sp, color: Colors.grey.shade500),
           ),
           if (!record.claimedLocally) ...[
+            if (!isMatchStillActive) ...[
+              SizedBox(height: 10.h),
+              // H13: make claiming explicit — what tapping does and where the
+              // money goes.
+              Text(
+                'Tap Claim to send any winnings to your balance.',
+                style: TextStyle(fontSize: 11.5.sp, color: Colors.grey.shade600),
+              ),
+            ],
             SizedBox(height: 12.h),
             SizedBox(
               width: double.infinity,
@@ -224,7 +240,9 @@ class _PotCard extends StatelessWidget {
                           ),
                         )
                         : Text(
-                          isMatchStillActive ? 'Match in progress' : 'Claim',
+                          isMatchStillActive
+                              ? 'Match in play'
+                              : 'Claim winnings',
                           style: TextStyle(
                             fontSize: 13.sp,
                             fontWeight: FontWeight.w600,
@@ -250,13 +268,13 @@ class _StatusChip extends StatelessWidget {
     final String label;
     final Color color;
     if (claimed) {
-      label = 'Claimed';
+      label = 'Collected';
       color = AppColors.success;
     } else if (active) {
-      label = 'Live';
+      label = 'In play';
       color = AppColors.tertiary;
     } else {
-      label = 'Settled';
+      label = 'Finished';
       color = AppColors.primary;
     }
 
@@ -276,4 +294,33 @@ class _StatusChip extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Turn a raw claim error into one plain sentence; the raw text stays in the
+/// developer log only (H3).
+String _friendlyClaimError(Object error) {
+  final raw = error.toString().toLowerCase();
+  if (raw.contains('cancel') ||
+      raw.contains('rejected') ||
+      raw.contains('declined')) {
+    return 'You cancelled in your wallet — nothing was collected.';
+  }
+  if (raw.contains('not settled') ||
+      raw.contains('pending') ||
+      raw.contains('not resolved') ||
+      raw.contains('too early')) {
+    return 'This match hasn\'t finished yet — check back after it ends.';
+  }
+  if (raw.contains('already') && raw.contains('claim')) {
+    return 'You\'ve already collected this one.';
+  }
+  if (raw.contains('network') ||
+      raw.contains('timeout') ||
+      raw.contains('timed out') ||
+      raw.contains('connection') ||
+      raw.contains('socket') ||
+      raw.contains('blockhash')) {
+    return 'Couldn\'t reach the network — please try again.';
+  }
+  return 'Couldn\'t collect your winnings just now — please try again.';
 }

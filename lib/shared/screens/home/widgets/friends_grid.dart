@@ -1,4 +1,6 @@
+import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/shared/screens/home/widgets/friend_item.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
@@ -8,6 +10,10 @@ class FriendsGrid extends StatelessWidget {
   final Widget Function(BuildContext context, int remainingCount)
   buildViewMoreItem;
   final VoidCallback? onViewMorePressed;
+
+  /// Opens the add-a-friend flow. When set, the empty state shows a real
+  /// "Add a friend" button instead of a blank gap (H14).
+  final VoidCallback? onAddFriend;
   final int maxVisibleFriends; // Maximum friends to show before "View More"
 
   const FriendsGrid({
@@ -16,15 +22,62 @@ class FriendsGrid extends StatelessWidget {
     required this.onFriendSelected,
     required this.buildViewMoreItem,
     this.onViewMorePressed,
+    this.onAddFriend,
     this.maxVisibleFriends =
         5, // Default to 5 friends visible (2 rows of 3, minus 1 for view more)
   });
 
   @override
   Widget build(BuildContext context) {
-    // If no friends, return minimal height container
+    // H14: a real empty state, not a blank 10px gap that reads as broken.
     if (friends.isEmpty) {
-      return SizedBox(height: 10.h);
+      return Padding(
+        padding: EdgeInsets.symmetric(vertical: 18.h),
+        child: Column(
+          children: [
+            BasilIcon(
+              'user-plus-outline',
+              size: 34.sp,
+              color: AppColors.textTertiary,
+            ),
+            SizedBox(height: 10.h),
+            Text(
+              'No friends yet — add someone to challenge them',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13.sp,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            if (onAddFriend != null) ...[
+              SizedBox(height: 12.h),
+              OutlinedButton.icon(
+                onPressed: onAddFriend,
+                icon: BasilIcon(
+                  'add-outline',
+                  size: 16.sp,
+                  color: AppColors.primary,
+                ),
+                label: Text(
+                  'Add a friend',
+                  style: TextStyle(
+                    fontSize: 13.sp,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: AppColors.primary),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12.r),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
     }
 
     final hasMoreFriends = friends.length > maxVisibleFriends;

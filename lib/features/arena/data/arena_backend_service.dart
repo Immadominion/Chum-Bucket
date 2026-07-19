@@ -57,6 +57,48 @@ class ArenaBackendService {
     return ArenaMatchEntry.fromJson(json as Map<String, dynamic>);
   }
 
+  /// Live in-play score + phase for a match, or null if there's no live
+  /// snapshot yet (not kicked off) or the feed can't supply one. Display-only —
+  /// never used to settle a bet.
+  Future<ArenaLiveScore?> fetchLiveScore(String matchId) async {
+    final inputJson = jsonEncode({
+      'json': {'matchId': matchId},
+    });
+    final uri = Uri.parse(
+      '$baseUrl/liveScore',
+    ).replace(queryParameters: {'input': inputJson});
+    final response = await http.get(uri).timeout(const Duration(seconds: 12));
+    final json = _decodeTrpcResponse(response, procedurePath: 'liveScore');
+    if (json == null) return null;
+    return ArenaLiveScore.fromJson(json as Map<String, dynamic>);
+  }
+
+  /// Self-serve devnet faucet: mint 100 test USDC of the program's PINNED mint
+  /// to [wallet] so testers/judges can fund themselves. Play money on devnet.
+  ///
+  /// This exists because the program pins a custom test-USDC mint (not Circle's);
+  /// a wallet funded from Circle's faucet holds the WRONG mint and reads 0 here,
+  /// so bets fail simulation. Returns whether the wallet was actually funded —
+  /// `false` when it already holds enough (≥25) and the backend no-ops.
+  Future<bool> requestFaucet(String wallet) async {
+    final uri = Uri.parse('$baseUrl/faucet');
+    log('🏟️ ArenaBackendService: POST $uri');
+
+    final response = await http
+        .post(
+          uri,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'json': {'wallet': wallet},
+          }),
+        )
+        .timeout(const Duration(seconds: 30));
+
+    final json = _decodeTrpcResponse(response, procedurePath: 'faucet');
+    final map = json as Map<String, dynamic>;
+    return map['funded'] == true;
+  }
+
   Future<List<ArenaServerPosition>> fetchMyPositions({
     required String walletAddress,
     int limit = 100,

@@ -20,15 +20,18 @@ class ChumbucketBottomNavigation extends StatelessWidget {
       regular: 'home-outline',
       selected: 'home-solid',
     ),
+    // L4: label + icon now match meaning — a feed/activity glyph for the
+    // predictions feed (not a shopping basket), and a people glyph for
+    // Friends (not an envelope).
     _NavigationItem(
-      label: 'Calls',
-      regular: 'shopping-basket-outline',
-      selected: 'shopping-basket-solid',
+      label: 'Predictions',
+      regular: 'hotspot-outline',
+      selected: 'hotspot-solid',
     ),
     _NavigationItem(
       label: 'Friends',
-      regular: 'envelope-open-outline',
-      selected: 'envelope-open-solid',
+      regular: 'contacts-outline',
+      selected: 'contacts-solid',
     ),
     _NavigationItem(
       label: 'Profile',

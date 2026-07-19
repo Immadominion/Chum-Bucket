@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -61,8 +62,9 @@ class _CallsScreenState extends State<CallsScreen>
     if (matchId == null || matchId.isEmpty) {
       SnackBarUtils.showInfo(
         context,
-        title: 'No market attached',
-        subtitle: 'This call cannot be copied yet.',
+        title: 'Can\'t copy this one',
+        subtitle:
+            'This prediction isn\'t linked to a match yet, so you can\'t copy it.',
       );
       return;
     }
@@ -74,8 +76,9 @@ class _CallsScreenState extends State<CallsScreen>
       if (!match.isOpenForCalls) {
         SnackBarUtils.showInfo(
           context,
-          title: 'Market closed',
-          subtitle: 'This call has already locked or settled.',
+          title: 'Too late for this one',
+          subtitle:
+              'This match has already kicked off, so you can\'t predict it now.',
         );
         return;
       }
@@ -84,11 +87,12 @@ class _CallsScreenState extends State<CallsScreen>
       );
       if (copied == true && mounted) await _load();
     } catch (error) {
+      developer.log('CallsScreen._openCall failed: $error');
       if (!mounted) return;
       SnackBarUtils.showError(
         context,
-        title: 'Could not open call',
-        subtitle: error.toString(),
+        title: 'Couldn\'t open this match',
+        subtitle: _friendlyArenaError(error),
       );
     } finally {
       if (mounted) setState(() => _openingMatchId = null);
@@ -118,15 +122,16 @@ class _CallsScreenState extends State<CallsScreen>
         title: wasFollowing ? 'Unfollowed' : 'Following',
         subtitle:
             wasFollowing
-                ? 'This caller was removed from your feed.'
-                : 'Their calls will appear in Following.',
+                ? 'This person was removed from your feed.'
+                : 'Their predictions will appear in Following.',
       );
     } catch (error) {
+      developer.log('CallsScreen._toggleFollow failed: $error');
       if (!mounted) return;
       SnackBarUtils.showError(
         context,
-        title: 'Could not update follow',
-        subtitle: error.toString(),
+        title: 'Couldn\'t update follow',
+        subtitle: _friendlyArenaError(error),
       );
     }
   }
@@ -148,7 +153,7 @@ class _CallsScreenState extends State<CallsScreen>
                 SliverPadding(
                   padding: EdgeInsets.fromLTRB(20.w, 4.h, 20.w, 0),
                   sliver: const SliverToBoxAdapter(
-                    child: ChumbucketAppHeader(title: 'Calls'),
+                    child: ChumbucketAppHeader(title: 'Predictions'),
                   ),
                 ),
                 SliverPadding(
@@ -160,8 +165,10 @@ class _CallsScreenState extends State<CallsScreen>
                         labels: const ['Global', 'Following'],
                         selectedIndex:
                             arena.feedMode == ArenaFeedMode.global ? 0 : 1,
+                        // M9: let the Following tab switch even when signed
+                        // out — we show a sign-in message instead of a silent
+                        // no-op.
                         onSelected: (index) {
-                          if (index == 1 && auth.walletAddress == null) return;
                           _load(
                             mode:
                                 index == 0
@@ -173,12 +180,22 @@ class _CallsScreenState extends State<CallsScreen>
                     ),
                   ),
                 ),
-                if (arena.activityError != null && arena.activity.isEmpty)
+                if (arena.feedMode == ArenaFeedMode.following &&
+                    auth.walletAddress == null)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: const _CallsState(
+                      icon: 'user-outline',
+                      title: 'Sign in to follow people',
+                      detail: 'Sign in to see picks from people you follow.',
+                    ),
+                  )
+                else if (arena.activityError != null && arena.activity.isEmpty)
                   SliverFillRemaining(
                     hasScrollBody: false,
                     child: _CallsState(
                       icon: 'cloud-off-outline',
-                      title: 'Could not load calls',
+                      title: 'Couldn\'t load predictions',
                       detail: 'Pull down or try again.',
                       action: _load,
                     ),
@@ -200,10 +217,10 @@ class _CallsScreenState extends State<CallsScreen>
                       title:
                           arena.feedMode == ArenaFeedMode.following
                               ? 'Your following feed is quiet'
-                              : 'No calls yet',
+                              : 'No predictions yet',
                       detail:
                           arena.feedMode == ArenaFeedMode.following
-                              ? 'Follow a caller from their profile to build this feed.'
+                              ? 'Follow people from their profile and their predictions show up here.'
                               : 'The first public prediction will appear here.',
                       action: _load,
                     ),
@@ -271,7 +288,14 @@ class _CallCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final stake = event.stakeBaseUnits;
+    // H2: `bucket` is the raw code ("HOME"/...) still used for colouring;
+    // `bucketName` is the plain team name / "Draw" the user actually sees.
     final bucket = event.displayBucket.trim();
+    final bucketName = ArenaFormat.outcomeName(
+      bucket,
+      home: event.home,
+      away: event.away,
+    );
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(20.r),
@@ -375,7 +399,9 @@ class _CallCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8.r),
                     ),
                     child: Text(
-                      bucket,
+                      bucketName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: _bucketColor(bucket),
                         fontSize: 11.sp,
@@ -402,7 +428,7 @@ class _CallCard extends StatelessWidget {
                   _CompactCallToo(isLoading: isOpening, onTap: onCallToo)
                 else
                   Text(
-                    event.isSettled ? 'SETTLED' : event.status,
+                    _statusPhrase(event.status, settled: event.isSettled),
                     style: TextStyle(
                       color:
                           event.isSettled
@@ -457,7 +483,7 @@ class _CompactCallToo extends StatelessWidget {
                 ),
               SizedBox(width: 6.w),
               Text(
-                isLoading ? 'Opening' : 'Call too',
+                isLoading ? 'Opening' : 'Make this pick',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 12.sp,
@@ -476,13 +502,13 @@ class _CallsState extends StatelessWidget {
   final String icon;
   final String title;
   final String detail;
-  final VoidCallback action;
+  final VoidCallback? action;
 
   const _CallsState({
     required this.icon,
     required this.title,
     required this.detail,
-    required this.action,
+    this.action,
   });
 
   @override
@@ -506,8 +532,10 @@ class _CallsState extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(color: AppColors.textSecondary, fontSize: 12.sp),
             ),
-            SizedBox(height: 8.h),
-            TextButton(onPressed: action, child: const Text('Refresh')),
+            if (action != null) ...[
+              SizedBox(height: 8.h),
+              TextButton(onPressed: action, child: const Text('Refresh')),
+            ],
           ],
         ),
       ),
@@ -552,14 +580,72 @@ String _relativeTime(DateTime time) {
 String _eventVerb(ArenaActivityEvent event) {
   switch (event.type) {
     case 'CALL_COPIED':
-      return 'copied a call';
+      return 'made the same pick';
     case 'CALL_SETTLED':
-      return 'call settled';
+      return 'match finished';
     case 'CLAIMED':
-      return 'claimed winnings';
+      return 'collected winnings';
     default:
-      return 'called ${event.displayBucket}';
+      final code = event.displayBucket.trim().toUpperCase();
+      if (code == 'DRAW') return 'predicted a draw';
+      final name = ArenaFormat.outcomeName(
+        code,
+        home: event.home,
+        away: event.away,
+      );
+      return 'picked $name to win';
   }
+}
+
+/// Map a raw status enum to a plain phrase (H2). Never show PENDING/LOCKED/… .
+String _statusPhrase(String status, {required bool settled}) {
+  switch (status.toUpperCase()) {
+    case 'OPEN':
+      return 'Open to join';
+    case 'PENDING':
+    case 'LOCKED':
+    case 'MATCH_LOCKED':
+      return 'Match started';
+    case 'VERIFIED':
+      return 'Confirmed';
+    case 'SETTLED':
+    case 'RESOLVED':
+      return 'Result in';
+    case 'VOID':
+      return 'Match void — money back';
+    case 'CLAIMABLE':
+      return 'Winnings ready';
+    default:
+      return settled ? 'Result in' : 'In play';
+  }
+}
+
+/// Turn a raw thrown error into one plain sentence; the raw text stays in
+/// developer logs only.
+String _friendlyArenaError(Object error) {
+  final raw = error.toString().toLowerCase();
+  if (raw.contains('cancel') ||
+      raw.contains('rejected') ||
+      raw.contains('declined')) {
+    return 'You cancelled in your wallet — nothing was taken.';
+  }
+  if (raw.contains('insufficient') || raw.contains('not enough')) {
+    return 'Not enough USDC to cover this bet.';
+  }
+  if (raw.contains('locked') ||
+      raw.contains('closed') ||
+      raw.contains('kick')) {
+    return 'This match already kicked off — bets are closed.';
+  }
+  if (raw.contains('network') ||
+      raw.contains('timeout') ||
+      raw.contains('timed out') ||
+      raw.contains('connection') ||
+      raw.contains('socket') ||
+      raw.contains('blockhash')) {
+    return 'Couldn\'t reach the network — please try again.';
+  }
+  return 'Something went wrong — please try again.';
 }
 
 Color _bucketColor(String bucket) {

@@ -44,7 +44,7 @@ class MatchCallersSheet extends StatelessWidget {
                         )
                         : hadError && callers.isEmpty
                         ? _CallersState(
-                          title: 'Could not load callers',
+                          title: 'Couldn\'t load who\'s predicting',
                           onRetry:
                               () => arena.loadMatchCallers(
                                 matchId: matchId,
@@ -54,7 +54,7 @@ class MatchCallersSheet extends StatelessWidget {
                         )
                         : callers.isEmpty
                         ? const _CallersState(
-                          title: 'Be the first to call this match',
+                          title: 'Be the first to predict this match',
                         )
                         : ListView.separated(
                           padding: EdgeInsets.fromLTRB(20.w, 8.h, 20.w, 12.h),
@@ -63,14 +63,17 @@ class MatchCallersSheet extends StatelessWidget {
                               (_, __) =>
                                   Divider(height: 1, color: AppColors.divider),
                           itemBuilder:
-                              (context, index) =>
-                                  _CallerRow(caller: callers[index]),
+                              (context, index) => _CallerRow(
+                                caller: callers[index],
+                                home: match.fixture.home,
+                                away: match.fixture.away,
+                              ),
                         ),
               ),
               Padding(
                 padding: EdgeInsets.fromLTRB(20.w, 10.h, 20.w, 20.h),
                 child: ChallengeButton(
-                  label: 'Call this match',
+                  label: 'Back this match',
                   blurRadius: false,
                   createNewChallenge: onCallMatch,
                 ),
@@ -85,8 +88,14 @@ class MatchCallersSheet extends StatelessWidget {
 
 class _CallerRow extends StatelessWidget {
   final ArenaMatchCaller caller;
+  final String home;
+  final String away;
 
-  const _CallerRow({required this.caller});
+  const _CallerRow({
+    required this.caller,
+    required this.home,
+    required this.away,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -128,7 +137,8 @@ class _CallerRow extends StatelessWidget {
           ),
           SizedBox(width: 10.w),
           Text(
-            caller.bucket,
+            // H2: real team name, never HOME/DRAW/AWAY.
+            ArenaFormat.outcomeName(caller.bucket, home: home, away: away),
             style: TextStyle(
               color: _bucketColor(caller.bucket),
               fontSize: 11.sp,

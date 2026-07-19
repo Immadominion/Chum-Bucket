@@ -2,6 +2,10 @@
 
 **Follow the call. Challenge a friend. Let the match settle it.**
 
+[**Download the Android app (APK)**](https://github.com/Immadominion/Chum-Bucket/releases/latest/download/chumbucket.apk),
+or build from source below. Requires Android with "install from unknown
+sources" allowed for a sideloaded APK.
+
 Chumbucket is a social prediction product on Solana. It began as a mobile app
 for creating challenges with friends and locking SOL until the challenge was
 resolved. Arena expands that idea into social football predictions: follow
@@ -57,7 +61,13 @@ Flutter app
 - Verified TxLINE settlement:
   [Argentina 3-2 Egypt](https://explorer.solana.com/tx/553CkpvcpddtBzEmPPxvMJHzJXFS73f2aJ79J5BtrrdAUBrhnrLfKQKikUZcDxzRZwz39JR2FxsJFZzUfAVJrAB8?cluster=devnet)
 
-## Run On Android
+## Install
+
+**Prebuilt APK:** [Download the latest release](https://github.com/Immadominion/Chum-Bucket/releases/latest/download/chumbucket.apk).
+Android will warn about an unknown source since this isn't on the Play Store.
+That's expected for a hackathon build.
+
+**From source:**
 
 Requirements:
 
