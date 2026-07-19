@@ -7,26 +7,36 @@
 /// which on-chain PDAs) to use.
 library;
 
-/// The three outcome buckets a "call" can be staked on.
+/// The outcome buckets a "call" can be staked on.
 ///
 /// The numeric index is load-bearing: it is passed as the `bucket: u8`
 /// argument to the chumbucket_arena program's `place_call` instruction, and
-/// must match `bucket_totals[3]`'s array order on-chain exactly.
+/// must match the pot's `bucket_totals[]` array order on-chain exactly.
+///
+/// The RESULT market has 3 buckets (HOME/DRAW/AWAY -> 0/1/2). Line markets
+/// (Over/Under, Handicap) reuse the same low indices with just 2 buckets:
+/// index 0 = OVER, index 1 = UNDER.
 class ArenaBucketIndex {
   static const int home = 0;
   static const int draw = 1;
   static const int away = 2;
 
-  /// Convert the backend's bucket label ("HOME"/"DRAW"/"AWAY") to the
-  /// on-chain u8 index.
+  /// The two line-market buckets share the RESULT market's 0/1 slots.
+  static const int over = 0;
+  static const int under = 1;
+
+  /// Convert the backend's bucket label to the on-chain u8 index. Handles both
+  /// the RESULT market ("HOME"/"DRAW"/"AWAY") and line markets ("OVER"/"UNDER").
   static int fromLabel(String label) {
     switch (label.toUpperCase()) {
       case 'HOME':
-        return home;
+      case 'OVER':
+        return home; // 0
       case 'DRAW':
-        return draw;
+      case 'UNDER':
+        return draw; // 1
       case 'AWAY':
-        return away;
+        return away; // 2
       default:
         throw ArgumentError('Unknown bucket label: $label');
     }
@@ -134,6 +144,33 @@ class ArenaBucketTotal {
       );
 }
 
+/// The line definition of a non-RESULT market. Present only on line markets
+/// (Over/Under, Handicap), null on the RESULT market.
+///
+/// e.g. an Over/Under 2.5 goals market is `{op: ADD, line: 2.5, stat: GOALS,
+/// period: FULL}`; a home -1.5 handicap is `{op: SUB, line: 1.5, ...}`.
+class ArenaMarketLine {
+  final String op; // "ADD" | "SUB"
+  final double line; // e.g. 2.5, 1.5
+  final String stat; // "GOALS" | ...
+  final String period; // "FULL" | "H1"
+
+  const ArenaMarketLine({
+    required this.op,
+    required this.line,
+    required this.stat,
+    required this.period,
+  });
+
+  factory ArenaMarketLine.fromJson(Map<String, dynamic> json) =>
+      ArenaMarketLine(
+        op: json['op'] as String? ?? 'ADD',
+        line: (json['line'] as num?)?.toDouble() ?? 0,
+        stat: json['stat'] as String? ?? 'GOALS',
+        period: json['period'] as String? ?? 'FULL',
+      );
+}
+
 class ArenaMarket {
   final String matchId;
   final String marketId;
@@ -143,6 +180,17 @@ class ArenaMarket {
   final List<ArenaBucketTotal> buckets;
   final BigInt grossPot;
   final int participantCount;
+
+  /// The line definition for non-RESULT markets (Over/Under, Handicap). Null
+  /// on the RESULT market.
+  final ArenaMarketLine? line;
+
+  /// The on-chain `match_id` of THIS market's pot. For the RESULT market this
+  /// equals the fixture matchId; line markets have their own (e.g.
+  /// "18202701#OU25"). The client MUST derive this market's pot PDA from
+  /// [potMatchId] - NOT the fixture matchId - when placing/claiming a call,
+  /// otherwise the stake lands in the wrong pot.
+  final String potMatchId;
 
   /// Set once the match has settled - which bucket the on-chain proof
   /// confirmed won. Null while the market is still OPEN/LOCKED.
@@ -158,9 +206,14 @@ class ArenaMarket {
     required this.buckets,
     required this.grossPot,
     required this.participantCount,
+    required this.potMatchId,
+    this.line,
     required this.winningBucket,
     required this.settled,
   });
+
+  /// True for Over/Under, Handicap and any other non-RESULT market (2 buckets).
+  bool get isLineMarket => kind != 'RESULT';
 
   ArenaBucketTotal? bucketByIndex(int index) {
     for (final b in buckets) {
@@ -181,6 +234,16 @@ class ArenaMarket {
             .toList(),
     grossPot: BigInt.parse((json['grossPot'] ?? '0').toString()),
     participantCount: (json['participantCount'] as num?)?.toInt() ?? 0,
+    // Fall back to the fixture matchId when the backend omits potMatchId
+    // (RESULT market's pot == fixture pot), so older payloads still route.
+    potMatchId:
+        (json['potMatchId'] as String?) ?? json['matchId'].toString(),
+    line:
+        json['line'] is Map
+            ? ArenaMarketLine.fromJson(
+              Map<String, dynamic>.from(json['line'] as Map),
+            )
+            : null,
     winningBucket: json['winningBucket'] as String?,
     settled: json['settled'] as bool? ?? false,
   );

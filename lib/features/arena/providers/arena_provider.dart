@@ -185,11 +185,20 @@ class ArenaProvider extends BaseChangeNotifier {
     return fresh;
   }
 
-  /// Stake USDC on [bucket] for [match]. Requires [ensureArenaService] to
-  /// have been called first (and to have succeeded).
+  /// Stake USDC on [bucket] of [market] for [match]. Requires
+  /// [ensureArenaService] to have been called first (and to have succeeded).
+  ///
+  /// MONEY ROUTING: the on-chain pot is derived from `market.potMatchId`, NOT
+  /// the fixture matchId. For the RESULT market these are the same string; for
+  /// line markets (Over/Under, Handicap) `potMatchId` is a distinct id, so the
+  /// stake must land in that market's own pot. [bucketLabel] is the market's
+  /// own bucket label ("HOME"/"DRAW"/"AWAY" or "OVER"/"UNDER") used for the
+  /// social read model only.
   Future<String> placeCall({
     required ArenaMatchEntry match,
+    required ArenaMarket market,
     required int bucket,
+    required String bucketLabel,
     required double amountUsdc,
     required MwaAuthProvider authProvider,
   }) async {
@@ -198,15 +207,19 @@ class ArenaProvider extends BaseChangeNotifier {
       throw StateError('Arena service is not initialized yet');
     }
 
+    final potMatchId = market.potMatchId;
+
     final signature = await service.placeCall(
-      matchId: match.fixture.matchId,
+      matchId: potMatchId,
       bucket: bucket,
       amountUsdc: amountUsdc,
     );
 
     await _recordMyPot(
       MyPotRecord(
-        matchId: match.fixture.matchId,
+        // Keyed by this market's pot id so claim() hits the same pot the
+        // stake went into (line markets have their own pot per fixture).
+        matchId: potMatchId,
         home: match.fixture.home,
         away: match.fixture.away,
         bucket: bucket,
@@ -220,7 +233,7 @@ class ArenaProvider extends BaseChangeNotifier {
       _signCallProof(
             authProvider: authProvider,
             matchId: match.fixture.matchId,
-            bucket: ArenaBucketIndex.toLabel(bucket),
+            bucket: bucketLabel,
             stakeBaseUnits: BigInt.from(
               MatchArenaService.usdcToBaseUnits(amountUsdc),
             ),
@@ -230,7 +243,8 @@ class ArenaProvider extends BaseChangeNotifier {
             (proof) => _backendService.recordPredictionCall(
               walletAddress: service.walletAddress,
               matchId: match.fixture.matchId,
-              bucket: bucket,
+              marketId: market.marketId,
+              bucketLabel: bucketLabel,
               stakeBaseUnits: BigInt.from(
                 MatchArenaService.usdcToBaseUnits(amountUsdc),
               ),
@@ -242,6 +256,7 @@ class ArenaProvider extends BaseChangeNotifier {
                 'away': match.fixture.away,
                 'competition': match.fixture.competition,
                 'kickoff': match.fixture.kickoff.toIso8601String(),
+                'market': market.label,
               },
             ),
           )

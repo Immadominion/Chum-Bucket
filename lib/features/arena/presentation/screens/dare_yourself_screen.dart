@@ -27,6 +27,7 @@ class DareYourselfScreen extends StatefulWidget {
 
 class _DareYourselfScreenState extends State<DareYourselfScreen> {
   int? _selectedBucket;
+  ArenaMarket? _selectedMarket;
   final TextEditingController _amountController = TextEditingController();
   bool _isSubmitting = false;
   String? _serviceError;
@@ -34,7 +35,30 @@ class _DareYourselfScreenState extends State<DareYourselfScreen> {
   @override
   void initState() {
     super.initState();
+    // Default to the full-time Result market; the switcher can swap it.
+    _selectedMarket = widget.match.resultMarket;
     WidgetsBinding.instance.addPostFrameCallback((_) => _ensureService());
+  }
+
+  /// The markets shown in the switcher, in the backend's order but with the
+  /// Result market pinned first.
+  List<ArenaMarket> get _markets {
+    final markets = List<ArenaMarket>.of(widget.match.markets);
+    markets.sort((a, b) {
+      if (a.kind == 'RESULT' && b.kind != 'RESULT') return -1;
+      if (a.kind != 'RESULT' && b.kind == 'RESULT') return 1;
+      return 0;
+    });
+    return markets;
+  }
+
+  void _selectMarket(ArenaMarket market) {
+    if (_selectedMarket?.marketId == market.marketId) return;
+    setState(() {
+      _selectedMarket = market;
+      // The outcomes differ per market, so any prior pick no longer applies.
+      _selectedBucket = null;
+    });
   }
 
   @override
@@ -63,12 +87,21 @@ class _DareYourselfScreenState extends State<DareYourselfScreen> {
 
   Future<void> _submit() async {
     final arena = Provider.of<ArenaProvider>(context, listen: false);
+    final market = _selectedMarket;
 
+    if (market == null) {
+      SnackBarUtils.showError(
+        context,
+        title: 'No market to call',
+        subtitle: 'This match isn\'t open for calls right now.',
+      );
+      return;
+    }
     if (_selectedBucket == null) {
       SnackBarUtils.showError(
         context,
         title: 'Pick an outcome',
-        subtitle: 'Choose HOME, DRAW or AWAY before placing your call.',
+        subtitle: 'Choose an outcome before placing your call.',
       );
       return;
     }
@@ -93,11 +126,18 @@ class _DareYourselfScreenState extends State<DareYourselfScreen> {
       }
     }
 
+    final selectedTotal = market.bucketByIndex(_selectedBucket!);
+    final displayLabel = _bucketLabel(market, _selectedBucket!);
+    // The market's own bucket label ("HOME"/"OVER"/...) for the social layer.
+    final bucketLabel = selectedTotal?.bucket ?? displayLabel;
+
     setState(() => _isSubmitting = true);
     try {
       await arena.placeCall(
         match: widget.match,
+        market: market,
         bucket: _selectedBucket!,
+        bucketLabel: bucketLabel,
         amountUsdc: _amount,
         authProvider: Provider.of<MwaAuthProvider>(context, listen: false),
       );
@@ -105,8 +145,7 @@ class _DareYourselfScreenState extends State<DareYourselfScreen> {
       SnackBarUtils.showSuccess(
         context,
         title: 'Call placed',
-        subtitle:
-            '${ArenaFormat.usdc(_amount)} staked on ${ArenaFormat.bucketLabel(_selectedBucket!)}.',
+        subtitle: '${ArenaFormat.usdc(_amount)} staked on $displayLabel.',
       );
       Navigator.pop(context, true);
     } catch (e) {
@@ -123,7 +162,13 @@ class _DareYourselfScreenState extends State<DareYourselfScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final market = widget.match.resultMarket;
+    final markets = _markets;
+    // Keep the selection valid if the market list changed under us.
+    final market =
+        _selectedMarket != null &&
+                markets.any((m) => m.marketId == _selectedMarket!.marketId)
+            ? _selectedMarket
+            : (markets.isNotEmpty ? markets.first : null);
 
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
@@ -164,6 +209,18 @@ class _DareYourselfScreenState extends State<DareYourselfScreen> {
                   ),
                 ),
                 SizedBox(height: 24.h),
+                if (markets.length > 1) ...[
+                  Text(
+                    'What do you want to call?',
+                    style: TextStyle(
+                      fontSize: 15.sp,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(height: 12.h),
+                  _buildMarketSwitcher(markets, market),
+                  SizedBox(height: 22.h),
+                ],
                 Text(
                   'Call an outcome',
                   style: TextStyle(
@@ -227,22 +284,96 @@ class _DareYourselfScreenState extends State<DareYourselfScreen> {
     );
   }
 
+  /// Light segmented control to switch which market (Result / Over-Under /
+  /// Handicap) you're calling. Only shown when a fixture has more than one.
+  Widget _buildMarketSwitcher(List<ArenaMarket> markets, ArenaMarket? current) {
+    return Container(
+      padding: EdgeInsets.all(4.w),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(13.r),
+      ),
+      child: Row(
+        children:
+            markets.map((m) {
+              final selected = current?.marketId == m.marketId;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => _selectMarket(m),
+                  child: Container(
+                    padding: EdgeInsets.symmetric(vertical: 10.h, horizontal: 4.w),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: selected ? Colors.white : Colors.transparent,
+                      borderRadius: BorderRadius.circular(10.r),
+                      border:
+                          selected
+                              ? Border.all(color: AppColors.primary, width: 1.5)
+                              : null,
+                    ),
+                    child: Text(
+                      _marketTabLabel(m),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5.sp,
+                        fontWeight: FontWeight.w700,
+                        color:
+                            selected ? AppColors.primary : Colors.grey.shade600,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+      ),
+    );
+  }
+
+  /// A short tab label for the switcher, derived from the market. Kept plain
+  /// and compact so three tabs fit on one row.
+  String _marketTabLabel(ArenaMarket market) {
+    switch (market.kind) {
+      case 'RESULT':
+        return 'Result';
+      case 'OVER_UNDER':
+        final line = market.line?.line;
+        return line != null ? 'O/U ${_trimLine(line)}' : 'Over / Under';
+      case 'HANDICAP':
+        return 'Handicap';
+      default:
+        return market.label;
+    }
+  }
+
+  /// "2.5" -> "2.5", "2.0" -> "2".
+  String _trimLine(double value) =>
+      value == value.roundToDouble()
+          ? value.toStringAsFixed(0)
+          : value.toString();
+
+  /// The chip label for one bucket. RESULT keeps its established HOME/DRAW/AWAY
+  /// chips; line markets show the backend's plain label ("Over 2.5").
+  String _bucketLabel(ArenaMarket market, int bucket) {
+    if (!market.isLineMarket) {
+      return ArenaFormat.bucketLabel(bucket);
+    }
+    return market.bucketByIndex(bucket)?.label ?? '?';
+  }
+
   Widget _buildBucketPicker(ArenaMarket market) {
     return Row(
       children:
-          [
-            MatchArenaService.bucketHome,
-            MatchArenaService.bucketDraw,
-            MatchArenaService.bucketAway,
-          ].map((bucket) {
-            final total = market.bucketByIndex(bucket);
+          market.buckets.map((total) {
+            final bucket = total.bucketIndex;
             final selected = _selectedBucket == bucket;
             return Expanded(
               child: GestureDetector(
                 onTap: () => setState(() => _selectedBucket = bucket),
                 child: Container(
                   margin: EdgeInsets.symmetric(horizontal: 4.w),
-                  padding: EdgeInsets.symmetric(vertical: 14.h),
+                  padding: EdgeInsets.symmetric(vertical: 14.h, horizontal: 6.w),
                   decoration: BoxDecoration(
                     color: selected ? AppColors.primaryContainer : Colors.white,
                     borderRadius: BorderRadius.circular(14.r),
@@ -255,7 +386,10 @@ class _DareYourselfScreenState extends State<DareYourselfScreen> {
                   child: Column(
                     children: [
                       Text(
-                        ArenaFormat.bucketLabel(bucket),
+                        _bucketLabel(market, bucket),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 13.sp,
                           fontWeight: FontWeight.w700,
@@ -264,22 +398,19 @@ class _DareYourselfScreenState extends State<DareYourselfScreen> {
                       ),
                       SizedBox(height: 6.h),
                       Text(
-                        total != null
-                            ? ArenaFormat.usdcFromBaseUnits(total.stake)
-                            : '0 USDC',
+                        ArenaFormat.usdcFromBaseUnits(total.stake),
                         style: TextStyle(
                           fontSize: 10.5.sp,
                           color: Colors.grey.shade600,
                         ),
                       ),
-                      if (total != null)
-                        Text(
-                          ArenaFormat.percent(total.impliedProb),
-                          style: TextStyle(
-                            fontSize: 10.sp,
-                            color: Colors.grey.shade500,
-                          ),
+                      Text(
+                        ArenaFormat.percent(total.impliedProb),
+                        style: TextStyle(
+                          fontSize: 10.sp,
+                          color: Colors.grey.shade500,
                         ),
+                      ),
                     ],
                   ),
                 ),
@@ -303,20 +434,39 @@ class _DareYourselfScreenState extends State<DareYourselfScreen> {
         : 0.0;
   }
 
-  double _totalPool(ArenaMarket market) =>
-      _poolOf(market, MatchArenaService.bucketHome) +
-      _poolOf(market, MatchArenaService.bucketDraw) +
-      _poolOf(market, MatchArenaService.bucketAway);
-
-  String _bucketTeamName(int bucket) {
-    switch (bucket) {
-      case MatchArenaService.bucketHome:
-        return widget.match.fixture.home;
-      case MatchArenaService.bucketAway:
-        return widget.match.fixture.away;
-      default:
-        return 'the draw';
+  double _totalPool(ArenaMarket market) {
+    var sum = 0.0;
+    for (final b in market.buckets) {
+      sum += MatchArenaService.baseUnitsToUsdc(b.stake);
     }
+    return sum;
+  }
+
+  /// A plain phrase naming the picked outcome, used in the crowd/payout copy.
+  /// For the Result market it's the team name (or "the draw"); for a line
+  /// market it's the outcome's plain label ("Over 2.5").
+  String _bucketPhrase(ArenaMarket market, int bucket) {
+    if (!market.isLineMarket) {
+      switch (bucket) {
+        case MatchArenaService.bucketHome:
+          return widget.match.fixture.home;
+        case MatchArenaService.bucketAway:
+          return widget.match.fixture.away;
+        default:
+          return 'the draw';
+      }
+    }
+    return market.bucketByIndex(bucket)?.label ?? 'this outcome';
+  }
+
+  /// The "If … your profit" row label, phrased naturally per market.
+  String _ifOutcomeLabel(ArenaMarket market, int bucket) {
+    if (!market.isLineMarket) {
+      return bucket == MatchArenaService.bucketDraw
+          ? 'If it\'s a draw, your profit'
+          : 'If ${_bucketPhrase(market, bucket)} wins, your profit';
+    }
+    return 'If ${_bucketPhrase(market, bucket)} is right, your profit';
   }
 
   /// Short, plain copy under the picker that reacts to the chosen outcome and
@@ -337,21 +487,21 @@ class _DareYourselfScreenState extends State<DareYourselfScreen> {
     final total = _totalPool(market);
     final prob = market.bucketByIndex(pick)?.impliedProb ?? 0.0;
     final pctText = ArenaFormat.percent(prob);
-    final team = _bucketTeamName(pick);
+    final outcome = _bucketPhrase(market, pick);
 
     final String message;
     if (total <= 0) {
       message =
-          'No one has called this yet. Back $team and you go first - your '
+          'No one has called this yet. Back $outcome and you go first - your '
           'winnings grow as others back the other outcomes.';
     } else if (prob > 0.45) {
       message =
-          '$pctText of the crowd is also on $team. A safer pick, but a '
+          '$pctText of the crowd is also on $outcome. A safer pick, but a '
           'smaller win.';
     } else {
       message =
-          'Only $pctText of the crowd is on $team. Fewer people with you - if '
-          'it wins, you take a bigger share of the pot.';
+          'Only $pctText of the crowd is on $outcome. Fewer people with you - '
+          'if it wins, you take a bigger share of the pot.';
     }
 
     return Container(
@@ -457,11 +607,8 @@ class _DareYourselfScreenState extends State<DareYourselfScreen> {
         newWinnersStake > 0 ? (stake / newWinnersStake) * distributable : 0.0;
     final returnMult = stake > 0 ? (stake + profit) / stake : 1.0;
     final totalReturn = stake + profit;
-    final team = _bucketTeamName(pick);
     final hasUpside = losersPool > 0 && profit > 0;
-    final ifWinsLabel = pick == MatchArenaService.bucketDraw
-        ? 'If it\'s a draw, your profit'
-        : 'If $team wins, your profit';
+    final ifWinsLabel = _ifOutcomeLabel(market, pick);
 
     return Container(
       width: double.infinity,

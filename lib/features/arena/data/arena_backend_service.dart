@@ -388,18 +388,18 @@ class ArenaBackendService {
   Future<void> recordPredictionCall({
     required String walletAddress,
     required String matchId,
-    required int bucket,
+    required String marketId,
+    required String bucketLabel,
     required BigInt stakeBaseUnits,
     required String txSignature,
     required int timestamp,
     required String signature,
     Map<String, dynamic>? metadata,
   }) async {
-    final bucketLabel = ArenaBucketIndex.toLabel(bucket);
     await _postMutation('recordPredictionCall', {
       'wallet': walletAddress,
       'matchId': matchId,
-      'marketId': 'RESULT',
+      'marketId': marketId,
       'bucket': bucketLabel,
       'stakeBaseUnits': stakeBaseUnits.toString(),
       'txSignature': txSignature,
