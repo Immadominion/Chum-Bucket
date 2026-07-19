@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -171,6 +173,10 @@ class _DareYourselfScreenState extends State<DareYourselfScreen> {
                 ),
                 SizedBox(height: 12.h),
                 if (market != null) _buildBucketPicker(market),
+                if (market != null) ...[
+                  SizedBox(height: 12.h),
+                  _buildPickInsight(market),
+                ],
                 SizedBox(height: 28.h),
                 Text(
                   'Your stake',
@@ -181,7 +187,13 @@ class _DareYourselfScreenState extends State<DareYourselfScreen> {
                 ),
                 SizedBox(height: 12.h),
                 _buildAmountInput(),
+                SizedBox(height: 12.h),
+                _buildQuickStakeChips(),
                 SizedBox(height: 16.h),
+                if (market != null) ...[
+                  _buildPayoutPreview(market),
+                  SizedBox(height: 12.h),
+                ],
                 Container(
                   padding: EdgeInsets.all(12.w),
                   decoration: BoxDecoration(
@@ -189,10 +201,9 @@ class _DareYourselfScreenState extends State<DareYourselfScreen> {
                     borderRadius: BorderRadius.circular(10.r),
                   ),
                   child: Text(
-                    'If your bucket wins, everyone who called it splits the '
-                    'losers\' pool pro-rata (after a small house rake). USDC '
-                    'moves into the shared pot the moment you sign - not '
-                    'into any individual\'s wallet.',
+                    'Your USDC moves into the shared pot the moment you sign - '
+                    'never into anyone else\'s wallet. If your pick wins, come '
+                    'back to claim your share.',
                     style: TextStyle(
                       fontSize: 11.5.sp,
                       color: Colors.grey.shade700,
@@ -275,6 +286,303 @@ class _DareYourselfScreenState extends State<DareYourselfScreen> {
               ),
             );
           }).toList(),
+    );
+  }
+
+  // ── Live parimutuel projection (mirrors the web call screen) ──────────────
+  // If your pick wins you get your stake back plus a pro-rata share of the
+  // stake sitting on the OTHER outcomes (the pool backing against you), less a
+  // 2.5% rake. Empty pool => nothing to win yet (first-caller case).
+
+  static const int _rakeBps = 250; // 2.5%, taken from the other outcomes only
+
+  double _poolOf(ArenaMarket market, int bucket) {
+    final total = market.bucketByIndex(bucket);
+    return total != null
+        ? MatchArenaService.baseUnitsToUsdc(total.stake)
+        : 0.0;
+  }
+
+  double _totalPool(ArenaMarket market) =>
+      _poolOf(market, MatchArenaService.bucketHome) +
+      _poolOf(market, MatchArenaService.bucketDraw) +
+      _poolOf(market, MatchArenaService.bucketAway);
+
+  String _bucketTeamName(int bucket) {
+    switch (bucket) {
+      case MatchArenaService.bucketHome:
+        return widget.match.fixture.home;
+      case MatchArenaService.bucketAway:
+        return widget.match.fixture.away;
+      default:
+        return 'the draw';
+    }
+  }
+
+  /// Short, plain copy under the picker that reacts to the chosen outcome and
+  /// how much of the crowd is already on it.
+  Widget _buildPickInsight(ArenaMarket market) {
+    final pick = _selectedBucket;
+    if (pick == null) {
+      return Text(
+        'Tap an outcome above to see what you\'d win.',
+        style: TextStyle(
+          fontSize: 12.sp,
+          color: Colors.grey.shade500,
+          fontWeight: FontWeight.w500,
+        ),
+      );
+    }
+
+    final total = _totalPool(market);
+    final prob = market.bucketByIndex(pick)?.impliedProb ?? 0.0;
+    final pctText = ArenaFormat.percent(prob);
+    final team = _bucketTeamName(pick);
+
+    final String message;
+    if (total <= 0) {
+      message =
+          'No one has called this yet. Back $team and you go first - your '
+          'winnings grow as others back the other outcomes.';
+    } else if (prob > 0.45) {
+      message =
+          '$pctText of the crowd is also on $team. A safer pick, but a '
+          'smaller win.';
+    } else {
+      message =
+          'Only $pctText of the crowd is on $team. Fewer people with you - if '
+          'it wins, you take a bigger share of the pot.';
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
+      decoration: BoxDecoration(
+        color: AppColors.primaryContainer,
+        borderRadius: BorderRadius.circular(12.r),
+      ),
+      child: Text(
+        message,
+        style: TextStyle(
+          fontSize: 12.5.sp,
+          height: 1.35,
+          fontWeight: FontWeight.w500,
+          color: AppColors.onPrimaryContainer,
+        ),
+      ),
+    );
+  }
+
+  /// Quick-stake chips that fill the stake field. No MAX/balance chip: the
+  /// arena's devnet USDC balance isn't surfaced on this screen and inventing
+  /// one would be wrong.
+  Widget _buildQuickStakeChips() {
+    const options = [1, 2, 5];
+    return Row(
+      children: options.map((value) {
+        final selected = _amount == value;
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(right: value == options.last ? 0 : 8.w),
+            child: GestureDetector(
+              onTap: () {
+                _amountController.text = value.toString();
+                _amountController.selection = TextSelection.collapsed(
+                  offset: _amountController.text.length,
+                );
+                setState(() {});
+              },
+              child: Container(
+                padding: EdgeInsets.symmetric(vertical: 10.h),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: selected
+                      ? AppColors.primaryContainer
+                      : AppColors.background,
+                  borderRadius: BorderRadius.circular(11.r),
+                  border: Border.all(
+                    color: selected ? AppColors.primary : Colors.grey.shade300,
+                    width: selected ? 1.5 : 1,
+                  ),
+                ),
+                child: Text(
+                  '$value USDC',
+                  style: TextStyle(
+                    fontSize: 13.sp,
+                    fontWeight: FontWeight.w700,
+                    color: selected ? AppColors.primary : Colors.black,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  /// Live payout preview: recomputes as the stake and the selected outcome
+  /// change, using the same parimutuel math as the web call screen.
+  Widget _buildPayoutPreview(ArenaMarket market) {
+    final pick = _selectedBucket;
+    final stake = _amount;
+
+    if (pick == null || stake <= 0) {
+      return Container(
+        width: double.infinity,
+        padding: EdgeInsets.all(14.w),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(12.r),
+        ),
+        child: Text(
+          pick == null
+              ? 'Pick an outcome and enter a stake to see your return.'
+              : 'Enter a stake to see what you\'d win.',
+          style: TextStyle(
+            fontSize: 12.sp,
+            color: Colors.grey.shade600,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      );
+    }
+
+    final totalPool = _totalPool(market);
+    final myBucketPool = _poolOf(market, pick);
+    final losersPool = math.max(0.0, totalPool - myBucketPool);
+    final newWinnersStake = myBucketPool + stake;
+    final distributable = losersPool * (1 - _rakeBps / 10000);
+    final profit =
+        newWinnersStake > 0 ? (stake / newWinnersStake) * distributable : 0.0;
+    final returnMult = stake > 0 ? (stake + profit) / stake : 1.0;
+    final totalReturn = stake + profit;
+    final team = _bucketTeamName(pick);
+    final hasUpside = losersPool > 0 && profit > 0;
+    final ifWinsLabel = pick == MatchArenaService.bucketDraw
+        ? 'If it\'s a draw, your profit'
+        : 'If $team wins, your profit';
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(16.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14.r),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Your return',
+                    style: TextStyle(
+                      fontSize: 11.sp,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  SizedBox(height: 4.h),
+                  Text(
+                    '≈ ${returnMult.toStringAsFixed(2)}×',
+                    style: TextStyle(
+                      fontSize: 26.sp,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    'You\'d get back',
+                    style: TextStyle(
+                      fontSize: 11.sp,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  SizedBox(height: 4.h),
+                  Text(
+                    ArenaFormat.usdc(totalReturn),
+                    style: TextStyle(
+                      fontSize: 16.sp,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          SizedBox(height: 14.h),
+          Divider(height: 1, color: Colors.grey.shade200),
+          SizedBox(height: 12.h),
+          _payoutRow(
+            'Others backing other outcomes',
+            ArenaFormat.usdc(losersPool),
+          ),
+          SizedBox(height: 8.h),
+          _payoutRow(
+            ifWinsLabel,
+            hasUpside ? '+${ArenaFormat.usdc(profit)}' : 'Just your stake back',
+            valueColor: hasUpside ? AppColors.primary : Colors.grey.shade600,
+          ),
+          SizedBox(height: 12.h),
+          Text(
+            hasUpside
+                ? 'That\'s your stake back plus a share of the '
+                    '${ArenaFormat.usdc(losersPool)} backing the other '
+                    'outcomes (a 2.5% fee comes off). The more you stake, the '
+                    'bigger your share, and your return grows as more people '
+                    'back against you.'
+                : 'You\'re first in on this outcome, so nothing is against you '
+                    'yet. Your winnings come from people who back the other '
+                    'outcomes - your return grows as others call.',
+            style: TextStyle(
+              fontSize: 11.5.sp,
+              height: 1.4,
+              color: Colors.grey.shade600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _payoutRow(String label, String value, {Color? valueColor}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Flexible(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12.5.sp,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey.shade700,
+            ),
+          ),
+        ),
+        SizedBox(width: 12.w),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 13.sp,
+            fontWeight: FontWeight.w700,
+            color: valueColor ?? Colors.black,
+          ),
+        ),
+      ],
     );
   }
 
