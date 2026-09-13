@@ -6,7 +6,9 @@
 /// arena profile is offered as a secondary link rather than made the identity.
 ///
 /// The header is accuracy-first, never PnL-first: a call has no money in it, so
-/// there is no P&L to lead with.
+/// there is no P&L to lead with — and accuracy itself is only ever rendered as
+/// a percentage once there is enough settled history for a percentage to mean
+/// something. See `lib/features/record/data/category_record.dart`.
 library;
 
 import 'package:flutter/material.dart';
@@ -26,6 +28,11 @@ import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/features/receipts/data/call_receipt.dart';
 import 'package:chumbucket/features/receipts/presentation/call_receipt_sheet.dart';
+import 'package:chumbucket/features/record/data/category_record.dart';
+import 'package:chumbucket/features/record/presentation/widgets/category_record_card.dart';
+import 'package:chumbucket/features/rematch/data/rematch_offer.dart';
+import 'package:chumbucket/features/rematch/presentation/rematch_sheet.dart';
+import 'package:chumbucket/features/rematch/presentation/widgets/rematch_button.dart';
 import 'package:chumbucket/shared/widgets/app_components/app_avatar.dart';
 
 class CallPersonScreen extends StatefulWidget {
@@ -71,15 +78,53 @@ class _CallPersonScreenState extends State<CallPersonScreen> {
     }
   }
 
+  CallReceipt _receiptFor(CallsProvider provider, CallFeedEntry entry) =>
+      CallReceipt.fromEntry(
+        entry,
+        shareUrl: provider.shareLinkForCall(entry.call.id),
+      );
+
+  /// The rematch is built **from the receipt**, not from the raw call, because
+  /// the receipt is the artefact the loop produces and it is the thing a person
+  /// is answering. One construction path, so the button's visibility and the
+  /// sheet's contents can never disagree.
+  RematchOffer _offerFor(CallsProvider provider, CallFeedEntry entry) =>
+      RematchOffer.fromReceipt(
+        _receiptFor(provider, entry),
+        opponentUserId: entry.author.id,
+        marketAcceptsNewCalls: entry.market.status.acceptsNewCalls,
+        viewerUserId: provider.viewerUserId,
+      );
+
   Future<void> _shareReceipt(CallFeedEntry entry) async {
     final provider = context.read<CallsProvider>();
     await showCallReceiptSheet(
       context: context,
-      receipt: CallReceipt.fromEntry(
-        entry,
-        shareUrl: provider.shareLinkForCall(entry.call.id),
+      receipt: _receiptFor(provider, entry),
+    );
+  }
+
+  Future<void> _rematch(CallFeedEntry entry) async {
+    final provider = context.read<CallsProvider>();
+    if (!provider.isSignedIn) {
+      widget.onSignInRequested?.call();
+      return;
+    }
+    final result = await showRematchSheet(
+      context: context,
+      offer: _offerFor(provider, entry),
+    );
+    if (result == null || !mounted) return;
+
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(
+        content: Text(
+          'Rematch sent to @${entry.author.handle}. '
+          'Nothing was staked and nothing was funded.',
+        ),
       ),
     );
+    await provider.loadPerson(widget.personRef, force: true);
   }
 
   @override
@@ -123,8 +168,12 @@ class _CallPersonScreenState extends State<CallPersonScreen> {
 
   Widget _body(CallsProvider provider, PersonDetail detail) {
     final person = detail.person;
-    final settled = detail.calls.where((c) => c.outcome.isSettled).length;
-    final pending = detail.calls.length - settled;
+
+    // The record is derived from the calls actually on this page, by
+    // `deriveCallOutcome` — the only permitted derivation (contract §3).
+    // Nothing here decides an outcome; it only counts the ones the venue
+    // produced.
+    final record = PersonRecord.fromEntries(detail.calls);
 
     return ListView(
       padding: EdgeInsets.fromLTRB(16.w, 4.h, 16.w, 24.h),
@@ -168,31 +217,17 @@ class _CallPersonScreenState extends State<CallPersonScreen> {
           ],
         ),
         SizedBox(height: 14.h),
-        Wrap(
-          spacing: 8.w,
-          runSpacing: 8.h,
-          children: [
-            // Accuracy over settled calls. Null until something settles — we
-            // do not render "0%" for "no data", and there is no PnL here.
-            CallBadge(
-              label:
-                  person.accuracy == null
-                      ? 'No settled calls yet'
-                      : '${CallsFormat.probability(person.accuracy)} of '
-                          '${person.settledCalls} settled calls correct',
-              color: AppColors.textSecondary,
-              icon: 'award-outline',
-            ),
-            if (pending > 0)
-              CallBadge(
-                label: '$pending pending',
-                color: AppColors.textSecondary,
-                icon: 'clock-outline',
-              ),
-          ],
-        ),
+
+        // Lifetime totals, from the server's own aggregate. Shown as counts
+        // first — hits AND misses — with a percentage only once there is
+        // enough settled history for one to be honest.
+        _LifetimeSummary(person: person),
+
+        SizedBox(height: 14.h),
+        CategoryRecordCard(record: record, personName: person.displayName),
         SizedBox(height: 6.h),
         Text(
+          'Counted from the calls on this page. '
           'Void calls count as neither correct nor incorrect.',
           style: TextStyle(color: AppColors.textTertiary, fontSize: 11.sp),
         ),
@@ -230,22 +265,34 @@ class _CallPersonScreenState extends State<CallPersonScreen> {
           for (final entry in detail.calls)
             Padding(
               padding: EdgeInsets.only(bottom: 12.h),
-              child: CallCard(
-                entry: entry,
-                showAuthor: false,
-                onOpenMarket:
-                    () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder:
-                            (_) =>
-                                MarketDetailScreen(marketId: entry.market.id),
-                      ),
-                    ),
-                onRespond:
-                    entry.author.id == provider.viewerUserId
-                        ? null
-                        : () => _respond(entry),
-                onShareReceipt: () => _shareReceipt(entry),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CallCard(
+                    entry: entry,
+                    showAuthor: false,
+                    onOpenMarket:
+                        () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder:
+                                (_) => MarketDetailScreen(
+                                  marketId: entry.market.id,
+                                ),
+                          ),
+                        ),
+                    onRespond:
+                        entry.author.id == provider.viewerUserId
+                            ? null
+                            : () => _respond(entry),
+                    onShareReceipt: () => _shareReceipt(entry),
+                  ),
+                  // Renders nothing unless the call actually settled and it is
+                  // somebody else's — a rematch answers a result.
+                  _RematchRow(
+                    offer: _offerFor(provider, entry),
+                    onPressed: () => _rematch(entry),
+                  ),
+                ],
               ),
             ),
 
@@ -268,6 +315,103 @@ class _CallPersonScreenState extends State<CallPersonScreen> {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// The person's lifetime totals as the repository reports them.
+///
+/// `Person.settledCalls` excludes VOID from both the numerator and the
+/// denominator (`calls_repository.dart`), so misses are exactly
+/// `settledCalls - correctCalls` — which is why this can, and does, always
+/// print the misses next to the hits. The percentage is held back below
+/// [kMinimumDecidedCallsForAccuracy] for the same reason the category record
+/// holds it back.
+class _LifetimeSummary extends StatelessWidget {
+  final Person person;
+
+  const _LifetimeSummary({required this.person});
+
+  @override
+  Widget build(BuildContext context) {
+    final decided = person.settledCalls;
+    final correct = person.correctCalls;
+    final incorrect = decided - correct;
+    final honest = decided >= kMinimumDecidedCallsForAccuracy;
+
+    if (decided <= 0) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: CallBadge(
+          label: 'No settled calls yet',
+          color: AppColors.textSecondary,
+          icon: 'award-outline',
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8.w,
+          runSpacing: 8.h,
+          children: [
+            CallBadge(
+              label: '$correct correct',
+              color: AppColors.success,
+              icon: 'check-outline',
+            ),
+            // There is no branch that can drop this one.
+            CallBadge(
+              label: '$incorrect incorrect',
+              color: AppColors.error,
+              icon: 'cross-outline',
+            ),
+            if (honest)
+              CallBadge(
+                label:
+                    '${CallsFormat.probability(person.accuracy)} lifetime '
+                    'accuracy',
+                color: AppColors.textSecondary,
+                icon: 'award-outline',
+              ),
+          ],
+        ),
+        SizedBox(height: 6.h),
+        Text(
+          honest
+              ? 'Lifetime, across $decided decided calls. Void excluded.'
+              : 'Lifetime, across $decided decided '
+                  '${decided == 1 ? 'call' : 'calls'} — too few to put a '
+                  'percentage on. Void excluded.',
+          style: TextStyle(
+            color: AppColors.textTertiary,
+            fontSize: 11.sp,
+            height: 1.35,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Spacing wrapper so the button contributes no height when it renders nothing.
+class _RematchRow extends StatelessWidget {
+  final RematchOffer offer;
+  final VoidCallback onPressed;
+
+  const _RematchRow({required this.offer, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!offer.isAvailable) return const SizedBox.shrink();
+    return Padding(
+      padding: EdgeInsets.only(top: 8.h),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: RematchButton(offer: offer, onPressed: onPressed),
+      ),
     );
   }
 }
