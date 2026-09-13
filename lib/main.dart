@@ -15,6 +15,7 @@ import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
 import 'package:chumbucket/shared/screens/splash/mwa_splash_screen.dart';
 import 'package:chumbucket/shared/services/unified_database_service.dart';
 import 'package:chumbucket/core/config/app_config.dart';
+import 'package:chumbucket/core/navigation/deep_link_host.dart';
 import 'package:chumbucket/features/calls/data/mock_calls_repository.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -119,6 +120,10 @@ void main() async {
   );
 }
 
+/// Navigator handle for deep links, which arrive from outside the widget tree
+/// and so have no BuildContext of their own.
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -133,6 +138,16 @@ class MyApp extends StatelessWidget {
           title: 'chumbucket',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,
+          navigatorKey: rootNavigatorKey,
+          // Wraps the whole app so a shared call/person/market link opens on a
+          // cold start as well as a warm resume. It owns delivery only: links
+          // it does not own — the Supabase OAuth callback among them — are left
+          // untouched for their existing handler.
+          builder:
+              (context, navigatorChild) => DeepLinkHost(
+                navigatorKey: rootNavigatorKey,
+                child: navigatorChild ?? const SizedBox.shrink(),
+              ),
           home: const MwaSplashScreen(), // MWA-based splash screen
         );
       },

@@ -40,6 +40,34 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="dev.cleva.chumbucket" android:host="login-callback" />
             </intent-filter>
+
+            <!-- Shared call / person / market links.
+                 Custom schemes only: the app owns these by registration, with no
+                 domain to verify. The https App Links filter for chumbucket.app
+                 is deliberately NOT here — android:autoVerify needs
+                 /.well-known/assetlinks.json hosted on that domain first, and
+                 claiming https links without it only ever reaches the chooser.
+                 Add it in the same place once the domain and assetlinks.json
+                 are confirmed.
+
+                 The OAuth filter above is untouched: it is pinned to
+                 android:host="login-callback", and these declare hosts c/u/m,
+                 so dev.cleva.chumbucket://login-callback still reaches the auth
+                 handler exactly as before. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="dev.cleva.chumbucket" android:host="c" />
+                <data android:scheme="dev.cleva.chumbucket" android:host="u" />
+                <data android:scheme="dev.cleva.chumbucket" android:host="m" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="chumbucket" />
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
