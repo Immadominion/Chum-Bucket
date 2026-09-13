@@ -261,6 +261,32 @@ class ArenaScore {
   );
 }
 
+/// Live in-play state of a match from the TxLINE scores feed — the CURRENT
+/// score and whether it's over. Display-only; the on-chain proof settles bets.
+class ArenaLiveScore {
+  final int home;
+  final int away;
+  final bool finished;
+  final int? statusId;
+
+  const ArenaLiveScore({
+    required this.home,
+    required this.away,
+    required this.finished,
+    this.statusId,
+  });
+
+  factory ArenaLiveScore.fromJson(Map<String, dynamic> json) {
+    final score = json['score'] as Map<String, dynamic>?;
+    return ArenaLiveScore(
+      home: (score?['home'] as num?)?.toInt() ?? 0,
+      away: (score?['away'] as num?)?.toInt() ?? 0,
+      finished: json['finished'] as bool? ?? false,
+      statusId: (json['statusId'] as num?)?.toInt(),
+    );
+  }
+}
+
 /// One matchday list entry: a fixture plus its RESULT market's live/settled
 /// pot state.
 class ArenaMatchEntry {
@@ -289,6 +315,11 @@ class ArenaMatchEntry {
   }
 
   bool get isOpenForCalls => status == 'OPEN';
+
+  /// Kicked off and in play (betting closed, not yet resolved). Still surfaced
+  /// prominently — a live match is the whole point, and the place the live
+  /// score strip lights up.
+  bool get isLive => status == 'LOCKED';
 
   factory ArenaMatchEntry.fromJson(Map<String, dynamic> json) =>
       ArenaMatchEntry(
