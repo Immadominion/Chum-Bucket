@@ -17,6 +17,7 @@ import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart';
 
+import 'package:chumbucket/core/analytics/analytics.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 
@@ -46,11 +47,31 @@ class CallsProvider extends ChangeNotifier {
     required CallsRepository repository,
     DateTime Function()? clock,
     this.staleAfter = const Duration(minutes: 2),
+    AnalyticsRecorder? analytics,
   }) : _repository = repository,
-       _clock = clock ?? DateTime.now;
+       _clock = clock ?? DateTime.now,
+       _analytics = analytics ?? AnalyticsRecorder.instance;
 
   final CallsRepository _repository;
   final DateTime Function() _clock;
+
+  /// Instrumentation for the §9 people-first vs market-first experiment.
+  ///
+  /// Defaults to the ambient recorder, which writes to a bounded in-memory
+  /// sink and **sends nothing anywhere**. Injected in tests. Every emission
+  /// below is fire-and-forget: `AnalyticsRecorder.record` cannot throw, so no
+  /// read, call or response can fail because of analytics.
+  final AnalyticsRecorder _analytics;
+
+  /// Exposed so a screen reports impressions against the same recorder — and
+  /// therefore the same session dedupe store and the same treatment — rather
+  /// than reaching for the ambient one and diverging from this provider's
+  /// viewer.
+  AnalyticsRecorder get analytics => _analytics;
+
+  /// Analytics timestamps come from the same injected clock as everything else
+  /// in this provider, so a test that controls time controls them too.
+  int get _analyticsNowMs => _clock().toUtc().millisecondsSinceEpoch;
 
   /// How old served data may be before the UI must say so.
   final Duration staleAfter;
@@ -86,6 +107,11 @@ class CallsProvider extends ChangeNotifier {
   void setViewer(String? userId) {
     if (_viewerUserId == userId) return;
     _viewerUserId = userId;
+    // Binds the experiment unit to the canonical `public.users.id` — never a
+    // wallet (contract §0.3). The id is hashed to an arm and is never itself
+    // recorded. Also clears the impression dedupe so the next account's first
+    // impressions are not swallowed as the previous account's duplicates.
+    _analytics.setUnit(userId);
     _feedEntries = const [];
     _feedServedAt = null;
     _feedNextCursor = null;
@@ -332,7 +358,37 @@ class CallsProvider extends ChangeNotifier {
   bool isLoadingPerson(String ref) => _peopleInFlight.contains(ref);
   String? personError(String ref) => _personErrors[ref];
 
-  Future<CallDetail?> loadCall(String callId, {bool force = false}) async {
+  /// Loads one call.
+  ///
+  /// [surface] says where the open came from — a deep link landing and a tap
+  /// in the feed are different facts, and §9 needs to tell them apart.
+  /// [reportOpen] exists for the one caller that is not an open: pre-warming a
+  /// cache is not somebody looking at a call.
+  Future<CallDetail?> loadCall(
+    String callId, {
+    bool force = false,
+    AnalyticsSurface surface = AnalyticsSurface.callDetail,
+    bool reportOpen = true,
+  }) async {
+    // Emitted before the cache check on purpose: re-opening a call already in
+    // the cache is still an open, and it is exactly the return behaviour the
+    // experiment is looking for.
+    if (reportOpen) {
+      final cached = _callDetails[callId];
+      _analytics.record(
+        AnalyticsEvents.callOpened(
+          callId: callId,
+          surface: surface,
+          marketId: cached?.entry.market.id,
+          authorId: cached?.entry.author.id,
+          side: cached?.entry.call.side.wire,
+          outcome: cached?.entry.outcome.wire,
+          viewerIsSignedIn: isSignedIn,
+          occurredAtMs: _analyticsNowMs,
+        ),
+      );
+    }
+
     if (!force &&
         (_callDetails.containsKey(callId) || _callsInFlight.contains(callId))) {
       return _callDetails[callId];
@@ -401,7 +457,10 @@ class CallsProvider extends ChangeNotifier {
 
   /// Locks a new free call. Rethrows so the composer can show the reason
   /// inline; [CallsSignedOutException] is the signed-out path.
-  Future<CallFeedEntry> createCall(CreateCallInput input) async {
+  Future<CallFeedEntry> createCall(
+    CreateCallInput input, {
+    AnalyticsSurface? surface,
+  }) async {
     if (_isSubmitting) {
       throw const CallsRejectedException('Already locking a call.');
     }
@@ -412,7 +471,7 @@ class CallsProvider extends ChangeNotifier {
         input: input,
         viewerUserId: _viewerUserId,
       );
-      _onCallCreated(entry);
+      _onCallCreated(entry, surface: surface);
       return entry;
     } finally {
       _isSubmitting = false;
@@ -421,7 +480,10 @@ class CallsProvider extends ChangeNotifier {
   }
 
   /// Back, Fade or Challenge. Back and Fade return the actor's own new call.
-  Future<CallResponseResult> respondToCall(RespondToCallInput input) async {
+  Future<CallResponseResult> respondToCall(
+    RespondToCallInput input, {
+    AnalyticsSurface? surface,
+  }) async {
     if (_isSubmitting) {
       throw const CallsRejectedException('Already sending that.');
     }
@@ -433,7 +495,13 @@ class CallsProvider extends ChangeNotifier {
         viewerUserId: _viewerUserId,
       );
       final own = result.resultingCall;
-      if (own != null) _onCallCreated(own);
+      // Order matters: the response event names the relationship, the call
+      // event counts the call. §9 needs both — "30% of new calls originate
+      // from another person's Back/Fade card" is the ratio between them.
+      _recordResponse(input: input, result: result, surface: surface);
+      if (own != null) {
+        _onCallCreated(own, viaResponse: result.response.kind, surface: surface);
+      }
       // The target's back/fade counter moved; drop its cached detail.
       _callDetails.remove(input.targetCallId);
       return result;
@@ -443,11 +511,84 @@ class CallsProvider extends ChangeNotifier {
     }
   }
 
-  void _onCallCreated(CallFeedEntry entry) {
+  void _onCallCreated(
+    CallFeedEntry entry, {
+    CallResponseKind? viaResponse,
+    AnalyticsSurface? surface,
+  }) {
     _feedEntries = [entry, ..._feedEntries];
     // The viewer now has a locked call on this market, so the crowd split
     // becomes available — force a refetch rather than synthesising it here.
     _marketDetails.remove(entry.market.id);
+
+    final call = entry.call;
+    _analytics.record(
+      AnalyticsEvents.callCreated(
+        callId: call.id,
+        marketId: entry.market.id,
+        side: call.side.wire,
+        visibility: call.visibility.wire,
+        fromResponse: viaResponse != null || call.parentCallId != null,
+        responseKind: viaResponse?.wire,
+        parentCallId: call.parentCallId,
+        confidencePresent: call.confidence != null,
+        // The thesis text itself never leaves the composer. Only whether one
+        // exists and roughly how long it was.
+        thesisPresent: call.thesis != null && call.thesis!.trim().isNotEmpty,
+        thesisLengthBucket: ThesisLengthBucket.of(call.thesis),
+        entryProbability: call.entryProbability,
+        surface: surface,
+        occurredAtMs: _analyticsNowMs,
+      ),
+    );
+  }
+
+  void _recordResponse({
+    required RespondToCallInput input,
+    required CallResponseResult result,
+    AnalyticsSurface? surface,
+  }) {
+    final response = result.response;
+    final own = result.resultingCall;
+    switch (response.kind) {
+      case CallResponseKind.back:
+        _analytics.record(
+          AnalyticsEvents.callBacked(
+            responseId: response.id,
+            targetCallId: input.targetCallId,
+            resultingCallId: own?.call.id,
+            marketId: own?.market.id,
+            side: own?.call.side.wire,
+            surface: surface,
+            occurredAtMs: _analyticsNowMs,
+          ),
+        );
+      case CallResponseKind.fade:
+        _analytics.record(
+          AnalyticsEvents.callFaded(
+            responseId: response.id,
+            targetCallId: input.targetCallId,
+            resultingCallId: own?.call.id,
+            marketId: own?.market.id,
+            side: own?.call.side.wire,
+            surface: surface,
+            occurredAtMs: _analyticsNowMs,
+          ),
+        );
+      case CallResponseKind.challenge:
+        // A challenge creates no call for the actor and carries no escrow, so
+        // there is nothing money-shaped to record and no resulting call id.
+        _analytics.record(
+          AnalyticsEvents.challengeSent(
+            responseId: response.id,
+            targetCallId: input.targetCallId,
+            marketId: result.invitation?.marketId,
+            personId: result.invitation?.toUserId,
+            surface: surface,
+            occurredAtMs: _analyticsNowMs,
+          ),
+        );
+    }
   }
 
   // -------------------------------------------------------------------------
