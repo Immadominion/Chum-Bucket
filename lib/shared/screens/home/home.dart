@@ -1,5 +1,5 @@
 import 'package:chumbucket/core/theme/app_colors.dart';
-import 'package:chumbucket/features/arena/presentation/screens/calls_screen.dart';
+import 'package:chumbucket/features/calls/presentation/screens/call_feed_screen.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/challenge_details_screen/challenge_details_screen.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/challenge_history_screen.dart';
 import 'package:chumbucket/features/profile/presentation/screens/profile_screen.dart';
@@ -227,7 +227,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   onViewChallenges: _openChallengeHistory,
                   onMarkChallengeCompleted: _markChallengeCompleted,
                 ),
-                const CallsScreen(),
+                // Slot 1 is the call feed. The shell owns what "sign in"
+                // means, so a signed-out tap routes to the profile tab
+                // rather than the feed inventing its own auth flow.
+                CallFeedScreen(onSignInRequested: () => _selectDestination(3)),
                 FriendsHubTab(
                   refreshKey: _friendsRefreshKey,
                   createNewChallenge: createNewChallenge,
