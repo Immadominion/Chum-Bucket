@@ -1,0 +1,273 @@
+/// A person's calls, keyed by the canonical `public.users.id` (or handle).
+///
+/// This is deliberately **not** `CallerProfileScreen`: that screen is keyed by
+/// a wallet address (`caller_profile_screen.dart:15`) and this slice must work
+/// with no wallet at all. When a person happens to have a wallet linked, the
+/// arena profile is offered as a secondary link rather than made the identity.
+///
+/// The header is accuracy-first, never PnL-first: a call has no money in it, so
+/// there is no P&L to lead with.
+library;
+
+import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:provider/provider.dart';
+
+import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/features/arena/presentation/screens/caller_profile_screen.dart';
+import 'package:chumbucket/features/calls/data/calls_repository.dart';
+import 'package:chumbucket/features/calls/presentation/screens/call_detail_screen.dart';
+import 'package:chumbucket/features/calls/presentation/screens/market_detail_screen.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/call_badges.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/call_card.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/call_response_sheet.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart';
+import 'package:chumbucket/features/calls/providers/calls_provider.dart';
+import 'package:chumbucket/features/receipts/data/call_receipt.dart';
+import 'package:chumbucket/features/receipts/presentation/call_receipt_sheet.dart';
+import 'package:chumbucket/shared/widgets/app_components/app_avatar.dart';
+
+class CallPersonScreen extends StatefulWidget {
+  /// A `public.users.id`, a handle, or `@handle`.
+  final String personRef;
+  final String? sharedByHandle;
+  final VoidCallback? onSignInRequested;
+
+  /// Lets the arena hand-off be switched off where `ArenaProvider` is not in
+  /// the tree (tests, embedded previews).
+  final bool allowArenaProfileLink;
+
+  const CallPersonScreen({
+    super.key,
+    required this.personRef,
+    this.sharedByHandle,
+    this.onSignInRequested,
+    this.allowArenaProfileLink = true,
+  });
+
+  @override
+  State<CallPersonScreen> createState() => _CallPersonScreenState();
+}
+
+class _CallPersonScreenState extends State<CallPersonScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<CallsProvider>().loadPerson(widget.personRef);
+    });
+  }
+
+  Future<void> _respond(CallFeedEntry entry) async {
+    final provider = context.read<CallsProvider>();
+    if (!provider.isSignedIn) {
+      widget.onSignInRequested?.call();
+      return;
+    }
+    final result = await showCallResponseSheet(context: context, entry: entry);
+    if (result != null && mounted) {
+      await provider.loadPerson(widget.personRef, force: true);
+    }
+  }
+
+  Future<void> _shareReceipt(CallFeedEntry entry) async {
+    final provider = context.read<CallsProvider>();
+    await showCallReceiptSheet(
+      context: context,
+      receipt: CallReceipt.fromEntry(
+        entry,
+        shareUrl: provider.shareLinkForCall(entry.call.id),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        foregroundColor: AppColors.textPrimary,
+        title: Text(
+          'Caller',
+          style: TextStyle(fontSize: 17.sp, fontWeight: FontWeight.w700),
+        ),
+      ),
+      body: Consumer<CallsProvider>(
+        builder: (context, provider, _) {
+          final detail = provider.personDetail(widget.personRef);
+          if (detail == null) {
+            if (provider.isLoadingPerson(widget.personRef)) {
+              return const CallsLoadingView(rows: 2);
+            }
+            if (provider.isOffline) {
+              return CallsOfflineView(
+                onRetry:
+                    () => provider.loadPerson(widget.personRef, force: true),
+              );
+            }
+            return CallsErrorView(
+              message:
+                  provider.personError(widget.personRef) ??
+                  'We couldn\'t find that person.',
+              onRetry: () => provider.loadPerson(widget.personRef, force: true),
+            );
+          }
+          return _body(provider, detail);
+        },
+      ),
+    );
+  }
+
+  Widget _body(CallsProvider provider, PersonDetail detail) {
+    final person = detail.person;
+    final settled = detail.calls.where((c) => c.outcome.isSettled).length;
+    final pending = detail.calls.length - settled;
+
+    return ListView(
+      padding: EdgeInsets.fromLTRB(16.w, 4.h, 16.w, 24.h),
+      children: [
+        if (widget.sharedByHandle != null)
+          CallsNotice(
+            icon: 'share-outline',
+            color: AppColors.textSecondary,
+            message: 'Shared with you by @${widget.sharedByHandle}.',
+          ),
+        Row(
+          children: [
+            AppAvatar(
+              initials: person.initials,
+              imageUrl: person.avatarUrl,
+              size: 56,
+            ),
+            SizedBox(width: 14.w),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    person.displayName,
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 20.sp,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  Text(
+                    '@${person.handle}',
+                    style: TextStyle(
+                      color: AppColors.textTertiary,
+                      fontSize: 13.sp,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: 14.h),
+        Wrap(
+          spacing: 8.w,
+          runSpacing: 8.h,
+          children: [
+            // Accuracy over settled calls. Null until something settles — we
+            // do not render "0%" for "no data", and there is no PnL here.
+            CallBadge(
+              label:
+                  person.accuracy == null
+                      ? 'No settled calls yet'
+                      : '${CallsFormat.probability(person.accuracy)} of '
+                          '${person.settledCalls} settled calls correct',
+              color: AppColors.textSecondary,
+              icon: 'award-outline',
+            ),
+            if (pending > 0)
+              CallBadge(
+                label: '$pending pending',
+                color: AppColors.textSecondary,
+                icon: 'clock-outline',
+              ),
+          ],
+        ),
+        SizedBox(height: 6.h),
+        Text(
+          'Void calls count as neither correct nor incorrect.',
+          style: TextStyle(color: AppColors.textTertiary, fontSize: 11.sp),
+        ),
+
+        if (widget.allowArenaProfileLink && person.walletAddress != null) ...[
+          SizedBox(height: 10.h),
+          TextButton(
+            onPressed:
+                () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder:
+                        (_) => CallerProfileScreen(
+                          walletAddress: person.walletAddress!,
+                        ),
+                  ),
+                ),
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              foregroundColor: AppColors.primary,
+            ),
+            child: Text(
+              'They also have a linked wallet — open their arena profile',
+              style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+
+        SizedBox(height: 18.h),
+        if (detail.calls.isEmpty)
+          const CallsEmptyView(
+            title: 'Nothing on record yet',
+            message: 'When they make a call, it shows up here.',
+          )
+        else
+          for (final entry in detail.calls)
+            Padding(
+              padding: EdgeInsets.only(bottom: 12.h),
+              child: CallCard(
+                entry: entry,
+                showAuthor: false,
+                onOpenMarket:
+                    () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder:
+                            (_) =>
+                                MarketDetailScreen(marketId: entry.market.id),
+                      ),
+                    ),
+                onRespond:
+                    entry.author.id == provider.viewerUserId
+                        ? null
+                        : () => _respond(entry),
+                onShareReceipt: () => _shareReceipt(entry),
+              ),
+            ),
+
+        if (detail.calls.isNotEmpty)
+          Center(
+            child: TextButton(
+              onPressed:
+                  () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder:
+                          (_) => CallDetailScreen(
+                            callId: detail.calls.first.call.id,
+                          ),
+                    ),
+                  ),
+              child: Text(
+                'Open their latest call',
+                style: TextStyle(fontSize: 12.sp, color: AppColors.primary),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}

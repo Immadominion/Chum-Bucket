@@ -25,15 +25,23 @@ class ArenaBucketIndex {
   static const int over = 0;
   static const int under = 1;
 
-  /// Convert the backend's bucket label to the on-chain u8 index. Handles both
-  /// the RESULT market ("HOME"/"DRAW"/"AWAY") and line markets ("OVER"/"UNDER").
+  /// Binary YES/NO markets are structurally identical to a line market: two
+  /// buckets sharing the same low indices. YES = 0, NO = 1.
+  static const int yes = 0;
+  static const int no = 1;
+
+  /// Convert the backend's bucket label to the on-chain u8 index. Handles the
+  /// RESULT market ("HOME"/"DRAW"/"AWAY"), line markets ("OVER"/"UNDER") and
+  /// binary markets ("YES"/"NO").
   static int fromLabel(String label) {
     switch (label.toUpperCase()) {
       case 'HOME':
       case 'OVER':
+      case 'YES':
         return home; // 0
       case 'DRAW':
       case 'UNDER':
+      case 'NO':
         return draw; // 1
       case 'AWAY':
         return away; // 2
@@ -52,6 +60,23 @@ class ArenaBucketIndex {
         return 'AWAY';
       default:
         throw ArgumentError('Unknown bucket index: $index');
+    }
+  }
+
+  /// Index -> label for a binary YES/NO market.
+  ///
+  /// A separate entry point rather than a branch inside [toLabel]: index 0
+  /// means HOME, OVER *and* YES depending on the market's shape, so the caller
+  /// must say which vocabulary it wants. Collapsing them would make [toLabel]
+  /// lie for two of the three.
+  static String toBinaryLabel(int index) {
+    switch (index) {
+      case yes:
+        return 'YES';
+      case no:
+        return 'NO';
+      default:
+        throw ArgumentError('Unknown binary bucket index: $index');
     }
   }
 }
