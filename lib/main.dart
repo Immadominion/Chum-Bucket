@@ -14,7 +14,7 @@ import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
 // MWA Splash Screen handles wallet-based auth flow
 import 'package:chumbucket/shared/screens/splash/mwa_splash_screen.dart';
 import 'package:chumbucket/shared/services/unified_database_service.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:chumbucket/core/config/app_config.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 // Firebase & Push notifications
 import 'package:firebase_core/firebase_core.dart';
@@ -26,19 +26,16 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // unawaited(RiveFile.initialize());
 
-  // Try loading .env file, but continue even if it fails
-  try {
-    await dotenv.load(fileName: ".env");
-    if (kDebugMode) debugPrint("Environment variables loaded successfully");
-  } catch (e) {
-    if (kDebugMode) debugPrint("Warning: Failed to load .env file: $e");
-    if (kDebugMode) debugPrint("The app will continue with fallback values");
-  }
+  // Public configuration only, supplied at build time via --dart-define.
+  // The app deliberately no longer bundles a .env asset: doing so shipped
+  // every local secret inside the APK. See lib/core/config/app_config.dart.
+  AppConfig.initialize();
 
   // Initialize Supabase
   try {
-    final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
-    final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
+    final config = AppConfig.values;
+    final supabaseUrl = config['SUPABASE_URL'] ?? '';
+    final supabaseAnonKey = config['SUPABASE_ANON_KEY'] ?? '';
 
     if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
       if (kDebugMode) {

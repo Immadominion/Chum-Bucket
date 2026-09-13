@@ -69,3 +69,6 @@ key.properties
 *.aab
 *.ipa
 publishing/files/
+
+# Local build-time config (public values only, still not committed)
+env.local.json
