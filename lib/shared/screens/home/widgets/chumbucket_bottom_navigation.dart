@@ -21,10 +21,14 @@ class ChumbucketBottomNavigation extends StatelessWidget {
       selected: 'home-solid',
     ),
     // L4: label + icon now match meaning — a feed/activity glyph for the
-    // predictions feed (not a shopping basket), and a people glyph for
-    // Friends (not an envelope).
+    // call feed (not a shopping basket), and a people glyph for Friends (not
+    // an envelope).
+    //
+    // "Calls", not "Predictions": the tab shows people's calls, and the call
+    // is the social object the whole product is built around. A market is the
+    // subject of a call, never the thing being followed.
     _NavigationItem(
-      label: 'Predictions',
+      label: 'Calls',
       regular: 'hotspot-outline',
       selected: 'hotspot-solid',
     ),

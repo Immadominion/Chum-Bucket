@@ -31,11 +31,11 @@ void main() {
     );
 
     expect(find.bySemanticsLabel('Home'), findsOneWidget);
-    expect(find.bySemanticsLabel('Predictions'), findsOneWidget);
+    expect(find.bySemanticsLabel('Calls'), findsOneWidget);
     expect(find.bySemanticsLabel('Friends'), findsOneWidget);
     expect(find.bySemanticsLabel('Profile'), findsOneWidget);
 
-    await tester.tap(find.bySemanticsLabel('Predictions'));
+    await tester.tap(find.bySemanticsLabel('Calls'));
     await tester.pumpAndSettle();
     expect(selected, 1);
 

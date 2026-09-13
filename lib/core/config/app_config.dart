@@ -39,6 +39,12 @@ class AppConfig {
     'MIN_FEE_SOL',
     'MAX_FEE_SOL',
     'TAWK_TO_URL',
+    // Which CallsRepository the build runs on ('mock' or 'bff'), and where
+    // the calls BFF lives. Both are public: a base URL is not a credential,
+    // and AppConfig drops any URL carrying an inline one.
+    'CALLS_BACKEND',
+    'CALLS_BFF_URL',
+    'CALLS_LINK_HOST',
     // Legacy Privy export bridge only. The app *secret* is server-side.
     'PRIVY_APP_ID',
     'PRIVY_API_URL',
@@ -79,6 +85,9 @@ class AppConfig {
     'MIN_FEE_SOL': String.fromEnvironment('MIN_FEE_SOL'),
     'MAX_FEE_SOL': String.fromEnvironment('MAX_FEE_SOL'),
     'TAWK_TO_URL': String.fromEnvironment('TAWK_TO_URL'),
+    'CALLS_BACKEND': String.fromEnvironment('CALLS_BACKEND'),
+    'CALLS_BFF_URL': String.fromEnvironment('CALLS_BFF_URL'),
+    'CALLS_LINK_HOST': String.fromEnvironment('CALLS_LINK_HOST'),
     'PRIVY_APP_ID': String.fromEnvironment('PRIVY_APP_ID'),
     'PRIVY_API_URL': String.fromEnvironment('PRIVY_API_URL'),
   };

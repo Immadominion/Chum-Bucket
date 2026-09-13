@@ -16,7 +16,7 @@ import 'package:chumbucket/shared/screens/splash/mwa_splash_screen.dart';
 import 'package:chumbucket/shared/services/unified_database_service.dart';
 import 'package:chumbucket/core/config/app_config.dart';
 import 'package:chumbucket/core/navigation/deep_link_host.dart';
-import 'package:chumbucket/features/calls/data/mock_calls_repository.dart';
+import 'package:chumbucket/features/calls/data/calls_repository_factory.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 // Firebase & Push notifications
@@ -100,18 +100,14 @@ void main() async {
         ChangeNotifierProvider(create: (_) => MwaAuthProvider()),
         ChangeNotifierProvider(create: (_) => ProfileProvider()),
         ChangeNotifierProvider(create: (_) => ArenaProvider()),
-        // The call/receipt slice. Backed by the mock until Packet B's
-        // prediction routes land; nothing above the CallsRepository
-        // interface changes when the real repository replaces it.
-        // The latency only exists so the loading state is visible in the
-        // running app — tests construct the mock with Duration.zero.
+        // The call/receipt slice. Which repository backs it is a build flag,
+        // not an edit here:
+        //   --dart-define=CALLS_BACKEND=bff --dart-define=CALLS_BFF_URL=https://…
+        // Defaults to the seeded mock, because the BFF is not deployed yet and
+        // a build silently pointing at localhost would fail every request on a
+        // real device with nothing on screen to explain why.
         ChangeNotifierProvider<CallsProvider>(
-          create:
-              (_) => CallsProvider(
-                repository: MockCallsRepository(
-                  latency: const Duration(milliseconds: 350),
-                ),
-              ),
+          create: (_) => CallsProvider(repository: buildCallsRepository()),
         ),
         ChangeNotifierProvider.value(value: ChallengeStateProvider.instance),
       ],
