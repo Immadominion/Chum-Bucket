@@ -354,9 +354,22 @@ CREATE TRIGGER trg_calls_guard_immutability
   EXECUTE FUNCTION public.calls_guard_immutability();
 
 -- ---------------------------------------------------------------------------
--- Insert-time sanity the CHECKs cannot express: a Back/Fade's parent must be a
--- call on the SAME market (otherwise the lineage is meaningless), and a call
--- may not be born hidden.
+-- Insert-time sanity the CHECKs cannot express: a call may not be made after
+-- the answer is known, a Back/Fade's parent must be a call on the SAME market
+-- (otherwise the lineage is meaningless), and a call may not be born hidden.
+--
+-- The after-the-fact check is the important one, and it belongs HERE rather
+-- than only in the BFF. `authenticated` holds a direct column-level INSERT
+-- grant on this table (see the GRANT above), so the BFF is deliberately not
+-- the only writer — which means a market-state gate that lives only in
+-- CallsService.acceptsNewCalls() is a gate with a door beside it. A signed-in
+-- client could POST straight to PostgREST, lock a call on a market that had
+-- already published its resolution, and be derived CORRECT: the accuracy
+-- number, which is the whole point of a record, would be forgeable.
+--
+-- entry_probability and snapshot_id are described in this file's header as
+-- "the evidence that the person committed before the answer was known". This
+-- is what makes that sentence true.
 -- ---------------------------------------------------------------------------
 
 CREATE FUNCTION public.calls_guard_insert()
@@ -367,7 +380,51 @@ SET search_path = pg_catalog, public, pg_temp   -- REQUIRED (§5)
 AS $$
 DECLARE
   v_parent_market UUID;
+  v_status        TEXT;
+  v_closes_at     TIMESTAMPTZ;
+  v_resolved_at   TIMESTAMPTZ;
 BEGIN
+  -- The market must still be taking calls, and must not already have an
+  -- answer. Both are checked, not one: a market can publish a resolution
+  -- without its cached status having been synced yet, and a market can close
+  -- before anything is published. Either alone leaves a window.
+  SELECT m.status, m.closes_at INTO v_status, v_closes_at
+    FROM public.venue_markets m
+   WHERE m.id = NEW.market_id;
+
+  IF v_status IS NULL THEN
+    RAISE EXCEPTION
+      'calls: market % does not exist. A call is always about a market somebody can check.', NEW.market_id
+      USING ERRCODE = 'raise_exception';
+  END IF;
+
+  IF v_status <> 'OPEN' THEN
+    RAISE EXCEPTION
+      'calls: market % is %, so it is no longer taking calls. A call made after the close is not a call.',
+      NEW.market_id, v_status
+      USING ERRCODE = 'raise_exception';
+  END IF;
+
+  IF v_closes_at IS NOT NULL AND v_closes_at <= NOW() THEN
+    RAISE EXCEPTION
+      'calls: market % closed at %. A call must be locked before the close, or it is not a prediction.',
+      NEW.market_id, v_closes_at
+      USING ERRCODE = 'raise_exception';
+  END IF;
+
+  SELECT r.resolved_at INTO v_resolved_at
+    FROM public.market_resolutions r
+   WHERE r.market_id = NEW.market_id
+   ORDER BY r.resolved_at ASC
+   LIMIT 1;
+
+  IF v_resolved_at IS NOT NULL THEN
+    RAISE EXCEPTION
+      'calls: market % was resolved at %. A call cannot be made after the answer is public — that is not a record, it is a transcription.',
+      NEW.market_id, v_resolved_at
+      USING ERRCODE = 'raise_exception';
+  END IF;
+
   IF NEW.hidden_at IS NOT NULL THEN
     RAISE EXCEPTION
       'calls: a call may not be inserted already hidden. Lock it, then hide it — the record of it having been made is the point (contracts §0.1).'

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/data/calls_repository_factory.dart';
@@ -133,11 +135,56 @@ void main() {
         reason: 'a challenge is an invitation, not a call of your own',
       );
       expect(result.invitation, isNotNull);
-      // The absence of a money field is the enforcement — assert on the
-      // serialised shape so a future field cannot slip in unnoticed.
-      final encoded = result.invitation.toString().toLowerCase();
-      for (final banned in ['stake', 'escrow', 'lamport', 'usdc', 'wager']) {
-        expect(encoded, isNot(contains(banned)));
+    });
+
+    test('a challenge has no money-shaped field to put a wager in', () {
+      // This used to assert against `invitation.toString()`, which was
+      // vacuous: ChallengeInvitation declares no toString, so Dart returns
+      // "Instance of 'ChallengeInvitation'" and the check passed no matter
+      // what the class contained. It would have passed with a stakeAmount
+      // field sitting right there.
+      //
+      // The claim worth protecting is that no such field can be ADDED without
+      // somebody noticing, and only reading the declaration can do that.
+      final source =
+          File(
+            'lib/features/calls/data/calls_repository.dart',
+          ).readAsStringSync();
+      final start = source.indexOf('class ChallengeInvitation');
+      expect(start, isNot(-1), reason: 'ChallengeInvitation must still exist');
+      final body = source.substring(start, source.indexOf('\n}', start));
+
+      final fields = RegExp(
+        r'^\s*final\s+[\w<>?, ]+\s+(\w+);',
+        multiLine: true,
+      ).allMatches(body).map((m) => m.group(1)!).toList();
+
+      expect(fields, isNotEmpty, reason: 'the regex must actually match fields');
+
+      const banned = [
+        'stake',
+        'amount',
+        'escrow',
+        'wager',
+        'lamport',
+        'usdc',
+        'payout',
+        'balance',
+        'price',
+        'size',
+        'fee',
+      ];
+      for (final field in fields) {
+        for (final word in banned) {
+          expect(
+            field.toLowerCase(),
+            isNot(contains(word)),
+            reason:
+                'ChallengeInvitation.$field is money-shaped. A challenge is a '
+                'dare to go on record, not a wager — the absence of the field '
+                'is the enforcement.',
+          );
+        }
       }
     });
 
