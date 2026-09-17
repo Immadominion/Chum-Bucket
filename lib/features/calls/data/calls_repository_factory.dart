@@ -23,16 +23,22 @@ enum CallsBackend {
 
   static CallsBackend fromName(String? raw) {
     switch (raw?.trim().toLowerCase()) {
-      case 'bff':
-        return CallsBackend.bff;
       case 'mock':
+        return CallsBackend.mock;
+      case 'bff':
       case '':
       case null:
-        return CallsBackend.mock;
+        // Real by default. The BFF is deployed and serving live Polymarket
+        // markets, so a build with no --dart-define should talk to it rather
+        // than to a seeded catalog — the mock is for tests and offline work,
+        // and shipping it by accident is how invented data reaches a person.
+        return CallsBackend.bff;
       default:
         // An unrecognised value is a configuration mistake. Falling back to the
-        // mock is the safe direction: the app still runs, visibly on demo data,
-        // instead of pointing at a host nobody meant to name.
+        // mock is still the safe direction for a TYPO specifically: the app runs
+        // on visibly-demo data instead of silently pointing somewhere nobody
+        // meant to name. An absent value is different — that is the normal case,
+        // and it means production.
         assert(() {
           debugPrint(
             'CallsBackend: unrecognised $configKey="$raw" — using the mock. '
@@ -47,10 +53,9 @@ enum CallsBackend {
 
 /// Resolves the configured backend.
 ///
-/// Defaults to [CallsBackend.mock]. That default is the honest one: the BFF is
-/// not deployed yet, and a build that silently pointed at `localhost:8787`
-/// would fail every request on a real device with nothing on screen to explain
-/// why.
+/// Defaults to [CallsBackend.bff] — the deployed backend serving real
+/// Polymarket markets. The mock remains reachable with
+/// `--dart-define=CALLS_BACKEND=mock` for tests and offline work.
 CallsBackend resolveCallsBackend({Map<String, String>? overrides}) {
   final raw =
       overrides?[CallsBackend.configKey] ??

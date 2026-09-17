@@ -52,8 +52,14 @@ const String kCallsBffUrlKey = 'CALLS_BFF_URL';
 /// `calls.*` and `markets.*`.
 const String kCallsBffFallbackUrlKey = 'ARENA_BACKEND_URL';
 
-/// Local development default, identical to `ArenaBackendService`'s.
-const String kCallsBffDefaultUrl = 'http://localhost:8787';
+/// The deployed calls BFF.
+///
+/// A real host, not localhost, because this is what a build with no
+/// --dart-define actually talks to — and a device pointing at localhost fails
+/// every request with nothing on screen to explain why. Override per build with
+/// --dart-define=CALLS_BFF_URL=... for staging or a local server.
+const String kCallsBffDefaultUrl =
+    'https://chumbucket-calls-bff-production.up.railway.app';
 
 /// Configuration key for the host shareable links are built against.
 const String kCallsLinkHostKey = 'CALLS_LINK_HOST';

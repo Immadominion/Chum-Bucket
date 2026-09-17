@@ -314,10 +314,21 @@ void main() {
   });
 
   group('the configured backend', () {
-    test('defaults to the mock, so a misconfigured build still runs', () {
-      expect(resolveCallsBackend(overrides: const {}), CallsBackend.mock);
+    test('defaults to the REAL backend — an absent value means production', () {
+      // This asserted the mock until the BFF was deployed and serving live
+      // Polymarket markets. A build with no --dart-define should talk to the
+      // real thing; shipping a seeded catalog by accident is how invented data
+      // reaches a person.
+      expect(resolveCallsBackend(overrides: const {}), CallsBackend.bff);
       expect(
         resolveCallsBackend(overrides: const {'CALLS_BACKEND': ''}),
+        CallsBackend.bff,
+      );
+    });
+
+    test('the mock is still reachable, by asking for it', () {
+      expect(
+        resolveCallsBackend(overrides: const {'CALLS_BACKEND': 'mock'}),
         CallsBackend.mock,
       );
     });
@@ -333,7 +344,11 @@ void main() {
       );
     });
 
-    test('an unrecognised value falls back to the mock, not to a guess', () {
+    test('a TYPO still falls back to the mock, not to a guess', () {
+      // A misspelling is different from an absent value. Absent means
+      // production; a value nobody recognises means somebody meant something
+      // specific and got it wrong, so the app runs on visibly-demo data rather
+      // than silently pointing at a host that was never named.
       expect(
         resolveCallsBackend(overrides: const {'CALLS_BACKEND': 'prod'}),
         CallsBackend.mock,
