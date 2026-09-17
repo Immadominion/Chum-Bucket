@@ -112,7 +112,7 @@ class MockCallsRepository implements CallsRepository {
     _markets.addAll([
       VenueMarket(
         id: 'market_btc_150k',
-        venue: MarketVenue.jupiter,
+        venue: MarketVenue.fixture,
         venueEventId: 'evt_btc_eoy',
         venueMarketId: 'jup:btc-above-150000-2026-12-31',
         question: 'Will BTC trade above \$150,000 before 31 Dec 2026?',
@@ -165,7 +165,7 @@ class MockCallsRepository implements CallsRepository {
       ),
       VenueMarket(
         id: 'market_etf_flows',
-        venue: MarketVenue.jupiter,
+        venue: MarketVenue.fixture,
         venueEventId: 'evt_etf_week',
         venueMarketId: 'jup:eth-etf-net-inflow-week-37',
         question: 'Net ETH ETF inflows positive for the week of 8 Sep?',
@@ -191,7 +191,7 @@ class MockCallsRepository implements CallsRepository {
       ),
       VenueMarket(
         id: 'market_fed_cut',
-        venue: MarketVenue.jupiter,
+        venue: MarketVenue.fixture,
         venueEventId: 'evt_fomc_sep',
         venueMarketId: 'jup:fomc-sep-2026-cut-25bp',
         question: 'Did the FOMC cut by 25bp at the September meeting?',
@@ -216,7 +216,7 @@ class MockCallsRepository implements CallsRepository {
       ),
       VenueMarket(
         id: 'market_cancelled_listing',
-        venue: MarketVenue.jupiter,
+        venue: MarketVenue.fixture,
         venueEventId: 'evt_listing_rumour',
         venueMarketId: 'jup:exchange-listing-rumour-q3',
         question: 'Will the rumoured Q3 listing be announced?',
@@ -240,7 +240,7 @@ class MockCallsRepository implements CallsRepository {
       ),
       VenueMarket(
         id: 'market_paused_depeg',
-        venue: MarketVenue.jupiter,
+        venue: MarketVenue.fixture,
         venueEventId: 'evt_depeg_watch',
         venueMarketId: 'jup:stable-depeg-below-0985',
         question: 'Will the stablecoin trade below \$0.985 this month?',

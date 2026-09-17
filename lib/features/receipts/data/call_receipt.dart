@@ -112,6 +112,15 @@ class CallReceipt {
       CallOutcome.voided => 'Market was cancelled — void, not a loss.',
       CallOutcome.pending => 'On record, still pending.',
     };
-    return '$verdict $marketQuestion — I said $sideLabel. $shareUrl';
+    // A demo receipt says so, in the text that actually leaves the app.
+    //
+    // Every other demo affordance — the badge, the notice, the receipt card's
+    // own block — lives on a screen. The caption is the one thing that travels
+    // to WhatsApp or X, where none of that chrome follows it. Without this a
+    // fixture receipt about a real-world event would post as a real result
+    // under the product's name, which is the exact thing the venue labelling
+    // exists to prevent.
+    final demo = venueIsDemo ? ' [DEMO DATA — not a real market result]' : '';
+    return '$verdict $marketQuestion — I said $sideLabel.$demo $shareUrl';
   }
 }

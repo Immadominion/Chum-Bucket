@@ -102,7 +102,8 @@ void main() {
       expect(find.text('62%'), findsOneWidget); // NO
       expect(find.text('YES'), findsOneWidget);
       expect(find.text('NO'), findsOneWidget);
-      expect(find.text('Priced by Jupiter'), findsOneWidget);
+      // Demo catalog, because every market the mock serves is invented.
+      expect(find.text('Demo catalog · not a live market'), findsOneWidget);
       expect(find.text('Open'), findsOneWidget);
     });
 

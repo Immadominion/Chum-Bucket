@@ -1,4 +1,5 @@
 import 'package:chumbucket/features/calls/data/call_models.dart';
+import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/data/mock_calls_repository.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart';
 import 'package:chumbucket/features/receipts/data/call_receipt.dart';
@@ -50,7 +51,11 @@ void main() {
         receipt.marketQuestion,
         'Did the FOMC cut by 25bp at the September meeting?',
       );
-      expect(receipt.venueLabel, 'Jupiter');
+      // The mock's markets are all invented, so they are branded `fixture`
+      // and must attribute as demo. Asserting 'Jupiter' here is what let a
+      // fabricated result present as live venue evidence.
+      expect(receipt.venueLabel, 'Demo catalog');
+      expect(receipt.venueIsDemo, isTrue);
       expect(receipt.marketResolutionId, 'res_fomc_sep_2026');
       expect(receipt.shareUrl, 'https://chumbucket.app/c/call_you_fed');
     });
@@ -121,7 +126,7 @@ void main() {
       expect(find.text('64%'), findsOneWidget);
       // The source market.
       expect(find.text(receipt.marketQuestion), findsOneWidget);
-      expect(find.text('Jupiter'), findsOneWidget);
+      expect(find.text('Demo catalog'), findsOneWidget);
       expect(find.text('res_fomc_sep_2026'), findsOneWidget);
       // And the explicit denial of a stake.
       expect(
@@ -240,10 +245,50 @@ void main() {
       );
     });
 
+    test('the shared CAPTION says demo — the chrome does not travel', () async {
+      // Every other demo affordance lives on a screen. The caption is the only
+      // thing that reaches WhatsApp or X, where no badge follows it. Without a
+      // marker here, a fabricated receipt about a real-world event posts as a
+      // real result under the product's name.
+      final repo = MockCallsRepository();
+      final feed = await repo.fetchFeed(mode: CallFeedMode.global);
+      final settled = feed.entries.firstWhere((e) => e.result != null);
+      final receipt = CallReceipt.fromEntry(
+        settled,
+        shareUrl: repo.shareLinkForCall(settled.call.id),
+      );
+
+      expect(receipt.venueIsDemo, isTrue);
+      expect(receipt.shareCaption, contains('DEMO DATA'));
+      expect(receipt.shareCaption, contains('not a real market result'));
+    });
+
+    test('every market the mock invents is branded fixture', () {
+      // The regression this guards: five of six mock markets used to claim
+      // `venue: jupiter`, so isDemo was false and NO demo affordance rendered
+      // for them — including a fabricated FOMC resolution with a
+      // federalreserve.gov source string.
+      final repo = MockCallsRepository();
+      for (final m in repo.debugMarkets) {
+        expect(
+          m.venue,
+          MarketVenue.fixture,
+          reason:
+              'Mock market "${m.question}" claims venue ${m.venue.name}. '
+              'Everything the mock serves is invented, so it must brand as '
+              'fixture or the demo labelling silently does nothing.',
+        );
+      }
+    });
+
     test('a demo market is attributed as demo, not as a live venue', () async {
       final repo = MockCallsRepository();
+      // Both markets are constructed here rather than borrowed from the seed.
+      // This asserts a property of venueAttribution, so it must not depend on
+      // how the mock happens to brand its catalog — and the mock's markets are
+      // all `fixture` now, because every one of them is invented.
       final demo = repo.debugMarkets.firstWhere((m) => m.venue.isDemo);
-      final live = repo.debugMarkets.firstWhere((m) => !m.venue.isDemo);
+      final live = demo.copyWith(venue: MarketVenue.jupiter);
       expect(
         CallsFormat.venueAttribution(demo),
         'Demo catalog · not a live market',

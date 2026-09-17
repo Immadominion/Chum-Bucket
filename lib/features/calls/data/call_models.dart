@@ -414,9 +414,13 @@ class VenueMarket {
     'payloadVersion': payloadVersion,
   };
 
-  VenueMarket copyWith({MarketStatus? status, int? lastSyncedAt}) => VenueMarket(
+  VenueMarket copyWith({
+    MarketStatus? status,
+    int? lastSyncedAt,
+    MarketVenue? venue,
+  }) => VenueMarket(
     id: id,
-    venue: venue,
+    venue: venue ?? this.venue,
     venueEventId: venueEventId,
     venueMarketId: venueMarketId,
     question: question,
