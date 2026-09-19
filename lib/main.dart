@@ -16,6 +16,7 @@ import 'package:chumbucket/shared/screens/splash/mwa_splash_screen.dart';
 import 'package:chumbucket/shared/services/unified_database_service.dart';
 import 'package:chumbucket/core/config/app_config.dart';
 import 'package:chumbucket/core/navigation/deep_link_host.dart';
+import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/calls/data/calls_repository_factory.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -100,14 +101,31 @@ void main() async {
         ChangeNotifierProvider(create: (_) => MwaAuthProvider()),
         ChangeNotifierProvider(create: (_) => ProfileProvider()),
         ChangeNotifierProvider(create: (_) => ArenaProvider()),
-        // The call/receipt slice. Which repository backs it is a build flag,
-        // not an edit here:
-        //   --dart-define=CALLS_BACKEND=bff --dart-define=CALLS_BFF_URL=https://…
-        // Defaults to the seeded mock, because the BFF is not deployed yet and
-        // a build silently pointing at localhost would fail every request on a
-        // real device with nothing on screen to explain why.
-        ChangeNotifierProvider<CallsProvider>(
-          create: (_) => CallsProvider(repository: buildCallsRepository()),
+        // Primary identity: Google -> Supabase session -> canonical
+        // public.users.id. restore() adopts a session already in storage and
+        // subscribes to auth changes for the life of the app. It sits ABOVE
+        // CallsProvider on purpose: the repository below reads its token
+        // provider at construction.
+        ChangeNotifierProvider<ChumbucketSession>(
+          create: (_) => ChumbucketSession()..restore(),
+        ),
+        // The call/receipt slice. Which repository backs it is a build flag:
+        //   --dart-define=CALLS_BACKEND=mock  for the seeded offline catalog.
+        // Default is the deployed BFF on real Polymarket markets.
+        ChangeNotifierProxyProvider<ChumbucketSession, CallsProvider>(
+          create:
+              (context) => CallsProvider(
+                repository: buildCallsRepository(
+                  // FutureOr<String?> Function(). Null is not an error — it is
+                  // what signed out looks like, and reading never needs a
+                  // session. A token near expiry is refreshed before use.
+                  authToken: context.read<ChumbucketSession>().bffAuthToken,
+                ),
+              ),
+          // The CANONICAL public.users.id — never authUserId, never a wallet
+          // (contracts §0 invariant 3). Null while signed out or while whoami
+          // is still in flight; setViewer early-returns when unchanged.
+          update: (_, session, calls) => calls!..setViewer(session.userId),
         ),
         ChangeNotifierProvider.value(value: ChallengeStateProvider.instance),
       ],
