@@ -40,7 +40,7 @@ void main() {
         throwsA(isA<CallVocabularyException>()),
       );
       expect(
-        () => MarketVenue.fromWire('polymarket'),
+        () => MarketVenue.fromWire('unknown-venue'),
         throwsA(isA<CallVocabularyException>()),
       );
     });

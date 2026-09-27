@@ -175,7 +175,9 @@ class CallsProvider extends ChangeNotifier {
     if (_isLoadingFeed && _feedEntries.isEmpty) return CallsLoadState.loading;
     if (_isOffline && _feedEntries.isEmpty) return CallsLoadState.offline;
     if (_feedError != null && _feedEntries.isEmpty) return CallsLoadState.error;
-    if (_feedServedAt == null && _feedEntries.isEmpty) return CallsLoadState.idle;
+    if (_feedServedAt == null && _feedEntries.isEmpty) {
+      return CallsLoadState.idle;
+    }
     if (_feedEntries.isEmpty) return CallsLoadState.empty;
     return CallsLoadState.ready;
   }
@@ -262,7 +264,20 @@ class CallsProvider extends ChangeNotifier {
   bool _isLoadingOpenMarkets = false;
   String? _openMarketsError;
 
-  List<VenueMarket> get openMarkets => List.unmodifiable(_openMarkets);
+  List<VenueMarket> get openMarkets {
+    final now = _clock().millisecondsSinceEpoch;
+    // An upstream OPEN label can outlive its deadline between polling passes.
+    // Recheck on each read, including a catalog cached before the close.
+    return List.unmodifiable(
+      _openMarkets.where(
+        (market) =>
+            market.status.acceptsNewCalls &&
+            (market.opensAt == null || market.opensAt! <= now) &&
+            (market.closesAt == null || market.closesAt! > now),
+      ),
+    );
+  }
+
   bool get isLoadingOpenMarkets => _isLoadingOpenMarkets;
   String? get openMarketsError => _openMarketsError;
 
@@ -279,6 +294,9 @@ class CallsProvider extends ChangeNotifier {
     try {
       _openMarkets = await _repository.fetchOpenMarkets(category: 'crypto');
       _isOffline = false;
+    } on CallVocabularyException {
+      _openMarketsError =
+          'The market data format changed. Please update the app or try again later.';
     } on CallsOfflineException catch (e) {
       _isOffline = true;
       _openMarketsError = e.message;
@@ -500,7 +518,11 @@ class CallsProvider extends ChangeNotifier {
       // from another person's Back/Fade card" is the ratio between them.
       _recordResponse(input: input, result: result, surface: surface);
       if (own != null) {
-        _onCallCreated(own, viaResponse: result.response.kind, surface: surface);
+        _onCallCreated(
+          own,
+          viaResponse: result.response.kind,
+          surface: surface,
+        );
       }
       // The target's back/fade counter moved; drop its cached detail.
       _callDetails.remove(input.targetCallId);
@@ -622,7 +644,8 @@ class CallsProvider extends ChangeNotifier {
   // Sharing
   // -------------------------------------------------------------------------
 
-  String shareLinkForCall(String callId) => _repository.shareLinkForCall(callId);
+  String shareLinkForCall(String callId) =>
+      _repository.shareLinkForCall(callId);
 
   String shareLinkForPerson(String handleOrId) =>
       _repository.shareLinkForPerson(handleOrId);

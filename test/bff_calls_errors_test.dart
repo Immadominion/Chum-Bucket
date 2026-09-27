@@ -370,7 +370,7 @@ void main() {
         () async {
       final server = FakeBffServer.routes({
         'markets.open': [
-          <String, dynamic>{...marketJson(), 'venue': 'polymarket'},
+          <String, dynamic>{...marketJson(), 'venue': 'unknown-venue'},
         ],
       });
       await expectLater(

@@ -84,7 +84,10 @@ enum Resolution {
 /// `RESOLVED` are three different things and the UI renders each differently.
 enum MarketStatus {
   open('OPEN', 'Open'),
-  closedPendingResolution('CLOSED_PENDING_RESOLUTION', 'Closed · awaiting result'),
+  closedPendingResolution(
+    'CLOSED_PENDING_RESOLUTION',
+    'Closed · awaiting result',
+  ),
   resolved('RESOLVED', 'Resolved'),
   cancelled('CANCELLED', 'Void · cancelled by venue'),
   paused('PAUSED', 'Paused by venue');
@@ -172,9 +175,10 @@ enum FundingState {
   };
 }
 
-/// `VenueMarket.venue: 'jupiter' | 'fixture'`.
+/// Must match the backend's VenueId. Unknown providers still fail closed.
 enum MarketVenue {
   jupiter('jupiter', 'Jupiter'),
+  polymarket('polymarket', 'Polymarket'),
   fixture('fixture', 'Demo catalog');
 
   const MarketVenue(this.wire, this.label);
@@ -187,6 +191,7 @@ enum MarketVenue {
 
   static MarketVenue fromWire(Object? value) => switch (value) {
     'jupiter' => MarketVenue.jupiter,
+    'polymarket' => MarketVenue.polymarket,
     'fixture' => MarketVenue.fixture,
     _ => _unknown('MarketVenue', value),
   };
@@ -264,7 +269,9 @@ int? _optionalTimestampMs(Object? value, String field) =>
 
 double _requireProbability(Object? value, String field) {
   if (value is! num || value.isNaN || !value.isFinite) {
-    throw CallVocabularyException('$field must be a number in [0,1], got "$value"');
+    throw CallVocabularyException(
+      '$field must be a number in [0,1], got "$value"',
+    );
   }
   final probability = value.toDouble();
   if (probability < 0 || probability > 1) {
@@ -278,7 +285,9 @@ double? _optionalProbability(Object? value, String field) =>
 
 String _requireString(Object? value, String field) {
   if (value is String && value.isNotEmpty) return value;
-  throw CallVocabularyException('$field must be a non-empty string, got "$value"');
+  throw CallVocabularyException(
+    '$field must be a non-empty string, got "$value"',
+  );
 }
 
 /// Maximum length of [Call.thesis], per the contract.
@@ -370,7 +379,10 @@ class VenueMarket {
   factory VenueMarket.fromJson(Map<String, dynamic> json) => VenueMarket(
     id: _requireString(json['id'], 'VenueMarket.id'),
     venue: MarketVenue.fromWire(json['venue']),
-    venueEventId: _requireString(json['venueEventId'], 'VenueMarket.venueEventId'),
+    venueEventId: _requireString(
+      json['venueEventId'],
+      'VenueMarket.venueEventId',
+    ),
     venueMarketId: _requireString(
       json['venueMarketId'],
       'VenueMarket.venueMarketId',
@@ -378,15 +390,17 @@ class VenueMarket {
     question: _requireString(json['question'], 'VenueMarket.question'),
     rulesText: _requireString(json['rulesText'], 'VenueMarket.rulesText'),
     category: _requireString(json['category'], 'VenueMarket.category'),
-    outcomes:
-        (json['outcomes'] as List<dynamic>? ?? const [])
-            .map((e) => MarketOutcome.fromJson(e as Map<String, dynamic>))
-            .toList(growable: false),
+    outcomes: (json['outcomes'] as List<dynamic>? ?? const [])
+        .map((e) => MarketOutcome.fromJson(e as Map<String, dynamic>))
+        .toList(growable: false),
     status: MarketStatus.fromWire(json['status']),
     rawStatus: _requireString(json['rawStatus'], 'VenueMarket.rawStatus'),
     opensAt: _optionalTimestampMs(json['opensAt'], 'VenueMarket.opensAt'),
     closesAt: _optionalTimestampMs(json['closesAt'], 'VenueMarket.closesAt'),
-    resolvesAt: _optionalTimestampMs(json['resolvesAt'], 'VenueMarket.resolvesAt'),
+    resolvesAt: _optionalTimestampMs(
+      json['resolvesAt'],
+      'VenueMarket.resolvesAt',
+    ),
     resolutionSource: json['resolutionSource'] as String?,
     lastSyncedAt: _requireTimestampMs(
       json['lastSyncedAt'],
@@ -625,7 +639,10 @@ class CallResponse {
 
   factory CallResponse.fromJson(Map<String, dynamic> json) => CallResponse(
     id: _requireString(json['id'], 'CallResponse.id'),
-    actorUserId: _requireString(json['actorUserId'], 'CallResponse.actorUserId'),
+    actorUserId: _requireString(
+      json['actorUserId'],
+      'CallResponse.actorUserId',
+    ),
     targetCallId: _requireString(
       json['targetCallId'],
       'CallResponse.targetCallId',
@@ -678,7 +695,10 @@ class CallResult {
         json['resolution'] == null
             ? null
             : Resolution.fromWire(json['resolution']),
-    resolvedAt: _optionalTimestampMs(json['resolvedAt'], 'CallResult.resolvedAt'),
+    resolvedAt: _optionalTimestampMs(
+      json['resolvedAt'],
+      'CallResult.resolvedAt',
+    ),
     marketResolutionId: json['marketResolutionId'] as String?,
     derivedAt: _requireTimestampMs(json['derivedAt'], 'CallResult.derivedAt'),
   );
