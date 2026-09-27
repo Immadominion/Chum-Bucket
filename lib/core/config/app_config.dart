@@ -140,6 +140,9 @@ class AppConfig {
   /// none is bundled — see `pubspec.yaml`.
   static void initialize() {
     if (_initialized) return;
+    // Initialize the legacy reader without loading a file. Its env getter
+    // throws until this happens, including on every fresh device process.
+    dotenv.loadFromString(isOptional: true);
     dotenv.env
       ..clear()
       ..addAll(values);
