@@ -10,6 +10,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
@@ -37,11 +38,13 @@ class CallFeedScreen extends StatefulWidget {
   /// Invoked when a signed-out person taps something that needs an account.
   /// The shell owns what "sign in" means — this slice never does it itself.
   final VoidCallback? onSignInRequested;
+  final VoidCallback? onBrowseMarkets;
 
   const CallFeedScreen({
     super.key,
     this.showHeader = true,
     this.onSignInRequested,
+    this.onBrowseMarkets,
   });
 
   @override
@@ -82,7 +85,8 @@ class _CallFeedScreenState extends State<CallFeedScreen>
     }
   }
 
-  Future<void> _refresh() => context.read<CallsProvider>().loadFeed(force: true);
+  Future<void> _refresh() =>
+      context.read<CallsProvider>().loadFeed(force: true);
 
   void _openMarket(String marketId) {
     Navigator.of(context).push(
@@ -99,7 +103,7 @@ class _CallFeedScreenState extends State<CallFeedScreen>
   Future<void> _respond(CallFeedEntry entry) async {
     final provider = context.read<CallsProvider>();
     if (!provider.isSignedIn) {
-      widget.onSignInRequested?.call();
+      requestCallSignIn(context, onRequested: widget.onSignInRequested);
       return;
     }
     await showCallResponseSheet(context: context, entry: entry);
@@ -119,7 +123,7 @@ class _CallFeedScreenState extends State<CallFeedScreen>
   Future<void> _compose() async {
     final provider = context.read<CallsProvider>();
     if (!provider.isSignedIn) {
-      widget.onSignInRequested?.call();
+      requestCallSignIn(context, onRequested: widget.onSignInRequested);
       return;
     }
     await showMarketPickerSheet(context: context);
@@ -196,8 +200,25 @@ class _CallFeedScreenState extends State<CallFeedScreen>
           onRetry: _refresh,
         );
       case CallsLoadState.empty:
+        if (provider.feedMode == CallFeedMode.global &&
+            widget.onBrowseMarkets != null) {
+          return CallsEmptyView(
+            title: 'The first call could be yours',
+            message:
+                'Pick a real market. Put your view on record. '
+                'Invite someone to Back or Fade it.',
+            actionLabel: 'Explore markets',
+            onAction: widget.onBrowseMarkets,
+          );
+        }
         if (!provider.isSignedIn) {
-          return CallsSignedOutView(onSignIn: widget.onSignInRequested);
+          return CallsSignedOutView(
+            onSignIn:
+                () => requestCallSignIn(
+                  context,
+                  onRequested: widget.onSignInRequested,
+                ),
+          );
         }
         return CallsEmptyView(
           title:
@@ -266,10 +287,9 @@ class _ModeBar extends StatelessWidget {
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: ChumbucketTabs(
-                labels:
-                    CallFeedMode.values
-                        .map((m) => m.label)
-                        .toList(growable: false),
+                labels: CallFeedMode.values
+                    .map((m) => m.label)
+                    .toList(growable: false),
                 selectedIndex: CallFeedMode.values.indexOf(provider.feedMode),
                 onSelected:
                     (index) => provider.setFeedMode(CallFeedMode.values[index]),

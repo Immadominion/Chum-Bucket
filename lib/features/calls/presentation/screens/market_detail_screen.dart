@@ -15,6 +15,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
@@ -58,7 +59,7 @@ class _MarketDetailScreenState extends State<MarketDetailScreen> {
   Future<void> _compose(MarketDetail detail) async {
     final provider = context.read<CallsProvider>();
     if (!provider.isSignedIn) {
-      widget.onSignInRequested?.call();
+      requestCallSignIn(context, onRequested: widget.onSignInRequested);
       return;
     }
     final entry = await showCallComposer(
@@ -94,10 +95,8 @@ class _MarketDetailScreenState extends State<MarketDetailScreen> {
             if (provider.isOffline) {
               return CallsOfflineView(
                 onRetry:
-                    () => provider.loadMarketDetail(
-                      widget.marketId,
-                      force: true,
-                    ),
+                    () =>
+                        provider.loadMarketDetail(widget.marketId, force: true),
               );
             }
             return CallsErrorView(
@@ -105,8 +104,7 @@ class _MarketDetailScreenState extends State<MarketDetailScreen> {
                   provider.marketError(widget.marketId) ??
                   'We couldn\'t load this market.',
               onRetry:
-                  () =>
-                      provider.loadMarketDetail(widget.marketId, force: true),
+                  () => provider.loadMarketDetail(widget.marketId, force: true),
             );
           }
           return _body(provider, detail);
@@ -478,10 +476,7 @@ class _FactsBlock extends StatelessWidget {
                 ? 'Not published'
                 : CallsFormat.timestampUtc(market.closesAtUtc!),
           ),
-          row(
-            'Last synced',
-            CallsFormat.timestampUtc(market.lastSyncedAtUtc),
-          ),
+          row('Last synced', CallsFormat.timestampUtc(market.lastSyncedAtUtc)),
           row('Venue market id', market.venueMarketId),
         ],
       ),
@@ -529,10 +524,7 @@ class _CrowdBlock extends StatelessWidget {
           if (share == null)
             Text(
               'You are the only one on record here so far.',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 13.sp,
-              ),
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 13.sp),
             )
           else
             Row(

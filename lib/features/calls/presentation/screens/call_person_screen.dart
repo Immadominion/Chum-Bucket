@@ -12,6 +12,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
@@ -69,7 +70,7 @@ class _CallPersonScreenState extends State<CallPersonScreen> {
   Future<void> _respond(CallFeedEntry entry) async {
     final provider = context.read<CallsProvider>();
     if (!provider.isSignedIn) {
-      widget.onSignInRequested?.call();
+      requestCallSignIn(context, onRequested: widget.onSignInRequested);
       return;
     }
     final result = await showCallResponseSheet(context: context, entry: entry);
@@ -107,7 +108,7 @@ class _CallPersonScreenState extends State<CallPersonScreen> {
   Future<void> _rematch(CallFeedEntry entry) async {
     final provider = context.read<CallsProvider>();
     if (!provider.isSignedIn) {
-      widget.onSignInRequested?.call();
+      requestCallSignIn(context, onRequested: widget.onSignInRequested);
       return;
     }
     final result = await showRematchSheet(

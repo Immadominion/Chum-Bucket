@@ -12,7 +12,7 @@ import 'package:chumbucket/features/profile/providers/profile_provider.dart';
 import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
 // MWA Splash Screen handles wallet-based auth flow
-import 'package:chumbucket/shared/screens/splash/mwa_splash_screen.dart';
+import 'package:chumbucket/features/calls/presentation/screens/call_home_screen.dart';
 import 'package:chumbucket/shared/services/unified_database_service.dart';
 import 'package:chumbucket/core/config/app_config.dart';
 import 'package:chumbucket/core/navigation/deep_link_host.dart';
@@ -162,7 +162,7 @@ class MyApp extends StatelessWidget {
                 navigatorKey: rootNavigatorKey,
                 child: navigatorChild ?? const SizedBox.shrink(),
               ),
-          home: const MwaSplashScreen(), // MWA-based splash screen
+          home: const CallHomeScreen(),
         );
       },
     );

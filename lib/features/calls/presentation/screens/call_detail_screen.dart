@@ -5,6 +5,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
@@ -50,7 +51,7 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
   Future<void> _respond(CallFeedEntry entry) async {
     final provider = context.read<CallsProvider>();
     if (!provider.isSignedIn) {
-      widget.onSignInRequested?.call();
+      requestCallSignIn(context, onRequested: widget.onSignInRequested);
       return;
     }
     final result = await showCallResponseSheet(context: context, entry: entry);
@@ -201,10 +202,7 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
             child: Text(
               '${response.kind.label} · ${CallsFormat.relative(response.createdAtUtc)}'
               '${response.resultingCallId == null ? ' · no call created' : ' · created their own call'}',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12.sp,
-              ),
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 12.sp),
             ),
           ),
       ],
