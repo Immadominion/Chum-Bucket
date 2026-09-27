@@ -102,6 +102,28 @@ class SessionBffClient {
       input: {'supabaseAccessToken': accessToken},
       bearer: accessToken,
     );
+    return _identityFrom(data);
+  }
+
+  /// Explicitly creates a person for the VERIFIED session; no wallet or
+  /// client-supplied user id is sent. Credentials remain outside the URL.
+  Future<SessionIdentity> completeProfile(
+    String accessToken, {
+    required String displayName,
+  }) async {
+    final data = await _send(
+      'auth.completeProfile',
+      method: 'POST',
+      input: {
+        'supabaseAccessToken': accessToken,
+        'displayName': displayName.trim(),
+      },
+      bearer: accessToken,
+    );
+    return _identityFrom(data);
+  }
+
+  SessionIdentity _identityFrom(Object? data) {
     final map = data is Map ? data : const {};
     final userId = map['userId'];
     final authUserId = map['authUserId'];
@@ -162,15 +184,14 @@ class SessionBffClient {
 
     final http.Response response;
     try {
-      response =
-          await (method == 'GET'
-                  ? _client.get(uri, headers: headers)
-                  : _client.post(
-                    uri,
-                    headers: headers,
-                    body: jsonEncode({'json': input ?? const {}}),
-                  ))
-              .timeout(_timeout);
+      response = await (method == 'GET'
+              ? _client.get(uri, headers: headers)
+              : _client.post(
+                uri,
+                headers: headers,
+                body: jsonEncode({'json': input ?? const {}}),
+              ))
+          .timeout(_timeout);
     } on SessionException {
       rethrow;
     } on TimeoutException {

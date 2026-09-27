@@ -88,6 +88,7 @@ class ChumbucketSession extends ChangeNotifier {
   Completer<SupabaseSessionSnapshot?>? _pendingSignIn;
   Future<void>? _resolution;
   bool _disposed = false;
+  int _sessionEpoch = 0;
 
   SupabaseSessionSnapshot? _session;
   SessionIdentity? _identity;
@@ -254,6 +255,43 @@ class ChumbucketSession extends ChangeNotifier {
     await _resolveIdentity();
   }
 
+  /// Creates a new social profile only after the person explicitly chooses a
+  /// public name. Existing wallet accounts are not claimed or merged here.
+  Future<void> completeProfile(String displayName) async {
+    final held = _session;
+    if (held == null || isBusy || isReady) return;
+    final name = displayName.trim();
+    if (name.isEmpty ||
+        name.length > 60 ||
+        RegExp(r'[\x00-\x1f\x7f]').hasMatch(name)) {
+      return;
+    }
+    final epoch = _sessionEpoch;
+    _status = SessionStatus.identityPending;
+    _error = null;
+    _notify();
+    try {
+      final token = await bffAuthToken();
+      if (token == null || epoch != _sessionEpoch || _disposed) return;
+      final identity = await _bff.completeProfile(token, displayName: name);
+      if (epoch != _sessionEpoch || _disposed) return;
+      if (identity.authUserId != held.authUserId) {
+        throw const SessionException(
+          SessionError.network(
+            'The server could not confirm your profile.',
+            code: SessionErrorCode.unreadable,
+          ),
+        );
+      }
+      _identity = identity;
+      _status = SessionStatus.ready;
+      _error = null;
+      _notify();
+    } on SessionException catch (e) {
+      if (epoch == _sessionEpoch && !_disposed) _applyFailure(e.error);
+    }
+  }
+
   /// Whether identity is switched on for this deployment.
   ///
   /// No credential is sent. Exists so a diagnostics surface can tell "sign-in
@@ -318,6 +356,7 @@ class ChumbucketSession extends ChangeNotifier {
         final snapshot = event.session;
         if (snapshot == null) return;
         final changedPerson = _session?.authUserId != snapshot.authUserId;
+        if (changedPerson) _sessionEpoch++;
         _session = snapshot;
         if (changedPerson) _identity = null;
         // A sign-in this object started is driven by `signInWithGoogle`; handing
@@ -359,6 +398,7 @@ class ChumbucketSession extends ChangeNotifier {
       _applySignedOut();
       return;
     }
+    final epoch = _sessionEpoch;
 
     _status = SessionStatus.identityPending;
     _error = null;
@@ -371,7 +411,7 @@ class ChumbucketSession extends ChangeNotifier {
     for (var attempt = 0; attempt < 2; attempt++) {
       try {
         final identity = await _bff.whoami(session!.accessToken);
-        if (_disposed) return;
+        if (_disposed || epoch != _sessionEpoch) return;
         _identity = identity;
         _status = SessionStatus.ready;
         _error = null;
@@ -388,7 +428,7 @@ class ChumbucketSession extends ChangeNotifier {
       }
     }
 
-    if (_disposed) return;
+    if (_disposed || epoch != _sessionEpoch) return;
     _identity = null;
     _error = failure;
     _status = SessionStatus.failed;
@@ -396,8 +436,10 @@ class ChumbucketSession extends ChangeNotifier {
   }
 
   Future<SupabaseSessionSnapshot?> _tryRefresh() async {
+    final epoch = _sessionEpoch;
     try {
       final refreshed = await _auth.refreshSession();
+      if (_disposed || epoch != _sessionEpoch) return null;
       if (refreshed != null) _session = refreshed;
       return refreshed;
     } catch (_) {
@@ -408,6 +450,7 @@ class ChumbucketSession extends ChangeNotifier {
   }
 
   void _applySignedOut() {
+    _sessionEpoch++;
     _session = null;
     _identity = null;
     _status = SessionStatus.signedOut;
