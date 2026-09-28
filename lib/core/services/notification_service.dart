@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:chumbucket/core/services/app_lifecycle_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Notification channels for different notification types
 class NotificationChannels {
@@ -16,6 +17,78 @@ class NotificationService {
   static bool _initialized = false;
   static final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
+  static const _signedOutKey = 'chumbucket_notifications_signed_out';
+  static bool _deliveryPaused = false;
+  static int _deliveryEpoch = 0;
+  static Future<void> _deliveries = Future.value();
+
+  static Future<void> _enqueue(Future<void> Function() operation) {
+    final pending = _deliveries.then((_) => operation());
+    _deliveries = pending.catchError((Object _) {});
+    return pending;
+  }
+
+  /// Reload the persisted marker: background messaging runs in another isolate.
+  /// OS-rendered push payloads still require token invalidation/server controls.
+  static Future<bool> canHandleNotification() async {
+    final epoch = _deliveryEpoch;
+    if (_deliveryPaused) return false;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.reload();
+      return !_deliveryPaused &&
+          epoch == _deliveryEpoch &&
+          prefs.getBool(_signedOutKey) != true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Wait behind an in-flight show, then remove it and suppress late deliveries.
+  static Future<void> pauseForSignOut() {
+    _deliveryPaused = true;
+    _deliveryEpoch++;
+    return _enqueue(() async {
+      await Future.wait([
+        () async {
+          final prefs = await SharedPreferences.getInstance();
+          if (!await prefs.setBool(_signedOutKey, true)) {
+            throw StateError('Notification session removal failed');
+          }
+        }(),
+        _notifications.cancelAll(),
+      ]);
+    });
+  }
+
+  /// Only a successfully registered, still-current wallet can resume delivery.
+  static Future<void> resumeForAccount({required bool Function() isCurrent}) =>
+      _enqueue(() async {
+        if (!isCurrent()) return;
+        final prefs = await SharedPreferences.getInstance();
+        if (!isCurrent()) return;
+        if (!await prefs.setBool(_signedOutKey, false)) {
+          throw StateError('Notification session storage failed');
+        }
+        if (isCurrent()) {
+          _deliveryEpoch++;
+          _deliveryPaused = false;
+        }
+      });
+
+  static Future<void> _show(
+    int id,
+    String title,
+    String body,
+    NotificationDetails details, {
+    String? payload,
+  }) {
+    final epoch = _deliveryEpoch;
+    return _enqueue(() async {
+      if (!await canHandleNotification() || epoch != _deliveryEpoch) return;
+      await _notifications.show(id, title, body, details, payload: payload);
+    });
+  }
 
   /// Initialize the notification service
   static Future<void> initialize() async {
@@ -210,7 +283,7 @@ class NotificationService {
     final amountStr =
         amountSol != null ? '${amountSol.toStringAsFixed(2)} SOL' : 'SOL';
 
-    await _notifications.show(
+    await _show(
       DateTime.now().millisecondsSinceEpoch.remainder(100000),
       '$challengerName challenged you! 🎯',
       '"$challengeTitle" - $amountStr at stake',
@@ -238,7 +311,7 @@ class NotificationService {
     required double winnerAmountSol,
     String? challengeId,
   }) async {
-    await _notifications.show(
+    await _show(
       DateTime.now().millisecondsSinceEpoch.remainder(100000),
       'Challenge Won! 🎉',
       'Congratulations! You won ${winnerAmountSol.toStringAsFixed(2)} SOL!',
@@ -263,7 +336,7 @@ class NotificationService {
 
   /// Notify when challenge is resolved (lost)
   static Future<void> notifyChallengeLost({String? challengeId}) async {
-    await _notifications.show(
+    await _show(
       DateTime.now().millisecondsSinceEpoch.remainder(100000),
       'Challenge Lost 😔',
       'Better luck next time. The witness judged against you.',
@@ -302,9 +375,7 @@ class NotificationService {
         highPriority ? Importance.high : Importance.defaultImportance;
     final priority = highPriority ? Priority.high : Priority.defaultPriority;
 
-    if (kDebugMode) debugPrint('📲 Showing local notification: $title');
-
-    await _notifications.show(
+    await _show(
       DateTime.now().millisecondsSinceEpoch.remainder(100000),
       title,
       body,
@@ -335,8 +406,10 @@ class NotificationService {
   // Notification Handlers (callbacks)
   // ─────────────────────────────────────────────────────────────
 
-  static void _onNotificationTapped(NotificationResponse response) {
-    if (kDebugMode) debugPrint('🔔 Notification tapped: ${response.payload}');
+  static Future<void> _onNotificationTapped(
+    NotificationResponse response,
+  ) async {
+    if (!await canHandleNotification()) return;
 
     // Trigger data refresh when notification is tapped
     AppLifecycleService.instance.forceRefresh();

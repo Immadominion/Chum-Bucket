@@ -22,6 +22,7 @@ class FcmTokenService {
 
   static bool _initialized = false;
   static String? _currentToken;
+  static int _accountEpoch = 0;
 
   /// Initialize FCM and set up message handlers
   static Future<void> initialize() async {
@@ -59,8 +60,8 @@ class FcmTokenService {
       }
 
       // Get initial token
-      _currentToken = await FirebaseMessaging.instance.getToken();
-      if (kDebugMode) debugPrint('FCM Token: $_currentToken');
+      await getToken();
+      if (kDebugMode) debugPrint('FCM token initialized');
 
       // Listen for token refresh
       FirebaseMessaging.instance.onTokenRefresh.listen(_onTokenRefresh);
@@ -105,8 +106,22 @@ class FcmTokenService {
 
   /// Get current FCM token
   static Future<String?> getToken() async {
-    _currentToken ??= await FirebaseMessaging.instance.getToken();
+    final epoch = _accountEpoch;
+    final token = _currentToken ?? await FirebaseMessaging.instance.getToken();
+    if (epoch != _accountEpoch) return null;
+    _currentToken = token;
     return _currentToken;
+  }
+
+  /// Invalidate this device's token, not every device belonging to a wallet.
+  /// Throw on failure so logout can remain locked and offer a retry.
+  static Future<void> clearForSignOut() async {
+    _accountEpoch++;
+    _currentToken = null;
+    await Future.wait([
+      NotificationService.pauseForSignOut(),
+      if (Firebase.apps.isNotEmpty) FirebaseMessaging.instance.deleteToken(),
+    ]);
   }
 
   /// Register FCM token with Supabase for a wallet
@@ -114,7 +129,9 @@ class FcmTokenService {
     required String walletAddress,
     String? displayName,
   }) async {
+    final epoch = _accountEpoch;
     final token = await getToken();
+    if (epoch != _accountEpoch) return;
     if (token == null) {
       if (kDebugMode) debugPrint('No FCM token available to register');
       return;
@@ -132,6 +149,10 @@ class FcmTokenService {
         if (displayName != null) 'user_display_name': displayName,
         'updated_at': DateTime.now().toIso8601String(),
       }, onConflict: 'wallet_address');
+
+      await NotificationService.resumeForAccount(
+        isCurrent: () => epoch == _accountEpoch,
+      );
 
       if (kDebugMode) {
         debugPrint(
@@ -165,7 +186,11 @@ class FcmTokenService {
 
   /// Handle token refresh
   static Future<void> _onTokenRefresh(String newToken) async {
-    if (kDebugMode) debugPrint('FCM Token refreshed');
+    final epoch = _accountEpoch;
+    if (!await NotificationService.canHandleNotification() ||
+        epoch != _accountEpoch) {
+      return;
+    }
     _currentToken = newToken;
     // Note: Re-register will happen next time a wallet action is performed
   }
@@ -174,12 +199,6 @@ class FcmTokenService {
   /// When app is in foreground, Android doesn't automatically display notifications
   /// so we need to display them manually using flutter_local_notifications
   static Future<void> _handleForegroundMessage(RemoteMessage message) async {
-    if (kDebugMode) {
-      debugPrint('🔔 Foreground message received: ${message.messageId}');
-      debugPrint('   notification: ${message.notification?.title}');
-      debugPrint('   data: ${message.data}');
-    }
-
     // When in foreground with a notification payload, we need to show it manually
     // because Android doesn't auto-display notifications when app is in foreground
     final notification = message.notification;
@@ -195,8 +214,8 @@ class FcmTokenService {
   }
 
   /// Handle when user taps on a notification
-  static void _handleMessageOpenedApp(RemoteMessage message) {
-    if (kDebugMode) debugPrint('🔔 Message opened app: ${message.data}');
+  static Future<void> _handleMessageOpenedApp(RemoteMessage message) async {
+    if (!await NotificationService.canHandleNotification()) return;
 
     // Trigger a data refresh since user opened app from notification
     AppLifecycleService.instance.forceRefresh();
