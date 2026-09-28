@@ -108,17 +108,19 @@ void main() {
       expect(h.requestCount, 0);
     });
 
-    test('a callback that never arrives times out instead of spinning forever',
-        () async {
-      final h = Harness(oauthTimeout: const Duration(milliseconds: 20));
-      addTearDown(h.dispose);
-      // deliverOnSignIn stays null: the browser opened and nothing came back.
+    test(
+      'a callback that never arrives times out instead of spinning forever',
+      () async {
+        final h = Harness(oauthTimeout: const Duration(milliseconds: 20));
+        addTearDown(h.dispose);
+        // deliverOnSignIn stays null: the browser opened and nothing came back.
 
-      await h.session.signInWithGoogle();
+        await h.session.signInWithGoogle();
 
-      expect(h.session.status, SessionStatus.failed);
-      expect(h.session.error!.code, SessionErrorCode.oauthCancelled);
-    });
+        expect(h.session.status, SessionStatus.failed);
+        expect(h.session.error!.code, SessionErrorCode.oauthCancelled);
+      },
+    );
 
     test('a platform error while launching is a network failure, and nothing '
         'from it escapes', () async {
@@ -178,8 +180,8 @@ void main() {
 
     test('identityPending holds a usable bearer but no viewer yet', () async {
       // A BFF that answers slowly, so the pending state is observable.
-      final slow = happyBff()
-        ..simulateLatency = const Duration(milliseconds: 60);
+      final slow =
+          happyBff()..simulateLatency = const Duration(milliseconds: 60);
       final h = Harness(bff: slow, restored: snapshot());
       addTearDown(h.dispose);
 
@@ -210,27 +212,29 @@ void main() {
   });
 
   group('failed — network versus refused', () {
-    test('an unreachable BFF is a network failure and stays retryable',
-        () async {
-      final dead = happyBff()..simulateTransportFailure = true;
-      final h = Harness(bff: dead, restored: snapshot());
-      addTearDown(h.dispose);
+    test(
+      'an unreachable BFF is a network failure and stays retryable',
+      () async {
+        final dead = happyBff()..simulateTransportFailure = true;
+        final h = Harness(bff: dead, restored: snapshot());
+        addTearDown(h.dispose);
 
-      await h.session.restore();
+        await h.session.restore();
 
-      expect(h.session.status, SessionStatus.failed);
-      expect(h.session.error!.isNetwork, isTrue);
-      expect(h.session.userId, isNull);
-      // The credential is still held: the session did not evict a good token
-      // because a router dropped a packet.
-      expect(h.session.hasSupabaseSession, isTrue);
+        expect(h.session.status, SessionStatus.failed);
+        expect(h.session.error!.isNetwork, isTrue);
+        expect(h.session.userId, isNull);
+        // The credential is still held: the session did not evict a good token
+        // because a router dropped a packet.
+        expect(h.session.hasSupabaseSession, isTrue);
 
-      dead.simulateTransportFailure = false;
-      await h.session.retryIdentity();
-      expect(h.session.status, SessionStatus.ready);
-      expect(h.session.userId, kCanonicalUserId);
-      expect(h.session.error, isNull);
-    });
+        dead.simulateTransportFailure = false;
+        await h.session.retryIdentity();
+        expect(h.session.status, SessionStatus.ready);
+        expect(h.session.userId, kCanonicalUserId);
+        expect(h.session.error, isNull);
+      },
+    );
 
     test('an unlinked account is a refusal with its own remedy', () async {
       final h = Harness(
@@ -257,27 +261,29 @@ void main() {
       expect(h.session.error!.isRefused, isTrue);
     });
 
-    test('a stale token is refreshed once and retried, and only once',
-        () async {
-      final server = sequencedWhoamiBff(
-        firstStatus: 401,
-        firstMessage: SessionErrorCode.tokenInvalid,
-      );
-      final h = Harness(bff: server, restored: snapshot());
-      addTearDown(h.dispose);
-      h.auth.refreshResult = snapshot(accessToken: kRefreshedAccessToken);
+    test(
+      'a stale token is refreshed once and retried, and only once',
+      () async {
+        final server = sequencedWhoamiBff(
+          firstStatus: 401,
+          firstMessage: SessionErrorCode.tokenInvalid,
+        );
+        final h = Harness(bff: server, restored: snapshot());
+        addTearDown(h.dispose);
+        h.auth.refreshResult = snapshot(accessToken: kRefreshedAccessToken);
 
-      await h.session.restore();
+        await h.session.restore();
 
-      expect(h.session.status, SessionStatus.ready);
-      expect(h.session.userId, kCanonicalUserId);
-      expect(h.auth.refreshCount, 1);
-      expect(h.requestCount, 2);
-      // The retry used the NEW credential, not the stale one.
-      expect(server.received.last.input, {
-        'supabaseAccessToken': kRefreshedAccessToken,
-      });
-    });
+        expect(h.session.status, SessionStatus.ready);
+        expect(h.session.userId, kCanonicalUserId);
+        expect(h.auth.refreshCount, 1);
+        expect(h.requestCount, 2);
+        // The retry used the NEW credential, not the stale one.
+        expect(server.received.last.input, {
+          'supabaseAccessToken': kRefreshedAccessToken,
+        });
+      },
+    );
 
     test('a refresh that cannot help leaves a single honest refusal', () async {
       final server = sequencedWhoamiBff(
@@ -388,32 +394,36 @@ void main() {
       expect(h.requestCount, requestsBefore);
     });
 
-    test('a different person is resolved again rather than inherited',
-        () async {
-      final server = FakeBffServer((request) {
-        final token = request.input['supabaseAccessToken'];
-        return okResponse({
-          'userId': token == kAccessToken ? kCanonicalUserId : 'usr_someone_else',
-          'authUserId': kAuthUserId,
+    test(
+      'a different person is resolved again rather than inherited',
+      () async {
+        final server = FakeBffServer((request) {
+          final token = request.input['supabaseAccessToken'];
+          return okResponse({
+            'userId':
+                token == kAccessToken ? kCanonicalUserId : 'usr_someone_else',
+            'authUserId':
+                token == kAccessToken ? kAuthUserId : 'a-different-auth-uid',
+          });
         });
-      });
-      final h = Harness(bff: server, restored: snapshot());
-      addTearDown(h.dispose);
-      await h.session.restore();
-      expect(h.session.userId, kCanonicalUserId);
+        final h = Harness(bff: server, restored: snapshot());
+        addTearDown(h.dispose);
+        await h.session.restore();
+        expect(h.session.userId, kCanonicalUserId);
 
-      h.auth.emit(
-        SupabaseAuthEventKind.signedIn,
-        snapshot(
-          accessToken: kRefreshedAccessToken,
-          authUserId: 'a-different-auth-uid',
-        ),
-      );
-      await settle();
+        h.auth.emit(
+          SupabaseAuthEventKind.signedIn,
+          snapshot(
+            accessToken: kRefreshedAccessToken,
+            authUserId: 'a-different-auth-uid',
+          ),
+        );
+        await settle();
 
-      expect(h.session.userId, 'usr_someone_else');
-      expect(h.requestCount, 2);
-    });
+        expect(h.session.userId, 'usr_someone_else');
+        expect(h.requestCount, 2);
+      },
+    );
 
     test('an initialSession delivered by the stream is adopted', () async {
       final h = Harness();
@@ -516,16 +526,21 @@ void main() {
   });
 
   group('identityStatus', () {
-    test('reports a configured deployment without sending a credential',
-        () async {
-      final h = Harness();
-      addTearDown(h.dispose);
+    test(
+      'reports a configured deployment without sending a credential',
+      () async {
+        final h = Harness();
+        addTearDown(h.dispose);
 
-      final status = await h.session.checkIdentityStatus();
+        final status = await h.session.checkIdentityStatus();
 
-      expect(status!.enabled, isTrue);
-      expect(h.server.lastRequest.headers.containsKey('authorization'), isFalse);
-    });
+        expect(status!.enabled, isTrue);
+        expect(
+          h.server.lastRequest.headers.containsKey('authorization'),
+          isFalse,
+        );
+      },
+    );
 
     test('an unreachable BFF is null, never a false "configured"', () async {
       final dead = happyBff()..simulateTransportFailure = true;

@@ -87,6 +87,9 @@ class ChumbucketSession extends ChangeNotifier {
   StreamSubscription<SupabaseAuthEvent>? _subscription;
   Completer<SupabaseSessionSnapshot?>? _pendingSignIn;
   Future<void>? _resolution;
+  int? _resolutionEpoch;
+  Future<void>? _signingOut;
+  bool _acceptAuthEvents = true;
   bool _disposed = false;
   int _sessionEpoch = 0;
 
@@ -171,11 +174,16 @@ class ChumbucketSession extends ChangeNotifier {
   /// already restored from storage, and resolves it to a canonical user. Safe
   /// to call more than once; the subscription is made exactly once.
   Future<void> restore() async {
+    if (_disposed || !_acceptAuthEvents) return;
     _ensureSubscribed();
     final existing = _auth.currentSession;
     if (existing == null) {
       _applySignedOut();
       return;
+    }
+    if (_session?.authUserId != existing.authUserId) {
+      _sessionEpoch++;
+      _identity = null;
     }
     _session = existing;
     await _resolveIdentity();
@@ -192,7 +200,12 @@ class ChumbucketSession extends ChangeNotifier {
   /// Never throws. Every failure lands in [error] with [status] =
   /// [SessionStatus.failed].
   Future<void> signInWithGoogle() async {
-    if (_status == SessionStatus.signingIn) return;
+    if (_disposed ||
+        _signingOut != null ||
+        _status == SessionStatus.signingIn) {
+      return;
+    }
+    _acceptAuthEvents = true;
     _ensureSubscribed();
 
     final pending = Completer<SupabaseSessionSnapshot?>();
@@ -203,6 +216,7 @@ class ChumbucketSession extends ChangeNotifier {
 
     try {
       final launched = await _auth.startGoogleSignIn(redirectTo: _redirectTo);
+      if (_disposed || !identical(_pendingSignIn, pending)) return;
       if (!launched) {
         _applyFailure(
           const SessionError.refused(
@@ -213,6 +227,7 @@ class ChumbucketSession extends ChangeNotifier {
         return;
       }
       final snapshot = await pending.future.timeout(_oauthTimeout);
+      if (_disposed || !identical(_pendingSignIn, pending)) return;
       if (snapshot == null) {
         _applyFailure(
           const SessionError.refused(
@@ -226,6 +241,7 @@ class ChumbucketSession extends ChangeNotifier {
       _identity = null;
       await _resolveIdentity();
     } on TimeoutException {
+      if (_disposed || !identical(_pendingSignIn, pending)) return;
       _applyFailure(
         const SessionError.refused(
           "Sign-in didn't finish. Try again.",
@@ -233,6 +249,7 @@ class ChumbucketSession extends ChangeNotifier {
         ),
       );
     } catch (_) {
+      if (_disposed || !identical(_pendingSignIn, pending)) return;
       // Whatever the platform threw stays here: an OAuth error object can
       // carry the redirect URL and its fragment, and a fragment can carry a
       // token. Nothing from it is logged or re-thrown.
@@ -311,19 +328,35 @@ class ChumbucketSession extends ChangeNotifier {
 
   /// End the session. Local state is cleared even if the provider call fails —
   /// a person who asked to sign out is signed out.
-  Future<void> signOut() async {
+  Future<void> signOut() {
+    final running = _signingOut;
+    if (running != null) return running;
+    // Hide identity immediately, not after a network or browser round trip.
+    _acceptAuthEvents = false;
+    _completePending(null);
+    _pendingSignIn = null;
+    _applySignedOut();
+    late final Future<void> attempt;
+    attempt = _endAuthSession().whenComplete(() {
+      if (identical(_signingOut, attempt)) _signingOut = null;
+    });
+    _signingOut = attempt;
+    return attempt;
+  }
+
+  Future<void> _endAuthSession() async {
     try {
-      await _auth.signOut();
+      await _auth.signOut().timeout(const Duration(seconds: 10));
     } catch (_) {
-      // Swallowed on purpose: see above.
-    } finally {
-      _applySignedOut();
+      // The local identity stays cleared; no provider error/credential escapes.
     }
   }
 
   @override
   void dispose() {
     _disposed = true;
+    _completePending(null);
+    _pendingSignIn = null;
     _subscription?.cancel();
     _subscription = null;
     if (_ownsBff) _bff.close();
@@ -349,7 +382,7 @@ class ChumbucketSession extends ChangeNotifier {
   }
 
   void _onAuthEvent(SupabaseAuthEvent event) {
-    if (_disposed) return;
+    if (_disposed || !_acceptAuthEvents) return;
     switch (event.kind) {
       case SupabaseAuthEventKind.signedOut:
         _completePending(null);
@@ -390,9 +423,17 @@ class ChumbucketSession extends ChangeNotifier {
   /// One resolution at a time; concurrent callers await the same attempt.
   Future<void> _resolveIdentity() {
     final running = _resolution;
-    if (running != null) return running;
-    final attempt = _runResolve().whenComplete(() => _resolution = null);
+    if (running != null && _resolutionEpoch == _sessionEpoch) return running;
+    final epoch = _sessionEpoch;
+    late final Future<void> attempt;
+    attempt = _runResolve().whenComplete(() {
+      if (identical(_resolution, attempt)) {
+        _resolution = null;
+        _resolutionEpoch = null;
+      }
+    });
     _resolution = attempt;
+    _resolutionEpoch = epoch;
     return attempt;
   }
 
@@ -416,12 +457,21 @@ class ChumbucketSession extends ChangeNotifier {
       try {
         final identity = await _bff.whoami(session!.accessToken);
         if (_disposed || epoch != _sessionEpoch) return;
+        if (identity.authUserId != session.authUserId) {
+          throw const SessionException(
+            SessionError.network(
+              'The server could not confirm your profile.',
+              code: SessionErrorCode.unreadable,
+            ),
+          );
+        }
         _identity = identity;
         _status = SessionStatus.ready;
         _error = null;
         _notify();
         return;
       } on SessionException catch (e) {
+        if (_disposed || epoch != _sessionEpoch) return;
         failure = e.error;
         final worthRefreshing =
             attempt == 0 && e.error.code == SessionErrorCode.tokenInvalid;
@@ -441,9 +491,11 @@ class ChumbucketSession extends ChangeNotifier {
 
   Future<SupabaseSessionSnapshot?> _tryRefresh() async {
     final epoch = _sessionEpoch;
+    final authUserId = _session?.authUserId;
     try {
       final refreshed = await _auth.refreshSession();
       if (_disposed || epoch != _sessionEpoch) return null;
+      if (refreshed != null && refreshed.authUserId != authUserId) return null;
       if (refreshed != null) _session = refreshed;
       return refreshed;
     } catch (_) {
