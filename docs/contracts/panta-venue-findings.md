@@ -1,5 +1,15 @@
 # Panta — what the live API actually is
 
+> Historical investigation below, not the current implementation status.
+> On 28 September the API product branch gained a live-tested **read-only**
+> `PantaVenue` adapter. Production and the phone still use the prior provider.
+> The fresh catalog had 85 rows, six titled rows (all resolved), and zero usable
+> open questions. See `docs/checkpoints/2026-09-28-panta-read-adapter.md`.
+> The discovery/funding split proposed in §4 is not automatic: a Panta position
+> can only attach to the same Panta market/rules, not an unrelated Polymarket
+> question. Native USDC/share prices must not be relabelled as probabilities.
+> Fees and catalog statistics below are historical observations, not current quotes.
+
 **Investigated:** 19 September 2026, against the real API with a live key.
 **Why:** the Superteam "Panta API side track" ($5,000 USDG, winners 27 October 2026), and the
 question of whether Panta can replace or supplement Polymarket as Chumbucket's venue.
