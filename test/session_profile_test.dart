@@ -61,7 +61,7 @@ void main() {
   );
 
   testWidgets(
-    'unlinked Google account can choose a public name and become ready',
+    'unlinked Google account cannot accidentally create a second profile',
     (tester) async {
       final auth = FakeSupabaseAuthPort(restored: snapshot());
       final server = FakeBffServer(
@@ -96,18 +96,19 @@ void main() {
           ),
         ),
       );
-      expect(find.text('Public name'), findsOneWidget);
+      expect(
+        find.textContaining('Account linking is not available'),
+        findsOneWidget,
+      );
+      expect(find.text('Public name'), findsNothing);
+      expect(find.text('Create my profile'), findsNothing);
+      expect(find.byType(TextFormField), findsNothing);
       expect(find.text('Retry account setup'), findsNothing);
-      await tester.tap(find.text('Create my profile'));
-      await tester.pumpAndSettle();
       expect(server.received, hasLength(1));
-      await tester.enterText(find.byType(TextFormField), ' Test Caller ');
-      await tester.tap(find.text('Create my profile'));
-      await tester.pumpAndSettle();
-      expect(session.isReady, isTrue);
-      expect(session.userId, kCanonicalUserId);
+      expect(server.received.single.procedurePath, 'auth.whoami');
+      expect(session.isReady, isFalse);
+      expect(session.userId, isNull);
       expect(auth.startCount, 0);
-      expect(find.text('You’re on record'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

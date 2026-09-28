@@ -12,7 +12,7 @@ import 'package:chumbucket/features/profile/providers/profile_provider.dart';
 import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
 // MWA Splash Screen handles wallet-based auth flow
-import 'package:chumbucket/features/calls/presentation/screens/call_home_screen.dart';
+import 'package:chumbucket/shared/screens/splash/mwa_splash_screen.dart';
 import 'package:chumbucket/shared/services/unified_database_service.dart';
 import 'package:chumbucket/core/config/app_config.dart';
 import 'package:chumbucket/core/navigation/deep_link_host.dart';
@@ -101,13 +101,17 @@ void main() async {
         ChangeNotifierProvider(create: (_) => MwaAuthProvider()),
         ChangeNotifierProvider(create: (_) => ProfileProvider()),
         ChangeNotifierProvider(create: (_) => ArenaProvider()),
-        // Primary identity: Google -> Supabase session -> canonical
+        // Preview identity: Google -> Supabase session -> canonical
         // public.users.id. restore() adopts a session already in storage and
         // subscribes to auth changes for the life of the app. It sits ABOVE
         // CallsProvider on purpose: the repository below reads its token
         // provider at construction.
         ChangeNotifierProvider<ChumbucketSession>(
-          create: (_) => ChumbucketSession()..restore(),
+          create: (_) {
+            final session = ChumbucketSession();
+            if (AppConfig.callReceiptExperienceEnabled) session.restore();
+            return session;
+          },
         ),
         // The call/receipt slice. Which repository backs it is a build flag:
         //   --dart-define=CALLS_BACKEND=mock  for the seeded offline catalog.
@@ -153,16 +157,19 @@ class MyApp extends StatelessWidget {
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,
           navigatorKey: rootNavigatorKey,
-          // Wraps the whole app so a shared call/person/market link opens on a
-          // cold start as well as a warm resume. It owns delivery only: links
+          // Preview-only until continuity passes device testing. When enabled,
+          // shared call/person/market links open cold or warm. Owns delivery: links
           // it does not own — the Supabase OAuth callback among them — are left
           // untouched for their existing handler.
           builder:
-              (context, navigatorChild) => DeepLinkHost(
-                navigatorKey: rootNavigatorKey,
-                child: navigatorChild ?? const SizedBox.shrink(),
-              ),
-          home: const CallHomeScreen(),
+              (context, navigatorChild) =>
+                  AppConfig.callReceiptExperienceEnabled
+                      ? DeepLinkHost(
+                        navigatorKey: rootNavigatorKey,
+                        child: navigatorChild ?? const SizedBox.shrink(),
+                      )
+                      : navigatorChild ?? const SizedBox.shrink(),
+          home: const MwaSplashScreen(),
         );
       },
     );

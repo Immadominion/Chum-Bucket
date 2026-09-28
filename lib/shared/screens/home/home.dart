@@ -1,5 +1,9 @@
 import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/core/config/app_config.dart';
+import 'package:chumbucket/features/arena/presentation/screens/calls_screen.dart';
+import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_feed_screen.dart';
+import 'package:chumbucket/features/calls/presentation/screens/call_markets_screen.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/challenge_details_screen/challenge_details_screen.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/challenge_history_screen.dart';
 import 'package:chumbucket/features/profile/presentation/screens/profile_screen.dart';
@@ -22,7 +26,12 @@ import 'package:chumbucket/core/services/realtime_service.dart';
 import 'package:chumbucket/core/services/analytics_service.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({
+    super.key,
+    this.callReceiptExperienceEnabled = AppConfig.callReceiptExperienceEnabled,
+  });
+
+  final bool callReceiptExperienceEnabled;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -43,9 +52,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
 
     // Initialize wallet in background (no auto-refresh)
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initializeAuthAndWallet();
-      _setupLifecycleCallbacks();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await _initializeAuthAndWallet();
+      if (mounted) _setupLifecycleCallbacks();
     });
   }
 
@@ -227,10 +237,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   onViewChallenges: _openChallengeHistory,
                   onMarkChallengeCompleted: _markChallengeCompleted,
                 ),
-                // Slot 1 is the call feed. The shell owns what "sign in"
-                // means, so a signed-out tap routes to the profile tab
-                // rather than the feed inventing its own auth flow.
-                CallFeedScreen(onSignInRequested: () => _selectDestination(3)),
+                // Add the preview inside Chumbucket, not in a second shell.
+                // Profile, friends, wallet and history retain their routes.
+                if (widget.callReceiptExperienceEnabled)
+                  CallFeedScreen(
+                    onSignInRequested: () => requestCallSignIn(context),
+                    onBrowseMarkets: _openCallMarkets,
+                  )
+                else
+                  const CallsScreen(),
                 FriendsHubTab(
                   refreshKey: _friendsRefreshKey,
                   createNewChallenge: createNewChallenge,
@@ -265,6 +280,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void _selectDestination(int index) {
     if (_selectedIndex == index) return;
     setState(() => _selectedIndex = index);
+  }
+
+  void _openCallMarkets() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder:
+            (_) => Scaffold(
+              backgroundColor: AppColors.background,
+              appBar: AppBar(title: const Text('Markets')),
+              body: const SafeArea(child: CallMarketsScreen()),
+            ),
+      ),
+    );
   }
 
   void _openChallengeHistory() {

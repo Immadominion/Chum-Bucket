@@ -51,12 +51,14 @@ class ProfileWalletCard extends StatelessWidget {
                 ),
               ),
               SizedBox(width: 12.w),
-              Text(
-                'Wallet Balance',
-                style: TextStyle(
-                  fontSize: 18.sp,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black87,
+              Expanded(
+                child: Text(
+                  'Wallet Balance',
+                  style: TextStyle(
+                    fontSize: 18.sp,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black87,
+                  ),
                 ),
               ),
             ],
@@ -79,12 +81,14 @@ class ProfileWalletCard extends StatelessWidget {
                       ),
                     ),
                     SizedBox(width: 8.w),
-                    Text(
-                      'Loading...',
-                      style: TextStyle(
-                        fontSize: 28.sp,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.black54,
+                    Expanded(
+                      child: Text(
+                        'Loading...',
+                        style: TextStyle(
+                          fontSize: 28.sp,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black54,
+                        ),
                       ),
                     ),
                   ],
@@ -98,12 +102,14 @@ class ProfileWalletCard extends StatelessWidget {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Text(
-                        '${walletProvider.balance.toStringAsFixed(2)} SOL',
-                        style: TextStyle(
-                          fontSize: 28.sp,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.black87,
+                      Flexible(
+                        child: Text(
+                          '${walletProvider.balance.toStringAsFixed(2)} SOL',
+                          style: TextStyle(
+                            fontSize: 28.sp,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.black87,
+                          ),
                         ),
                       ),
                       SizedBox(width: 8.w),

@@ -54,6 +54,7 @@ class _MwaSplashScreenState extends State<MwaSplashScreen>
 
     // Show and animate bucket
     await Future.delayed(const Duration(milliseconds: 100));
+    if (!mounted) return;
     setState(() {
       _showBucket = true;
     });
@@ -61,6 +62,7 @@ class _MwaSplashScreenState extends State<MwaSplashScreen>
 
     // Show and animate text
     await Future.delayed(const Duration(milliseconds: 50));
+    if (!mounted) return;
     setState(() {
       _showText = true;
     });
@@ -68,6 +70,7 @@ class _MwaSplashScreenState extends State<MwaSplashScreen>
 
     // Hold the bucket and text logo
     await Future.delayed(const Duration(milliseconds: 400));
+    if (!mounted) return;
 
     // Check MWA auth state and onboarding completion
     final authProvider = Provider.of<MwaAuthProvider>(context, listen: false);
@@ -80,12 +83,14 @@ class _MwaSplashScreenState extends State<MwaSplashScreen>
     if (authProvider.state == MwaAuthState.initial) {
       debugPrint('Initializing MwaAuthProvider...');
       await authProvider.initialize();
+      if (!mounted) return;
       debugPrint('MwaAuthProvider initialized');
     }
 
     final isAuthenticated = authProvider.isAuthenticated;
     final hasCompletedOnboarding =
         await onboardingProvider.isOnboardingCompleted();
+    if (!mounted) return;
 
     debugPrint(
       'MWA Auth status: $isAuthenticated, Onboarding completed: $hasCompletedOnboarding',
@@ -100,6 +105,7 @@ class _MwaSplashScreenState extends State<MwaSplashScreen>
       final profile = await profileProvider.fetchUserProfile(
         authProvider.walletAddress!,
       );
+      if (!mounted) return;
 
       final hasName =
           profile != null &&

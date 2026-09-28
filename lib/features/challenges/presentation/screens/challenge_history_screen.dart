@@ -34,12 +34,14 @@ class ChallengeHistoryScreen extends StatelessWidget {
                     icon: const BasilIcon('caret-left-outline'),
                   ),
                   SizedBox(width: 4.w),
-                  Text(
-                    'Your challenges',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 24.sp,
-                      fontWeight: FontWeight.w700,
+                  Expanded(
+                    child: Text(
+                      'Your challenges',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 24.sp,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ],

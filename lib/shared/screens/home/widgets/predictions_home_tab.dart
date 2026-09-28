@@ -130,169 +130,166 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
                   (a, b) => a.fixture.kickoff.compareTo(b.fixture.kickoff),
                 );
 
-          // Only the markets list scrolls. The header, claimable strip, and
-          // "Your challenges" preview are fixed on screen — they're compact
-          // and personal, not something you should have to scroll past or
-          // lose sight of while browsing markets.
-          return Column(
-            children: [
-              Padding(
-                padding: EdgeInsets.fromLTRB(20.w, 4.h, 20.w, 0),
-                child: ChumbucketAppHeader(
-                  title: 'Home',
-                  onProfileTap: widget.onProfileTap,
-                ),
+          final header = <Widget>[
+            Padding(
+              padding: EdgeInsets.fromLTRB(20.w, 4.h, 20.w, 0),
+              child: ChumbucketAppHeader(
+                title: 'Home',
+                onProfileTap: widget.onProfileTap,
               ),
-              // H13: a persistent, labelled way into "My bets" — the emphasised
-              // claimable strip when there are winnings to collect, otherwise a
-              // quiet link that's always there so the bet/payout path is never
-              // invisible.
-              if (arena.claimablePositions.isNotEmpty)
-                Padding(
-                  padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 20.h),
-                  child: _ClaimableStrip(
-                    count: arena.claimablePositions.length,
-                    onTap: _openPositions,
-                  ),
-                )
-              else
-                Padding(
-                  padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 12.h),
-                  child: _MyBetsButton(onTap: _openPositions),
-                ),
-              // Personal stuff first: your challenges are more relevant to
-              // you than the global markets list, so they no longer sit
-              // below it — you'd have to scroll past every open market to
-              // reach your own challenge history.
+            ),
+            // H13: a persistent, labelled way into "My bets" — the emphasised
+            // claimable strip when there are winnings to collect, otherwise a
+            // quiet link that's always there so the bet/payout path is never
+            // invisible.
+            if (arena.claimablePositions.isNotEmpty)
               Padding(
-                padding: EdgeInsets.fromLTRB(20.w, 2.h, 20.w, 12.h),
-                child: _SectionHeader(
-                  title: 'Your challenges',
-                  action: 'View all',
-                  onAction: widget.onViewChallenges,
+                padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 20.h),
+                child: _ClaimableStrip(
+                  count: arena.claimablePositions.length,
+                  onTap: _openPositions,
                 ),
+              )
+            else
+              Padding(
+                padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 12.h),
+                child: _MyBetsButton(onTap: _openPositions),
               ),
-              Padding(
+            // Personal stuff first: your challenges are more relevant to
+            // you than the global markets list, so they no longer sit
+            // below it — you'd have to scroll past every open market to
+            // reach your own challenge history.
+            Padding(
+              padding: EdgeInsets.fromLTRB(20.w, 2.h, 20.w, 12.h),
+              child: _SectionHeader(
+                title: 'Your challenges',
+                action: 'View all',
+                onAction: widget.onViewChallenges,
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20.w),
+              child: ChallengesPreview(
+                onViewAll: widget.onViewChallenges,
+                onMarkChallengeCompleted: widget.onMarkChallengeCompleted,
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(20.w, 28.h, 20.w, 12.h),
+              child: _SectionHeader(
+                title: "Today's matches",
+                // "See calls" read as ambiguous — this is OTHER people's
+                // activity (the social feed), not a "see more matches"
+                // browser. Say so.
+                action: "Who's predicting",
+                onAction: widget.onViewCalls,
+              ),
+            ),
+          ];
+          final marketSlivers = <Widget>[
+            if (arena.isLoadingMatchday && matches.isEmpty)
+              SliverPadding(
                 padding: EdgeInsets.symmetric(horizontal: 20.w),
-                child: ChallengesPreview(
-                  onViewAll: widget.onViewChallenges,
-                  onMarkChallengeCompleted: widget.onMarkChallengeCompleted,
-                ),
-              ),
-              Padding(
-                padding: EdgeInsets.fromLTRB(20.w, 28.h, 20.w, 12.h),
-                child: _SectionHeader(
-                  title: "Today's matches",
-                  // "See calls" read as ambiguous — this is OTHER people's
-                  // activity (the social feed), not a "see more matches"
-                  // browser. Say so.
-                  action: "Who's predicting",
-                  onAction: widget.onViewCalls,
-                ),
-              ),
-              Expanded(
-                child: RefreshIndicator(
-                  color: AppColors.primary,
-                  onRefresh: _load,
-                  child: CustomScrollView(
-                    key: const PageStorageKey('predictions-home-markets'),
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    slivers: [
-                      if (arena.isLoadingMatchday && matches.isEmpty)
-                        SliverPadding(
-                          padding: EdgeInsets.symmetric(horizontal: 20.w),
-                          sliver: SliverList(
-                            delegate: SliverChildListDelegate([
-                              // M7: caption so the skeletons read as loading,
-                              // not broken empty cards.
-                              Padding(
-                                padding: EdgeInsets.only(bottom: 12.h),
-                                child: Text(
-                                  'Loading matches…',
-                                  style: TextStyle(
-                                    fontSize: 12.sp,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ),
-                              const _MarketSkeleton(),
-                              SizedBox(height: 12.h),
-                              const _MarketSkeleton(),
-                              SizedBox(height: 12.h),
-                              const _MarketSkeleton(),
-                            ]),
-                          ),
-                        )
-                      else if (arena.matchdayError != null && matches.isEmpty)
-                        SliverPadding(
-                          padding: EdgeInsets.symmetric(horizontal: 20.w),
-                          sliver: SliverToBoxAdapter(
-                            child: _HomeState(
-                              basilIcon: 'hotspot-outline',
-                              title: 'Couldn\'t load matches',
-                              detail: 'Pull down to try again.',
-                              onTap: _load,
-                            ),
-                          ),
-                        )
-                      else if (matches.isEmpty)
-                        SliverPadding(
-                          padding: EdgeInsets.symmetric(horizontal: 20.w),
-                          sliver: const SliverToBoxAdapter(
-                            child: _HomeState(
-                              icon: Icons.sports_soccer_outlined,
-                              title: 'No matches to predict right now',
-                              detail:
-                                  'New matches will show up here when they open.',
-                            ),
-                          ),
-                        )
-                      else ...[
-                        // "See N more markets" expands the list in place —
-                        // it used to navigate to the Calls feed, which
-                        // isn't a markets browser at all, so the button's
-                        // own promise ("more markets") was never kept.
-                        SliverPadding(
-                          padding: EdgeInsets.symmetric(horizontal: 20.w),
-                          sliver: SliverList.separated(
-                            itemCount:
-                                _marketsExpanded ||
-                                        matches.length <= _kHomeMarketsPreview
-                                    ? matches.length
-                                    : _kHomeMarketsPreview,
-                            separatorBuilder:
-                                (_, __) => SizedBox(height: 12.h),
-                            itemBuilder:
-                                (context, index) => _MarketRow(
-                                  match: matches[index],
-                                  onTap: () => _openMatch(matches[index]),
-                                  onCallers: () => _openCallers(matches[index]),
-                                ),
-                          ),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    // M7: caption so the skeletons read as loading,
+                    // not broken empty cards.
+                    Padding(
+                      padding: EdgeInsets.only(bottom: 12.h),
+                      child: Text(
+                        'Loading matches…',
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          color: AppColors.textSecondary,
                         ),
-                        if (!_marketsExpanded &&
-                            matches.length > _kHomeMarketsPreview)
-                          SliverPadding(
-                            padding: EdgeInsets.fromLTRB(20.w, 12.h, 20.w, 0),
-                            sliver: SliverToBoxAdapter(
-                              child: _SeeMoreMarketsButton(
-                                remaining:
-                                    matches.length - _kHomeMarketsPreview,
-                                onTap:
-                                    () => setState(
-                                      () => _marketsExpanded = true,
-                                    ),
-                              ),
-                            ),
-                          ),
-                      ],
-                      SliverToBoxAdapter(child: SizedBox(height: 112.h)),
-                    ],
+                      ),
+                    ),
+                    const _MarketSkeleton(),
+                    SizedBox(height: 12.h),
+                    const _MarketSkeleton(),
+                    SizedBox(height: 12.h),
+                    const _MarketSkeleton(),
+                  ]),
+                ),
+              )
+            else if (arena.matchdayError != null && matches.isEmpty)
+              SliverPadding(
+                padding: EdgeInsets.symmetric(horizontal: 20.w),
+                sliver: SliverToBoxAdapter(
+                  child: _HomeState(
+                    basilIcon: 'hotspot-outline',
+                    title: 'Couldn\'t load matches',
+                    detail: 'Pull down to try again.',
+                    onTap: _load,
                   ),
                 ),
+              )
+            else if (matches.isEmpty)
+              SliverPadding(
+                padding: EdgeInsets.symmetric(horizontal: 20.w),
+                sliver: const SliverToBoxAdapter(
+                  child: _HomeState(
+                    icon: Icons.sports_soccer_outlined,
+                    title: 'No matches to predict right now',
+                    detail: 'New matches will show up here when they open.',
+                  ),
+                ),
+              )
+            else ...[
+              // "See N more markets" expands the list in place —
+              // it used to navigate to the Calls feed, which
+              // isn't a markets browser at all, so the button's
+              // own promise ("more markets") was never kept.
+              SliverPadding(
+                padding: EdgeInsets.symmetric(horizontal: 20.w),
+                sliver: SliverList.separated(
+                  itemCount:
+                      _marketsExpanded || matches.length <= _kHomeMarketsPreview
+                          ? matches.length
+                          : _kHomeMarketsPreview,
+                  separatorBuilder: (_, __) => SizedBox(height: 12.h),
+                  itemBuilder:
+                      (context, index) => _MarketRow(
+                        match: matches[index],
+                        onTap: () => _openMatch(matches[index]),
+                        onCallers: () => _openCallers(matches[index]),
+                      ),
+                ),
               ),
+              if (!_marketsExpanded && matches.length > _kHomeMarketsPreview)
+                SliverPadding(
+                  padding: EdgeInsets.fromLTRB(20.w, 12.h, 20.w, 0),
+                  sliver: SliverToBoxAdapter(
+                    child: _SeeMoreMarketsButton(
+                      remaining: matches.length - _kHomeMarketsPreview,
+                      onTap: () => setState(() => _marketsExpanded = true),
+                    ),
+                  ),
+                ),
             ],
+            SliverToBoxAdapter(child: SizedBox(height: 112.h)),
+          ];
+          // Keep the established fixed header on ordinary screens. At large
+          // text sizes or short heights, let it scroll instead of clipping
+          // challenges and the market list outside the viewport.
+          final media = MediaQuery.of(context);
+          final scrollHeader =
+              media.textScaler.scale(1) > 1.2 || media.size.height < 700;
+          final markets = RefreshIndicator(
+            color: AppColors.primary,
+            onRefresh: _load,
+            child: CustomScrollView(
+              key: const PageStorageKey('predictions-home-markets'),
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                if (scrollHeader)
+                  SliverToBoxAdapter(child: Column(children: header)),
+                ...marketSlivers,
+              ],
+            ),
           );
+          if (scrollHeader) return markets;
+          return Column(children: [...header, Expanded(child: markets)]);
         },
       ),
     );
@@ -321,14 +318,17 @@ class _SectionHeader extends StatelessWidget {
           ),
         ),
         if (action != null)
-          TextButton(
-            onPressed: onAction,
-            child: Text(
-              action!,
-              style: TextStyle(
-                color: AppColors.primary,
-                fontSize: 13.sp,
-                fontWeight: FontWeight.w600,
+          Flexible(
+            child: TextButton(
+              onPressed: onAction,
+              child: Text(
+                action!,
+                textAlign: TextAlign.end,
+                style: TextStyle(
+                  color: AppColors.primary,
+                  fontSize: 13.sp,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),
@@ -464,11 +464,7 @@ class _MyBetsButton extends StatelessWidget {
           padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
           child: Row(
             children: [
-              BasilIcon(
-                'wallet-outline',
-                size: 18.w,
-                color: AppColors.primary,
-              ),
+              BasilIcon('wallet-outline', size: 18.w, color: AppColors.primary),
               SizedBox(width: 10.w),
               Expanded(
                 child: Text(
@@ -677,10 +673,7 @@ class _HomeState extends StatelessWidget {
     required this.title,
     required this.detail,
     this.onTap,
-  }) : assert(
-         basilIcon != null || icon != null,
-         'provide basilIcon or icon',
-       );
+  }) : assert(basilIcon != null || icon != null, 'provide basilIcon or icon');
 
   @override
   Widget build(BuildContext context) {

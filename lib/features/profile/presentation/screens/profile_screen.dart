@@ -212,11 +212,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
               ),
               SizedBox(height: 12.h),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20.r),
-                ),
+              Material(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20.r),
                 clipBehavior: Clip.antiAlias,
                 child: Column(
                   children: [

@@ -20,6 +20,13 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class AppConfig {
   AppConfig._();
 
+  /// Internal preview only until account continuity and the full return loop
+  /// pass device testing. Never replace the installed app's entry flow.
+  static const bool callReceiptExperienceEnabled = bool.fromEnvironment(
+    'CALL_RECEIPT_EXPERIENCE',
+    defaultValue: false,
+  );
+
   /// Every configuration key the client is allowed to carry.
   ///
   /// Adding a key here is a security decision: it makes the value public,
@@ -45,6 +52,7 @@ class AppConfig {
     'CALLS_BACKEND',
     'CALLS_BFF_URL',
     'CALLS_LINK_HOST',
+    'CALL_RECEIPT_EXPERIENCE',
     // Legacy Privy export bridge only. The app *secret* is server-side.
     'PRIVY_APP_ID',
     'PRIVY_API_URL',
@@ -88,6 +96,9 @@ class AppConfig {
     'CALLS_BACKEND': String.fromEnvironment('CALLS_BACKEND'),
     'CALLS_BFF_URL': String.fromEnvironment('CALLS_BFF_URL'),
     'CALLS_LINK_HOST': String.fromEnvironment('CALLS_LINK_HOST'),
+    'CALL_RECEIPT_EXPERIENCE': String.fromEnvironment(
+      'CALL_RECEIPT_EXPERIENCE',
+    ),
     'PRIVY_APP_ID': String.fromEnvironment('PRIVY_APP_ID'),
     'PRIVY_API_URL': String.fromEnvironment('PRIVY_API_URL'),
   };
