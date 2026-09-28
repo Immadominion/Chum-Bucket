@@ -3,14 +3,12 @@ import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:provider/provider.dart';
 import 'dart:ui';
 import 'dart:io';
 import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_menu_item.dart';
-import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
-import 'package:chumbucket/features/authentication/presentation/screens/mwa_login_screen.dart';
+import 'package:chumbucket/features/authentication/session/app_sign_out.dart';
 import 'package:chumbucket/core/services/chat_service.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/identity_link_sheet.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
@@ -191,22 +189,7 @@ class ProfileSettingsSheet extends StatelessWidget {
 
                   // Fixed bottom buttons
                   ChallengeButton(
-                    createNewChallenge: () async {
-                      final authProvider = Provider.of<MwaAuthProvider>(
-                        context,
-                        listen: false,
-                      );
-                      await authProvider.clearUserData();
-
-                      if (context.mounted) {
-                        Navigator.of(context).pushAndRemoveUntil(
-                          MaterialPageRoute(
-                            builder: (context) => const MwaLoginScreen(),
-                          ),
-                          (route) => false,
-                        );
-                      }
-                    },
+                    createNewChallenge: () => signOutOfChumbucket(context),
                     label: 'Sign Out',
                   ),
 

@@ -89,6 +89,23 @@ class MwaAuthResult {
 /// MWA-based authentication provider for Solana Mobile compatibility
 /// Replaces Privy authentication with native Mobile Wallet Adapter
 class MwaAuthProvider extends ChangeNotifier {
+  int _authEpoch = 0;
+  bool _disposed = false;
+  Future<void> _storageWrites = Future.value();
+  bool _isCurrent(int epoch) => !_disposed && epoch == _authEpoch;
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _authEpoch++;
+    super.dispose();
+  }
+
   // App identity for MWA authorization
   static const String _appName = 'Chumbucket';
   static const String _identityUri = 'https://chumbucket.fun';
@@ -127,16 +144,18 @@ class MwaAuthProvider extends ChangeNotifier {
 
   /// Check if user is logged in (async version with persistence check)
   Future<bool> isLoggedIn() async {
+    final epoch = _authEpoch;
     // If already authenticated in memory, return true
     if (isAuthenticated) return true;
 
     // Otherwise check persisted state (in case initialize() hasn't run yet)
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_isLoggedInKey) ?? false;
+    return _isCurrent(epoch) && (prefs.getBool(_isLoggedInKey) ?? false);
   }
 
   /// Initialize the auth provider
   Future<void> initialize() async {
+    final epoch = _authEpoch;
     log('🔐 Initializing MWA Auth Provider', name: 'MwaAuthProvider');
 
     try {
@@ -144,6 +163,7 @@ class MwaAuthProvider extends ChangeNotifier {
 
       // Try to restore previous auth session
       final restored = await _restoreAuthSession();
+      if (!_isCurrent(epoch)) return;
       if (restored) {
         log('✅ Restored previous auth session', name: 'MwaAuthProvider');
         _state = MwaAuthState.authenticated;
@@ -152,7 +172,8 @@ class MwaAuthProvider extends ChangeNotifier {
         _state = MwaAuthState.unauthenticated;
       }
     } catch (e) {
-      log('⚠️ Error initializing: $e', name: 'MwaAuthProvider');
+      if (!_isCurrent(epoch)) return;
+      log('⚠️ Error initializing wallet session', name: 'MwaAuthProvider');
       _state = MwaAuthState.unauthenticated;
     }
 
@@ -164,7 +185,7 @@ class MwaAuthProvider extends ChangeNotifier {
     try {
       return await LocalAssociationScenario.isAvailable();
     } catch (e) {
-      log('Error checking wallet availability: $e', name: 'MwaAuthProvider');
+      log('Error checking wallet availability', name: 'MwaAuthProvider');
       return false;
     }
   }
@@ -172,6 +193,7 @@ class MwaAuthProvider extends ChangeNotifier {
   /// Authorize with a mobile wallet using MWA protocol
   /// This replaces Privy's email-based auth with wallet-based auth
   Future<bool> authorize() async {
+    final epoch = _authEpoch;
     log('🚀 Starting MWA authorization', name: 'MwaAuthProvider');
 
     _state = MwaAuthState.loading;
@@ -181,6 +203,7 @@ class MwaAuthProvider extends ChangeNotifier {
     try {
       // Check if MWA wallet is available
       final available = await isWalletAvailable();
+      if (!_isCurrent(epoch)) return false;
       if (!available) {
         _errorMessage =
             'No MWA-compatible wallet found. Please install Phantom, Solflare, or another Solana wallet.';
@@ -209,6 +232,8 @@ class MwaAuthProvider extends ChangeNotifier {
 
       // Close the session
       await session.close();
+
+      if (!_isCurrent(epoch)) return false;
 
       if (result == null) {
         _errorMessage = 'Authorization was cancelled or failed';
@@ -239,6 +264,7 @@ class MwaAuthProvider extends ChangeNotifier {
         );
       }
 
+      if (!_isCurrent(epoch)) return false;
       _authResult = MwaAuthResult(
         walletAddress: walletAddress,
         authToken: result.authToken,
@@ -257,37 +283,39 @@ class MwaAuthProvider extends ChangeNotifier {
 
       // Persist auth result
       await _persistAuthSession();
+      if (!_isCurrent(epoch)) return false;
 
       // Sync user with Supabase (include domain if available)
       await _syncUserWithSupabase(walletAddress, snsDomain: snsDomain);
+      if (!_isCurrent(epoch)) return false;
 
       // Register FCM token for push notifications (fire-and-forget)
       FcmTokenService.registerToken(
         walletAddress: walletAddress,
         displayName: snsDomain ?? result.accountLabel,
       ).catchError((e) {
-        log('⚠️ Failed to register FCM token: $e', name: 'MwaAuthProvider');
+        log('⚠️ Failed to register notifications', name: 'MwaAuthProvider');
       });
 
       // Assign profile picture
       final profileProvider = ProfileProvider();
       await profileProvider.getUserPfp(walletAddress);
+      if (!_isCurrent(epoch)) return false;
 
       _state = MwaAuthState.authenticated;
       notifyListeners();
       return true;
-    } on PlatformException catch (e) {
-      log(
-        '❌ Platform error during authorization: ${e.message}',
-        name: 'MwaAuthProvider',
-      );
-      _errorMessage = 'Wallet connection failed: ${e.message}';
+    } on PlatformException {
+      if (!_isCurrent(epoch)) return false;
+      log('❌ Platform error during authorization', name: 'MwaAuthProvider');
+      _errorMessage = 'Wallet connection failed. Please try again.';
       _state = MwaAuthState.error;
       notifyListeners();
       return false;
     } catch (e) {
-      log('❌ Error during authorization: $e', name: 'MwaAuthProvider');
-      _errorMessage = 'Authorization failed: $e';
+      if (!_isCurrent(epoch)) return false;
+      log('❌ Error during authorization', name: 'MwaAuthProvider');
+      _errorMessage = 'Authorization failed. Please try again.';
       _state = MwaAuthState.error;
       notifyListeners();
       return false;
@@ -297,6 +325,8 @@ class MwaAuthProvider extends ChangeNotifier {
   /// Reauthorize an existing session (used before signing transactions)
   /// Returns the MWA client for transaction signing
   Future<MobileWalletAdapterClient?> reauthorize() async {
+    final epoch = _authEpoch;
+    final held = _authResult;
     if (_authResult == null) {
       log(
         '❌ Cannot reauthorize: no existing auth result',
@@ -316,10 +346,10 @@ class MwaAuthProvider extends ChangeNotifier {
         identityUri: Uri.parse(_identityUri),
         iconUri: Uri.parse(_iconPath),
         identityName: _appName,
-        authToken: _authResult!.authToken,
+        authToken: held!.authToken,
       );
 
-      if (result == null) {
+      if (result == null || !_isCurrent(epoch)) {
         log(
           '⚠️ Reauthorization failed, need full authorization',
           name: 'MwaAuthProvider',
@@ -339,13 +369,17 @@ class MwaAuthProvider extends ChangeNotifier {
       );
 
       await _persistAuthSession();
+      if (!_isCurrent(epoch)) {
+        await session.close();
+        return null;
+      }
 
       log('✅ Reauthorization successful', name: 'MwaAuthProvider');
 
       // Return client for signing - caller must close session when done
       return client;
     } catch (e) {
-      log('❌ Error during reauthorization: $e', name: 'MwaAuthProvider');
+      log('❌ Error during reauthorization', name: 'MwaAuthProvider');
       return null;
     }
   }
@@ -353,6 +387,8 @@ class MwaAuthProvider extends ChangeNotifier {
   /// Create a new MWA session for signing transactions
   /// Returns session and client - caller is responsible for closing session
   Future<MwaSigningSession?> createSigningSession() async {
+    final epoch = _authEpoch;
+    final held = _authResult;
     if (_authResult == null) {
       log(
         '❌ Cannot create signing session: not authenticated',
@@ -371,10 +407,10 @@ class MwaAuthProvider extends ChangeNotifier {
         identityUri: Uri.parse(_identityUri),
         iconUri: Uri.parse(_iconPath),
         identityName: _appName,
-        authToken: _authResult!.authToken,
+        authToken: held!.authToken,
       );
 
-      if (result == null) {
+      if (result == null || !_isCurrent(epoch)) {
         await session.close();
         log('⚠️ Signing session: reauth failed', name: 'MwaAuthProvider');
         return null;
@@ -389,10 +425,14 @@ class MwaAuthProvider extends ChangeNotifier {
         walletUriBase: result.walletUriBase,
       );
       await _persistAuthSession();
+      if (!_isCurrent(epoch)) {
+        await session.close();
+        return null;
+      }
 
       return MwaSigningSession(session: session, client: client);
     } catch (e) {
-      log('❌ Error creating signing session: $e', name: 'MwaAuthProvider');
+      log('❌ Error creating signing session', name: 'MwaAuthProvider');
       return null;
     }
   }
@@ -400,51 +440,70 @@ class MwaAuthProvider extends ChangeNotifier {
   /// Logout / deauthorize from wallet
   Future<void> logout() async {
     log('👋 Logging out', name: 'MwaAuthProvider');
+    final held = _authResult;
+    await forgetSession();
 
     try {
-      if (_authResult != null) {
+      if (held != null) {
         // Deauthorize with wallet
         final session = await LocalAssociationScenario.create();
         session.startActivityForResult(null).ignore();
         final client = await session.start();
 
-        await client.deauthorize(authToken: _authResult!.authToken);
+        await client.deauthorize(authToken: held.authToken);
         await session.close();
       }
     } catch (e) {
-      log('⚠️ Error during deauthorization: $e', name: 'MwaAuthProvider');
+      log('⚠️ Error during deauthorization', name: 'MwaAuthProvider');
       // Continue with logout even if deauth fails
     }
+  }
 
-    // Clear local state
+  /// Forget this app's wallet credential without opening the wallet app. This
+  /// does not move funds or revoke other apps' wallet authorizations.
+  Future<void> forgetSession() {
+    _authEpoch++;
     _authResult = null;
     _state = MwaAuthState.unauthenticated;
     _errorMessage = null;
-
-    // Clear persisted data
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_authResultKey);
-    await prefs.remove(_isLoggedInKey);
-
-    // Clear all caches
     EfficientSyncService.clearAllCaches();
-
     notifyListeners();
-    log('✅ Logged out successfully', name: 'MwaAuthProvider');
+    return _writeStorage(() async {
+      final prefs = await SharedPreferences.getInstance();
+      final credential = await prefs.remove(_authResultKey);
+      final marker = await prefs.remove(_isLoggedInKey);
+      if (!credential || !marker) {
+        throw StateError('Wallet session removal failed');
+      }
+    });
+  }
+
+  Future<void> _writeStorage(Future<void> Function() operation) {
+    final pending = _storageWrites.then((_) => operation());
+    _storageWrites = pending.catchError((Object _) {});
+    return pending;
   }
 
   /// Persist auth session to SharedPreferences
   Future<void> _persistAuthSession() async {
-    if (_authResult == null) return;
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_authResultKey, jsonEncode(_authResult!.toJson()));
-    await prefs.setBool(_isLoggedInKey, true);
+    final held = _authResult;
+    final epoch = _authEpoch;
+    if (held == null || !_isCurrent(epoch)) return;
+    await _writeStorage(() async {
+      final prefs = await SharedPreferences.getInstance();
+      if (!_isCurrent(epoch)) return;
+      if (!await prefs.setString(_authResultKey, jsonEncode(held.toJson())) ||
+          !await prefs.setBool(_isLoggedInKey, true)) {
+        throw StateError('Wallet session storage failed');
+      }
+    });
   }
 
   /// Restore auth session from SharedPreferences
   Future<bool> _restoreAuthSession() async {
+    final epoch = _authEpoch;
     final prefs = await SharedPreferences.getInstance();
+    if (!_isCurrent(epoch)) return false;
     final isLoggedIn = prefs.getBool(_isLoggedInKey) ?? false;
 
     if (!isLoggedIn) return false;
@@ -457,7 +516,7 @@ class MwaAuthProvider extends ChangeNotifier {
       _authResult = MwaAuthResult.fromJson(json);
       return true;
     } catch (e) {
-      log('Error restoring auth session: $e', name: 'MwaAuthProvider');
+      log('Error restoring auth session', name: 'MwaAuthProvider');
       return false;
     }
   }

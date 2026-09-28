@@ -9,11 +9,16 @@ import 'package:chumbucket/core/utils/app_logger.dart';
 class ChallengeStateProvider extends ChangeNotifier {
   static ChallengeStateProvider? _instance;
   static ChallengeStateProvider get instance {
-    _instance ??= ChallengeStateProvider._internal();
+    _instance ??= ChallengeStateProvider();
     return _instance!;
   }
 
-  ChallengeStateProvider._internal();
+  ChallengeStateProvider({
+    Future<List<Challenge>> Function(String)? loadChallenges,
+  }) : _readChallenges =
+           loadChallenges ?? UnifiedDatabaseService.getChallengesForUser;
+  final Future<List<Challenge>> Function(String) _readChallenges;
+  int _accountEpoch = 0;
 
   List<Challenge> _challenges = [];
   bool _isLoading = false;
@@ -57,7 +62,7 @@ class ChallengeStateProvider extends ChangeNotifier {
     );
 
     // Check if initialized for a DIFFERENT user - if so, clear and reinit
-    if (_isInitialized && _currentUserId != null && _currentUserId != userId) {
+    if (_currentUserId != null && _currentUserId != userId) {
       AppLogger.info(
         'ChallengeState: User changed from $_currentUserId to $userId - clearing old state',
       );
@@ -80,6 +85,7 @@ class ChallengeStateProvider extends ChangeNotifier {
       'ChallengeState: Starting fresh initialization for user $userId',
     );
     _isInitializing = true;
+    final epoch = _accountEpoch;
     _currentUserId = userId;
     _isLoading = true;
     notifyListeners();
@@ -90,6 +96,7 @@ class ChallengeStateProvider extends ChangeNotifier {
 
       // Load from database immediately (fast)
       await _loadFromDatabase(userId, notify: false);
+      if (epoch != _accountEpoch) return;
       _isInitialized = true;
 
       // DON'T auto-trigger blockchain sync on initialize
@@ -100,14 +107,17 @@ class ChallengeStateProvider extends ChangeNotifier {
     } catch (e) {
       AppLogger.error('ChallengeState: Initialize error: $e');
     } finally {
-      _isLoading = false;
-      _isInitializing = false;
-      notifyListeners();
+      if (epoch == _accountEpoch) {
+        _isLoading = false;
+        _isInitializing = false;
+        notifyListeners();
+      }
     }
   }
 
   /// Load challenges from local database (fast) with throttling
   Future<void> _loadFromDatabase(String userId, {bool notify = true}) async {
+    final epoch = _accountEpoch;
     // Throttle database loads
     if (_lastUpdate != null) {
       final timeSinceLastLoad = DateTime.now().difference(_lastUpdate!);
@@ -118,9 +128,8 @@ class ChallengeStateProvider extends ChangeNotifier {
     }
 
     try {
-      final dbChallenges = await UnifiedDatabaseService.getChallengesForUser(
-        userId,
-      );
+      final dbChallenges = await _readChallenges(userId);
+      if (epoch != _accountEpoch || _currentUserId != userId) return;
       _challenges = dbChallenges;
       _lastUpdate = DateTime.now();
 
@@ -135,6 +144,8 @@ class ChallengeStateProvider extends ChangeNotifier {
 
   /// Force refresh (for pull-to-refresh ONLY) with throttling
   Future<void> forceRefresh(String userId, String walletAddress) async {
+    if (_currentUserId != userId) return;
+    final epoch = _accountEpoch;
     // Throttle sync calls to prevent spam
     if (_lastSyncTime != null) {
       final timeSinceLastSync = DateTime.now().difference(_lastSyncTime!);
@@ -166,15 +177,18 @@ class ChallengeStateProvider extends ChangeNotifier {
         userId: userId,
         walletAddress: walletAddress,
       );
+      if (epoch != _accountEpoch) return;
 
       // Reload from database (don't notify yet)
       await _loadFromDatabase(userId, notify: false);
     } catch (e) {
       AppLogger.error('ChallengeState: Force refresh error: $e');
     } finally {
-      _isLoading = false;
-      _isSyncing = false;
-      notifyListeners(); // Single notification at the end
+      if (epoch == _accountEpoch) {
+        _isLoading = false;
+        _isSyncing = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -312,6 +326,7 @@ class ChallengeStateProvider extends ChangeNotifier {
 
   /// Clear state (for logout)
   void clear() {
+    _accountEpoch++;
     AppLogger.info('ChallengeState: Clearing all state for logout');
     _challenges.clear();
     _isLoading = false;
@@ -353,8 +368,10 @@ class ChallengeStateProvider extends ChangeNotifier {
   /// Soft refresh (only database, no blockchain sync)
   Future<void> softRefresh(String userId) async {
     if (_currentUserId != userId) return;
+    final epoch = _accountEpoch;
 
     await _loadFromDatabase(userId);
+    if (epoch != _accountEpoch) return;
     _removeDuplicates();
   }
 }

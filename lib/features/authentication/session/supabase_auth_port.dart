@@ -21,6 +21,7 @@
 library;
 
 import 'dart:async';
+import 'package:chumbucket/features/authentication/session/app_session_persistence.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -142,31 +143,42 @@ class SupabaseFlutterAuthPort implements SupabaseAuthPort {
   GoTrueClient get _auth => Supabase.instance.client.auth;
 
   @override
-  SupabaseSessionSnapshot? get currentSession => snapshotOf(_auth.currentSession);
+  SupabaseSessionSnapshot? get currentSession =>
+      AppSessionPersistence.current?.isLocked == true
+          ? null
+          : snapshotOf(_auth.currentSession);
 
   @override
-  Stream<SupabaseAuthEvent> get authEvents =>
-      _auth.onAuthStateChange.map(
-        (state) => SupabaseAuthEvent(
-          kindOf(state.event),
-          snapshotOf(state.session),
-        ),
+  Stream<SupabaseAuthEvent> get authEvents => eventsOf(_auth.onAuthStateChange);
+
+  /// The account tree is recreated after logout. Its new session must also
+  /// ignore a late callback from the previous tree's browser activity.
+  static Stream<SupabaseAuthEvent> eventsOf(Stream<AuthState> events) => events
+      .where((_) => AppSessionPersistence.current?.isLocked != true)
+      .map(
+        (state) =>
+            SupabaseAuthEvent(kindOf(state.event), snapshotOf(state.session)),
       );
 
   @override
   Future<bool> startGoogleSignIn({
     String redirectTo = kChumbucketOAuthRedirect,
-  }) => _auth.signInWithOAuth(
-    OAuthProvider.google,
-    redirectTo: redirectTo,
-    // The system browser, not a webview: Google refuses embedded webviews for
-    // OAuth, and this is what the arena link flow already does.
-    authScreenLaunchMode: LaunchMode.externalApplication,
-  );
+  }) {
+    AppSessionPersistence.current?.beginInteractiveSignIn();
+    return _auth.signInWithOAuth(
+      OAuthProvider.google,
+      redirectTo: redirectTo,
+      // The system browser, not a webview: Google refuses embedded webviews for
+      // OAuth, and this is what the arena link flow already does.
+      authScreenLaunchMode: LaunchMode.externalApplication,
+    );
+  }
 
   @override
   Future<SupabaseSessionSnapshot?> refreshSession() async {
+    if (AppSessionPersistence.current?.isLocked == true) return null;
     final response = await _auth.refreshSession();
+    if (AppSessionPersistence.current?.isLocked == true) return null;
     return snapshotOf(response.session);
   }
 

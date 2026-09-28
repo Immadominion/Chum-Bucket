@@ -1,4 +1,5 @@
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
+import 'package:chumbucket/features/authentication/session/app_sign_out.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:flutter/material.dart';
@@ -80,7 +81,10 @@ class CallSessionPanel extends StatelessWidget {
             label: 'Continue with Google',
           ),
         if (session.hasSupabaseSession && !session.isBusy)
-          TextButton(onPressed: session.signOut, child: const Text('Sign out')),
+          TextButton(
+            onPressed: () => signOutOfChumbucket(context),
+            child: const Text('Sign out'),
+          ),
       ],
     );
   }

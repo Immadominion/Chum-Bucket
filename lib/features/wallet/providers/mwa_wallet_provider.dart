@@ -26,6 +26,18 @@ class PinocchioInstructions {
 /// MWA-based wallet provider for Pinocchio escrow program
 /// Replaces Privy embedded wallet with Mobile Wallet Adapter
 class MwaWalletProvider extends ChangeNotifier {
+  bool _disposed = false;
+  @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
   // Pinocchio program ID (deployed to devnet)
   static const String ESCROW_PROGRAM_ID =
       'D6mjMGW1fX8oH3UcwZDh3teWcHEWvghUqaR2aeWD9sF1';

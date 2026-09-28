@@ -13,6 +13,7 @@ class RealtimeService {
   RealtimeChannel? _challengesChannel;
   String? _currentUserId;
   bool _isSubscribed = false;
+  int _accountEpoch = 0;
 
   /// Initialize realtime subscriptions for a user
   Future<void> subscribe(String userId) async {
@@ -21,11 +22,13 @@ class RealtimeService {
       AppLogger.debug('RealtimeService: Already subscribed for user $userId');
       return;
     }
+    final epoch = ++_accountEpoch;
 
     // Unsubscribe from previous if different user
     if (_currentUserId != userId) {
-      await unsubscribe();
+      await _detach();
     }
+    if (epoch != _accountEpoch) return;
 
     _currentUserId = userId;
 
@@ -46,7 +49,11 @@ class RealtimeService {
               column: 'creator_id',
               value: userId,
             ),
-            callback: (payload) => _handleChallengeChange(payload, userId),
+            callback: (payload) {
+              if (epoch == _accountEpoch) {
+                _handleChallengeChange(payload, userId);
+              }
+            },
           )
           .onPostgresChanges(
             event: PostgresChangeEvent.all,
@@ -57,9 +64,14 @@ class RealtimeService {
               column: 'witness_address',
               value: userId,
             ),
-            callback: (payload) => _handleChallengeChange(payload, userId),
+            callback: (payload) {
+              if (epoch == _accountEpoch) {
+                _handleChallengeChange(payload, userId);
+              }
+            },
           )
           .subscribe((status, [error]) {
+            if (epoch != _accountEpoch) return;
             if (status == RealtimeSubscribeStatus.subscribed) {
               _isSubscribed = true;
               AppLogger.info('RealtimeService: Subscribed to challenges');
@@ -89,17 +101,23 @@ class RealtimeService {
 
   /// Unsubscribe from realtime updates
   Future<void> unsubscribe() async {
-    if (_challengesChannel != null) {
+    _accountEpoch++;
+    await _detach();
+  }
+
+  Future<void> _detach() async {
+    final channel = _challengesChannel;
+    _challengesChannel = null;
+    _isSubscribed = false;
+    _currentUserId = null;
+    if (channel != null) {
       try {
-        await Supabase.instance.client.removeChannel(_challengesChannel!);
+        await Supabase.instance.client.removeChannel(channel);
         AppLogger.info('RealtimeService: Unsubscribed from challenges');
       } catch (e) {
         AppLogger.error('RealtimeService: Error unsubscribing: $e');
       }
-      _challengesChannel = null;
     }
-    _isSubscribed = false;
-    _currentUserId = null;
   }
 
   /// Check if currently subscribed

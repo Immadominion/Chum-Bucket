@@ -37,64 +37,70 @@ class MenuTile extends StatelessWidget {
           width: 1,
         ),
       ),
-      child: ListTile(
-        contentPadding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 4.h),
-        leading: Container(
-          padding: EdgeInsets.all(8.w),
-          decoration: BoxDecoration(
-            color: (iconColor ?? Theme.of(context).colorScheme.primary)
-                .withOpacity(0.1),
-            borderRadius: BorderRadius.circular(10.r),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16.r),
+        child: ListTile(
+          contentPadding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 4.h),
+          leading: Container(
+            padding: EdgeInsets.all(8.w),
+            decoration: BoxDecoration(
+              color: (iconColor ?? Theme.of(context).colorScheme.primary)
+                  .withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10.r),
+            ),
+            child:
+                basilIcon != null
+                    ? BasilIcon(
+                      basilIcon!,
+                      size: 20.sp,
+                      color:
+                          isDanger
+                              ? Colors.red
+                              : (iconColor ??
+                                  Theme.of(context).colorScheme.primary),
+                    )
+                    : Icon(
+                      icon,
+                      size: 20.sp,
+                      color:
+                          isDanger
+                              ? Colors.red
+                              : (iconColor ??
+                                  Theme.of(context).colorScheme.primary),
+                    ),
           ),
-          child:
-              basilIcon != null
-                  ? BasilIcon(
-                    basilIcon!,
-                    size: 20.sp,
-                    color:
-                        isDanger
-                            ? Colors.red
-                            : (iconColor ??
-                                Theme.of(context).colorScheme.primary),
+          title: Text(
+            title,
+            style: TextStyle(
+              fontSize: 18.sp,
+              fontWeight: FontWeight.w700,
+              color:
+                  isDanger
+                      ? Colors.red
+                      : Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+          subtitle:
+              subtitle != null
+                  ? Text(
+                    subtitle!,
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.6),
+                      fontWeight: FontWeight.w700,
+                    ),
                   )
-                  : Icon(
-                    icon,
-                    size: 20.sp,
-                    color:
-                        isDanger
-                            ? Colors.red
-                            : (iconColor ??
-                                Theme.of(context).colorScheme.primary),
-                  ),
-        ),
-        title: Text(
-          title,
-          style: TextStyle(
-            fontSize: 18.sp,
-            fontWeight: FontWeight.w700,
-            color:
-                isDanger ? Colors.red : Theme.of(context).colorScheme.onSurface,
+                  : null,
+          trailing: BasilIcon(
+            'caret-right-outline',
+            size: 16.sp,
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
           ),
+          onTap: onTap,
         ),
-        subtitle:
-            subtitle != null
-                ? Text(
-                  subtitle!,
-                  style: TextStyle(
-                    fontSize: 14.sp,
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withOpacity(0.6),
-                    fontWeight: FontWeight.w700,
-                  ),
-                )
-                : null,
-        trailing: BasilIcon(
-          'caret-right-outline',
-          size: 16.sp,
-          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
-        ),
-        onTap: onTap,
       ),
     );
   }

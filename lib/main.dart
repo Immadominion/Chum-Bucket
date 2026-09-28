@@ -17,6 +17,9 @@ import 'package:chumbucket/shared/services/unified_database_service.dart';
 import 'package:chumbucket/core/config/app_config.dart';
 import 'package:chumbucket/core/navigation/deep_link_host.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
+import 'package:chumbucket/features/authentication/session/app_session_persistence.dart';
+import 'package:chumbucket/features/authentication/session/app_sign_out.dart';
+import 'package:chumbucket/features/authentication/presentation/widgets/account_session_host.dart';
 import 'package:chumbucket/features/calls/data/calls_repository_factory.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -51,7 +54,15 @@ void main() async {
       }
     }
 
-    await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
+    final persistence = AppSessionPersistence.forProject(supabaseUrl);
+    AppSessionPersistence.current = persistence;
+    await Supabase.initialize(
+      url: supabaseUrl,
+      anonKey: supabaseAnonKey,
+      authOptions: FlutterAuthClientOptions(localStorage: persistence),
+    );
+    persistence.discardLateAuthSession =
+        () => Supabase.instance.client.auth.signOut();
     if (kDebugMode) debugPrint("Supabase initialized successfully");
 
     // Configure UnifiedDatabaseService with the Supabase client
@@ -92,48 +103,56 @@ void main() async {
   }
 
   runApp(
-    MultiProvider(
-      providers: [
-        // MWA Wallet Provider for Pinocchio escrow transactions
-        ChangeNotifierProvider(create: (_) => MwaWalletProvider()),
-        ChangeNotifierProvider(create: (_) => OnboardingProvider()),
-        // MWA Auth Provider for wallet-based authentication (replaces Privy)
-        ChangeNotifierProvider(create: (_) => MwaAuthProvider()),
-        ChangeNotifierProvider(create: (_) => ProfileProvider()),
-        ChangeNotifierProvider(create: (_) => ArenaProvider()),
-        // Preview identity: Google -> Supabase session -> canonical
-        // public.users.id. restore() adopts a session already in storage and
-        // subscribes to auth changes for the life of the app. It sits ABOVE
-        // CallsProvider on purpose: the repository below reads its token
-        // provider at construction.
-        ChangeNotifierProvider<ChumbucketSession>(
-          create: (_) {
-            final session = ChumbucketSession();
-            if (AppConfig.callReceiptExperienceEnabled) session.restore();
-            return session;
-          },
-        ),
-        // The call/receipt slice. Which repository backs it is a build flag:
-        //   --dart-define=CALLS_BACKEND=mock  for the seeded offline catalog.
-        // Default is the deployed BFF on real Polymarket markets.
-        ChangeNotifierProxyProvider<ChumbucketSession, CallsProvider>(
-          create:
-              (context) => CallsProvider(
-                repository: buildCallsRepository(
-                  // FutureOr<String?> Function(). Null is not an error — it is
-                  // what signed out looks like, and reading never needs a
-                  // session. A token near expiry is refreshed before use.
-                  authToken: context.read<ChumbucketSession>().bffAuthToken,
-                ),
+    AccountSessionHost(
+      builder:
+          (_) => MultiProvider(
+            providers: [
+              Provider(create: (_) => AppSignOutEffects()),
+              // MWA Wallet Provider for Pinocchio escrow transactions
+              ChangeNotifierProvider(create: (_) => MwaWalletProvider()),
+              ChangeNotifierProvider(create: (_) => OnboardingProvider()),
+              // MWA Auth Provider for wallet-based authentication (replaces Privy)
+              ChangeNotifierProvider(create: (_) => MwaAuthProvider()),
+              ChangeNotifierProvider(create: (_) => ProfileProvider()),
+              ChangeNotifierProvider(create: (_) => ArenaProvider()),
+              // Preview identity: Google -> Supabase session -> canonical
+              // public.users.id. restore() adopts a session already in storage and
+              // subscribes to auth changes for the life of the app. It sits ABOVE
+              // CallsProvider on purpose: the repository below reads its token
+              // provider at construction.
+              ChangeNotifierProvider<ChumbucketSession>(
+                create: (_) {
+                  final session = ChumbucketSession();
+                  if (AppConfig.callReceiptExperienceEnabled) session.restore();
+                  return session;
+                },
               ),
-          // The CANONICAL public.users.id — never authUserId, never a wallet
-          // (contracts §0 invariant 3). Null while signed out or while whoami
-          // is still in flight; setViewer early-returns when unchanged.
-          update: (_, session, calls) => calls!..setViewer(session.userId),
-        ),
-        ChangeNotifierProvider.value(value: ChallengeStateProvider.instance),
-      ],
-      child: const MyApp(),
+              // The call/receipt slice. Which repository backs it is a build flag:
+              //   --dart-define=CALLS_BACKEND=mock  for the seeded offline catalog.
+              // Default is the deployed BFF on real Polymarket markets.
+              ChangeNotifierProxyProvider<ChumbucketSession, CallsProvider>(
+                create:
+                    (context) => CallsProvider(
+                      repository: buildCallsRepository(
+                        // FutureOr<String?> Function(). Null is not an error — it is
+                        // what signed out looks like, and reading never needs a
+                        // session. A token near expiry is refreshed before use.
+                        authToken:
+                            context.read<ChumbucketSession>().bffAuthToken,
+                      ),
+                    ),
+                // The CANONICAL public.users.id — never authUserId, never a wallet
+                // (contracts §0 invariant 3). Null while signed out or while whoami
+                // is still in flight; setViewer early-returns when unchanged.
+                update:
+                    (_, session, calls) => calls!..setViewer(session.userId),
+              ),
+              ChangeNotifierProvider.value(
+                value: ChallengeStateProvider.instance,
+              ),
+            ],
+            child: const MyApp(),
+          ),
     ),
   );
 }

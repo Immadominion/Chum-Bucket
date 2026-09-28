@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:async';
 import 'dart:developer';
 import 'dart:typed_data';
+import 'package:chumbucket/features/authentication/session/app_session_persistence.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:solana/base58.dart';
@@ -604,6 +605,7 @@ class ArenaProvider extends BaseChangeNotifier {
     notifyListeners();
     StreamSubscription<AuthState>? subscription;
     try {
+      AppSessionPersistence.current?.beginInteractiveSignIn();
       final signedIn = Completer<Session>();
       subscription = Supabase.instance.client.auth.onAuthStateChange.listen((
         state,
@@ -620,10 +622,16 @@ class ArenaProvider extends BaseChangeNotifier {
         authScreenLaunchMode: LaunchMode.externalApplication,
       );
       final session = await signedIn.future.timeout(const Duration(minutes: 2));
+      if (isDisposed || authProvider.walletAddress != wallet) {
+        throw StateError('Your account changed. Start linking again.');
+      }
       final proof = await _signGenericAction(
         authProvider: authProvider,
         action: 'link_identity',
       );
+      if (isDisposed || authProvider.walletAddress != wallet) {
+        throw StateError('Your account changed. Start linking again.');
+      }
       await _backendService.linkIdentity(
         walletAddress: wallet,
         accessToken: session.accessToken,
