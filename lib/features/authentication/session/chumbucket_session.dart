@@ -148,10 +148,14 @@ class ChumbucketSession extends ChangeNotifier {
   /// server is the authority on whether it is still good, and a local guess
   /// that says "signed out" would be a worse lie than a 401.
   Future<String?> bffAuthToken() async {
+    final epoch = _sessionEpoch;
     final held = _session;
     if (held == null) return null;
     if (!held.isExpiring()) return held.accessToken;
     final refreshed = await _tryRefresh();
+    // A failed refresh may fall back to this session's held token, but never
+    // to a credential belonging to an account that signed out in the meantime.
+    if (_disposed || epoch != _sessionEpoch) return null;
     if (refreshed == null) return held.accessToken;
     _notify();
     return refreshed.accessToken;

@@ -77,6 +77,17 @@ class CallsProvider extends ChangeNotifier {
   final Duration staleAfter;
 
   bool _disposed = false;
+  final Map<String, Object> _requests = {};
+
+  Object _beginRequest(String key) => _requests[key] = Object();
+
+  bool _isCurrent(String key, Object request) =>
+      !_disposed && identical(_requests[key], request);
+
+  static const _accountChanged = CallsRejectedException(
+    'Your account changed while this request was in progress. '
+    'It may have completed for the previous account; check that account before retrying.',
+  );
 
   @override
   void dispose() {
@@ -107,6 +118,22 @@ class CallsProvider extends ChangeNotifier {
   void setViewer(String? userId) {
     if (_viewerUserId == userId) return;
     _viewerUserId = userId;
+    // Invalidates successes AND errors already in flight. Clearing a cache
+    // alone lets a response authorized for the previous viewer refill it.
+    _requests.clear();
+    _isLoadingFeed = false;
+    _isLoadingMore = false;
+    _isLoadingOpenMarkets = false;
+    _isLoadingInvitations = false;
+    _isSubmitting = false;
+    _marketsInFlight.clear();
+    _callsInFlight.clear();
+    _peopleInFlight.clear();
+    _marketErrors.clear();
+    _callErrors.clear();
+    _personErrors.clear();
+    _openMarketsError = null;
+    _feedFromCache = false;
     // Binds the experiment unit to the canonical `public.users.id` — never a
     // wallet (contract §0.3). The id is hashed to an arm and is never itself
     // recorded. Also clears the impression dedupe so the next account's first
@@ -186,6 +213,10 @@ class CallsProvider extends ChangeNotifier {
   Future<void> setFeedMode(CallFeedMode mode) async {
     if (_feedMode == mode) return;
     _feedMode = mode;
+    _requests.remove('feed');
+    _requests.remove('more');
+    _isLoadingFeed = false;
+    _isLoadingMore = false;
     _feedEntries = const [];
     _feedServedAt = null;
     _feedNextCursor = null;
@@ -197,6 +228,7 @@ class CallsProvider extends ChangeNotifier {
     if (_isLoadingFeed) return;
     if (!force && _feedServedAt != null && !isFeedStale) return;
 
+    final request = _beginRequest('feed');
     _isLoadingFeed = true;
     _feedError = null;
     _notify();
@@ -205,32 +237,40 @@ class CallsProvider extends ChangeNotifier {
         mode: _feedMode,
         viewerUserId: _viewerUserId,
       );
+      if (!_isCurrent('feed', request)) return;
       _feedEntries = page.entries;
       _feedServedAt = page.servedAt;
       _feedNextCursor = page.nextCursor;
       _feedFromCache = page.fromCache;
       _isOffline = false;
     } on CallsOfflineException catch (e) {
+      if (!_isCurrent('feed', request)) return;
       // Keep whatever is already on screen; it is now explicitly cached.
       developer.log('CallsProvider.loadFeed offline: $e');
       _isOffline = true;
       _feedFromCache = _feedEntries.isNotEmpty;
       _feedError = e.message;
     } on CallsException catch (e) {
+      if (!_isCurrent('feed', request)) return;
       developer.log('CallsProvider.loadFeed failed: $e');
       _feedError = e.message;
     } catch (e) {
+      if (!_isCurrent('feed', request)) return;
       developer.log('CallsProvider.loadFeed failed: $e');
       _feedError = const CallsFailure().message;
     } finally {
-      _isLoadingFeed = false;
-      _notify();
+      if (_isCurrent('feed', request)) {
+        _requests.remove('feed');
+        _isLoadingFeed = false;
+        _notify();
+      }
     }
   }
 
   Future<void> loadMore() async {
     final cursor = _feedNextCursor;
     if (cursor == null || _isLoadingMore || _isLoadingFeed) return;
+    final request = _beginRequest('more');
     _isLoadingMore = true;
     _notify();
     try {
@@ -239,16 +279,22 @@ class CallsProvider extends ChangeNotifier {
         viewerUserId: _viewerUserId,
         cursor: cursor,
       );
+      if (!_isCurrent('more', request)) return;
       _feedEntries = [..._feedEntries, ...page.entries];
       _feedNextCursor = page.nextCursor;
       _isOffline = false;
     } on CallsOfflineException {
+      if (!_isCurrent('more', request)) return;
       _isOffline = true;
     } on CallsException catch (e) {
+      if (!_isCurrent('more', request)) return;
       developer.log('CallsProvider.loadMore failed: $e');
     } finally {
-      _isLoadingMore = false;
-      _notify();
+      if (_isCurrent('more', request)) {
+        _requests.remove('more');
+        _isLoadingMore = false;
+        _notify();
+      }
     }
   }
 
@@ -288,23 +334,32 @@ class CallsProvider extends ChangeNotifier {
   Future<void> loadOpenMarkets({bool force = false}) async {
     if (_isLoadingOpenMarkets) return;
     if (!force && _openMarkets.isNotEmpty) return;
+    final request = _beginRequest('catalog');
     _isLoadingOpenMarkets = true;
     _openMarketsError = null;
     _notify();
     try {
-      _openMarkets = await _repository.fetchOpenMarkets(category: 'crypto');
+      final markets = await _repository.fetchOpenMarkets(category: 'crypto');
+      if (!_isCurrent('catalog', request)) return;
+      _openMarkets = markets;
       _isOffline = false;
     } on CallVocabularyException {
+      if (!_isCurrent('catalog', request)) return;
       _openMarketsError =
           'The market data format changed. Please update the app or try again later.';
     } on CallsOfflineException catch (e) {
+      if (!_isCurrent('catalog', request)) return;
       _isOffline = true;
       _openMarketsError = e.message;
     } on CallsException catch (e) {
+      if (!_isCurrent('catalog', request)) return;
       _openMarketsError = e.message;
     } finally {
-      _isLoadingOpenMarkets = false;
-      _notify();
+      if (_isCurrent('catalog', request)) {
+        _requests.remove('catalog');
+        _isLoadingOpenMarkets = false;
+        _notify();
+      }
     }
   }
 
@@ -318,6 +373,8 @@ class CallsProvider extends ChangeNotifier {
       return _marketDetails[marketId];
     }
 
+    final key = 'market:$marketId';
+    final request = _beginRequest(key);
     _marketsInFlight.add(marketId);
     _marketErrors.remove(marketId);
     _notify();
@@ -326,20 +383,26 @@ class CallsProvider extends ChangeNotifier {
         marketId: marketId,
         viewerUserId: _viewerUserId,
       );
+      if (!_isCurrent(key, request)) return null;
       _marketDetails[marketId] = detail;
       _isOffline = false;
       return detail;
     } on CallsOfflineException catch (e) {
+      if (!_isCurrent(key, request)) return null;
       _isOffline = true;
       _marketErrors[marketId] = e.message;
       return _marketDetails[marketId];
     } on CallsException catch (e) {
+      if (!_isCurrent(key, request)) return null;
       developer.log('CallsProvider.loadMarketDetail failed: $e');
       _marketErrors[marketId] = e.message;
       return null;
     } finally {
-      _marketsInFlight.remove(marketId);
-      _notify();
+      if (_isCurrent(key, request)) {
+        _requests.remove(key);
+        _marketsInFlight.remove(marketId);
+        _notify();
+      }
     }
   }
 
@@ -411,6 +474,8 @@ class CallsProvider extends ChangeNotifier {
         (_callDetails.containsKey(callId) || _callsInFlight.contains(callId))) {
       return _callDetails[callId];
     }
+    final key = 'call:$callId';
+    final request = _beginRequest(key);
     _callsInFlight.add(callId);
     _callErrors.remove(callId);
     _notify();
@@ -419,20 +484,26 @@ class CallsProvider extends ChangeNotifier {
         callId: callId,
         viewerUserId: _viewerUserId,
       );
+      if (!_isCurrent(key, request)) return null;
       _callDetails[callId] = detail;
       _isOffline = false;
       return detail;
     } on CallsOfflineException catch (e) {
+      if (!_isCurrent(key, request)) return null;
       _isOffline = true;
       _callErrors[callId] = e.message;
       return _callDetails[callId];
     } on CallsException catch (e) {
+      if (!_isCurrent(key, request)) return null;
       developer.log('CallsProvider.loadCall failed: $e');
       _callErrors[callId] = e.message;
       return null;
     } finally {
-      _callsInFlight.remove(callId);
-      _notify();
+      if (_isCurrent(key, request)) {
+        _requests.remove(key);
+        _callsInFlight.remove(callId);
+        _notify();
+      }
     }
   }
 
@@ -441,6 +512,8 @@ class CallsProvider extends ChangeNotifier {
         (_personDetails.containsKey(ref) || _peopleInFlight.contains(ref))) {
       return _personDetails[ref];
     }
+    final key = 'person:$ref';
+    final request = _beginRequest(key);
     _peopleInFlight.add(ref);
     _personErrors.remove(ref);
     _notify();
@@ -449,20 +522,26 @@ class CallsProvider extends ChangeNotifier {
         personRef: ref,
         viewerUserId: _viewerUserId,
       );
+      if (!_isCurrent(key, request)) return null;
       _personDetails[ref] = detail;
       _isOffline = false;
       return detail;
     } on CallsOfflineException catch (e) {
+      if (!_isCurrent(key, request)) return null;
       _isOffline = true;
       _personErrors[ref] = e.message;
       return _personDetails[ref];
     } on CallsException catch (e) {
+      if (!_isCurrent(key, request)) return null;
       developer.log('CallsProvider.loadPerson failed: $e');
       _personErrors[ref] = e.message;
       return null;
     } finally {
-      _peopleInFlight.remove(ref);
-      _notify();
+      if (_isCurrent(key, request)) {
+        _requests.remove(key);
+        _peopleInFlight.remove(ref);
+        _notify();
+      }
     }
   }
 
@@ -482,6 +561,7 @@ class CallsProvider extends ChangeNotifier {
     if (_isSubmitting) {
       throw const CallsRejectedException('Already locking a call.');
     }
+    final request = _beginRequest('submit');
     _isSubmitting = true;
     _notify();
     try {
@@ -489,11 +569,18 @@ class CallsProvider extends ChangeNotifier {
         input: input,
         viewerUserId: _viewerUserId,
       );
+      if (!_isCurrent('submit', request)) throw _accountChanged;
       _onCallCreated(entry, surface: surface);
       return entry;
+    } catch (_) {
+      if (!_isCurrent('submit', request)) throw _accountChanged;
+      rethrow;
     } finally {
-      _isSubmitting = false;
-      _notify();
+      if (_isCurrent('submit', request)) {
+        _requests.remove('submit');
+        _isSubmitting = false;
+        _notify();
+      }
     }
   }
 
@@ -505,6 +592,7 @@ class CallsProvider extends ChangeNotifier {
     if (_isSubmitting) {
       throw const CallsRejectedException('Already sending that.');
     }
+    final request = _beginRequest('submit');
     _isSubmitting = true;
     _notify();
     try {
@@ -512,6 +600,7 @@ class CallsProvider extends ChangeNotifier {
         input: input,
         viewerUserId: _viewerUserId,
       );
+      if (!_isCurrent('submit', request)) throw _accountChanged;
       final own = result.resultingCall;
       // Order matters: the response event names the relationship, the call
       // event counts the call. §9 needs both — "30% of new calls originate
@@ -527,9 +616,15 @@ class CallsProvider extends ChangeNotifier {
       // The target's back/fade counter moved; drop its cached detail.
       _callDetails.remove(input.targetCallId);
       return result;
+    } catch (_) {
+      if (!_isCurrent('submit', request)) throw _accountChanged;
+      rethrow;
     } finally {
-      _isSubmitting = false;
-      _notify();
+      if (_isCurrent('submit', request)) {
+        _requests.remove('submit');
+        _isSubmitting = false;
+        _notify();
+      }
     }
   }
 
@@ -626,17 +721,24 @@ class CallsProvider extends ChangeNotifier {
   Future<void> loadInvitations({bool force = false}) async {
     if (_isLoadingInvitations) return;
     if (!force && _invitations.isNotEmpty) return;
+    final request = _beginRequest('invitations');
     _isLoadingInvitations = true;
     _notify();
     try {
-      _invitations = await _repository.fetchInvitations(
+      final invitations = await _repository.fetchInvitations(
         viewerUserId: _viewerUserId,
       );
+      if (!_isCurrent('invitations', request)) return;
+      _invitations = invitations;
     } on CallsException catch (e) {
+      if (!_isCurrent('invitations', request)) return;
       developer.log('CallsProvider.loadInvitations failed: $e');
     } finally {
-      _isLoadingInvitations = false;
-      _notify();
+      if (_isCurrent('invitations', request)) {
+        _requests.remove('invitations');
+        _isLoadingInvitations = false;
+        _notify();
+      }
     }
   }
 
