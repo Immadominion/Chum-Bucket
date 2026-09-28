@@ -66,6 +66,7 @@ class _MarketDetailScreenState extends State<MarketDetailScreen> {
       context: context,
       market: detail.market,
       snapshot: detail.snapshot,
+      sharePrice: detail.sharePrice,
     );
     if (entry != null && mounted) {
       await provider.loadMarketDetail(widget.marketId, force: true);
@@ -174,7 +175,13 @@ class _MarketDetailScreenState extends State<MarketDetailScreen> {
               ),
 
               SizedBox(height: 16.h),
-              _PriceBlock(snapshot: snapshot, age: age, stale: stale),
+              _PriceBlock(
+                snapshot: snapshot,
+                age: age,
+                stale: stale,
+                isPanta: market.venue == MarketVenue.panta,
+                sharePrice: detail.sharePrice,
+              ),
 
               SizedBox(height: 16.h),
               _RulesBlock(market: market),
@@ -220,11 +227,15 @@ class _MarketDetailScreenState extends State<MarketDetailScreen> {
 }
 
 class _PriceBlock extends StatelessWidget {
+  final bool isPanta;
+  final SharePriceSnapshot? sharePrice;
   final MarketSnapshot? snapshot;
   final Duration? age;
   final bool stale;
 
   const _PriceBlock({
+    this.isPanta = false,
+    this.sharePrice,
     required this.snapshot,
     required this.age,
     required this.stale,
@@ -265,7 +276,33 @@ class _PriceBlock extends StatelessWidget {
             ],
           ),
           SizedBox(height: 10.h),
-          if (snapshot == null)
+          if (isPanta) ...[
+            Text(
+              CallsFormat.nativePrices(sharePrice),
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 16.sp,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            if (sharePrice != null)
+              Text(
+                'Observed ${CallsFormat.timestampUtc(sharePrice!.observedAtUtc)}',
+                style: TextStyle(
+                  color: AppColors.textTertiary,
+                  fontSize: 12.sp,
+                ),
+              ),
+            Text(
+              '${SharePriceSnapshot.attribution} · Indicative, not a trade quote',
+              style: TextStyle(color: AppColors.textTertiary, fontSize: 12.sp),
+            ),
+            if (!(sharePrice?.isUsableAt(DateTime.now()) ?? false))
+              Text(
+                'Prices unavailable or stale — refresh before calling.',
+                style: TextStyle(color: AppColors.warning, fontSize: 12.sp),
+              ),
+          ] else if (snapshot == null)
             Text(
               'No price published yet. You can still call it — your call just '
               'locks without an entry probability.',
@@ -294,10 +331,11 @@ class _PriceBlock extends StatelessWidget {
               ],
             ),
           SizedBox(height: 10.h),
-          Text(
-            CallsFormat.dataAge(age),
-            style: TextStyle(color: AppColors.textTertiary, fontSize: 12.sp),
-          ),
+          if (!isPanta)
+            Text(
+              CallsFormat.dataAge(age),
+              style: TextStyle(color: AppColors.textTertiary, fontSize: 12.sp),
+            ),
           if (snapshot != null)
             Text(
               'Observed ${CallsFormat.timestampUtc(snapshot.observedAtUtc)}'

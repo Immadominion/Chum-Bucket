@@ -100,14 +100,24 @@ Person personFromJson(Map<String, dynamic> json) => Person(
 /// viewerHasCalled }` row.
 CallFeedEntry callFeedEntryFromJson(Map<String, dynamic> json) {
   final result = optionalJsonMap(json['result'], 'CallFeedEntry.result');
+  final call = Call.fromJson(
+    requireJsonMap(json['call'], 'CallFeedEntry.call'),
+  );
+  final market = VenueMarket.fromJson(
+    requireJsonMap(json['market'], 'CallFeedEntry.market'),
+  );
+  if ((market.venue == MarketVenue.panta) != (call.entryPrice != null) ||
+      (call.entryPrice != null && call.entryPrice!.marketId != market.id)) {
+    throw const CallVocabularyException(
+      'Call/market share-price provenance mismatch',
+    );
+  }
   return CallFeedEntry(
-    call: Call.fromJson(requireJsonMap(json['call'], 'CallFeedEntry.call')),
+    call: call,
     author: personFromJson(
       requireJsonMap(json['author'], 'CallFeedEntry.author'),
     ),
-    market: VenueMarket.fromJson(
-      requireJsonMap(json['market'], 'CallFeedEntry.market'),
-    ),
+    market: market,
     result: result == null ? null : CallResult.fromJson(result),
     backCount: requireWireCount(json['backCount'], 'CallFeedEntry.backCount'),
     fadeCount: requireWireCount(json['fadeCount'], 'CallFeedEntry.fadeCount'),
@@ -119,9 +129,10 @@ CallFeedEntry callFeedEntryFromJson(Map<String, dynamic> json) {
 }
 
 List<CallFeedEntry> callFeedEntriesFromJson(Object? value, String field) =>
-    requireJsonList(value, field)
-        .map(callFeedEntryFromJson)
-        .toList(growable: false);
+    requireJsonList(
+      value,
+      field,
+    ).map(callFeedEntryFromJson).toList(growable: false);
 
 /// `{ entries, nextCursor?, servedAt }`.
 ///
@@ -151,6 +162,20 @@ CrowdSplit crowdSplitFromJson(Map<String, dynamic> json) => CrowdSplit(
 /// an absent split must stay null so the UI renders "hidden until you call"
 /// rather than a 0/0 bar that reads as "nobody has called".
 MarketDetail marketDetailFromJson(Map<String, dynamic> json) {
+  final native = optionalJsonMap(json['sharePrice'], 'MarketDetail.sharePrice');
+  final sharePrice =
+      native == null ? null : SharePriceSnapshot.fromJson(native);
+  final market = VenueMarket.fromJson(
+    requireJsonMap(json['market'], 'MarketDetail.market'),
+  );
+  if (sharePrice != null &&
+      (market.venue != MarketVenue.panta ||
+          market.id != sharePrice.marketId ||
+          json['snapshot'] != null)) {
+    throw const CallVocabularyException(
+      'Market share-price provenance mismatch',
+    );
+  }
   final snapshot = optionalJsonMap(json['snapshot'], 'MarketDetail.snapshot');
   final viewerCall = optionalJsonMap(
     json['viewerCall'],
@@ -161,16 +186,12 @@ MarketDetail marketDetailFromJson(Map<String, dynamic> json) {
     'MarketDetail.crowdSplit',
   );
   return MarketDetail(
-    market: VenueMarket.fromJson(
-      requireJsonMap(json['market'], 'MarketDetail.market'),
-    ),
+    market: market,
+    sharePrice: sharePrice,
     snapshot: snapshot == null ? null : MarketSnapshot.fromJson(snapshot),
     viewerCall: viewerCall == null ? null : callFeedEntryFromJson(viewerCall),
     crowdSplit: crowdSplit == null ? null : crowdSplitFromJson(crowdSplit),
-    servedAt: requireWireTimestampMs(
-      json['servedAt'],
-      'MarketDetail.servedAt',
-    ),
+    servedAt: requireWireTimestampMs(json['servedAt'], 'MarketDetail.servedAt'),
   );
 }
 
@@ -186,9 +207,10 @@ CallDetail callDetailFromJson(Map<String, dynamic> json) {
       requireJsonMap(json['entry'], 'CallDetail.entry'),
     ),
     parent: parent == null ? null : callFeedEntryFromJson(parent),
-    responses: requireJsonList(json['responses'], 'CallDetail.responses')
-        .map(CallResponse.fromJson)
-        .toList(growable: false),
+    responses: requireJsonList(
+      json['responses'],
+      'CallDetail.responses',
+    ).map(CallResponse.fromJson).toList(growable: false),
   );
 }
 
@@ -211,42 +233,38 @@ PersonDetail personDetailFromJson(Map<String, dynamic> json) => PersonDetail(
 /// transaction on this shape, and [ChallengeInvitation.hasEscrow] is
 /// structurally false — so a money field on the wire has nowhere to land even
 /// if one were ever sent.
-ChallengeInvitation challengeInvitationFromJson(Map<String, dynamic> json) =>
-    ChallengeInvitation(
-      id: requireWireString(json['id'], 'ChallengeInvitation.id'),
-      fromUserId: requireWireString(
-        json['fromUserId'],
-        'ChallengeInvitation.fromUserId',
-      ),
-      toUserId: requireWireString(
-        json['toUserId'],
-        'ChallengeInvitation.toUserId',
-      ),
-      marketId: requireWireString(
-        json['marketId'],
-        'ChallengeInvitation.marketId',
-      ),
-      sourceCallId: requireWireString(
-        json['sourceCallId'],
-        'ChallengeInvitation.sourceCallId',
-      ),
-      responseId: requireWireString(
-        json['responseId'],
-        'ChallengeInvitation.responseId',
-      ),
-      note: json['note'] as String?,
-      createdAt: requireWireTimestampMs(
-        json['createdAt'],
-        'ChallengeInvitation.createdAt',
-      ),
-    );
+ChallengeInvitation challengeInvitationFromJson(
+  Map<String, dynamic> json,
+) => ChallengeInvitation(
+  id: requireWireString(json['id'], 'ChallengeInvitation.id'),
+  fromUserId: requireWireString(
+    json['fromUserId'],
+    'ChallengeInvitation.fromUserId',
+  ),
+  toUserId: requireWireString(json['toUserId'], 'ChallengeInvitation.toUserId'),
+  marketId: requireWireString(json['marketId'], 'ChallengeInvitation.marketId'),
+  sourceCallId: requireWireString(
+    json['sourceCallId'],
+    'ChallengeInvitation.sourceCallId',
+  ),
+  responseId: requireWireString(
+    json['responseId'],
+    'ChallengeInvitation.responseId',
+  ),
+  note: json['note'] as String?,
+  createdAt: requireWireTimestampMs(
+    json['createdAt'],
+    'ChallengeInvitation.createdAt',
+  ),
+);
 
 List<ChallengeInvitation> challengeInvitationsFromJson(
   Object? value,
   String field,
-) => requireJsonList(value, field)
-    .map(challengeInvitationFromJson)
-    .toList(growable: false);
+) => requireJsonList(
+  value,
+  field,
+).map(challengeInvitationFromJson).toList(growable: false);
 
 // ---------------------------------------------------------------------------
 // Response result
@@ -298,6 +316,7 @@ CallResponseResult callResponseResultFromJson(Map<String, dynamic> json) {
 // ---------------------------------------------------------------------------
 
 List<VenueMarket> venueMarketsFromJson(Object? value, String field) =>
-    requireJsonList(value, field)
-        .map(VenueMarket.fromJson)
-        .toList(growable: false);
+    requireJsonList(
+      value,
+      field,
+    ).map(VenueMarket.fromJson).toList(growable: false);

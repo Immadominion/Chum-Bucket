@@ -21,6 +21,7 @@ import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 
 class CallReceipt {
+  final SharePriceSnapshot? entryPrice;
   final String callId;
   final String personDisplayName;
   final String personHandle;
@@ -53,6 +54,7 @@ class CallReceipt {
   final String shareUrl;
 
   const CallReceipt({
+    this.entryPrice,
     required this.callId,
     required this.personDisplayName,
     required this.personHandle,
@@ -92,6 +94,7 @@ class CallReceipt {
       side: call.side,
       sideLabel: market.labelFor(call.side),
       entryProbability: call.entryProbability,
+      entryPrice: call.entryPrice,
       outcome: entry.outcome,
       resolution: entry.result?.resolution,
       resolvedAt: entry.result?.resolvedAtUtc,
@@ -121,6 +124,8 @@ class CallReceipt {
     // under the product's name, which is the exact thing the venue labelling
     // exists to prevent.
     final demo = venueIsDemo ? ' [DEMO DATA — not a real market result]' : '';
-    return '$verdict $marketQuestion — I said $sideLabel.$demo $shareUrl';
+    final source =
+        venueLabel == 'Panta' ? ' ${SharePriceSnapshot.attribution}.' : '';
+    return '$verdict $marketQuestion — I said $sideLabel.$demo$source $shareUrl';
   }
 }

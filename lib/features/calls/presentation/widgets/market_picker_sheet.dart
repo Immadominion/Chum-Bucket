@@ -50,6 +50,7 @@ class _MarketPickerSheetState extends State<MarketPickerSheet> {
       context: context,
       market: detail?.market ?? market,
       snapshot: detail?.snapshot,
+      sharePrice: detail?.sharePrice,
     );
     if (entry != null && mounted) Navigator.of(context).pop();
   }

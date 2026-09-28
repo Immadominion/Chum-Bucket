@@ -120,10 +120,38 @@ class CallReceiptCard extends StatelessWidget {
                   value: CallsFormat.timestampUtc(receipt.lockedAt),
                 ),
                 // The entry probability.
-                _Row(
-                  label: 'Entry probability',
-                  value: CallsFormat.probability(receipt.entryProbability),
-                ),
+                if (receipt.entryPrice == null)
+                  _Row(
+                    label: 'Entry probability',
+                    value: CallsFormat.probability(receipt.entryProbability),
+                  ),
+                if (receipt.entryPrice case final price?) ...[
+                  _Row(
+                    label: 'YES at call',
+                    value: CallsFormat.sharePrice(price.yesPrice),
+                    wrap: true,
+                  ),
+                  _Row(
+                    label: 'NO at call',
+                    value: CallsFormat.sharePrice(price.noPrice),
+                    wrap: true,
+                  ),
+                  _Row(
+                    label: 'Price observed',
+                    value: CallsFormat.timestampUtc(price.observedAtUtc),
+                    wrap: true,
+                  ),
+                  _Row(
+                    label: 'Price source',
+                    value: SharePriceSnapshot.attribution,
+                  ),
+                  _Row(label: 'Price record', value: price.id, wrap: true),
+                  const _Row(
+                    label: 'Price type',
+                    value: 'Indicative, not a trade quote',
+                    wrap: true,
+                  ),
+                ],
                 if (receipt.resolvedAt != null)
                   _Row(
                     label: 'Resolved',

@@ -35,9 +35,7 @@ class CallsOfflineException extends CallsException {
 /// The action requires a signed-in canonical user. Reading never throws this;
 /// only writing does. Wallet is **not** what is being asked for.
 class CallsSignedOutException extends CallsException {
-  const CallsSignedOutException([
-    super.message = 'Sign in to make this call.',
-  ]);
+  const CallsSignedOutException([super.message = 'Sign in to make this call.']);
 }
 
 /// The request was understood and refused (closed market, thesis too long,
@@ -195,6 +193,7 @@ class CrowdSplit {
 
 /// Everything the market detail screen renders.
 class MarketDetail {
+  final SharePriceSnapshot? sharePrice;
   final VenueMarket market;
 
   /// The venue's latest published price. Null when never synced.
@@ -211,6 +210,7 @@ class MarketDetail {
   final bool fromCache;
 
   const MarketDetail({
+    this.sharePrice,
     required this.market,
     required this.snapshot,
     required this.servedAt,
@@ -411,10 +411,7 @@ abstract class CallsRepository {
   });
 
   /// One call plus its lineage and responses. Used by deep links.
-  Future<CallDetail> fetchCall({
-    required String callId,
-    String? viewerUserId,
-  });
+  Future<CallDetail> fetchCall({required String callId, String? viewerUserId});
 
   /// One person plus their calls. Used by deep links.
   Future<PersonDetail> fetchPerson({

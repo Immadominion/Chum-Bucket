@@ -177,6 +177,7 @@ enum FundingState {
 
 /// Must match the backend's VenueId. Unknown providers still fail closed.
 enum MarketVenue {
+  panta('panta', 'Panta'),
   jupiter('jupiter', 'Jupiter'),
   polymarket('polymarket', 'Polymarket'),
   fixture('fixture', 'Demo catalog');
@@ -190,6 +191,7 @@ enum MarketVenue {
   bool get isDemo => this == MarketVenue.fixture;
 
   static MarketVenue fromWire(Object? value) => switch (value) {
+    'panta' => MarketVenue.panta,
     'jupiter' => MarketVenue.jupiter,
     'polymarket' => MarketVenue.polymarket,
     'fixture' => MarketVenue.fixture,
@@ -514,11 +516,112 @@ class MarketSnapshot {
 // Call, response, result
 // ---------------------------------------------------------------------------
 
-/// `interface Call` — contract §3.
-///
-/// A call is **not** a trade. It is a free, immutable, timestamped statement by
-/// a person. Immutable after [lockedAt]: `marketId`, `side`, `entryProbability`,
-/// `snapshotId`, `createdAt` and the free/funded provenance.
+/// Independent, non-executable unit prices. Never convert to percent or infer
+/// one side from the other; strings preserve provider precision exactly.
+class SharePriceSnapshot {
+  final String id;
+  final String marketId;
+  final String? yesPrice;
+  final String? noPrice;
+  final int observedAt;
+  const SharePriceSnapshot({
+    required this.id,
+    required this.marketId,
+    required this.yesPrice,
+    required this.noPrice,
+    required this.observedAt,
+  });
+
+  static const attribution = 'Powered by Panta';
+  static final _decimal = RegExp(r'^(0|[1-9]\d{0,30})(\.\d{1,18})?$');
+  static final _uuid = RegExp(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+  );
+  String? priceFor(Side side) => side == Side.yes ? yesPrice : noPrice;
+  DateTime get observedAtUtc =>
+      DateTime.fromMillisecondsSinceEpoch(observedAt, isUtc: true);
+  bool isUsableAt(DateTime now) =>
+      yesPrice != null &&
+      noPrice != null &&
+      !observedAtUtc.isAfter(now.toUtc()) &&
+      now.toUtc().difference(observedAtUtc) <= const Duration(minutes: 10);
+
+  factory SharePriceSnapshot.fromJson(Map<String, dynamic> json) {
+    const keys = {
+      'id',
+      'marketId',
+      'venue',
+      'currency',
+      'unit',
+      'yesPrice',
+      'noPrice',
+      'observedAt',
+      'source',
+      'attribution',
+      'executable',
+    };
+    if (json.length != keys.length ||
+        !json.keys.every(keys.contains) ||
+        json['venue'] != 'panta' ||
+        json['currency'] != 'USDC' ||
+        json['unit'] != 'per_share' ||
+        json['source'] != 'venue' ||
+        json['attribution'] != attribution ||
+        json['executable'] != false) {
+      throw const CallVocabularyException('Invalid Panta share-price contract');
+    }
+    String? price(Object? v) {
+      if (v == null) return null;
+      if (v is! String || !_decimal.hasMatch(v)) {
+        throw const CallVocabularyException(
+          'Invalid share-price decimal string',
+        );
+      }
+      return v;
+    }
+
+    final id = _requireString(json['id'], 'SharePriceSnapshot.id');
+    final market = _requireString(
+      json['marketId'],
+      'SharePriceSnapshot.marketId',
+    );
+    final time = _requireTimestampMs(
+      json['observedAt'],
+      'SharePriceSnapshot.observedAt',
+    );
+    if (!_uuid.hasMatch(id) ||
+        !_uuid.hasMatch(market) ||
+        time <= 0 ||
+        time > 9007199254740991) {
+      throw const CallVocabularyException(
+        'Invalid share-price identity or timestamp',
+      );
+    }
+    return SharePriceSnapshot(
+      id: id,
+      marketId: market,
+      yesPrice: price(json['yesPrice']),
+      noPrice: price(json['noPrice']),
+      observedAt: time,
+    );
+  }
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'marketId': marketId,
+    'venue': 'panta',
+    'currency': 'USDC',
+    'unit': 'per_share',
+    'yesPrice': yesPrice,
+    'noPrice': noPrice,
+    'observedAt': observedAt,
+    'source': 'venue',
+    'attribution': attribution,
+    'executable': false,
+  };
+}
+
+/// A free, immutable statement, not a trade. Native price evidence is additive;
+/// historical probability evidence retains its original meaning.
 class Call {
   final String id;
 
@@ -534,6 +637,7 @@ class Call {
   final String? thesis;
   final double? entryProbability;
   final String? snapshotId;
+  final SharePriceSnapshot? entryPrice;
   final CallVisibility visibility;
   final int createdAt;
 
@@ -555,6 +659,7 @@ class Call {
     required this.thesis,
     required this.entryProbability,
     required this.snapshotId,
+    this.entryPrice,
     required this.visibility,
     required this.createdAt,
     required this.lockedAt,
@@ -571,6 +676,28 @@ class Call {
   bool get isLocked => true;
 
   factory Call.fromJson(Map<String, dynamic> json) {
+    final native = json['entryPrice'];
+    if (native != null && native is! Map<String, dynamic>) {
+      throw const CallVocabularyException('Call.entryPrice must be an object');
+    }
+    final entryPrice =
+        native == null
+            ? null
+            : SharePriceSnapshot.fromJson(native as Map<String, dynamic>);
+    if (entryPrice != null &&
+        (entryPrice.marketId != json['marketId'] ||
+            json['entryProbability'] != null ||
+            json['snapshotId'] != null ||
+            !entryPrice.isUsableAt(
+              DateTime.fromMillisecondsSinceEpoch(
+                _requireTimestampMs(json['lockedAt'], 'Call.lockedAt'),
+                isUtc: true,
+              ),
+            ))) {
+      throw const CallVocabularyException(
+        'Call share-price provenance mismatch',
+      );
+    }
     final thesis = json['thesis'] as String?;
     if (thesis != null && thesis.length > kThesisMaxLength) {
       throw CallVocabularyException(
@@ -589,6 +716,7 @@ class Call {
         'Call.entryProbability',
       ),
       snapshotId: json['snapshotId'] as String?,
+      entryPrice: entryPrice,
       visibility: CallVisibility.fromWire(json['visibility']),
       createdAt: _requireTimestampMs(json['createdAt'], 'Call.createdAt'),
       lockedAt: _requireTimestampMs(json['lockedAt'], 'Call.lockedAt'),
@@ -606,6 +734,7 @@ class Call {
     'thesis': thesis,
     'entryProbability': entryProbability,
     'snapshotId': snapshotId,
+    if (entryPrice != null) 'entryPrice': entryPrice!.toJson(),
     'visibility': visibility.wire,
     'createdAt': createdAt,
     'lockedAt': lockedAt,

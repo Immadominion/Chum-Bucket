@@ -35,8 +35,7 @@ Future<CallResponseResult?> showCallResponseSheet({
 }) {
   return showChumbucketWavySheet<CallResponseResult>(
     context: context,
-    builder:
-        (_) => CallResponseSheet(entry: entry, initialKind: initialKind),
+    builder: (_) => CallResponseSheet(entry: entry, initialKind: initialKind),
   );
 }
 
@@ -44,11 +43,7 @@ class CallResponseSheet extends StatefulWidget {
   final CallFeedEntry entry;
   final CallResponseKind? initialKind;
 
-  const CallResponseSheet({
-    super.key,
-    required this.entry,
-    this.initialKind,
-  });
+  const CallResponseSheet({super.key, required this.entry, this.initialKind});
 
   @override
   State<CallResponseSheet> createState() => _CallResponseSheetState();
@@ -194,7 +189,9 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14.r),
-                          borderSide: const BorderSide(color: AppColors.primary),
+                          borderSide: const BorderSide(
+                            color: AppColors.primary,
+                          ),
                         ),
                       ),
                     ),
@@ -270,6 +267,10 @@ class _TheirCall extends StatelessWidget {
                 side: entry.call.side,
                 label: entry.market.labelFor(entry.call.side),
               ),
+              if (entry.call.entryPrice != null)
+                Text(
+                  'Called at ${CallsFormat.sharePrice(entry.call.entryPrice!.priceFor(entry.call.side))} · ${SharePriceSnapshot.attribution}',
+                ),
               if (entry.call.entryProbability != null)
                 CallBadge(
                   label:
@@ -430,7 +431,11 @@ class _NoEscrowBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          BasilIcon('info-circle-outline', size: 16.w, color: AppColors.textSecondary),
+          BasilIcon(
+            'info-circle-outline',
+            size: 16.w,
+            color: AppColors.textSecondary,
+          ),
           SizedBox(width: 8.w),
           Expanded(
             child: Text(

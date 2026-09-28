@@ -82,6 +82,12 @@ class CallCard extends StatelessWidget {
                     ),
                     // Entry probability — the price THIS person locked at.
                     // Never the current crowd number.
+                    if (call.entryPrice != null)
+                      CallBadge(
+                        label:
+                            'Called at ${CallsFormat.sharePrice(call.entryPrice!.priceFor(call.side))}',
+                        color: AppColors.textSecondary,
+                      ),
                     if (call.entryProbability != null)
                       CallBadge(
                         label:
@@ -228,11 +234,7 @@ class _FooterRow extends StatelessWidget {
   final VoidCallback? onRespond;
   final VoidCallback? onShareReceipt;
 
-  const _FooterRow({
-    required this.entry,
-    this.onRespond,
-    this.onShareReceipt,
-  });
+  const _FooterRow({required this.entry, this.onRespond, this.onShareReceipt});
 
   @override
   Widget build(BuildContext context) {

@@ -11,6 +11,12 @@ import 'package:chumbucket/features/calls/data/call_models.dart';
 
 class CallsFormat {
   CallsFormat._();
+  static String sharePrice(String? value) =>
+      value == null ? 'Unavailable' : '$value USDC/share';
+  static String nativePrices(SharePriceSnapshot? value) =>
+      value == null
+          ? 'Panta prices unavailable. Refresh before calling.'
+          : 'YES ${sharePrice(value.yesPrice)} · NO ${sharePrice(value.noPrice)}';
 
   static final DateFormat _absolute = DateFormat('d MMM yyyy, HH:mm');
   static final DateFormat _absoluteShort = DateFormat('d MMM, HH:mm');
@@ -64,19 +70,24 @@ class CallsFormat {
 
   /// Attribution line for a market: which venue, and whether it is demo data.
   static String venueAttribution(VenueMarket market) =>
-      market.venue.isDemo
+      market.venue == MarketVenue.panta
+          ? SharePriceSnapshot.attribution
+          : market.venue.isDemo
           ? 'Demo catalog · not a live market'
           : 'Priced by ${market.venue.label}';
 
   /// Self-reported confidence, worded so it can never read as a crowd number.
   static String confidence(double? value) =>
-      value == null ? 'No confidence stated' : 'Called it ${probability(value)} likely';
+      value == null
+          ? 'No confidence stated'
+          : 'Called it ${probability(value)} likely';
 
   /// One-line, non-confusable status for a person's call.
   static String outcomeSentence(CallOutcome outcome) => switch (outcome) {
     CallOutcome.pending => 'Pending — the venue has not published a result',
     CallOutcome.correct => 'Correct',
     CallOutcome.incorrect => 'Incorrect',
-    CallOutcome.voided => 'Void — the market was cancelled. Not a win, not a loss',
+    CallOutcome.voided =>
+      'Void — the market was cancelled. Not a win, not a loss',
   };
 }

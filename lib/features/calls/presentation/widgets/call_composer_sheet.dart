@@ -27,6 +27,7 @@ Future<CallFeedEntry?> showCallComposer({
   required BuildContext context,
   required VenueMarket market,
   MarketSnapshot? snapshot,
+  SharePriceSnapshot? sharePrice,
   Side? initialSide,
   String? parentCallId,
   String? headline,
@@ -37,6 +38,7 @@ Future<CallFeedEntry?> showCallComposer({
         (_) => CallComposerSheet(
           market: market,
           snapshot: snapshot,
+          sharePrice: sharePrice,
           initialSide: initialSide,
           parentCallId: parentCallId,
           headline: headline,
@@ -47,6 +49,7 @@ Future<CallFeedEntry?> showCallComposer({
 class CallComposerSheet extends StatefulWidget {
   final VenueMarket market;
   final MarketSnapshot? snapshot;
+  final SharePriceSnapshot? sharePrice;
   final Side? initialSide;
   final String? parentCallId;
   final String? headline;
@@ -55,6 +58,7 @@ class CallComposerSheet extends StatefulWidget {
     super.key,
     required this.market,
     this.snapshot,
+    this.sharePrice,
     this.initialSide,
     this.parentCallId,
     this.headline,
@@ -79,6 +83,15 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
   }
 
   Future<void> _submit() async {
+    if (widget.market.venue == MarketVenue.panta &&
+        !(widget.sharePrice?.isUsableAt(DateTime.now()) ?? false)) {
+      setState(
+        () =>
+            _error =
+                'Panta prices are missing or stale. Refresh this market before calling.',
+      );
+      return;
+    }
     final side = _side;
     if (side == null) {
       setState(() => _error = 'Pick a side first.');
@@ -171,7 +184,11 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
               // The venue's price, attributed and aged. This is what the call
               // gets stamped with — it is NOT how the crowd here called it.
               Text(
-                snapshot == null
+                market.venue == MarketVenue.panta
+                    ? '${CallsFormat.nativePrices(widget.sharePrice)} · ${SharePriceSnapshot.attribution}'
+                        '${widget.sharePrice == null ? '' : ' · Observed ${CallsFormat.timestampUtc(widget.sharePrice!.observedAtUtc)}'}'
+                        ' · Indicative, not a trade quote'
+                    : snapshot == null
                     ? 'No venue price published — your call locks without one.'
                     : 'Venue price: Yes ${CallsFormat.probability(snapshot.yesProbability)} · '
                         'No ${CallsFormat.probability(snapshot.noProbability)} · '
@@ -186,7 +203,8 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
 
               _OptionalSection(
                 title: 'How sure are you?',
-                subtitle: 'Optional. Yours, self-reported — nobody else\'s number.',
+                subtitle:
+                    'Optional. Yours, self-reported — nobody else\'s number.',
                 enabled: _useConfidence,
                 onChanged: (v) => setState(() => _useConfidence = v),
                 child: Column(
