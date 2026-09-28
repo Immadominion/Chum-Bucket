@@ -1,5 +1,11 @@
 # Panta — what the live API actually is
 
+> **Current product decision (28 September): Panta only.** No Polymarket
+> discovery/Jupiter execution split and no alternate-provider fallback. This
+> supersedes the recommendations below and the original roadmap's provider
+> choice. The API product branch now enforces it; production has not been
+> switched. See `../checkpoints/2026-09-28-panta-only.md` for remaining gates.
+>
 > Historical investigation below, not the current implementation status.
 > On 28 September the API product branch gained a live-tested **read-only**
 > `PantaVenue` adapter. Production and the phone still use the prior provider.

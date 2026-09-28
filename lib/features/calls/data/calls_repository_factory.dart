@@ -28,10 +28,9 @@ enum CallsBackend {
       case 'bff':
       case '':
       case null:
-        // Real by default. The BFF is deployed and serving live Polymarket
-        // markets, so a build with no --dart-define should talk to it rather
-        // than to a seeded catalog — the mock is for tests and offline work,
-        // and shipping it by accident is how invented data reaches a person.
+        // The configured BFF, not a seeded catalog, is the default. Panta is
+        // the only intended live provider; completing and deploying that
+        // backend migration is a separate gate, not something this flag proves.
         return CallsBackend.bff;
       default:
         // An unrecognised value is a configuration mistake. Falling back to the
@@ -53,8 +52,8 @@ enum CallsBackend {
 
 /// Resolves the configured backend.
 ///
-/// Defaults to [CallsBackend.bff] — the deployed backend serving real
-/// Polymarket markets. The mock remains reachable with
+/// Defaults to [CallsBackend.bff]. This chooses a transport, not a venue, and
+/// does not certify deployment readiness. The mock remains reachable with
 /// `--dart-define=CALLS_BACKEND=mock` for tests and offline work.
 CallsBackend resolveCallsBackend({Map<String, String>? overrides}) {
   final raw =
