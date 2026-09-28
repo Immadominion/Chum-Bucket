@@ -89,8 +89,8 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
             ),
             MenuTile(
               basilIcon: 'user-plus-outline',
-              title: "Link Google or X",
-              subtitle: "Put a name behind your calls",
+              title: "Link Google",
+              subtitle: "Keep your existing profile and history",
               onTap: () => _showIdentityLink(context),
               iconColor: Theme.of(context).colorScheme.primary,
             ),

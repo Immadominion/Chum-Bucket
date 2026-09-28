@@ -49,6 +49,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'package:chumbucket/features/authentication/session/session_state.dart';
+import 'existing_account_proof.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_transport.dart'
     show normalizeCallsBffBaseUrl, resolveCallsBffBaseUrl;
 
@@ -105,6 +106,56 @@ class SessionBffClient {
     return _identityFrom(data);
   }
 
+  Future<ExistingAccountProof> requestExistingAccountProof(
+    String accessToken, {
+    required String address,
+    required String network,
+  }) async => ExistingAccountProof.parse(
+    await _send(
+      'auth.requestExistingAccountProof',
+      method: 'POST',
+      bearer: accessToken,
+      input: {
+        'supabaseAccessToken': accessToken,
+        'address': address,
+        'domain': accountClaimDomain,
+        'uri': accountClaimUri,
+      },
+    ),
+    address: address,
+    network: network,
+  );
+
+  Future<SessionIdentity> claimExistingAccount(
+    String accessToken, {
+    required String address,
+    required ExistingAccountProof proof,
+    required String signature,
+  }) async {
+    proof.checkFresh();
+    final data = await _send(
+      'auth.claimExistingAccount',
+      method: 'POST',
+      bearer: accessToken,
+      input: {
+        'supabaseAccessToken': accessToken,
+        'address': address,
+        'message': proof.message,
+        'signature': signature,
+      },
+    );
+    if (data is! Map ||
+        !['claimed', 'already_claimed'].contains(data['outcome'])) {
+      throw const SessionException(
+        SessionError.network(
+          'The server could not confirm the account link. Retry from Settings.',
+          code: SessionErrorCode.unreadable,
+        ),
+      );
+    }
+    return _identityFrom(data);
+  }
+
   /// Explicitly creates a person for the VERIFIED session; no wallet or
   /// client-supplied user id is sent. Credentials remain outside the URL.
   Future<SessionIdentity> completeProfile(
@@ -157,8 +208,16 @@ class SessionBffClient {
       enabled: map['enabled'] == true,
       network: map['network'] is String ? map['network'] as String : 'unknown',
       proofVersion: (map['proofVersion'] as num?)?.toInt() ?? 0,
+      existingAccountClaimsEnabled: map['existingAccountClaimsEnabled'] == true,
+      allowedDomains: _strings(map['allowedDomains']),
+      allowedUris: _strings(map['allowedUris']),
     );
   }
+
+  static List<String> _strings(Object? value) =>
+      value is List && value.every((v) => v is String)
+          ? List<String>.unmodifiable(value.cast<String>())
+          : const [];
 
   /// Closes the client, but only if this object created it. A caller that
   /// injected its own keeps ownership.
@@ -184,13 +243,17 @@ class SessionBffClient {
 
     final http.Response response;
     try {
-      response = await (method == 'GET'
-              ? _client.get(uri, headers: headers)
-              : _client.post(
-                uri,
-                headers: headers,
-                body: jsonEncode({'json': input ?? const {}}),
-              ))
+      // A redirect must never forward the credential/proof body to a new host.
+      final request =
+          http.Request(method, uri)
+            ..followRedirects = false
+            ..headers.addAll(headers);
+      if (method != 'GET') {
+        request.body = jsonEncode({'json': input ?? const {}});
+      }
+      response = await _client
+          .send(request)
+          .then(http.Response.fromStream)
           .timeout(_timeout);
     } on SessionException {
       rethrow;
@@ -328,6 +391,33 @@ SessionError sessionErrorForTrpcError({
   }
 
   switch (detail) {
+    case 'ACCOUNT_CLAIMS_DISABLED':
+      return const SessionError.refused(
+        'Google linking is not available in this build yet. Your existing account is unchanged.',
+        code: 'ACCOUNT_CLAIMS_DISABLED',
+      );
+    case 'ACCOUNT_CLAIM_UNAVAILABLE':
+      return const SessionError.refused(
+        'This account needs an ownership review before Google can be linked. Contact support; do not create another profile.',
+        code: 'ACCOUNT_CLAIM_UNAVAILABLE',
+      );
+    case 'ACCOUNT_CLAIM_CONFLICT':
+      return const SessionError.refused(
+        'These sign-ins belong to different accounts. Nothing was merged. Contact support.',
+        code: 'ACCOUNT_CLAIM_CONFLICT',
+      );
+    case 'ACCOUNT_CLAIM_RATE_LIMITED':
+      return const SessionError.refused(
+        'Too many linking attempts. Wait a minute before trying again.',
+        code: 'ACCOUNT_CLAIM_RATE_LIMITED',
+      );
+    case 'NONCE_EXPIRED':
+    case 'NONCE_REUSED':
+    case 'NONCE_UNKNOWN':
+      return SessionError.refused(
+        'This wallet proof is no longer valid. Try linking Google again.',
+        code: detail,
+      );
     case SessionErrorCode.userUnlinked:
       return const SessionError.refused(
         "You're signed in, but this account isn't set up yet. "

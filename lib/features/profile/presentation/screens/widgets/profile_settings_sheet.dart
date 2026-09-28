@@ -159,8 +159,8 @@ class ProfileSettingsSheet extends StatelessWidget {
 
                           ProfileMenuItem(
                             basilIcon: 'user-outline',
-                            title: 'Link Google or X',
-                            subtitle: 'Put a name behind your calls',
+                            title: 'Link Google',
+                            subtitle: 'Keep your existing profile and history',
                             iconColor: AppColors.primary,
                             onTap: () => _showIdentityLink(context),
                           ),

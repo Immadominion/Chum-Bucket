@@ -1,10 +1,6 @@
-/// `ChumbucketSession` — the app's primary identity.
-///
-/// Before this existed the mobile app had no primary auth at all: the only
-/// Supabase sign-in in the codebase is `ArenaProvider.linkOAuthIdentity`, which
-/// *links* a Google account onto a wallet that is already connected. That is a
-/// linking flow, not a way in. `calls.create` needs a verified Supabase
-/// session, so with no primary auth nobody could make a call.
+/// Optional Supabase credential for the call/receipt surface. The existing
+/// app entry remains MWA. Settings links Google to that SAME canonical person
+/// through a server-verified ownership proof, never through profile creation.
 ///
 /// ## The chain this class owns
 ///
@@ -52,6 +48,8 @@ import 'package:flutter/foundation.dart';
 import 'package:chumbucket/features/authentication/session/session_bff_client.dart';
 import 'package:chumbucket/features/authentication/session/session_state.dart';
 import 'package:chumbucket/features/authentication/session/supabase_auth_port.dart';
+import 'app_session_persistence.dart';
+import 'existing_account_proof.dart';
 
 /// How long to wait for the OAuth callback before giving up.
 ///
@@ -92,6 +90,13 @@ class ChumbucketSession extends ChangeNotifier {
   bool _acceptAuthEvents = true;
   bool _disposed = false;
   int _sessionEpoch = 0;
+  bool _linkingExistingAccount = false;
+  bool _existingLinkOAuthStarted = false;
+  bool _existingLinkInvalidated = false;
+  SessionError? _existingLinkError;
+
+  bool get isLinkingExistingAccount => _linkingExistingAccount;
+  SessionError? get existingLinkError => _existingLinkError;
 
   SupabaseSessionSnapshot? _session;
   SessionIdentity? _identity;
@@ -151,6 +156,7 @@ class ChumbucketSession extends ChangeNotifier {
   /// server is the authority on whether it is still good, and a local guess
   /// that says "signed out" would be a worse lie than a 401.
   Future<String?> bffAuthToken() async {
+    if (_linkingExistingAccount) return null;
     final epoch = _sessionEpoch;
     final held = _session;
     if (held == null) return null;
@@ -174,7 +180,7 @@ class ChumbucketSession extends ChangeNotifier {
   /// already restored from storage, and resolves it to a canonical user. Safe
   /// to call more than once; the subscription is made exactly once.
   Future<void> restore() async {
-    if (_disposed || !_acceptAuthEvents) return;
+    if (_disposed || !_acceptAuthEvents || _linkingExistingAccount) return;
     _ensureSubscribed();
     final existing = _auth.currentSession;
     if (existing == null) {
@@ -201,6 +207,7 @@ class ChumbucketSession extends ChangeNotifier {
   /// [SessionStatus.failed].
   Future<void> signInWithGoogle() async {
     if (_disposed ||
+        _linkingExistingAccount ||
         _signingOut != null ||
         _status == SessionStatus.signingIn) {
       return;
@@ -269,6 +276,7 @@ class ChumbucketSession extends ChangeNotifier {
   /// the remedy for [SessionErrorCode.userUnlinked] once the account has been
   /// set up elsewhere. A no-op when signed out.
   Future<void> retryIdentity() async {
+    if (_linkingExistingAccount) return;
     if (_session == null) {
       _applySignedOut();
       return;
@@ -279,6 +287,7 @@ class ChumbucketSession extends ChangeNotifier {
   /// Creates a new social profile only after the person explicitly chooses a
   /// public name. Existing wallet accounts are not claimed or merged here.
   Future<void> completeProfile(String displayName) async {
+    if (_linkingExistingAccount) return;
     final held = _session;
     if (held == null || isBusy || isReady) return;
     final name = displayName.trim();
@@ -324,6 +333,191 @@ class ChumbucketSession extends ChangeNotifier {
     } on SessionException {
       return null;
     }
+  }
+
+  /// Settings-only account continuity flow. Never creates a profile, changes
+  /// the connected wallet, or publishes a different Google's canonical id.
+  Future<bool> linkExistingAccount(ExistingAccountWallet wallet) async {
+    if (_disposed || _signingOut != null || isBusy || _linkingExistingAccount) {
+      return false;
+    }
+    _linkingExistingAccount = true;
+    _existingLinkInvalidated = false;
+    _existingLinkError = null;
+    final epoch = ++_sessionEpoch;
+    final address = wallet.address;
+    final network = wallet.network;
+    final persistence = AppSessionPersistence.current;
+    void checkCurrent() {
+      if (_disposed ||
+          epoch != _sessionEpoch ||
+          _existingLinkInvalidated ||
+          !wallet.isCurrent ||
+          wallet.address != address ||
+          wallet.network != network) {
+        throw accountChangedError;
+      }
+    }
+
+    _notify();
+    var openedOAuth = false;
+    try {
+      checkCurrent();
+      final capability = await _bff.identityStatus();
+      checkCurrent();
+      if (!capability.enabled || !capability.existingAccountClaimsEnabled) {
+        throw SessionException(
+          sessionErrorForTrpcError(
+            statusCode: 412,
+            message: 'ACCOUNT_CLAIMS_DISABLED',
+          ),
+        );
+      }
+      if (capability.proofVersion != 1 ||
+          capability.network != network ||
+          !capability.allowedDomains.contains(accountClaimDomain) ||
+          !capability.allowedUris.contains(accountClaimUri)) {
+        throw accountClaimUnreadable;
+      }
+      final expectedUserId = await wallet.expectedUserId();
+      checkCurrent();
+      if (expectedUserId == null || expectedUserId.isEmpty) {
+        throw SessionException(
+          sessionErrorForTrpcError(
+            statusCode: 412,
+            message: 'ACCOUNT_CLAIM_UNAVAILABLE',
+          ),
+        );
+      }
+
+      // Do not let the general OAuth listener resolve an unrelated Google
+      // account into the Calls viewer while this wallet's claim is pending.
+      _acceptAuthEvents = true;
+      _ensureSubscribed();
+      _identity = null;
+      _session = null;
+      _status = SessionStatus.signingIn;
+      _error = null;
+      final pending = Completer<SupabaseSessionSnapshot?>();
+      _pendingSignIn = pending;
+      openedOAuth = true;
+      await persistence?.beginAccountLink();
+      checkCurrent();
+      _existingLinkOAuthStarted = true;
+      _notify();
+      final launched = await _auth.startGoogleSignIn(redirectTo: _redirectTo);
+      checkCurrent();
+      if (!launched) {
+        throw const SessionException(
+          SessionError.refused(
+            'Google sign-in did not open. Try again.',
+            code: SessionErrorCode.oauthCancelled,
+          ),
+        );
+      }
+      final candidate = await pending.future.timeout(_oauthTimeout);
+      checkCurrent();
+      if (candidate == null) throw accountChangedError;
+      _status = SessionStatus.identityPending;
+      _notify();
+
+      // Stop a known conflict before asking the wallet to sign anything.
+      try {
+        final existing = await _bff.whoami(candidate.accessToken);
+        checkCurrent();
+        _requireExistingPerson(existing, expectedUserId, candidate.authUserId);
+      } on SessionException catch (e) {
+        if (!e.error.isUnlinked) rethrow;
+      }
+      checkCurrent();
+      final proof = await _bff.requestExistingAccountProof(
+        candidate.accessToken,
+        address: address,
+        network: network,
+      );
+      checkCurrent();
+      proof.checkFresh();
+      final signature = await wallet
+          .signClaim(proof.message)
+          .timeout(_oauthTimeout);
+      checkCurrent();
+      proof.checkFresh();
+      final claimed = await _bff.claimExistingAccount(
+        candidate.accessToken,
+        address: address,
+        proof: proof,
+        signature: signature,
+      );
+      checkCurrent();
+      _requireExistingPerson(claimed, expectedUserId, candidate.authUserId);
+      final confirmed = await _bff.whoami(candidate.accessToken);
+      checkCurrent();
+      _requireExistingPerson(confirmed, expectedUserId, candidate.authUserId);
+      await persistence?.completeAccountLink(candidate.authUserId);
+      checkCurrent();
+      _identity = confirmed;
+      _status = SessionStatus.ready;
+      _error = null;
+      return true;
+    } catch (error) {
+      if (!_disposed && epoch == _sessionEpoch) {
+        _existingLinkError =
+            error is SessionException
+                ? error.error
+                : const SessionError.refused(
+                  'Linking did not finish. Reopen Settings to try again.',
+                  code: 'ACCOUNT_LINK_CANCELLED',
+                );
+      }
+      // A rejected/cancelled candidate must not be restored into this wallet's
+      // account tree on a later token refresh or browser callback. This clears
+      // Google only, never the old wallet/profile/history. Logout owns cleanup
+      // if it already changed the epoch (do not clear a newer account).
+      if (openedOAuth && !_disposed && epoch == _sessionEpoch) {
+        _acceptAuthEvents = false;
+        _session = null;
+        _identity = null;
+        _status = SessionStatus.signedOut;
+        _error = null;
+        try {
+          await persistence?.clearForSignOut();
+          if (!_disposed && epoch == _sessionEpoch) await _endAuthSession();
+        } catch (_) {
+          // Storage errors never expose a credential; the listener stays locked.
+        }
+      }
+      return false;
+    } finally {
+      _completePending(null);
+      _pendingSignIn = null;
+      _existingLinkOAuthStarted = false;
+      _linkingExistingAccount = false;
+      _notify();
+    }
+  }
+
+  static void _requireExistingPerson(
+    SessionIdentity identity,
+    String person,
+    String subject,
+  ) {
+    if (identity.userId != person || identity.authUserId != subject) {
+      throw SessionException(
+        sessionErrorForTrpcError(
+          statusCode: 409,
+          message: 'ACCOUNT_CLAIM_CONFLICT',
+        ),
+      );
+    }
+  }
+
+  /// The Settings sheet was dismissed. Invalidate synchronously; its pending
+  /// operation performs Google cleanup and cannot submit a late wallet reply.
+  void cancelExistingAccountLink() {
+    if (!_linkingExistingAccount) return;
+    _existingLinkInvalidated = true;
+    _acceptAuthEvents = false;
+    _completePending(null);
   }
 
   /// End the session. Local state is cleared even if the provider call fails —
@@ -383,6 +577,34 @@ class ChumbucketSession extends ChangeNotifier {
 
   void _onAuthEvent(SupabaseAuthEvent event) {
     if (_disposed || !_acceptAuthEvents) return;
+    if (_linkingExistingAccount) {
+      if (!_existingLinkOAuthStarted) return;
+      if (event.kind == SupabaseAuthEventKind.signedOut) {
+        _completePending(null);
+        _applySignedOut();
+        _acceptAuthEvents = false;
+      } else if (event.kind == SupabaseAuthEventKind.signedIn ||
+          event.kind == SupabaseAuthEventKind.tokenRefreshed) {
+        final incoming = event.session;
+        if (incoming == null) return;
+        final held = _session;
+        if (held != null && held.authUserId != incoming.authUserId) {
+          // Includes A -> B -> A: the original operation never becomes current again.
+          _completePending(null);
+          _existingLinkInvalidated = true;
+          _session = null;
+          _identity = null;
+          _acceptAuthEvents = false;
+          return;
+        }
+        if (held == null && event.kind != SupabaseAuthEventKind.signedIn) {
+          return;
+        }
+        _session = incoming;
+        _completePending(incoming);
+      }
+      return;
+    }
     switch (event.kind) {
       case SupabaseAuthEventKind.signedOut:
         _completePending(null);

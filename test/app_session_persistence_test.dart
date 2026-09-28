@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/authentication/session/app_session_persistence.dart';
 import 'package:chumbucket/features/authentication/session/supabase_auth_port.dart';
@@ -37,6 +38,97 @@ class MemorySessionStorage extends LocalStorage {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  String googleSession(String subject) => jsonEncode({
+    'access_token': 'synthetic-only',
+    'user': {'id': subject},
+  });
+  test(
+    'unverified Google candidate never reaches disk, including after interactive launch',
+    () async {
+      final memory =
+          MemorySessionStorage()..value = googleSession('old-subject');
+      final storage = AppSessionPersistence(memory);
+      await storage.beginAccountLink();
+      storage.beginInteractiveSignIn();
+      await storage.persistSession(googleSession('candidate'));
+      expect(memory.value, isNull);
+      // A fresh process sees no Google credential; old wallet keys are separate.
+      expect(await AppSessionPersistence(memory).hasAccessToken(), isFalse);
+      await storage.completeAccountLink('candidate');
+      expect(memory.value, googleSession('candidate'));
+      expect(await storage.hasAccessToken(), isTrue);
+    },
+  );
+  test('candidate from another Google subject cannot be persisted', () async {
+    final memory = MemorySessionStorage();
+    final storage = AppSessionPersistence(memory);
+    await storage.beginAccountLink();
+    await storage.persistSession(googleSession('other'));
+    await expectLater(
+      storage.completeAccountLink('expected'),
+      throwsStateError,
+    );
+    expect(memory.value, isNull);
+  });
+  test(
+    'missing or malformed SDK candidate fails closed without raw error text',
+    () async {
+      final memory = MemorySessionStorage();
+      final storage = AppSessionPersistence(memory);
+      await storage.beginAccountLink();
+      await expectLater(
+        storage.completeAccountLink('expected'),
+        throwsStateError,
+      );
+      await storage.persistSession('synthetic-secret-not-json');
+      await expectLater(
+        storage.completeAccountLink('expected'),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.toString(),
+            'safe error',
+            isNot(contains('synthetic-secret')),
+          ),
+        ),
+      );
+      expect(memory.value, isNull);
+    },
+  );
+  test('signout serializes after held verified save and removes it', () async {
+    final memory = MemorySessionStorage();
+    final storage = AppSessionPersistence(memory);
+    await storage.beginAccountLink();
+    await storage.persistSession(googleSession('expected'));
+    memory.holdWrite = Completer<void>();
+    final saving = storage.completeAccountLink('expected');
+    await Future<void>.delayed(Duration.zero);
+    final clearing = storage.clearForSignOut();
+    memory.holdWrite!.complete();
+    await saving;
+    await clearing;
+    expect(memory.value, isNull);
+    expect(storage.isLocked, isTrue);
+    await expectLater(
+      storage.completeAccountLink('expected'),
+      throwsStateError,
+    );
+  });
+  test(
+    'only latest staged refresh is persisted after verified claim',
+    () async {
+      final memory = MemorySessionStorage();
+      final storage = AppSessionPersistence(memory);
+      await storage.beginAccountLink();
+      await storage.persistSession(googleSession('expected'));
+      final refreshed = jsonEncode({
+        'access_token': 'synthetic-refreshed',
+        'user': {'id': 'expected'},
+      });
+      await storage.persistSession(refreshed);
+      await storage.completeAccountLink('expected');
+      expect(memory.value, refreshed);
+    },
+  );
   test(
     'a rejected callback also clears the process-wide SDK session',
     () async {

@@ -133,6 +133,9 @@ class MwaAuthProvider extends ChangeNotifier {
   Uint8List? get publicKeyBytes => _authResult?.publicKeyBytes;
   String? get authToken => _authResult?.authToken;
 
+  /// Invalidates account-bound work even after sign-out then reconnecting A -> A.
+  int get authRevision => _authEpoch;
+
   /// Get the user's SNS domain (.sol, .skr) if available
   String? get snsDomain => _authResult?.snsDomain;
 
@@ -193,7 +196,8 @@ class MwaAuthProvider extends ChangeNotifier {
   /// Authorize with a mobile wallet using MWA protocol
   /// This replaces Privy's email-based auth with wallet-based auth
   Future<bool> authorize() async {
-    final epoch = _authEpoch;
+    if (_disposed || _state == MwaAuthState.loading) return false;
+    final epoch = ++_authEpoch;
     log('🚀 Starting MWA authorization', name: 'MwaAuthProvider');
 
     _state = MwaAuthState.loading;
@@ -349,7 +353,9 @@ class MwaAuthProvider extends ChangeNotifier {
         authToken: held!.authToken,
       );
 
-      if (result == null || !_isCurrent(epoch)) {
+      if (result == null ||
+          !_isCurrent(epoch) ||
+          base58encode(result.publicKey) != held.walletAddress) {
         log(
           '⚠️ Reauthorization failed, need full authorization',
           name: 'MwaAuthProvider',
@@ -366,6 +372,7 @@ class MwaAuthProvider extends ChangeNotifier {
         publicKeyBytes: result.publicKey,
         accountLabel: result.accountLabel,
         walletUriBase: result.walletUriBase,
+        snsDomain: held.snsDomain,
       );
 
       await _persistAuthSession();
@@ -397,8 +404,10 @@ class MwaAuthProvider extends ChangeNotifier {
       return null;
     }
 
+    LocalAssociationScenario? session;
+    var handedOff = false;
     try {
-      final session = await LocalAssociationScenario.create();
+      session = await LocalAssociationScenario.create();
       session.startActivityForResult(null).ignore();
       final client = await session.start();
 
@@ -410,8 +419,9 @@ class MwaAuthProvider extends ChangeNotifier {
         authToken: held!.authToken,
       );
 
-      if (result == null || !_isCurrent(epoch)) {
-        await session.close();
+      if (result == null ||
+          !_isCurrent(epoch) ||
+          base58encode(result.publicKey) != held.walletAddress) {
         log('⚠️ Signing session: reauth failed', name: 'MwaAuthProvider');
         return null;
       }
@@ -423,17 +433,26 @@ class MwaAuthProvider extends ChangeNotifier {
         publicKeyBytes: result.publicKey,
         accountLabel: result.accountLabel,
         walletUriBase: result.walletUriBase,
+        snsDomain: held.snsDomain,
       );
       await _persistAuthSession();
       if (!_isCurrent(epoch)) {
-        await session.close();
         return null;
       }
 
+      handedOff = true;
       return MwaSigningSession(session: session, client: client);
     } catch (e) {
       log('❌ Error creating signing session', name: 'MwaAuthProvider');
       return null;
+    } finally {
+      if (!handedOff) {
+        try {
+          await session?.close();
+        } catch (_) {
+          /* No wallet error payload. */
+        }
+      }
     }
   }
 

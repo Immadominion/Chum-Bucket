@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -13,6 +14,8 @@ class AppSessionPersistence extends LocalStorage {
   /// callback after logout must be removed from its memory as well as disk.
   Future<void> Function()? discardLateAuthSession;
   bool _acceptWrites = true;
+  bool _accountLinkPending = false;
+  String? _pendingAccountSession;
   int _epoch = 0;
   bool get isLocked => !_acceptWrites;
   Future<void> _tail = Future.value();
@@ -53,7 +56,13 @@ class AppSessionPersistence extends LocalStorage {
     final epoch = _epoch;
     return _enqueue(() async {
       if (_acceptWrites && epoch == _epoch) {
-        await delegate.persistSession(value);
+        if (_accountLinkPending) {
+          // OAuth candidates remain only in memory until the old canonical
+          // person has been proven. Killing the app cannot restore a candidate.
+          _pendingAccountSession = value;
+        } else {
+          await delegate.persistSession(value);
+        }
       }
     });
   }
@@ -74,12 +83,51 @@ class AppSessionPersistence extends LocalStorage {
   Future<void> clearForSignOut() {
     _epoch++;
     _acceptWrites = false;
+    _accountLinkPending = false;
+    _pendingAccountSession = null;
     return removePersistedSession();
   }
 
   void beginInteractiveSignIn() {
     _epoch++;
     _acceptWrites = true;
+  }
+
+  /// Clear only this project's old Google credential. Wallet/profile/history
+  /// are untouched. Must finish before opening the browser.
+  Future<void> beginAccountLink() {
+    _epoch++;
+    _acceptWrites = true;
+    _accountLinkPending = true;
+    _pendingAccountSession = null;
+    return removePersistedSession();
+  }
+
+  /// Called after claim AND whoami agree on the expected existing person.
+  /// An SDK session for another subject, or a missing SDK save, fails closed.
+  Future<void> completeAccountLink(String authUserId) {
+    final epoch = _epoch;
+    return _enqueue(() async {
+      if (!_acceptWrites || epoch != _epoch || !_accountLinkPending) {
+        throw StateError('Account linking was cancelled');
+      }
+      final value = _pendingAccountSession;
+      try {
+        final parsed = value == null ? null : jsonDecode(value);
+        if (parsed is! Map ||
+            parsed['user'] is! Map ||
+            (parsed['user'] as Map)['id'] != authUserId) {
+          throw const FormatException();
+        }
+      } catch (_) {
+        throw StateError('Account session could not be confirmed');
+      }
+      await delegate.persistSession(value!);
+      if (_acceptWrites && epoch == _epoch) {
+        _accountLinkPending = false;
+        _pendingAccountSession = null;
+      }
+    });
   }
 }
 

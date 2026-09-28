@@ -1,4 +1,4 @@
-# Existing-account claim v1 — server implemented, disabled
+# Existing-account claim v1 — server and Settings implemented, disabled
 
 28 September 2026. This adds a safe bootstrap path; it does not replace the
 existing app entry, profile, wallet, Settings or sign-out flow.
@@ -83,10 +83,11 @@ anchor revocation or identity removal is made.
    evidence, not current client-writable rows. Record a private evidence hash,
    review reference and reviewer in anchors; do not publish evidence or secrets.
    Conflicting/missing evidence stays unavailable for manual recovery.
-4. Integrate through the **existing** Settings Google-link action. Bind the
-   entire operation to the starting wallet/session; discard late completions
-   after sign-out/account changes. Refresh `auth.whoami` and require the returned
-   existing id. Never call `completeProfile` as a fallback.
+4. Settings integration is implemented locally (see
+   `../checkpoints/2026-09-28-settings-account-link.md`). Verify it in the approved
+   test environment: it binds the entire operation to the starting wallet/session,
+   discards late completions, and requires `auth.whoami` to return the expected
+   existing id. It never calls `completeProfile` as a fallback.
 5. Complete MWA/secure-storage work and configured Seeker tests, including
    cancellation, conflict, expiry, retry, sign-out and preservation of old history.
 6. Only with release approval, set `EXISTING_ACCOUNT_CLAIMS_ENABLED=true` (exact
@@ -95,3 +96,32 @@ anchor revocation or identity removal is made.
 
 No migration, anchor approval, provider contact or flag change is authorized by
 this document. Funded trading and venue selection are separate gates.
+
+## Mobile Settings behavior
+
+Both existing Settings menus now lead to the same wavy **Link Google** sheet.
+X is not offered in this P0 flow. The old public-label-only Arena linking method
+is not invoked by Settings. No new profile, navigation destination or account
+merge is introduced; the original MWA app entry and four tabs remain unchanged.
+
+Before opening Google, the app checks capability, pinned domain/URI, proof version,
+network and the existing profile id. The client profile lookup is only a continuity
+check, never server authorization. After Google, an already-linked different
+canonical id is refused before a wallet prompt. Only the exact, locally validated
+13-line server `claim_account` message reaches MWA `signMessages`. The returned
+address, bytes and signature count/length are checked; the server verifies crypto.
+
+Claim response and a fresh `whoami` must both match the expected canonical id and
+the Google auth subject. Google candidates are staged in memory by the existing
+Supabase storage wrapper until that confirmation. A process restart before
+confirmation has no candidate credential to restore. Committing the SDK session
+also checks its subject; cancellation discards it without touching wallet/history.
+
+Credentials/proofs use POST bodies, never query parameters. Identity HTTP requests
+do not follow redirects. No raw provider error, signature, nonce or access token is
+included in UI errors. Unknown proof layouts fail before signing. The account
+revision also invalidates a disconnect/reconnect to the *same* wallet.
+
+If a claim HTTP request has already reached the server, cancelling the UI cannot
+undo that atomic claim. The client discards late replies; a later explicit retry
+can confirm the existing binding. It must not claim the server write was reversed.

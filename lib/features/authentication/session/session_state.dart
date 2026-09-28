@@ -165,11 +165,17 @@ class SessionIdentityStatus {
     required this.enabled,
     required this.network,
     required this.proofVersion,
+    this.existingAccountClaimsEnabled = false,
+    this.allowedDomains = const [],
+    this.allowedUris = const [],
   });
 
   final bool enabled;
   final String network;
   final int proofVersion;
+  final bool existingAccountClaimsEnabled;
+  final List<String> allowedDomains;
+  final List<String> allowedUris;
 
   @override
   String toString() =>
