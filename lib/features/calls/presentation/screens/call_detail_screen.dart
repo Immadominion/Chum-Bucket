@@ -8,6 +8,12 @@ import 'package:flutter/material.dart';
 import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
+import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
+import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
+import 'package:chumbucket/features/authentication/session/panta_mwa_wallet.dart';
+import 'package:chumbucket/features/calls/data/call_models.dart';
+import 'package:chumbucket/features/calls/data/calls_bff_transport.dart';
+import 'package:chumbucket/features/panta_trading/panta_trading.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
@@ -40,6 +46,62 @@ class CallDetailScreen extends StatefulWidget {
 }
 
 class _CallDetailScreenState extends State<CallDetailScreen> {
+  PantaTradeController? _trade;
+  PantaTradingClient? _tradingClient;
+
+  @override
+  void dispose() {
+    _trade?.dispose();
+    _tradingClient?.close();
+    super.dispose();
+  }
+
+  Future<void> _fund(CallFeedEntry entry) async {
+    final auth = context.read<MwaAuthProvider>();
+    final account = context.read<ChumbucketSession>();
+    final wallet = auth.walletAddress;
+    if (!account.isReady || wallet == null || !auth.isAuthenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Use your connected wallet and link Google in Profile → Settings to fund your own call.',
+          ),
+        ),
+      );
+      return;
+    }
+    if (_trade == null || _trade!.phase == PantaTradePhase.cancelled) {
+      _trade?.dispose();
+      _tradingClient?.close();
+      _tradingClient = PantaTradingClient(
+        baseUri: Uri.parse(resolveCallsBffBaseUrl()),
+        session: () async {
+          final token = await account.bffAuthToken();
+          final id = account.userId;
+          return token != null && id != null && account.isReady
+              ? PantaSession(accountId: id, accessToken: token)
+              : null;
+        },
+      );
+      _trade = PantaTradeController(
+        callId: entry.call.id,
+        marketId: entry.market.id,
+        venueMarketId: entry.market.venueMarketId,
+        side: entry.call.side,
+        wallet: wallet,
+        client: _tradingClient!,
+        walletPort: PantaMwaWallet(auth),
+        selectedWallet: () => auth.walletAddress,
+      );
+    }
+    await showPantaTradeSheet(
+      context: context,
+      controller: _trade!,
+      marketQuestion: entry.market.question,
+    );
+    if (mounted) setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
@@ -151,6 +213,25 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
                   : () => _respond(entry),
           onShareReceipt: () => _shareReceipt(entry),
         ),
+
+        // Private, optional funding. The free statement/receipt never changes,
+        // and somebody else's call never shows their stake or a copy-trade button.
+        if (entry.market.venue == MarketVenue.panta &&
+            entry.author.id == provider.viewerUserId) ...[
+          SizedBox(height: 12.h),
+          OutlinedButton(
+            onPressed: () => _fund(entry),
+            child: Text(
+              _trade?.isFunded == true
+                  ? 'View your Panta funding'
+                  : 'Fund this call · optional',
+            ),
+          ),
+          Text(
+            'Powered by Panta',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 11.sp),
+          ),
+        ],
 
         SizedBox(height: 8.h),
         Text(

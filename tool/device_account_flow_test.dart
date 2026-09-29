@@ -117,7 +117,7 @@ class _ExistingWallet extends MwaAuthProvider {
           .eq('wallet_address', walletAddress)
           .single();
   @override
-  Future<MwaSigningSession?> createSigningSession() async =>
+  Future<MwaSigningSession?> createSigningSession({String? cluster}) async =>
       cancel ? null : _SyntheticSigning(key);
 }
 

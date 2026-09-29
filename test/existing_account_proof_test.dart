@@ -61,7 +61,8 @@ class WalletProviderFake extends MwaAuthProvider {
     'id': kCanonicalUserId,
   };
   @override
-  Future<MwaSigningSession?> createSigningSession() async => signing;
+  Future<MwaSigningSession?> createSigningSession({String? cluster}) async =>
+      signing;
 }
 
 void main() {

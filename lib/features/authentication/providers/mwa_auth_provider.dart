@@ -335,7 +335,7 @@ class MwaAuthProvider extends ChangeNotifier {
 
   /// Create a new MWA session for signing transactions
   /// Returns session and client - caller is responsible for closing session
-  Future<MwaSigningSession?> createSigningSession() async {
+  Future<MwaSigningSession?> createSigningSession({String? cluster}) async {
     final epoch = _authEpoch;
     final held = _authResult;
     if (_authResult == null) {
@@ -353,31 +353,49 @@ class MwaAuthProvider extends ChangeNotifier {
       session.startActivityForResult(null).ignore();
       final client = await session.start();
 
-      // Reauthorize to ensure session is valid
-      final result = await client.reauthorize(
-        identityUri: Uri.parse(_identityUri),
-        iconUri: Uri.parse(_iconPath),
-        identityName: _appName,
-        authToken: held!.authToken,
-      );
+      // Native Panta needs mainnet without changing the existing app's network
+      // or persisted legacy authorization. A different cluster gets a fresh,
+      // explicitly approved grant scoped to this signing session only.
+      final crossCluster = cluster != null && cluster != _cluster;
+      if (cluster != null &&
+          cluster != NetworkConfig.mainnetBeta &&
+          cluster != NetworkConfig.devnet) {
+        return null;
+      }
+      final result =
+          crossCluster
+              ? await client.authorize(
+                identityUri: Uri.parse(_identityUri),
+                iconUri: Uri.parse(_iconPath),
+                identityName: _appName,
+                cluster: cluster,
+              )
+              : await client.reauthorize(
+                identityUri: Uri.parse(_identityUri),
+                iconUri: Uri.parse(_iconPath),
+                identityName: _appName,
+                authToken: held!.authToken,
+              );
 
       if (result == null ||
           !_isCurrent(epoch) ||
-          base58encode(result.publicKey) != held.walletAddress) {
+          base58encode(result.publicKey) != held!.walletAddress) {
         log('⚠️ Signing session: reauth failed', name: 'MwaAuthProvider');
         return null;
       }
 
-      // Update stored auth token
-      _authResult = MwaAuthResult(
-        walletAddress: base58encode(result.publicKey),
-        authToken: result.authToken,
-        publicKeyBytes: result.publicKey,
-        accountLabel: result.accountLabel,
-        walletUriBase: result.walletUriBase,
-        snsDomain: held.snsDomain,
-      );
-      await _persistAuthSession();
+      // Never replace a legacy-cluster grant with a one-use mainnet grant.
+      if (!crossCluster) {
+        _authResult = MwaAuthResult(
+          walletAddress: base58encode(result.publicKey),
+          authToken: result.authToken,
+          publicKeyBytes: result.publicKey,
+          accountLabel: result.accountLabel,
+          walletUriBase: result.walletUriBase,
+          snsDomain: held.snsDomain,
+        );
+        await _persistAuthSession();
+      }
       if (!_isCurrent(epoch)) {
         return null;
       }
