@@ -57,6 +57,17 @@ class _CountingRepository implements CallsRepository {
   }
 
   @override
+  Future<bool> setFollowing({
+    required String personId,
+    required bool following,
+    required String? viewerUserId,
+  }) => _inner.setFollowing(
+    personId: personId,
+    following: following,
+    viewerUserId: viewerUserId,
+  );
+
+  @override
   Future<CallDetail> fetchCall({
     required String callId,
     String? viewerUserId,
@@ -130,6 +141,58 @@ void main() {
       provider.addListener(() => notifications++);
       provider.setViewer(viewer);
       expect(notifications, 0);
+    });
+  });
+
+  group('canonical follows', () {
+    test('server-confirmed follow and unfollow update the person page', () async {
+      final provider = CallsProvider(repository: MockCallsRepository())
+        ..setViewer(viewer);
+      final initial = await provider.loadPerson('user_zed');
+      expect(initial!.viewerIsFollowing, isFalse);
+      expect(await provider.setFollowing(initial, true), isTrue);
+      expect(provider.personDetail('user_zed')!.viewerIsFollowing, isTrue);
+      expect(await provider.setFollowing(provider.personDetail('user_zed')!, false), isFalse);
+      expect(provider.personDetail('user_zed')!.viewerIsFollowing, isFalse);
+    });
+
+    test('unfollow withdraws followers-only rows from every cached surface', () async {
+      final provider = CallsProvider(repository: MockCallsRepository())
+        ..setViewer(viewer);
+      final initial = (await provider.loadPerson('user_zed'))!;
+      await provider.setFollowing(initial, true);
+      expect(provider.personDetail('user_zed')!.calls
+          .any((entry) => entry.call.id == 'call_zed_sol'), isTrue);
+      await provider.loadCall('call_zed_sol');
+      expect(provider.callDetail('call_zed_sol'), isNotNull);
+      expect(provider.feed.any((entry) => entry.call.id == 'call_zed_sol'), isTrue);
+
+      await provider.setFollowing(provider.personDetail('user_zed')!, false);
+      expect(provider.personDetail('user_zed')!.calls
+          .any((entry) => entry.call.id == 'call_zed_sol'), isFalse);
+      expect(provider.callDetail('call_zed_sol'), isNull);
+      expect(provider.feed.any((entry) => entry.call.id == 'call_zed_sol'), isFalse);
+    });
+
+    test('offline refusal leaves the prior follow state untouched', () async {
+      final repo = MockCallsRepository();
+      final provider = CallsProvider(repository: repo)..setViewer(viewer);
+      final initial = (await provider.loadPerson('user_zed'))!;
+      repo.simulateOffline = true;
+      await expectLater(provider.setFollowing(initial, true),
+          throwsA(isA<CallsOfflineException>()));
+      expect(provider.personDetail('user_zed')!.viewerIsFollowing, isFalse);
+    });
+
+    test('account switch during a follow cannot populate the new account cache', () async {
+      final repo = MockCallsRepository(latency: const Duration(milliseconds: 25));
+      final provider = CallsProvider(repository: repo)..setViewer(viewer);
+      final initial = (await provider.loadPerson('user_zed'))!;
+      final pending = provider.setFollowing(initial, true);
+      provider.setViewer('someone_else');
+      await expectLater(pending, throwsA(isA<CallsRejectedException>()));
+      expect(provider.personDetail('user_zed'), isNull);
+      expect(provider.isFollowBusy('user_zed'), isFalse);
     });
   });
 

@@ -737,8 +737,32 @@ class MockCallsRepository implements CallsRepository {
       person: person,
       calls:
           calls.map((c) => _entryFor(c, viewerUserId)).toList(growable: false),
+      viewerIsFollowing: viewerUserId != null &&
+          viewerUserId != person.id && _viewerFollows.contains(person.id),
       servedAt: _nowMs,
     );
+  }
+
+  @override
+  Future<bool> setFollowing({
+    required String personId,
+    required bool following,
+    required String? viewerUserId,
+  }) async {
+    if (viewerUserId == null) throw const CallsSignedOutException();
+    if (viewerUserId == personId) {
+      throw const CallsRejectedException("You can't follow yourself.");
+    }
+    await _gate();
+    if (!_people.any((p) => p.id == personId)) {
+      throw const CallsRejectedException('No such person.');
+    }
+    if (following) {
+      _viewerFollows.add(personId);
+    } else {
+      _viewerFollows.remove(personId);
+    }
+    return following;
   }
 
   @override

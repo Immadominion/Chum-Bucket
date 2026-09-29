@@ -218,10 +218,13 @@ CallDetail callDetailFromJson(Map<String, dynamic> json) {
 // Person detail
 // ---------------------------------------------------------------------------
 
-/// `{ person, calls[], servedAt }`.
+/// `{ person, calls[], viewerIsFollowing, servedAt }`.
 PersonDetail personDetailFromJson(Map<String, dynamic> json) => PersonDetail(
   person: personFromJson(requireJsonMap(json['person'], 'PersonDetail.person')),
   calls: callFeedEntriesFromJson(json['calls'], 'PersonDetail.calls'),
+  viewerIsFollowing: requireWireBool(
+    json['viewerIsFollowing'], 'PersonDetail.viewerIsFollowing',
+  ),
   servedAt: requireWireTimestampMs(json['servedAt'], 'PersonDetail.servedAt'),
 );
 

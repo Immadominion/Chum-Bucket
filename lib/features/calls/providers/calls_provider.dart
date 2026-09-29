@@ -78,6 +78,7 @@ class CallsProvider extends ChangeNotifier {
 
   bool _disposed = false;
   final Map<String, Object> _requests = {};
+  final Set<String> _followsInFlight = {};
 
   Object _beginRequest(String key) => _requests[key] = Object();
 
@@ -129,6 +130,7 @@ class CallsProvider extends ChangeNotifier {
     _marketsInFlight.clear();
     _callsInFlight.clear();
     _peopleInFlight.clear();
+    _followsInFlight.clear();
     _marketErrors.clear();
     _callErrors.clear();
     _personErrors.clear();
@@ -540,6 +542,72 @@ class CallsProvider extends ChangeNotifier {
       if (_isCurrent(key, request)) {
         _requests.remove(key);
         _peopleInFlight.remove(ref);
+        _notify();
+      }
+    }
+  }
+
+  bool isFollowBusy(String personId) => _followsInFlight.contains(personId);
+
+  /// Change one canonical person edge. Never optimistically claim a follow:
+  /// the BFF must acknowledge its durable write before the UI changes state.
+  Future<bool> setFollowing(PersonDetail detail, bool following) async {
+    final viewer = _viewerUserId;
+    if (viewer == null || viewer.isEmpty) throw const CallsSignedOutException();
+    final personId = detail.person.id;
+    if (personId == viewer) {
+      throw const CallsRejectedException("You can't follow yourself.");
+    }
+    if (_followsInFlight.contains(personId)) {
+      throw const CallsRejectedException('That follow is already being updated.');
+    }
+    final key = 'follow:$personId';
+    final request = _beginRequest(key);
+    _followsInFlight.add(personId);
+    _notify();
+    try {
+      final confirmed = await _repository.setFollowing(
+        personId: personId,
+        following: following,
+        viewerUserId: viewer,
+      );
+      if (!_isCurrent(key, request)) throw _accountChanged;
+      for (final ref in _personDetails.keys.toList()) {
+        final cached = _personDetails[ref];
+        if (cached?.person.id != personId) continue;
+        _personDetails[ref] = PersonDetail(
+          person: cached!.person,
+          calls: confirmed
+              ? cached.calls
+              : cached.calls.where((entry) =>
+                  entry.call.visibility == CallVisibility.public).toList(),
+          viewerIsFollowing: confirmed,
+          servedAt: cached.servedAt,
+        );
+      }
+      if (!confirmed) {
+        _callDetails.removeWhere((_, cached) =>
+            cached.entry.author.id == personId &&
+            cached.entry.call.visibility == CallVisibility.followers);
+      }
+      // A follow changes BOTH Following membership and Global visibility of
+      // followers-only calls. Invalidate old pages and in-flight pagination so
+      // an unfollow never leaves a private row visible from a stale cache.
+      _requests.remove('feed');
+      _requests.remove('more');
+      _isLoadingFeed = false;
+      _isLoadingMore = false;
+      _feedEntries = const [];
+      _feedServedAt = null;
+      _feedNextCursor = null;
+      _notify();
+      await loadPerson(personId, force: true);
+      await loadFeed(force: true);
+      return confirmed;
+    } finally {
+      if (_isCurrent(key, request)) {
+        _requests.remove(key);
+        _followsInFlight.remove(personId);
         _notify();
       }
     }

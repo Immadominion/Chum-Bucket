@@ -386,6 +386,7 @@ Map<String, dynamic> personDetailJson({
 }) => <String, dynamic>{
   'person': person ?? personJson(),
   'calls': calls ?? <Map<String, dynamic>>[feedEntryJson()],
+  'viewerIsFollowing': false,
   'servedAt': kNowMs,
 };
 

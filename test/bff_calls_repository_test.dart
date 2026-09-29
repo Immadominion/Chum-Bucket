@@ -1,5 +1,5 @@
-/// Round-trip tests for `BffCallsRepository` — every one of the eight
-/// `CallsRepository` methods against the §5 procedure surface
+/// Round-trip tests for `BffCallsRepository` — the original eight methods plus
+/// canonical person Follow/Unfollow against the BFF procedure surface
 /// (`docs/contracts/integration-requests/packet-c.md`).
 ///
 /// Every repository here is driven by [FakeBffServer], an injected in-memory
@@ -297,6 +297,7 @@ void main() {
       expect(detail.person.settledCalls, 31);
       expect(detail.person.accuracy, closeTo(19 / 31, 1e-9));
       expect(detail.calls, hasLength(1));
+      expect(detail.viewerIsFollowing, isFalse);
       expect(detail.servedAt, kNowMs);
     });
 
@@ -323,6 +324,52 @@ void main() {
       final detail = await build(server).fetchPerson(personRef: 'tobi');
       // Never render "0%" for "no data".
       expect(detail.person.accuracy, isNull);
+    });
+  });
+
+  group('canonical Follow/Unfollow → people.follow/unfollow', () {
+    test('sends only the target person, never the actor or a wallet', () async {
+      final server = FakeBffServer.routes({
+        'people.follow': {'personId': 'user_ada', 'following': true},
+        'people.unfollow': {'personId': 'user_ada', 'following': false},
+      });
+      final repo = build(server, token: 'synthetic-session');
+      expect(await repo.setFollowing(
+        personId: 'user_ada', following: true, viewerUserId: kViewer,
+      ), isTrue);
+      expect(await repo.setFollowing(
+        personId: 'user_ada', following: false, viewerUserId: kViewer,
+      ), isFalse);
+      expect(server.received.map((r) => r.procedurePath),
+          ['people.follow', 'people.unfollow']);
+      for (final request in server.received) {
+        expect(request.method, 'POST');
+        expect(request.input, {'personRef': 'user_ada'});
+        expect(request.headers['authorization'], 'Bearer synthetic-session');
+      }
+    });
+
+    test('signed out refuses before a request leaves the device', () async {
+      final server = FakeBffServer.routes(const {});
+      await expectLater(
+        build(server).setFollowing(
+          personId: 'user_ada', following: true, viewerUserId: null,
+        ),
+        throwsA(isA<CallsSignedOutException>()),
+      );
+      expect(server.received, isEmpty);
+    });
+
+    test('a mismatched server acknowledgement is loud', () async {
+      final server = FakeBffServer.routes({
+        'people.follow': {'personId': 'someone_else', 'following': true},
+      });
+      await expectLater(
+        build(server).setFollowing(
+          personId: 'user_ada', following: true, viewerUserId: kViewer,
+        ),
+        throwsA(isA<CallVocabularyException>()),
+      );
     });
   });
 

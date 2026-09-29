@@ -22,6 +22,7 @@
 /// | `createCall` | `calls.create` | mutation |
 /// | `respondToCall` | `calls.respond` | mutation |
 /// | `fetchInvitations` | `calls.invitations` | query |
+/// | `setFollowing` | `people.follow` / `people.unfollow` | mutation |
 ///
 /// ## Identity
 ///
@@ -83,6 +84,8 @@ class BffCallsRepository implements CallsRepository {
   static const String marketDetailProcedure = 'markets.detail';
   static const String callProcedure = 'calls.get';
   static const String personProcedure = 'people.get';
+  static const String followProcedure = 'people.follow';
+  static const String unfollowProcedure = 'people.unfollow';
   static const String createCallProcedure = 'calls.create';
   static const String respondProcedure = 'calls.respond';
   static const String invitationsProcedure = 'calls.invitations';
@@ -159,6 +162,24 @@ class BffCallsRepository implements CallsRepository {
     return personDetailFromJson(
       requireJsonMap(data, '$personProcedure result'),
     );
+  }
+
+  @override
+  Future<bool> setFollowing({
+    required String personId,
+    required bool following,
+    required String? viewerUserId,
+  }) async {
+    _requireViewer(viewerUserId);
+    final data = await _transport.mutate(
+      following ? followProcedure : unfollowProcedure,
+      {'personRef': personId},
+    );
+    final state = requireJsonMap(data, 'people follow result');
+    if (state['personId'] != personId || state['following'] != following) {
+      throw const CallVocabularyException('people follow result disagrees with the request');
+    }
+    return following;
   }
 
   /// `@ada` and `ada` are the same person. Mirrors `MockCallsRepository`.

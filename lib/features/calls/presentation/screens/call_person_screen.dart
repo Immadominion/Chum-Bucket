@@ -35,6 +35,8 @@ import 'package:chumbucket/features/rematch/data/rematch_offer.dart';
 import 'package:chumbucket/features/rematch/presentation/rematch_sheet.dart';
 import 'package:chumbucket/features/rematch/presentation/widgets/rematch_button.dart';
 import 'package:chumbucket/shared/widgets/app_components/app_avatar.dart';
+import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
+import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 
 class CallPersonScreen extends StatefulWidget {
   /// A `public.users.id`, a handle, or `@handle`.
@@ -76,6 +78,40 @@ class _CallPersonScreenState extends State<CallPersonScreen> {
     final result = await showCallResponseSheet(context: context, entry: entry);
     if (result != null && mounted) {
       await provider.loadPerson(widget.personRef, force: true);
+    }
+  }
+
+  Future<void> _setFollowing(PersonDetail detail) async {
+    final provider = context.read<CallsProvider>();
+    if (!provider.isSignedIn) {
+      requestCallSignIn(context, onRequested: widget.onSignInRequested);
+      return;
+    }
+    final following = !detail.viewerIsFollowing;
+    try {
+      await provider.setFollowing(detail, following);
+      if (!mounted) return;
+      SnackBarUtils.showSuccess(
+        context,
+        title: following ? 'Following' : 'Unfollowed',
+        subtitle: following
+            ? 'Their calls will now appear in Following.'
+            : 'This caller was removed from your feed.',
+      );
+    } on CallsException catch (error) {
+      if (!mounted) return;
+      SnackBarUtils.showError(
+        context,
+        title: 'Could not update follow',
+        subtitle: error.message,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      SnackBarUtils.showError(
+        context,
+        title: 'Could not update follow',
+        subtitle: 'Please try again.',
+      );
     }
   }
 
@@ -215,6 +251,18 @@ class _CallPersonScreenState extends State<CallPersonScreen> {
                 ],
               ),
             ),
+            if (provider.viewerUserId != person.id) ...[
+              SizedBox(width: 8.w),
+              SizedBox(
+                width: 112.w,
+                child: ChallengeButton(
+                  label: detail.viewerIsFollowing ? 'Following' : 'Follow',
+                  isLoading: provider.isFollowBusy(person.id),
+                  blurRadius: false,
+                  createNewChallenge: () => _setFollowing(detail),
+                ),
+              ),
+            ],
           ],
         ),
         SizedBox(height: 14.h),

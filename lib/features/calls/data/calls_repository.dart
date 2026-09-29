@@ -275,11 +275,13 @@ class CallDetail {
 class PersonDetail {
   final Person person;
   final List<CallFeedEntry> calls;
+  final bool viewerIsFollowing;
   final int servedAt;
 
   const PersonDetail({
     required this.person,
     required this.calls,
+    this.viewerIsFollowing = false,
     required this.servedAt,
   });
 }
@@ -417,6 +419,14 @@ abstract class CallsRepository {
   Future<PersonDetail> fetchPerson({
     required String personRef,
     String? viewerUserId,
+  });
+
+  /// Follow/unfollow a canonical person. The server derives the actor from a
+  /// verified session; [viewerUserId] is only a local signed-in guard.
+  Future<bool> setFollowing({
+    required String personId,
+    required bool following,
+    required String? viewerUserId,
   });
 
   /// Lock a new, free, immutable call. Throws [CallsSignedOutException] when
