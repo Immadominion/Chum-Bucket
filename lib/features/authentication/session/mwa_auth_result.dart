@@ -46,15 +46,22 @@ class MwaAuthResult {
       final token = json['authToken'] as String;
       final key = base64Decode(json['publicKeyBytes'] as String);
       final uriValue = json['walletUriBase'] as String?;
-      final uri = uriValue == null ? null : Uri.parse(uriValue);
+      // wallet_uri_base is an optional reconnection hint, not the credential.
+      // Only HTTPS endpoint-specific URIs are safe to use (MWA 2.0). A wallet
+      // returning another scheme must not prevent a valid grant from being
+      // saved; simply never persist or follow that untrusted hint.
+      final parsedUri = uriValue == null ? null : Uri.tryParse(uriValue);
+      final uri =
+          parsedUri != null &&
+                  parsedUri.scheme == 'https' &&
+                  parsedUri.host.isNotEmpty &&
+                  parsedUri.userInfo.isEmpty
+              ? parsedUri
+              : null;
       if (key.length != 32 ||
           base58encode(key) != address ||
           token.isEmpty ||
-          token.length > 16384 ||
-          (uri != null &&
-              (uri.scheme != 'https' ||
-                  uri.host.isEmpty ||
-                  uri.userInfo.isNotEmpty))) {
+          token.length > 16384) {
         throw const FormatException();
       }
       return MwaAuthResult(

@@ -133,13 +133,7 @@ void main() {
     expect(r.secure.writes, 0);
     expect(r.prefs.legacy, isNull);
   });
-  for (final mutation in [
-    'address',
-    'key',
-    'empty token',
-    'uri',
-    'malformed',
-  ]) {
+  for (final mutation in ['address', 'key', 'empty token', 'malformed']) {
     test(
       'invalid $mutation is sanitized and never copied to secure storage',
       () async {
@@ -152,8 +146,6 @@ void main() {
             json['publicKeyBytes'] = 'bad-base64!';
           case 'empty token':
             json['authToken'] = '';
-          case 'uri':
-            json['walletUriBase'] = 'http://unsafe.invalid';
           case 'malformed':
             break;
         }
@@ -167,6 +159,39 @@ void main() {
       },
     );
   }
+  for (final unsafeUri in [
+    'http://unsafe.invalid',
+    'solflare://mwa',
+    'https://user:password@wallet.invalid/mwa',
+    'not a uri',
+  ]) {
+    test(
+      'optional unsafe wallet URI is discarded before secure save',
+      () async {
+        final r = WalletStorageRig();
+        final json = walletFixture().toJson();
+        json['walletUriBase'] = unsafeUri;
+        r.prefs.legacy = jsonEncode(json);
+
+        final restored = await r.storage.restore();
+        expect(restored?.walletUriBase, isNull);
+        expect(restored?.walletAddress, walletFixture().walletAddress);
+        expect(r.secure.writes, 1);
+        expect(r.secure.value, isNot(contains(unsafeUri)));
+        expect((await r.restart().restore())?.walletUriBase, isNull);
+      },
+    );
+  }
+  test('HTTPS wallet reconnection URI remains available', () async {
+    final r = WalletStorageRig(legacyLogin: false);
+    final safe = walletFixture().toJson();
+    safe['walletUriBase'] = 'https://wallet.invalid/mwa';
+    await r.storage.save(MwaAuthResult.fromJson(safe));
+    expect(
+      (await r.restart().restore())?.walletUriBase?.toString(),
+      'https://wallet.invalid/mwa',
+    );
+  });
   test(
     'model debug output redacts credential and invalid JSON never echoes values',
     () {
