@@ -3,6 +3,11 @@
 28 September 2026. This adds a safe bootstrap path; it does not replace the
 existing app entry, profile, wallet, Settings or sign-out flow.
 
+29 September verification: the production Flutter session/client now pass through
+the mounted BFF, real PostgREST and disposable PostgreSQL with synthetic external
+approvals. See [local integration evidence](../checkpoints/2026-09-29-account-link-integration.md).
+This does not enable the production flag or replace the configured Seeker gate.
+
 ## Identity contract
 
 A verified Supabase session that has no canonical person can request a fresh
