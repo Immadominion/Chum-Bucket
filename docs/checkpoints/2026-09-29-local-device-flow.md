@@ -70,6 +70,8 @@ branch `product/social-calls-v3`, starting HEAD `27ce57e`.
 
 API: `/Users/mac/Documents/codes/opensauce/world/chumbucket-social-calls-api`,
 branch `product/social-calls-api`, starting HEAD `eb38486`.
+Implementation commits: mobile `9784557`, API `3bdf25c`; a subsequent documentation
+commit normalizes upstream license whitespace and records these references.
 
 - `scripts/verify-account-link-local.ts`: opt-in device fixtures/report mode;
   representative legacy profile read RPC and fields in its own new database.
