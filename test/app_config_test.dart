@@ -2,38 +2,80 @@ import 'dart:io';
 
 import 'package:chumbucket/core/config/app_config.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:yaml/yaml.dart';
+
+List<String> assetEntries(String source) {
+  final pubspec = loadYaml(source) as YamlMap;
+  final flutter = pubspec['flutter'] as YamlMap;
+  final assets = flutter['assets'] as YamlList;
+  return assets.map((entry) {
+    final path = entry is YamlMap ? entry['path'] : entry;
+    if (path is! String || path.isEmpty) {
+      throw FormatException('Asset entry must name a path');
+    }
+    return path;
+  }).toList();
+}
 
 /// Guards the boundary that the release APK broke: no secret may reach the
 /// mobile client, and no `.env` may be bundled as a Flutter asset again.
 void main() {
   group('asset bundle', () {
     test('pubspec does not ship .env (or any dotfile) as an asset', () {
-      final lines = File('pubspec.yaml').readAsLinesSync();
-      final start = lines.indexWhere((l) => l.trimRight() == '  assets:');
-      expect(start, isNot(-1), reason: 'no flutter.assets block in pubspec');
-
-      final entries = <String>[];
-      for (final line in lines.skip(start + 1)) {
-        final match = RegExp(r'^\s{4}-\s*(\S+)\s*$').firstMatch(line);
-        if (match == null) break; // end of the assets list
-        entries.add(match.group(1)!);
-      }
+      final entries = assetEntries(File('pubspec.yaml').readAsStringSync());
       expect(entries, isNotEmpty);
 
       expect(
         entries,
         isNot(contains('.env')),
-        reason: 'Bundling .env put HELIUS_API_KEY and VSC_MCP_ACCESS_TOKEN '
+        reason:
+            'Bundling .env put HELIUS_API_KEY and VSC_MCP_ACCESS_TOKEN '
             'byte-for-byte inside every release APK.',
       );
       for (final entry in entries) {
         expect(
-          entry.split('/').last.startsWith('.'),
+          entry.split('/').any((segment) => segment.startsWith('.')),
           isFalse,
           reason: 'Asset "$entry" is a dotfile; dotfiles hold local config.',
         );
       }
     });
+    test(
+      'comments and quoted paths cannot truncate the security inventory',
+      () {
+        expect(
+          assetEntries('''
+flutter:
+  assets:
+    # The guard must not stop here.
+    - assets/images/
+
+    - '.env' # Nor hide this behind a quote or comment.
+    - "assets/.private/"
+  fonts: []
+'''),
+          ['assets/images/', '.env', 'assets/.private/'],
+        );
+      },
+    );
+    test(
+      'flavor-specific asset paths are included, unknown shapes fail closed',
+      () {
+        expect(
+          assetEntries('''
+flutter:
+  assets:
+    - path: '.env'
+      flavors: [preview]
+'''),
+          ['.env'],
+        );
+        expect(
+          () => assetEntries('flutter:\n  assets:\n    - flavors: [preview]'),
+          throwsFormatException,
+        );
+      },
+    );
   });
 
   group('public key allowlist', () {
@@ -43,7 +85,8 @@ void main() {
           expect(
             key.toUpperCase().contains(fragment),
             isFalse,
-            reason: '$key looks like a secret and cannot ship in the client. '
+            reason:
+                '$key looks like a secret and cannot ship in the client. '
                 'Serve it from the BFF instead.',
           );
         }
@@ -53,7 +96,10 @@ void main() {
     test('does not expose the provider RPC key or the access token', () {
       expect(AppConfig.publicKeys, isNot(contains('HELIUS_API_KEY')));
       expect(AppConfig.publicKeys, isNot(contains('VSC_MCP_ACCESS_TOKEN')));
-      expect(AppConfig.publicKeys, isNot(contains('SUPABASE_SERVICE_ROLE_KEY')));
+      expect(
+        AppConfig.publicKeys,
+        isNot(contains('SUPABASE_SERVICE_ROLE_KEY')),
+      );
       expect(AppConfig.publicKeys, isNot(contains('PRIVY_APP_SECRET')));
     });
   });

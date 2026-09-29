@@ -130,11 +130,12 @@ synthetic test artifacts only; no user data was removed.
 
 ## Remaining gates / next packet
 
-Next is the actual Seeker Settings Google → wallet proof → same canonical
-person round-trip in an approved test environment, including cancel/retry and
-old profile/history visibility. That requires suitable non-production OAuth
-configuration and reviewed test ownership anchors; the local test does not
-authorize enabling claims for live users.
+The follow-up [local/device checkpoint](2026-09-29-local-device-flow.md) now
+verifies the existing Seeker Profile/Settings widgets through real local
+PostgREST/PostgreSQL, including cancel/retry and preserved old profile/history.
+No separate hosted project is needed for that work. Real Google consent/callback
+and wallet-app approval remain outside the synthetic local device cases; this
+does not authorize enabling claims or approving real anchors for live users.
 
 Panta remains the only live venue choice; funded trading stays off. Panta durable
 runtime, credential remediation, legacy authorization review and full-app device
