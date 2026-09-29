@@ -11,6 +11,7 @@ import 'package:chumbucket/core/services/fcm_token_service.dart';
 import 'package:chumbucket/core/services/analytics_service.dart';
 import 'package:chumbucket/core/config/network_config.dart';
 import '../session/mwa_auth_result.dart';
+import '../session/mwa_authorization_failure.dart';
 import '../session/mwa_session_storage.dart';
 export '../session/mwa_auth_result.dart';
 
@@ -140,6 +141,8 @@ class MwaAuthProvider extends ChangeNotifier {
   Future<bool> authorize() async {
     if (_disposed || _state == MwaAuthState.loading) return false;
     final epoch = ++_authEpoch;
+    var step = MwaAuthorizationStep.walletDiscovery;
+    LocalAssociationScenario? session;
     log('🚀 Starting MWA authorization', name: 'MwaAuthProvider');
 
     _state = MwaAuthState.loading;
@@ -159,16 +162,20 @@ class MwaAuthProvider extends ChangeNotifier {
       }
 
       // Create MWA session
-      final session = await LocalAssociationScenario.create();
+      step = MwaAuthorizationStep.sessionCreation;
+      session = await LocalAssociationScenario.create();
 
       // Launch wallet app for authorization
       // This triggers the wallet to open for user approval
+      step = MwaAuthorizationStep.walletLaunch;
       session.startActivityForResult(null).ignore();
 
       // Start the session and get client
+      step = MwaAuthorizationStep.association;
       final client = await session.start();
 
       // Request authorization from the wallet
+      step = MwaAuthorizationStep.walletApproval;
       final result = await client.authorize(
         identityUri: Uri.parse(_identityUri),
         iconUri: Uri.parse(_iconPath),
@@ -177,7 +184,9 @@ class MwaAuthProvider extends ChangeNotifier {
       );
 
       // Close the session
+      step = MwaAuthorizationStep.sessionClose;
       await session.close();
+      session = null;
 
       if (!_isCurrent(epoch)) return false;
 
@@ -201,13 +210,10 @@ class MwaAuthProvider extends ChangeNotifier {
         // If it's not just a shortened address, it's a domain
         if (!domainName.contains('...') && domainName != walletAddress) {
           snsDomain = domainName;
-          log('🏷️ Found SNS domain: $snsDomain', name: 'MwaAuthProvider');
+          log('🏷️ Found SNS domain', name: 'MwaAuthProvider');
         }
-      } catch (e) {
-        log(
-          '⚠️ Domain lookup failed (non-critical): $e',
-          name: 'MwaAuthProvider',
-        );
+      } catch (_) {
+        log('⚠️ Domain lookup failed (non-critical)', name: 'MwaAuthProvider');
       }
 
       if (!_isCurrent(epoch)) return false;
@@ -221,17 +227,14 @@ class MwaAuthProvider extends ChangeNotifier {
       );
 
       log('✅ Authorization successful', name: 'MwaAuthProvider');
-      log('👛 Wallet: $walletAddress', name: 'MwaAuthProvider');
-      log('🏷️ Account Label: ${result.accountLabel}', name: 'MwaAuthProvider');
-      if (snsDomain != null) {
-        log('🌐 SNS Domain: $snsDomain', name: 'MwaAuthProvider');
-      }
 
       // Persist auth result
+      step = MwaAuthorizationStep.secureSave;
       await _persistAuthSession();
       if (!_isCurrent(epoch)) return false;
 
       // Sync user with Supabase (include domain if available)
+      step = MwaAuthorizationStep.accountSync;
       await _syncUserWithSupabase(walletAddress, snsDomain: snsDomain);
       if (!_isCurrent(epoch)) return false;
 
@@ -244,6 +247,7 @@ class MwaAuthProvider extends ChangeNotifier {
       });
 
       // Assign profile picture
+      step = MwaAuthorizationStep.profileLoad;
       final profileProvider = ProfileProvider();
       await profileProvider.getUserPfp(walletAddress);
       if (!_isCurrent(epoch)) return false;
@@ -253,18 +257,26 @@ class MwaAuthProvider extends ChangeNotifier {
       return true;
     } on PlatformException {
       if (!_isCurrent(epoch)) return false;
-      log('❌ Platform error during authorization', name: 'MwaAuthProvider');
-      _errorMessage = 'Wallet connection failed. Please try again.';
+      log('❌ Platform error at ${step.name}', name: 'MwaAuthProvider');
+      _errorMessage = mwaAuthorizationFailureMessage(step);
       _state = MwaAuthState.error;
       notifyListeners();
       return false;
     } catch (e) {
       if (!_isCurrent(epoch)) return false;
-      log('❌ Error during authorization', name: 'MwaAuthProvider');
-      _errorMessage = 'Authorization failed. Please try again.';
+      log('❌ Authorization error at ${step.name}', name: 'MwaAuthProvider');
+      _errorMessage = mwaAuthorizationFailureMessage(step);
       _state = MwaAuthState.error;
       notifyListeners();
       return false;
+    } finally {
+      // A rejected or timed-out wallet handoff must not leave a native MWA
+      // association alive and poison the next explicit connection attempt.
+      try {
+        await session?.close();
+      } catch (_) {
+        log('⚠️ Failed to close MWA session', name: 'MwaAuthProvider');
+      }
     }
   }
 
@@ -480,10 +492,7 @@ class MwaAuthProvider extends ChangeNotifier {
     }
 
     try {
-      log(
-        '🔄 Syncing user with Supabase: $walletAddress${snsDomain != null ? ' ($snsDomain)' : ''}',
-        name: 'MwaAuthProvider',
-      );
+      log('🔄 Syncing user with Supabase', name: 'MwaAuthProvider');
 
       // Check if user exists first
       final existingUser =
@@ -508,18 +517,18 @@ class MwaAuthProvider extends ChangeNotifier {
         walletAddress: walletAddress,
         displayName: snsDomain,
         isNewUser: isNewUser,
-      ).catchError((e) {
-        log('⚠️ Analytics tracking failed: $e', name: 'MwaAuthProvider');
+      ).catchError((_) {
+        log('⚠️ Analytics tracking failed', name: 'MwaAuthProvider');
       });
 
       return true;
-    } on PostgrestException catch (e) {
-      log('⚠️ Supabase error: ${e.message}', name: 'MwaAuthProvider');
+    } on PostgrestException {
+      log('⚠️ Supabase sync refused', name: 'MwaAuthProvider');
       // User might not exist yet - that's okay for first-time users
       // Try to create them
       return await _createUserInSupabase(walletAddress, snsDomain: snsDomain);
-    } catch (e) {
-      log('❌ Error syncing user: $e', name: 'MwaAuthProvider');
+    } catch (_) {
+      log('❌ Error syncing user', name: 'MwaAuthProvider');
       return false;
     }
   }
@@ -545,23 +554,20 @@ class MwaAuthProvider extends ChangeNotifier {
           .from('users')
           .upsert(userData, onConflict: 'wallet_address');
 
-      log(
-        '✅ Created new user in Supabase${snsDomain != null ? ' with domain $snsDomain' : ''}',
-        name: 'MwaAuthProvider',
-      );
+      log('✅ User synced in Supabase', name: 'MwaAuthProvider');
 
       // Track new user signup (fire-and-forget)
       AnalyticsService.trackUserAuth(
         walletAddress: walletAddress,
         displayName: snsDomain,
         isNewUser: true,
-      ).catchError((e) {
-        log('⚠️ Analytics tracking failed: $e', name: 'MwaAuthProvider');
+      ).catchError((_) {
+        log('⚠️ Analytics tracking failed', name: 'MwaAuthProvider');
       });
 
       return true;
-    } catch (e) {
-      log('❌ Error creating user: $e', name: 'MwaAuthProvider');
+    } catch (_) {
+      log('❌ Error creating user', name: 'MwaAuthProvider');
       return false;
     }
   }
@@ -579,8 +585,8 @@ class MwaAuthProvider extends ChangeNotifier {
               .single();
 
       return response;
-    } catch (e) {
-      log('Error fetching user profile: $e', name: 'MwaAuthProvider');
+    } catch (_) {
+      log('Error fetching user profile', name: 'MwaAuthProvider');
       return null;
     }
   }
@@ -598,8 +604,8 @@ class MwaAuthProvider extends ChangeNotifier {
           .eq('wallet_address', _authResult!.walletAddress);
 
       return true;
-    } catch (e) {
-      log('Error updating user profile: $e', name: 'MwaAuthProvider');
+    } catch (_) {
+      log('Error updating user profile', name: 'MwaAuthProvider');
       return false;
     }
   }

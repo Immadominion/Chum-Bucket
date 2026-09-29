@@ -32,9 +32,6 @@ class _MwaConnectButtonState extends State<MwaConnectButton> {
 
       debugPrint('🔌 CONNECT: Starting wallet connection');
       debugPrint(
-        '🔌 CONNECT: Current authProvider.walletAddress = ${authProvider.walletAddress}',
-      );
-      debugPrint(
         '🔌 CONNECT: Current authProvider.state = ${authProvider.state}',
       );
 
@@ -56,15 +53,12 @@ class _MwaConnectButtonState extends State<MwaConnectButton> {
       debugPrint('🔌 CONNECT: Calling authProvider.authorize()');
       final success = await authProvider.authorize();
       debugPrint('🔌 CONNECT: authorize() returned: $success');
-      debugPrint(
-        '🔌 CONNECT: After authorize - walletAddress = ${authProvider.walletAddress}',
-      );
 
       if (!context.mounted) return;
 
       if (success) {
         final walletAddress = authProvider.walletAddress;
-        debugPrint('🔌 CONNECT: SUCCESS - walletAddress = $walletAddress');
+        debugPrint('🔌 CONNECT: Wallet authorized');
 
         // Try to resolve any SNS domain (.sol, .skr, etc.) for this wallet
         String? domainName;
@@ -77,6 +71,7 @@ class _MwaConnectButtonState extends State<MwaConnectButton> {
             domainName = null;
           }
         }
+        if (!context.mounted) return;
 
         // Show welcome message with domain if available
         final welcomeMessage =
@@ -96,14 +91,8 @@ class _MwaConnectButtonState extends State<MwaConnectButton> {
           debugPrint(
             '🔌 CONNECT: walletProvider.isInitialized = ${walletProvider.isInitialized}',
           );
-          debugPrint(
-            '🔌 CONNECT: walletProvider.walletAddress = ${walletProvider.walletAddress}',
-          );
           debugPrint('🔌 CONNECT: Calling walletProvider.initializeFromAuth()');
           await walletProvider.initializeFromAuth(authProvider);
-          debugPrint(
-            '🔌 CONNECT: After initializeFromAuth - walletAddress = ${walletProvider.walletAddress}',
-          );
         }
 
         // Navigate to HomeScreen after successful connection
@@ -123,13 +112,13 @@ class _MwaConnectButtonState extends State<MwaConnectButton> {
           subtitle: errorMsg,
         );
       }
-    } catch (error) {
-      debugPrint('🔌 CONNECT: ERROR - $error');
+    } catch (_) {
+      debugPrint('🔌 CONNECT: Error after wallet authorization');
       if (context.mounted) {
         SnackBarUtils.showError(
           context,
           title: 'Connection Error',
-          subtitle: error.toString(),
+          subtitle: 'Could not finish connecting. Please try again.',
         );
       }
     } finally {
