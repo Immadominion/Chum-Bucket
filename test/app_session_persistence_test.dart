@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
+import 'package:chumbucket/features/authentication/session/mwa_session_storage.dart';
 import 'package:chumbucket/features/authentication/session/app_session_persistence.dart';
 import 'package:chumbucket/features/authentication/session/supabase_auth_port.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'mwa_storage_fakes.dart';
 
 class MemorySessionStorage extends LocalStorage {
   String? value;
@@ -231,7 +233,9 @@ void main() {
         'https://demo.supabase.co',
       );
       await storage.initialize();
-      final wallet = MwaAuthProvider();
+      final wallet = MwaAuthProvider(
+        sessionStorage: MwaSessionStorage(secure: MemoryWalletSecrets()),
+      );
       addTearDown(wallet.dispose);
       await Future.wait([storage.clearForSignOut(), wallet.forgetSession()]);
       final prefs = await SharedPreferences.getInstance();

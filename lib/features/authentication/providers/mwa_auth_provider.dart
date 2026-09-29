@@ -1,8 +1,6 @@
-import 'dart:convert';
 import 'dart:developer';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:solana/base58.dart';
 import 'package:solana_mobile_client/solana_mobile_client.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -12,86 +10,24 @@ import 'package:chumbucket/features/profile/providers/profile_provider.dart';
 import 'package:chumbucket/core/services/fcm_token_service.dart';
 import 'package:chumbucket/core/services/analytics_service.dart';
 import 'package:chumbucket/core/config/network_config.dart';
+import '../session/mwa_auth_result.dart';
+import '../session/mwa_session_storage.dart';
+export '../session/mwa_auth_result.dart';
 
 /// Authentication state for MWA-based auth
 enum MwaAuthState { initial, loading, authenticated, unauthenticated, error }
 
-/// Result of MWA authorization containing wallet info
-class MwaAuthResult {
-  final String walletAddress;
-  final String authToken;
-  final String? accountLabel;
-  final Uri? walletUriBase;
-  final Uint8List publicKeyBytes;
-  final String? snsDomain; // SNS domain (.sol, .skr, etc.) if available
-
-  const MwaAuthResult({
-    required this.walletAddress,
-    required this.authToken,
-    required this.publicKeyBytes,
-    this.accountLabel,
-    this.walletUriBase,
-    this.snsDomain,
-  });
-
-  /// Returns true if user has a Seeker wallet domain (.skr)
-  bool get hasSeekerDomain =>
-      snsDomain?.toLowerCase().endsWith('.skr') ?? false;
-
-  /// Returns true if user has any SNS domain
-  bool get hasSnsDomain => snsDomain != null && snsDomain!.isNotEmpty;
-
-  /// Returns display name - domain if available, otherwise shortened address
-  String get displayName {
-    if (hasSnsDomain) return snsDomain!;
-    if (walletAddress.length > 12) {
-      return '${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}';
-    }
-    return walletAddress;
-  }
-
-  Map<String, dynamic> toJson() => {
-    'walletAddress': walletAddress,
-    'authToken': authToken,
-    'accountLabel': accountLabel,
-    'walletUriBase': walletUriBase?.toString(),
-    'publicKeyBytes': base64Encode(publicKeyBytes),
-    'snsDomain': snsDomain,
-  };
-
-  factory MwaAuthResult.fromJson(Map<String, dynamic> json) {
-    return MwaAuthResult(
-      walletAddress: json['walletAddress'] as String,
-      authToken: json['authToken'] as String,
-      accountLabel: json['accountLabel'] as String?,
-      walletUriBase:
-          json['walletUriBase'] != null
-              ? Uri.tryParse(json['walletUriBase'] as String)
-              : null,
-      publicKeyBytes: base64Decode(json['publicKeyBytes'] as String),
-      snsDomain: json['snsDomain'] as String?,
-    );
-  }
-
-  /// Create a copy with an updated domain
-  MwaAuthResult copyWithDomain(String? domain) {
-    return MwaAuthResult(
-      walletAddress: walletAddress,
-      authToken: authToken,
-      publicKeyBytes: publicKeyBytes,
-      accountLabel: accountLabel,
-      walletUriBase: walletUriBase,
-      snsDomain: domain,
-    );
-  }
-}
-
 /// MWA-based authentication provider for Solana Mobile compatibility
 /// Replaces Privy authentication with native Mobile Wallet Adapter
 class MwaAuthProvider extends ChangeNotifier {
+  MwaAuthProvider({
+    MwaSessionStorage? sessionStorage,
+    SupabaseClient? supabaseClient,
+  }) : _sessionStorage = sessionStorage ?? MwaSessionStorage.device,
+       _supabase = supabaseClient;
+  final MwaSessionStorage _sessionStorage;
   int _authEpoch = 0;
   bool _disposed = false;
-  Future<void> _storageWrites = Future.value();
   bool _isCurrent(int epoch) => !_disposed && epoch == _authEpoch;
 
   @override
@@ -110,10 +46,6 @@ class MwaAuthProvider extends ChangeNotifier {
   static const String _appName = 'Chumbucket';
   static const String _identityUri = 'https://chumbucket.fun';
   static const String _iconPath = 'favicon.ico';
-
-  // Persistence keys
-  static const String _authResultKey = 'mwa_auth_result';
-  static const String _isLoggedInKey = 'mwa_is_logged_in';
 
   // Cluster configuration - uses centralized NetworkConfig
   static String get _cluster => NetworkConfig.currentNetwork;
@@ -151,18 +83,25 @@ class MwaAuthProvider extends ChangeNotifier {
     // If already authenticated in memory, return true
     if (isAuthenticated) return true;
 
-    // Otherwise check persisted state (in case initialize() hasn't run yet)
-    final prefs = await SharedPreferences.getInstance();
-    return _isCurrent(epoch) && (prefs.getBool(_isLoggedInKey) ?? false);
+    // A boolean preference alone is never evidence of a restorable credential.
+    try {
+      final saved = await _sessionStorage.restore(
+        isCurrent: () => _isCurrent(epoch),
+      );
+      return _isCurrent(epoch) && saved != null;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Initialize the auth provider
   Future<void> initialize() async {
     final epoch = _authEpoch;
+    _errorMessage = null;
     log('🔐 Initializing MWA Auth Provider', name: 'MwaAuthProvider');
 
     try {
-      _supabase = Supabase.instance.client;
+      _supabase ??= Supabase.instance.client;
 
       // Try to restore previous auth session
       final restored = await _restoreAuthSession();
@@ -177,6 +116,9 @@ class MwaAuthProvider extends ChangeNotifier {
     } catch (e) {
       if (!_isCurrent(epoch)) return;
       log('⚠️ Error initializing wallet session', name: 'MwaAuthProvider');
+      _authResult = null;
+      _errorMessage =
+          'Could not unlock the saved wallet session. Unlock your device and try again.';
       _state = MwaAuthState.unauthenticated;
     }
 
@@ -487,57 +429,26 @@ class MwaAuthProvider extends ChangeNotifier {
     _errorMessage = null;
     EfficientSyncService.clearAllCaches();
     notifyListeners();
-    return _writeStorage(() async {
-      final prefs = await SharedPreferences.getInstance();
-      final credential = await prefs.remove(_authResultKey);
-      final marker = await prefs.remove(_isLoggedInKey);
-      if (!credential || !marker) {
-        throw StateError('Wallet session removal failed');
-      }
-    });
+    return _sessionStorage.clear();
   }
 
-  Future<void> _writeStorage(Future<void> Function() operation) {
-    final pending = _storageWrites.then((_) => operation());
-    _storageWrites = pending.catchError((Object _) {});
-    return pending;
-  }
-
-  /// Persist auth session to SharedPreferences
+  /// Write and verify the secure record before removing any old plaintext copy.
   Future<void> _persistAuthSession() async {
     final held = _authResult;
     final epoch = _authEpoch;
     if (held == null || !_isCurrent(epoch)) return;
-    await _writeStorage(() async {
-      final prefs = await SharedPreferences.getInstance();
-      if (!_isCurrent(epoch)) return;
-      if (!await prefs.setString(_authResultKey, jsonEncode(held.toJson())) ||
-          !await prefs.setBool(_isLoggedInKey, true)) {
-        throw StateError('Wallet session storage failed');
-      }
-    });
+    await _sessionStorage.save(held, isCurrent: () => _isCurrent(epoch));
   }
 
-  /// Restore auth session from SharedPreferences
+  /// Restore securely; transparently migrate an intact old login exactly once.
   Future<bool> _restoreAuthSession() async {
     final epoch = _authEpoch;
-    final prefs = await SharedPreferences.getInstance();
+    final saved = await _sessionStorage.restore(
+      isCurrent: () => _isCurrent(epoch),
+    );
     if (!_isCurrent(epoch)) return false;
-    final isLoggedIn = prefs.getBool(_isLoggedInKey) ?? false;
-
-    if (!isLoggedIn) return false;
-
-    final authJson = prefs.getString(_authResultKey);
-    if (authJson == null) return false;
-
-    try {
-      final json = jsonDecode(authJson) as Map<String, dynamic>;
-      _authResult = MwaAuthResult.fromJson(json);
-      return true;
-    } catch (e) {
-      log('Error restoring auth session', name: 'MwaAuthProvider');
-      return false;
-    }
+    _authResult = saved;
+    return saved != null;
   }
 
   /// Sync user with Supabase database using wallet address as identifier
