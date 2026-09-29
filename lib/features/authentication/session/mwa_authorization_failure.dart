@@ -8,6 +8,7 @@ enum MwaAuthorizationStep {
   association,
   walletApproval,
   sessionClose,
+  existingProfileCheck,
   secureSave,
   accountSync,
   profileLoad,
@@ -28,6 +29,8 @@ String mwaAuthorizationFailureMessage(
     'The wallet did not complete authorization. Check its approval screen.',
   MwaAuthorizationStep.sessionClose =>
     'The wallet approved, but its connection did not close safely. Please try again.',
+  MwaAuthorizationStep.existingProfileCheck =>
+    'Could not confirm your existing Chumbucket profile for this wallet. No profile was created. Please try again.',
   MwaAuthorizationStep.secureSave =>
     'The wallet approved, but the secure session could not be saved. Unlock your device and try again.',
   MwaAuthorizationStep.accountSync =>

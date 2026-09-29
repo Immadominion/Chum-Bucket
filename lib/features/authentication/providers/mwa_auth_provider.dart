@@ -12,6 +12,7 @@ import 'package:chumbucket/core/services/analytics_service.dart';
 import 'package:chumbucket/core/config/network_config.dart';
 import '../session/mwa_auth_result.dart';
 import '../session/mwa_authorization_failure.dart';
+import '../session/existing_wallet_profile_guard.dart';
 import '../session/mwa_session_storage.dart';
 export '../session/mwa_auth_result.dart';
 
@@ -24,9 +25,17 @@ class MwaAuthProvider extends ChangeNotifier {
   MwaAuthProvider({
     MwaSessionStorage? sessionStorage,
     SupabaseClient? supabaseClient,
+    bool? existingProfileOnly,
   }) : _sessionStorage = sessionStorage ?? MwaSessionStorage.device,
-       _supabase = supabaseClient;
+       _supabase = supabaseClient,
+       _existingProfileOnly =
+           existingProfileOnly ??
+           const bool.fromEnvironment(
+             'CHUMBUCKET_EXISTING_PROFILE_ONLY',
+             defaultValue: false,
+           );
   final MwaSessionStorage _sessionStorage;
+  final bool _existingProfileOnly;
   int _authEpoch = 0;
   bool _disposed = false;
   bool _isCurrent(int epoch) => !_disposed && epoch == _authEpoch;
@@ -89,7 +98,10 @@ class MwaAuthProvider extends ChangeNotifier {
       final saved = await _sessionStorage.restore(
         isCurrent: () => _isCurrent(epoch),
       );
-      return _isCurrent(epoch) && saved != null;
+      if (!_isCurrent(epoch) || saved == null) return false;
+      if (!_existingProfileOnly) return true;
+      final existing = await _existingProfileForWallet(saved.walletAddress);
+      return _isCurrent(epoch) && existing == ExistingWalletProfile.found;
     } catch (_) {
       return false;
     }
@@ -217,6 +229,23 @@ class MwaAuthProvider extends ChangeNotifier {
       }
 
       if (!_isCurrent(epoch)) return false;
+
+      if (_existingProfileOnly) {
+        step = MwaAuthorizationStep.existingProfileCheck;
+        final existing = await _existingProfileForWallet(walletAddress);
+        if (!_isCurrent(epoch)) return false;
+        if (existing != ExistingWalletProfile.found) {
+          _authResult = null;
+          _errorMessage =
+              existing == ExistingWalletProfile.missing
+                  ? 'No existing Chumbucket profile was found for this wallet. No profile was created.'
+                  : 'Could not confirm your existing Chumbucket profile for this wallet. No profile was created. Please try again.';
+          _state = MwaAuthState.error;
+          notifyListeners();
+          return false;
+        }
+      }
+
       _authResult = MwaAuthResult(
         walletAddress: walletAddress,
         authToken: result.authToken,
@@ -235,7 +264,9 @@ class MwaAuthProvider extends ChangeNotifier {
 
       // Sync user with Supabase (include domain if available)
       step = MwaAuthorizationStep.accountSync;
-      await _syncUserWithSupabase(walletAddress, snsDomain: snsDomain);
+      if (!_existingProfileOnly) {
+        await _syncUserWithSupabase(walletAddress, snsDomain: snsDomain);
+      }
       if (!_isCurrent(epoch)) return false;
 
       // Register FCM token for push notifications (fire-and-forget)
@@ -477,8 +508,27 @@ class MwaAuthProvider extends ChangeNotifier {
       isCurrent: () => _isCurrent(epoch),
     );
     if (!_isCurrent(epoch)) return false;
+    if (_existingProfileOnly && saved != null) {
+      final existing = await _existingProfileForWallet(saved.walletAddress);
+      if (!_isCurrent(epoch)) return false;
+      if (existing != ExistingWalletProfile.found) {
+        _authResult = null;
+        return false;
+      }
+    }
     _authResult = saved;
     return saved != null;
+  }
+
+  Future<ExistingWalletProfile> _existingProfileForWallet(
+    String walletAddress,
+  ) async {
+    try {
+      _supabase ??= Supabase.instance.client;
+      return await ExistingWalletProfileGuard(_supabase!).check(walletAddress);
+    } catch (_) {
+      return ExistingWalletProfile.unavailable;
+    }
   }
 
   /// Sync user with Supabase database using wallet address as identifier
