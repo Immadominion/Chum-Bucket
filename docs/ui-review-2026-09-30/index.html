@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chumbucket — native UI checkpoint</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f4f4f4;color:#111827;font:16px/1.6 system-ui,sans-serif}header,main,footer{max-width:1500px;margin:auto;padding:32px 24px}header{padding-bottom:8px}h1{font-size:clamp(28px,4vw,48px);line-height:1.15;letter-spacing:-.04em;margin:12px 0}p{max-width:760px;color:#4b5563}small{color:#b8173b;font-weight:700;letter-spacing:.08em}a{color:#b8173b}main{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:32px;align-items:start}figure{margin:0}h2{font-size:18px;margin:0 0 12px}img{display:block;width:100%;height:auto;border-radius:20px;border:1px solid #e5e7eb;background:white}figcaption{font-size:14px;color:#4b5563;margin-top:12px}footer{padding-top:0}a:focus-visible{outline:3px solid #b8173b;outline-offset:5px}
+</style>
+<header>
+  <small>CHUMBUCKET / FLUTTER UI CHECKPOINT</small>
+  <h1>The same Chumbucket.<br>A new place for your calls.</h1>
+  <p>Actual Flutter widgets, rendered with bundled fonts and synthetic test data. These are screenshots—not live markets, device screenshots, or proof of trading readiness. Tap any screen to inspect it at full size.</p>
+  <p>Home · Markets · Friends · Profile. Existing accounts, wallet controls, friends and challenge history stay in the app. <a href="README.md">Implementation and verification notes →</a></p>
+</header>
+<main>
+  <figure><h2>01 · Home</h2><a href="home.png"><img src="home.png" alt="Person-first Home feed with illustrated avatars, YES or NO calls, and equal Back and Fade actions"></a><figcaption>People and reasoning first. No public balances, response counts or copy-trade controls.</figcaption></figure>
+  <figure><h2>02 · Markets</h2><a href="markets.png"><img src="markets.png" alt="Panta market discovery with search, time filters and independent prices"></a><figcaption>Panta-only discovery. Exact units and price age; no invented probability or chart.</figcaption></figure>
+  <figure><h2>03 · The market</h2><a href="market-detail.png"><img src="market-detail.png" alt="Market question, closing time, independent share prices and expandable rules"></a><figcaption>Rules and source remain inspectable. Direct trading without an owned call remains a backend-dependent gap.</figcaption></figure>
+  <figure><h2>04 · The person’s call</h2><a href="call-detail.png"><img src="call-detail.png" alt="Author, original reasoning, call timestamp and Back or Fade review actions"></a><figcaption>The author stays attached to the statement. Back and Fade review your own call; neither submits a trade.</figcaption></figure>
+  <figure><h2>05 · Put it on record</h2><a href="composer.png"><img src="composer.png" alt="Pink wave composer with explicit side, reason and visibility"></a><figcaption>Existing wave-sheet language. Explicit side, optional reason, audience and an immutable lock.</figcaption></figure>
+  <figure><h2>06 · The receipt</h2><a href="receipt.png"><img src="receipt.png" alt="Branded receipt preserving author, side, question and outcome with a permanent demo label"></a><figcaption>Complete receipts for correct, incorrect, void and pending calls. Private sharing checks are retained.</figcaption></figure>
+  <figure><h2>07 · Your profile</h2><a href="profile.png"><img src="profile.png" alt="Joined identity and record panel, private wallet access and Calls Positions Challenges tabs"></a><figcaption>The existing person, edit flow and wallet. Record counts describe returned public calls, not an invented lifetime record.</figcaption></figure>
+</main>
+<footer><p>UI checkpoint only. No deployment, production mutation, wallet approval or Seeker installation was performed.</p></footer>
+</html>
