@@ -1,5 +1,7 @@
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/authentication/session/app_sign_out.dart';
+import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
+import 'package:chumbucket/features/profile/presentation/screens/widgets/identity_link_sheet.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +12,19 @@ import 'package:provider/provider.dart';
 void requestCallSignIn(BuildContext context, {VoidCallback? onRequested}) {
   if (onRequested != null) {
     onRequested();
+    return;
+  }
+  // A returning wallet user already has a Chumbucket profile. Use the same
+  // ownership-checked link flow as Settings, not generic Google sign-in that
+  // leaves the person unlinked. This flow checks server capability before
+  // opening OAuth, never creates a profile, and returns to this call/market.
+  final wallet = context.read<MwaAuthProvider?>();
+  final session = context.read<ChumbucketSession>();
+  if (wallet?.isAuthenticated == true && !session.isReady) {
+    showChumbucketWavySheet<void>(
+      context: context,
+      builder: (_) => const IdentityLinkSheet(),
+    );
     return;
   }
   showChumbucketWavySheet<void>(
