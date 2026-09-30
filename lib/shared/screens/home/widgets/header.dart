@@ -22,8 +22,16 @@ class ChumbucketAppHeader extends StatelessWidget {
   /// personal, dashboard feel instead of restating the obvious.
   final String? title;
   final VoidCallback? onProfileTap;
+  final bool showAccountActions;
+  final VoidCallback? onActivityTap;
 
-  const ChumbucketAppHeader({super.key, this.title, this.onProfileTap});
+  const ChumbucketAppHeader({
+    super.key,
+    this.title,
+    this.onProfileTap,
+    this.showAccountActions = true,
+    this.onActivityTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -31,24 +39,34 @@ class ChumbucketAppHeader extends StatelessWidget {
       padding: EdgeInsets.symmetric(vertical: 12.h),
       child: Row(
         children: [
-          _ProfileAvatar(onTap: onProfileTap),
+          if (showAccountActions) _ProfileAvatar(onTap: onProfileTap),
           if (title != null) ...[
-            SizedBox(width: 12.w),
+            if (showAccountActions) SizedBox(width: 12.w),
             Expanded(
               child: Text(
                 title!,
                 style: TextStyle(
                   color: AppColors.textPrimary,
-                  fontSize: 22.sp,
-                  fontWeight: FontWeight.w700,
+                  fontFamily: 'PPNeueMachina',
+                  fontSize: 27.sp,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ),
           ] else
             const Spacer(),
-          const _WalletButton(),
-          SizedBox(width: 6.w),
-          const _NotificationBell(),
+          if (showAccountActions) ...[
+            const _WalletButton(),
+            SizedBox(width: 6.w),
+          ],
+          if (onActivityTap != null)
+            IconButton(
+              tooltip: 'Activity',
+              onPressed: onActivityTap,
+              icon: const BasilIcon('notification-outline', size: 22),
+            )
+          else
+            const _NotificationBell(),
         ],
       ),
     );
@@ -66,15 +84,19 @@ class _ProfileAvatar extends StatelessWidget {
       onTap:
           onTap ??
           () {
-            Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (context) => const ProfileScreen()));
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (context) => const ProfileScreen()),
+            );
           },
       child: Consumer2<MwaAuthProvider, ProfileProvider>(
         builder: (context, authProvider, profileProvider, child) {
           if (authProvider.walletAddress == null) {
             return _avatarShell(
-              child: BasilIcon('user-outline', size: 18.w, color: Colors.grey[700]),
+              child: BasilIcon(
+                'user-outline',
+                size: 18.w,
+                color: Colors.grey[700],
+              ),
             );
           }
           return FutureBuilder<String>(

@@ -3,7 +3,6 @@ import 'dart:typed_data';
 
 import 'package:chumbucket/core/theme/app_theme.dart';
 import 'package:chumbucket/features/panta_trading/panta_trading.dart';
-import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +12,39 @@ import 'package:http/http.dart' as http;
 
 import 'panta_trading_controller_test.dart'
     show SyntheticPantaRig, syntheticSigned, syntheticOrderJson;
+
+Finder get verticalScroll =>
+    find
+        .byWidgetPredicate(
+          (widget) =>
+              widget is Scrollable &&
+              widget.axisDirection == AxisDirection.down,
+        )
+        .last;
+
+Future<void> reveal(WidgetTester tester, Finder target) async {
+  tester.state<ScrollableState>(verticalScroll).position.jumpTo(0);
+  await tester.pumpAndSettle();
+  await tester.scrollUntilVisible(
+    target,
+    180,
+    scrollable: verticalScroll,
+    maxScrolls: 100,
+  );
+  await tester.pumpAndSettle();
+}
+
+Future<void> tapAction(WidgetTester tester, String label) async {
+  await reveal(tester, find.text(label));
+  await tester.tap(find.text(label));
+}
+
+Future<void> enterAmount(WidgetTester tester, String value) async {
+  tester.state<ScrollableState>(verticalScroll).position.jumpTo(0);
+  await tester.pumpAndSettle();
+  await reveal(tester, find.byKey(const ValueKey('panta-amount')));
+  await tester.enterText(find.byKey(const ValueKey('panta-amount')), value);
+}
 
 void main() {
   late SyntheticPantaRig r;
@@ -59,9 +91,9 @@ void main() {
   }
 
   Future<void> review(WidgetTester tester) async {
-    await tester.enterText(find.byKey(const ValueKey('panta-amount')), '10');
+    await enterAmount(tester, '10');
     await tester.pump();
-    await tester.tap(find.text('Review funding'));
+    await tapAction(tester, 'Review order');
     await tester.pumpAndSettle();
     expect(r.controller.phase, PantaTradePhase.review);
   }
@@ -71,13 +103,17 @@ void main() {
     (tester) async {
       await open(tester);
       expect(find.byType(ChumbucketWavySheet), findsOneWidget);
-      expect(find.byType(ChallengeButton), findsOneWidget);
       expect(find.byType(BasilIcon), findsWidgets);
+      await reveal(tester, find.text('Review order'));
+      expect(find.widgetWithText(TextButton, 'Review order'), findsOneWidget);
+      await reveal(tester, find.textContaining('Up to 100 USDC'));
       expect(find.textContaining('Up to 100 USDC'), findsOneWidget);
       expect(r.wallet.signCount, 0);
       await review(tester);
-      expect(find.text('Cost'), findsOneWidget);
-      expect(find.text('Fee'), findsOneWidget);
+      await reveal(tester, find.text('USDC to spend'));
+      expect(find.text('USDC to spend'), findsOneWidget);
+      await reveal(tester, find.text('Venue fee'));
+      expect(find.text('Venue fee'), findsOneWidget);
       expect(find.text('Estimated shares'), findsOneWidget);
       expect(find.text('1.250000000000000001 USDC/share'), findsOneWidget);
       await tester.scrollUntilVisible(
@@ -91,7 +127,7 @@ void main() {
       expect(find.textContaining('PnL'), findsNothing);
       expect(find.text('Funded'), findsNothing);
       expect(r.wallet.signCount, 0);
-      await tester.tap(find.text('Approve in wallet'));
+      await tapAction(tester, 'Approve in wallet');
       await tester.pumpAndSettle();
       expect(r.wallet.signCount, 1);
       expect(
@@ -125,13 +161,14 @@ void main() {
     r.enabled = false;
     r.statusReason = 'untrusted provider detail synthetic-bearer';
     await open(tester);
+    await reveal(tester, find.text('Panta funding is unavailable right now.'));
     expect(
       find.text('Panta funding is unavailable right now.'),
       findsOneWidget,
     );
     expect(find.textContaining('untrusted'), findsNothing);
-    await tester.enterText(find.byKey(const ValueKey('panta-amount')), '10');
-    await tester.tap(find.text('Review funding'));
+    await enterAmount(tester, '10');
+    await tapAction(tester, 'Review order');
     await tester.pumpAndSettle();
     expect(r.procedure('prepare'), isEmpty);
     expect(r.wallet.signCount, 0);
@@ -149,13 +186,15 @@ void main() {
         find.text('Submitted · awaiting fill confirmation.'),
         findsOneWidget,
       );
+      await reveal(tester, find.text('Check order status'));
       expect(find.text('Check order status'), findsOneWidget);
       expect(find.text('Close'), findsOneWidget);
       expect(r.wallet.signCount, 0);
       expect(r.procedure('prepare'), isEmpty);
       r.serverState = 'FILLED';
-      await tester.tap(find.text('Check order status'));
+      await tapAction(tester, 'Check order status');
       await tester.pumpAndSettle();
+      await reveal(tester, find.text('Funded · fill confirmed by the server.'));
       expect(
         find.text('Funded · fill confirmed by the server.'),
         findsOneWidget,
@@ -170,8 +209,8 @@ void main() {
   ) async {
     await open(tester);
     for (final input in ['100.000001', '1e1', '0.0000001']) {
-      await tester.enterText(find.byKey(const ValueKey('panta-amount')), input);
-      await tester.tap(find.text('Review funding'));
+      await enterAmount(tester, input);
+      await tapAction(tester, 'Review order');
       await tester.pump();
       expect(r.procedure('prepare'), isEmpty);
     }
@@ -189,10 +228,10 @@ void main() {
       unsigned = bytes;
       return signing.future;
     };
-    await tester.tap(find.text('Approve in wallet'));
+    await tapAction(tester, 'Approve in wallet');
     await tester.pump();
     expect(r.wallet.signCount, 1);
-    await tester.tap(find.text('Cancel'));
+    await tapAction(tester, 'Cancel');
     await tester.pumpAndSettle();
     signing.complete(syntheticSigned(unsigned!));
     await tester.pumpAndSettle();
@@ -210,8 +249,9 @@ void main() {
     r.now = r.now.add(const Duration(minutes: 2));
     await r.controller.loadStatus();
     await tester.pumpAndSettle();
+    await reveal(tester, find.text('Cancel expired quote'));
     expect(find.text('Cancel expired quote'), findsOneWidget);
-    await tester.tap(find.text('Cancel expired quote'));
+    await tapAction(tester, 'Cancel expired quote');
     await tester.pumpAndSettle();
     expect(r.wallet.signCount, 0);
     expect(r.controller.phase, PantaTradePhase.cancelled);
@@ -231,17 +271,18 @@ void main() {
     };
     await open(tester);
     await review(tester);
-    await tester.tap(find.text('Approve in wallet'));
+    await tapAction(tester, 'Approve in wallet');
     await tester.pumpAndSettle();
+    await reveal(tester, find.text('Retry same signed transaction'));
     expect(find.text('Retry same signed transaction'), findsOneWidget);
     expect(find.text('Close'), findsOneWidget);
     expect(find.text('Cancel'), findsNothing);
-    await tester.tap(find.text('Close'));
+    await tapAction(tester, 'Close');
     await tester.pumpAndSettle();
     expect(r.controller.phase, PantaTradePhase.signed);
     await tester.tap(find.text('Fund existing call'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Retry same signed transaction'));
+    await tapAction(tester, 'Retry same signed transaction');
     await tester.pumpAndSettle();
     expect(r.inputs('submit')[0], r.inputs('submit')[1]);
     expect(r.wallet.signCount, 1);
@@ -254,18 +295,20 @@ void main() {
     (tester) async {
       await open(tester);
       await review(tester);
-      await tester.tap(find.text('Approve in wallet'));
+      await tapAction(tester, 'Approve in wallet');
       await tester.pumpAndSettle();
       await tester.pump(const Duration(minutes: 2));
       expect(r.procedure('order'), isEmpty);
       r.serverState = 'PARTIAL';
-      await tester.tap(find.text('Check order status'));
+      await tapAction(tester, 'Check order status');
       await tester.pumpAndSettle();
+      await reveal(tester, find.textContaining('Partially filled'));
       expect(find.textContaining('Partially filled'), findsOneWidget);
       expect(find.textContaining('Funded'), findsNothing);
       r.serverState = 'FILLED';
-      await tester.tap(find.text('Check order status'));
+      await tapAction(tester, 'Check order status');
       await tester.pumpAndSettle();
+      await reveal(tester, find.text('Funded · fill confirmed by the server.'));
       expect(
         find.text('Funded · fill confirmed by the server.'),
         findsOneWidget,

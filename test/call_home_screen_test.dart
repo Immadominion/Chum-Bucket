@@ -20,7 +20,6 @@ import 'package:chumbucket/features/challenges/presentation/screens/challenge_hi
 import 'package:chumbucket/features/profile/presentation/screens/profile_screen.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_wallet_card.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_settings_sheet.dart';
-import 'package:chumbucket/features/profile/presentation/screens/widgets/wallet_modal.dart';
 import 'package:chumbucket/features/profile/providers/profile_provider.dart';
 import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:chumbucket/main.dart';
@@ -238,6 +237,14 @@ void main() {
       if (request.procedurePath == 'calls.invitations') {
         return bff.okResponse([]);
       }
+      if (request.procedurePath == 'people.get') {
+        return bff.okResponse(
+          bff.personDetailJson(
+            person: bff.personJson(id: kCanonicalUserId, walletAddress: null),
+            calls: created ? [entry] : [],
+          ),
+        );
+      }
       return bff.okResponse(
         bff.feedPageJson(entries: created ? [entry] : [], nextCursor: null),
       );
@@ -259,19 +266,31 @@ void main() {
       final server = usePantaCatalog();
       calls.setViewer(kCanonicalUserId);
       await mount(tester);
+      await select(tester, 1);
       await tester.tap(find.byType(CallMarketCard));
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
-      await tester.tap(find.text('Make my call'));
+      await tester.tap(find.text('Make a call'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
-      await tester.tap(find.text('Yes — it prints 150k'));
+      await tester.tap(find.text('YES').hitTestable());
       await tester.pump();
-      await tester.tap(find.text('Lock my call'));
+      await tester.tap(find.text('Lock my YES call'));
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
       expect(find.byType(CallDetailScreen), findsOneWidget);
-      expect(find.text('Fund this call · optional'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Review a YES trade'),
+        180,
+        scrollable:
+            find
+                .descendant(
+                  of: find.byType(CallDetailScreen),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+      );
+      expect(find.text('Review a YES trade'), findsOneWidget);
       expect(server.requestFor('calls.create').input['marketId'], homeMarketId);
       expect(server.requestFor('calls.create').input['side'], 'YES');
       expect(
@@ -285,11 +304,22 @@ void main() {
       Navigator.of(tester.element(find.byType(MarketDetailScreen))).pop();
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
-      await select(tester, 1);
+      await select(tester, 0);
       await tester.tap(find.byType(CallCard));
       await tester.pumpAndSettle();
       expect(find.byType(CallDetailScreen), findsOneWidget);
-      expect(find.text('Fund this call · optional'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Review a YES trade'),
+        180,
+        scrollable:
+            find
+                .descendant(
+                  of: find.byType(CallDetailScreen),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+      );
+      expect(find.text('Review a YES trade'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
@@ -299,9 +329,10 @@ void main() {
   ) async {
     final server = usePantaCatalog();
     await mount(tester);
+    await select(tester, 1);
     expect(arena.matchdayLoads, 0);
     expect(find.text("Today's matches"), findsNothing);
-    expect(find.text('Panta'), findsOneWidget);
+    expect(find.textContaining('Powered by Panta'), findsOneWidget);
     expect(find.byType(CallMarketCard), findsOneWidget);
     expect(server.requestFor('markets.open').input, {'category': 'crypto'});
     await tester.tap(find.byType(CallMarketCard));
@@ -319,8 +350,7 @@ void main() {
     usePantaCatalog();
     calls.setViewer(kCanonicalUserId);
     await mount(tester);
-    await select(tester, 1);
-    await tester.tap(find.text('Call it'));
+    await tester.tap(find.text('Call'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     await tester.tap(
@@ -328,71 +358,87 @@ void main() {
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    await tester.tap(find.text('Yes — it prints 150k'));
+    await tester.tap(find.text('YES').hitTestable());
     await tester.pump();
-    await tester.tap(find.text('Lock my call'));
+    await tester.tap(find.text('Lock my YES call'));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     expect(find.byType(CallDetailScreen), findsOneWidget);
-    expect(find.text('Fund this call · optional'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Review a YES trade'),
+      180,
+      scrollable:
+          find
+              .descendant(
+                of: find.byType(CallDetailScreen),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+    );
+    expect(find.text('Review a YES trade'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
   testWidgets(
-    'Home catalog error retries the BFF without falling back to matches',
+    'Markets catalog error retries the BFF without falling back to matches',
     (tester) async {
       var failing = true;
       usePantaCatalog(fail: () => failing);
       await mount(tester);
+      await select(tester, 1);
       expect(find.text('Markets are temporarily unavailable.'), findsOneWidget);
       expect(arena.matchdayLoads, 0);
       failing = false;
       await tester.tap(find.text('Try again'));
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
-      expect(find.text('Panta'), findsOneWidget);
+      expect(find.textContaining('Powered by Panta'), findsOneWidget);
       expect(arena.matchdayLoads, 0);
       expect(tester.takeException(), isNull);
     },
   );
 
-  testWidgets('Home keeps last catalog visible with a failed refresh notice', (
-    tester,
-  ) async {
-    var failing = false;
-    usePantaCatalog(fail: () => failing);
-    await mount(tester);
-    failing = true;
-    await calls.loadOpenMarkets(force: true);
-    await tester.pump();
-    expect(find.byType(CallMarketCard), findsOneWidget);
-    expect(
-      find.text('Couldn’t refresh markets. Showing the last catalog.'),
-      findsOneWidget,
-    );
-    expect(tester.takeException(), isNull);
-  });
+  testWidgets(
+    'Markets keeps last catalog visible with a failed refresh notice',
+    (tester) async {
+      var failing = false;
+      usePantaCatalog(fail: () => failing);
+      await mount(tester);
+      await select(tester, 1);
+      failing = true;
+      await calls.loadOpenMarkets(force: true);
+      await tester.pump();
+      expect(find.byType(CallMarketCard), findsOneWidget);
+      expect(find.text('Markets are temporarily unavailable.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
-  testWidgets('Home shows an honest empty catalog and keeps calls reachable', (
-    tester,
-  ) async {
-    usePantaCatalog(empty: true);
-    await mount(tester);
-    expect(find.text('No markets ready for calls'), findsOneWidget);
-    expect(find.byType(CallMarketCard), findsNothing);
-    await tester.tap(find.text('See calls'));
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(find.byType(CallFeedScreen), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+  testWidgets(
+    'Markets shows an honest empty catalog and keeps calls reachable',
+    (tester) async {
+      usePantaCatalog(empty: true);
+      await mount(tester);
+      await select(tester, 1);
+      expect(find.text('Nothing open in this window'), findsOneWidget);
+      expect(find.byType(CallMarketCard), findsNothing);
+      await select(tester, 0);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.byType(CallFeedScreen), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
-  testWidgets('Panta Home and its market remain usable at large text size', (
+  testWidgets('Panta Markets and its market remain usable at large text size', (
     tester,
   ) async {
     usePantaCatalog();
     await mount(tester, scale: 2);
-    await tester.ensureVisible(find.byType(CallMarketCard));
-    await tester.tap(find.byType(CallMarketCard));
+    await select(tester, 1);
+    final question = find.text(bff.marketJson()['question'] as String);
+    await tester.ensureVisible(question);
+    await tester.pumpAndSettle();
+    await tester.tap(question);
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     expect(find.byType(MarketDetailScreen), findsOneWidget);
@@ -447,12 +493,12 @@ void main() {
     Navigator.of(tester.element(find.byType(ProfileSettingsSheet))).pop();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    await tester.ensureVisible(find.text('Add SOL'));
-    await tester.tap(find.text('Add SOL'));
+    await tester.ensureVisible(find.text('My wallet'));
+    await tester.tap(find.text('My wallet'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.byType(WalletModal), findsOneWidget);
-    Navigator.of(tester.element(find.byType(WalletModal))).pop();
+    expect(find.byType(ProfileSettingsSheet), findsOneWidget);
+    Navigator.of(tester.element(find.byType(ProfileSettingsSheet))).pop();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(
@@ -478,7 +524,15 @@ void main() {
       const Offset(0, -400),
     );
     await tester.pump(const Duration(milliseconds: 400));
+    await tester.ensureVisible(find.text('Challenges'));
+    await tester.tap(find.text('Challenges'));
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Prediction history'));
+    await tester.drag(
+      find.byKey(const PageStorageKey('profile-root')),
+      const Offset(0, -240),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Prediction history'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
@@ -507,7 +561,6 @@ void main() {
 
   testWidgets('preview feed stays inside the existing shell', (tester) async {
     await mount(tester);
-    await select(tester, 1);
     expect(find.text('The first call could be yours'), findsOneWidget);
     expect(find.text('Explore markets'), findsOneWidget);
     expect(auth.startCount, 0);
@@ -518,13 +571,17 @@ void main() {
     tester,
   ) async {
     await mount(tester);
-    await select(tester, 1);
     await tester.tap(find.text('Explore markets'));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     expect(find.byType(TextField), findsOneWidget);
     expect(calls.openMarkets, isNotEmpty);
-    final question = calls.openMarkets.first.question;
+    await tester.tap(find.text('This week'));
+    await tester.pumpAndSettle();
+    final question =
+        calls.openMarkets
+            .firstWhere((market) => market.id == 'market_sol_flip')
+            .question;
     await tester.enterText(find.byType(TextField), question);
     await tester.pump(const Duration(milliseconds: 400));
     await tester.tap(find.text(question).last);
@@ -539,8 +596,7 @@ void main() {
     tester,
   ) async {
     await mount(tester);
-    await select(tester, 1);
-    await tester.tap(find.text('Call it'));
+    await tester.tap(find.text('Call'));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     expect(find.byType(CallSessionPanel).hitTestable(), findsOneWidget);
@@ -551,7 +607,7 @@ void main() {
             find.byType(ChumbucketBottomNavigation),
           )
           .selectedIndex,
-      1,
+      0,
     );
     await tester.tap(find.text('Continue with Google').hitTestable());
     await tester.pump(const Duration(seconds: 1));
@@ -569,7 +625,7 @@ void main() {
       home: MarketDetailScreen(marketId: calls.openMarkets.first.id),
     );
     // Tap the real detail action: this screen has no shell callback.
-    await tester.tap(find.text('Make my call'));
+    await tester.tap(find.text('Make a call'));
     await tester.pumpAndSettle();
     expect(find.text('Continue with Google'), findsOneWidget);
     expect(tester.takeException(), isNull);

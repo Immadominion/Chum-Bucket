@@ -1,8 +1,4 @@
-/// Picks the market to call, then hands off to the composer.
-///
-/// Shows each market's status and venue attribution but **no price**: the price
-/// belongs on the market detail, next to the rules and the data age, where it
-/// can be read in context rather than skimmed off a list.
+/// Select an existing eligible market before opening the free-call composer.
 library;
 
 import 'package:flutter/material.dart';
@@ -10,22 +6,21 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
-import 'package:chumbucket/features/calls/presentation/widgets/call_badges.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_composer_sheet.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/call_market_card.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart';
-import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
-Future<CallFeedEntry?> showMarketPickerSheet({required BuildContext context}) {
-  return showChumbucketWavySheet<CallFeedEntry>(
-    context: context,
-    builder: (_) => const MarketPickerSheet(),
-  );
-}
+Future<CallFeedEntry?> showMarketPickerSheet({required BuildContext context}) =>
+    showChumbucketWavySheet<CallFeedEntry>(
+      context: context,
+      builder: (_) => const MarketPickerSheet(),
+    );
 
 class MarketPickerSheet extends StatefulWidget {
   const MarketPickerSheet({super.key});
@@ -35,6 +30,10 @@ class MarketPickerSheet extends StatefulWidget {
 }
 
 class _MarketPickerSheetState extends State<MarketPickerSheet> {
+  String _query = '';
+  String? _picking;
+  MarketDiscoveryWindow _window = MarketDiscoveryWindow.endingSoon;
+
   @override
   void initState() {
     super.initState();
@@ -44,124 +43,150 @@ class _MarketPickerSheetState extends State<MarketPickerSheet> {
   }
 
   Future<void> _pick(VenueMarket market) async {
-    final provider = context.read<CallsProvider>();
-    final detail = await provider.loadMarketDetail(market.id, force: true);
-    if (!mounted) return;
-    final entry = await showCallComposer(
-      context: context,
-      market: detail?.market ?? market,
-      snapshot: detail?.snapshot,
-      sharePrice: detail?.sharePrice,
-    );
-    if (entry != null && mounted) Navigator.of(context).pop(entry);
+    if (_picking != null) return;
+    setState(() => _picking = market.id);
+    try {
+      final provider = context.read<CallsProvider>();
+      final detail = await provider.loadMarketDetail(market.id, force: true);
+      if (!mounted) return;
+      // Preserve the existing composer eligibility/error contract, including
+      // a failed refresh or missing snapshot. Selection never places a trade.
+      final entry = await showCallComposer(
+        context: context,
+        market: detail?.market ?? market,
+        snapshot: detail?.snapshot,
+        sharePrice: detail?.sharePrice,
+      );
+      if (entry != null && mounted) Navigator.of(context).pop(entry);
+    } finally {
+      if (mounted) setState(() => _picking = null);
+    }
   }
 
   @override
-  Widget build(BuildContext context) {
-    return ChumbucketWavySheet(
-      title: 'What are you calling?',
-      subtitle: 'Free, timestamped, and locked the moment you send it.',
-      height: MediaQuery.sizeOf(context).height * 0.78,
-      body: Consumer<CallsProvider>(
-        builder: (context, provider, _) {
-          if (!provider.isSignedIn) return const CallsSignedOutView();
-          if (provider.isLoadingOpenMarkets && provider.openMarkets.isEmpty) {
-            return const CallsLoadingView(rows: 3);
-          }
-          if (provider.openMarkets.isEmpty) {
-            final error = provider.openMarketsError;
-            if (provider.isOffline) {
-              return CallsOfflineView(
-                onRetry: () => provider.loadOpenMarkets(force: true),
-              );
-            }
-            if (error != null) {
-              return CallsErrorView(
-                message: error,
-                onRetry: () => provider.loadOpenMarkets(force: true),
-              );
-            }
-            return const CallsEmptyView(
-              title: 'Nothing open right now',
-              message:
-                  'No market is accepting calls at the moment. Check back '
-                  'shortly.',
-            );
-          }
-          return ListView.separated(
-            padding: EdgeInsets.fromLTRB(20.w, 14.h, 20.w, 20.h),
-            itemCount: provider.openMarkets.length,
-            separatorBuilder: (_, __) => SizedBox(height: 10.h),
-            itemBuilder: (context, index) {
-              final market = provider.openMarkets[index];
-              return _MarketRow(market: market, onTap: () => _pick(market));
-            },
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _MarketRow extends StatelessWidget {
-  final VenueMarket market;
-  final VoidCallback onTap;
-
-  const _MarketRow({required this.market, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16.r),
-      child: Container(
-        padding: EdgeInsets.all(14.w),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16.r),
-          border: Border.all(color: AppColors.outlineVariant),
-        ),
-        child: Row(
+  Widget build(BuildContext context) => ChumbucketWavySheet(
+    title: 'Choose a market',
+    // Keep long questions in the scrolling body, outside the fixed wave header.
+    headerHeight:
+        (MediaQuery.textScalerOf(context).scale(22) > 33 ? 162.0 : 122.0) /
+        ScreenUtil().scaleHeight,
+    height: MediaQuery.sizeOf(context).height * 0.86,
+    body: Consumer<CallsProvider>(
+      builder: (context, provider, _) {
+        final rows = discoveryMarkets(
+          provider.openMarkets,
+          window: _window,
+          query: _query,
+        );
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    market.question,
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 14.sp,
-                      height: 1.3,
-                      fontWeight: FontWeight.w700,
-                    ),
+            Text(
+              'Your opinion. No money involved.',
+              style: AppTextStyles.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              onChanged: (value) => setState(() => _query = value),
+              style: AppTextStyles.textTheme.bodyMedium,
+              decoration: InputDecoration(
+                hintText: 'Search crypto markets',
+                hintStyle: AppTextStyles.textTheme.bodyMedium,
+                filled: true,
+                fillColor: AppColors.background,
+                prefixIcon: const Padding(
+                  padding: EdgeInsets.all(14),
+                  child: BasilIcon(
+                    'search-outline',
+                    size: 20,
+                    color: AppColors.textSecondary,
                   ),
-                  SizedBox(height: 8.h),
-                  Wrap(
-                    spacing: 8.w,
-                    runSpacing: 6.h,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      MarketStatusBadge(status: market.status),
-                      DemoVenueBadge(venue: market.venue),
-                      CallBadge(
-                        label: CallsFormat.untilClose(market.closesAtUtc),
-                        color: AppColors.textSecondary,
-                        icon: 'clock-outline',
-                      ),
-                    ],
-                  ),
-                ],
+                ),
+                contentPadding: const EdgeInsets.all(16),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
               ),
             ),
-            SizedBox(width: 8.w),
-            BasilIcon(
-              'caret-right-outline',
-              size: 18.w,
-              color: AppColors.textTertiary,
+            const SizedBox(height: 12),
+            MarketWindowFilters(
+              selected: _window,
+              onChanged: (value) => setState(() => _window = value),
             ),
+            const SizedBox(height: 8),
+            Text(
+              _window == MarketDiscoveryWindow.endingSoon
+                  ? 'Closing in 4–48 hours'
+                  : 'Closing in 4 hours–7 days',
+              style: AppTextStyles.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 16),
+            if (!provider.isSignedIn)
+              const CallsSignedOutView()
+            else if (provider.isLoadingOpenMarkets &&
+                provider.openMarkets.isEmpty)
+              const SizedBox(height: 300, child: CallsLoadingView(rows: 2))
+            else if (provider.openMarkets.isEmpty && provider.isOffline)
+              CallsOfflineView(
+                onRetry: () => provider.loadOpenMarkets(force: true),
+              )
+            else if (provider.openMarkets.isEmpty &&
+                provider.openMarketsError != null)
+              CallsErrorView(
+                message: provider.openMarketsError!,
+                onRetry: () => provider.loadOpenMarkets(force: true),
+              )
+            else ...[
+              if (provider.isOffline || provider.openMarketsError != null) ...[
+                Text(
+                  provider.isOffline
+                      ? 'Offline · showing cached markets.'
+                      : provider.openMarketsError!,
+                  style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                    color: AppColors.onWarningContainer,
+                  ),
+                ),
+                TextButton(
+                  style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+                  onPressed: () => provider.loadOpenMarkets(force: true),
+                  child: const Text('Retry'),
+                ),
+              ],
+              if (rows.isEmpty)
+                CallsEmptyView(
+                  title: 'Nothing open in this window',
+                  message: 'Try another search or time filter.',
+                  actionLabel:
+                      _window == MarketDiscoveryWindow.endingSoon
+                          ? 'Show this week'
+                          : 'Refresh',
+                  onAction:
+                      _window == MarketDiscoveryWindow.endingSoon
+                          ? () => setState(
+                            () => _window = MarketDiscoveryWindow.thisWeek,
+                          )
+                          : () => provider.loadOpenMarkets(force: true),
+                ),
+              for (final market in rows) ...[
+                if (_picking == market.id)
+                  const LinearProgressIndicator(
+                    semanticsLabel: 'Loading market',
+                  ),
+                AbsorbPointer(
+                  absorbing: _picking != null,
+                  child: CallMarketCard(
+                    market: market,
+                    sharePrice: provider.marketDetail(market.id)?.sharePrice,
+                    onTap: () => _pick(market),
+                  ),
+                ),
+                const Divider(height: 1, color: AppColors.divider),
+              ],
+            ],
           ],
-        ),
-      ),
-    );
-  }
+        );
+      },
+    ),
+  );
 }

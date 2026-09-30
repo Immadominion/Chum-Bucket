@@ -409,7 +409,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(CallReceiptSheet), findsOneWidget);
-      expect(find.text('Receipt'), findsOneWidget);
+      expect(find.text('Your receipt'), findsOneWidget);
     });
 
     testWidgets('an actor avatar opens that person', (tester) async {

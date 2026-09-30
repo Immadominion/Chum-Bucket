@@ -5,9 +5,10 @@ import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/friends_grid.dart';
 import 'package:chumbucket/shared/screens/home/widgets/view_more_friends_sheet.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
-import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
+import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/core/theme/app_text_styles.dart';
+import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_settings_sheet.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenges_preview.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/shared/services/unified_database_service.dart';
@@ -38,6 +39,7 @@ class FriendsTab extends StatefulWidget {
   final Function(Map<String, dynamic>, bool) onMarkChallengeCompleted;
   final bool showChallengesPreview;
   final double bottomPadding;
+  final Widget? invitations;
 
   const FriendsTab({
     super.key,
@@ -48,6 +50,7 @@ class FriendsTab extends StatefulWidget {
     required this.onMarkChallengeCompleted,
     this.showChallengesPreview = true,
     this.bottomPadding = 0,
+    this.invitations,
   });
   @override
   State<FriendsTab> createState() => _FriendsTabState();
@@ -75,13 +78,16 @@ class _FriendsTabState extends State<FriendsTab>
   @override
   void initState() {
     super.initState();
+    _lastRefreshKey = widget.key is ValueKey ? widget.key as ValueKey : null;
     // Don't load friends immediately - wait for auth state
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       _loadFriendsWhenReady();
     });
 
     // Also refresh the preview list as soon as a challenge is created by listening to WalletProvider
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       _walletProvider = Provider.of<MwaWalletProvider>(context, listen: false);
       _walletProvider?.addListener(_onWalletChange);
     });
@@ -106,7 +112,7 @@ class _FriendsTabState extends State<FriendsTab>
     // Check if we need to refresh based on the widget key
     final newRefreshKey = widget.key;
     if (newRefreshKey != _lastRefreshKey && newRefreshKey is ValueKey) {
-      print('FriendsTab: Refresh key changed, clearing caches');
+      debugPrint('FriendsTab: Refresh key changed, clearing caches');
       _lastRefreshKey = newRefreshKey;
       _friendsFuture = null; // Clear cache to force refresh
       hasAttemptedLoad = false; // Reset load flag to allow refresh
@@ -119,6 +125,7 @@ class _FriendsTabState extends State<FriendsTab>
   }
 
   Future<void> _loadFriendsWhenReady() async {
+    if (!mounted) return;
     final authProvider = Provider.of<MwaAuthProvider>(context, listen: false);
 
     // THROTTLING: Don't load if we loaded very recently
@@ -127,7 +134,7 @@ class _FriendsTabState extends State<FriendsTab>
         _lastLoadTime ?? DateTime.now(),
       );
       if (timeSinceLoad < Duration(seconds: 30)) {
-        print(
+        debugPrint(
           'FriendsTab: Throttling load - too recent (${timeSinceLoad.inSeconds}s ago)',
         );
         return;
@@ -158,7 +165,7 @@ class _FriendsTabState extends State<FriendsTab>
       }
     } else {
       // Otherwise, wait for auth to be ready
-      print('FriendsTab: Waiting for auth to be ready...');
+      debugPrint('FriendsTab: Waiting for auth to be ready...');
       if (mounted) {
         setState(() => isLoading = true);
       }
@@ -166,18 +173,18 @@ class _FriendsTabState extends State<FriendsTab>
   }
 
   Future<List<Map<String, String>>> _loadFriendsData() async {
-    print('FriendsTab: Starting to load friends...');
+    debugPrint('FriendsTab: Starting to load friends...');
 
     // Get current user
     final authProvider = Provider.of<MwaAuthProvider>(context, listen: false);
     final walletAddress = authProvider.walletAddress;
 
     if (walletAddress == null) {
-      print('FriendsTab: No current user found');
+      debugPrint('FriendsTab: No current user found');
       return [];
     }
 
-    print('FriendsTab: Loading friends for user: $walletAddress');
+    debugPrint('FriendsTab: Loading friends for user: $walletAddress');
 
     // Best-effort: load this wallet's pending "added by X handle, not
     // joined yet" targets so the section below the grid can show them.
@@ -192,6 +199,7 @@ class _FriendsTabState extends State<FriendsTab>
       walletAddress,
       userPrivyId: walletAddress,
     );
+    if (!mounted) return [];
 
     // Convert to UI format expected by FriendsGrid and assign images based on position
     final uiFriends = <Map<String, String>>[];
@@ -217,9 +225,9 @@ class _FriendsTabState extends State<FriendsTab>
       });
     }
 
-    print('FriendsTab: Loaded ${uiFriends.length} friends from Supabase');
+    debugPrint('FriendsTab: Loaded ${uiFriends.length} friends from Supabase');
     for (final friend in uiFriends) {
-      print('  - ${friend['name']} (${friend['walletAddress']})');
+      debugPrint('  - ${friend['name']} (${friend['walletAddress']})');
     }
 
     return uiFriends;
@@ -244,7 +252,7 @@ class _FriendsTabState extends State<FriendsTab>
   Future<void> _loadFriends() async {
     // If we already have cached data and haven't been asked to refresh, use it
     if (_friendsFuture != null && hasAttemptedLoad && friends.isNotEmpty) {
-      print(
+      debugPrint(
         'FriendsTab: Using cached friends data (${friends.length} friends)',
       );
       return;
@@ -282,9 +290,9 @@ class _FriendsTabState extends State<FriendsTab>
         );
       }
 
-      print('FriendsTab: UI updated with ${friends.length} friends');
+      debugPrint('FriendsTab: UI updated with ${friends.length} friends');
     } catch (e) {
-      print('Error loading friends: $e');
+      debugPrint('Error loading friends: $e');
       // M8: remember the failure so the UI can offer a real retry instead of
       // silently dropping to a blank grid.
       if (mounted) {
@@ -308,7 +316,7 @@ class _FriendsTabState extends State<FriendsTab>
     super.build(context);
 
     // Check auth state once without Consumer to avoid rebuilds
-    final authProvider = Provider.of<MwaAuthProvider>(context, listen: false);
+    final authProvider = context.watch<MwaAuthProvider>();
 
     // Auto-load friends when user becomes available (only if we haven't attempted yet)
     if (authProvider.walletAddress != null &&
@@ -319,185 +327,169 @@ class _FriendsTabState extends State<FriendsTab>
       });
     }
 
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      child: Column(
-        children: [
-          Container(
-            padding: EdgeInsets.all(16.h),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(26.r),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                SizedBox(height: 10.h),
-                Text(
-                  'Who do you want to challenge?',
-                  style: TextStyle(
-                    fontSize: 14.sp,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                // Only show spinner on first load when no data exists
-                // Otherwise show the grid (even if empty or refreshing in background)
-                if (isLoading && friends.isEmpty)
-                  Padding(
-                    padding: EdgeInsets.all(24.r),
-                    child: Column(
-                      children: [
-                        SizedBox(
-                          width: 24.w,
-                          height: 24.h,
-                          child: const CircularProgressIndicator(),
-                        ),
-                        SizedBox(height: 12.h),
-                        // M7: caption so the spinner reads as loading, not stuck.
-                        Text(
-                          'Loading your friends…',
-                          style: TextStyle(
-                            fontSize: 12.sp,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                else if (_hasLoadError && friends.isEmpty)
-                  // M8: real error card with a Try again button.
-                  Padding(
-                    padding: EdgeInsets.symmetric(vertical: 20.h),
-                    child: Column(
-                      children: [
-                        BasilIcon(
-                          'cloud-off-outline',
-                          size: 30.sp,
-                          color: Colors.grey,
-                        ),
-                        SizedBox(height: 10.h),
-                        Text(
-                          'Couldn\'t load — check your connection',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 13.sp,
-                            color: Colors.grey.shade700,
-                          ),
-                        ),
-                        SizedBox(height: 8.h),
-                        TextButton(
-                          onPressed: _retryLoadFriends,
-                          child: const Text('Try again'),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  Consumer<ArenaProvider>(
-                    builder:
-                        (context, arena, _) => FriendsGrid(
-                          friends: _withXLabels(friends, arena),
-                          onFriendSelected: (friendName) {
-                            final friend = friends.firstWhere(
-                              (f) => f['name'] == friendName,
-                              orElse: () => {'walletAddress': ''},
-                            );
-                            // Pass raw wallet address; resolution will happen where displayed
-                            widget.onFriendSelected(
-                              friendName,
-                              friend['walletAddress'] ?? '',
-                            );
-                          },
-                          buildViewMoreItem: widget.buildViewMoreItem,
-                          onViewMorePressed: _showAllFriends,
-                          // H14: empty-state "Add a friend" opens the same flow
-                          // as the button below.
-                          onAddFriend: widget.createNewChallenge,
-                          maxVisibleFriends:
-                              5, // Show 5 friends before "View More"
-                        ),
-                  ),
-                // SizedBox(height: 15.h),
-                ChallengeButton(createNewChallenge: widget.createNewChallenge),
-              ],
-            ),
-          ),
-          const _PendingInvitesSection(),
-          if (widget.showChallengesPreview) ...[
-            SizedBox(height: 24.h),
-            Stack(
-              children: [
-                Center(
-                  child: Opacity(
-                    opacity: 0.9,
-                    child: Text(
-                      'Challenges',
-                      style: TextStyle(
-                        fontSize: 22.sp,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  right: 0,
-                  top: -2,
-                  child: GestureDetector(
-                    onTap: widget.onViewAllChallenges,
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 16.w,
-                        vertical: 8.h,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+    final styles = AppTextStyles.textTheme;
+    final connected = authProvider.walletAddress != null;
+    return RefreshIndicator(
+      color: AppColors.primary,
+      onRefresh: _retryLoadFriends,
+      child: SingleChildScrollView(
+        key: const PageStorageKey('friends-grid'),
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (widget.invitations != null) widget.invitations!,
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child:
+                  !connected
+                      ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'View All',
-                            style: TextStyle(
-                              fontSize: 14.sp,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade700,
-                            ),
+                            'Your existing friends',
+                            style: styles.titleLarge,
                           ),
-                          SizedBox(width: 4.w),
-                          BasilIcon(
-                            'arrow-right-outline',
-                            color: Colors.grey.shade700,
-                            size: 18.sp,
+                          const SizedBox(height: 8),
+                          Text(
+                            'Connect your existing account to load your friends.',
+                            style: styles.bodyMedium,
+                          ),
+                          const SizedBox(height: 12),
+                          TextButton(
+                            style: TextButton.styleFrom(
+                              minimumSize: const Size(48, 48),
+                              foregroundColor: AppColors.textPrimary,
+                            ),
+                            onPressed: () => showProfileSettingsSheet(context),
+                            child: const Text('Account settings'),
                           ),
                         ],
+                      )
+                      : Column(
+                        children: [
+                          if (isLoading && friends.isEmpty) ...[
+                            const Padding(
+                              padding: EdgeInsets.all(24),
+                              child: CircularProgressIndicator(
+                                color: AppColors.primary,
+                              ),
+                            ),
+                            Text(
+                              'Loading your friends…',
+                              style: styles.bodySmall,
+                            ),
+                          ] else if (_hasLoadError && friends.isEmpty) ...[
+                            const BasilIcon('cloud-off-outline', size: 32),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Couldn’t load your friends. Check your connection.',
+                              style: styles.bodyMedium,
+                              textAlign: TextAlign.center,
+                            ),
+                            TextButton(
+                              style: TextButton.styleFrom(
+                                minimumSize: const Size(48, 48),
+                                foregroundColor: AppColors.textPrimary,
+                              ),
+                              onPressed: _retryLoadFriends,
+                              child: const Text('Try again'),
+                            ),
+                          ] else
+                            Consumer<ArenaProvider>(
+                              builder:
+                                  (context, arena, _) => FriendsGrid(
+                                    friends: _withXLabels(friends, arena),
+                                    onFriendSelected: (friendName) {
+                                      final friend = friends.firstWhere(
+                                        (f) => f['name'] == friendName,
+                                        orElse: () => {'walletAddress': ''},
+                                      );
+                                      widget.onFriendSelected(
+                                        friendName,
+                                        friend['walletAddress'] ?? '',
+                                      );
+                                    },
+                                    buildViewMoreItem: widget.buildViewMoreItem,
+                                    onViewMorePressed: _showAllFriends,
+                                    maxVisibleFriends: 5,
+                                  ),
+                            ),
+                          if (_hasLoadError && friends.isNotEmpty)
+                            Text(
+                              'Showing saved friends. Pull down to retry.',
+                              style: styles.bodySmall,
+                            ),
+                        ],
                       ),
-                    ),
+            ),
+            if (connected) ...[
+              const SizedBox(height: 16),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [AppColors.lightPrimary, AppColors.primary],
                   ),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-              ],
+                child: TextButton.icon(
+                  onPressed: widget.createNewChallenge,
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(48, 52),
+                    foregroundColor: AppColors.textPrimary,
+                    padding: const EdgeInsets.all(16),
+                    textStyle: styles.titleMedium,
+                  ),
+                  icon: const BasilIcon('plus-outline'),
+                  label: const Text('Add a friend'),
+                ),
+              ),
+              const _PendingInvitesSection(),
+            ],
+            const SizedBox(height: 16),
+            Text(
+              'Friends are mutual connections. Following adds people’s calls to Home.',
+              style: styles.bodySmall?.copyWith(
+                color: AppColors.textSecondary,
+                height: 1.6,
+              ),
             ),
-            SizedBox(height: 12.h),
-            ChallengesPreview(
-              onViewAll: widget.onViewAllChallenges,
-              onMarkChallengeCompleted: widget.onMarkChallengeCompleted,
-            ),
+            if (widget.showChallengesPreview) ...[
+              const SizedBox(height: 24),
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text('Challenges', style: styles.titleLarge),
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size(48, 48),
+                      foregroundColor: AppColors.textPrimary,
+                    ),
+                    onPressed: widget.onViewAllChallenges,
+                    child: const Text('View all challenges'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ChallengesPreview(
+                onViewAll: widget.onViewAllChallenges,
+                onMarkChallengeCompleted: widget.onMarkChallengeCompleted,
+              ),
+            ],
+            SizedBox(height: widget.bottomPadding),
           ],
-          SizedBox(height: widget.bottomPadding.h),
-        ],
+        ),
       ),
     );
   }
 }
 
-/// "@handle · not joined yet" - friends added by X handle who haven't
-/// linked a wallet (and therefore couldn't be added to the real friends
-/// list yet). Resolved targets drop off automatically once
-/// [ArenaProvider.loadPendingTargets] refreshes (they've become real
-/// friends by then via the normal add-by-wallet path).
+/// Existing add-by-handle requests. These are not delivered call invitations.
 class _PendingInvitesSection extends StatelessWidget {
   const _PendingInvitesSection();
 
@@ -508,72 +500,43 @@ class _PendingInvitesSection extends StatelessWidget {
         final unresolved =
             arena.pendingTargets.where((t) => !t.isResolved).toList();
         if (unresolved.isEmpty) return const SizedBox.shrink();
-
-        return Padding(
-          padding: EdgeInsets.only(top: 16.h),
-          child: Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(16.h),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(26.r),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
-                  offset: const Offset(0, 2),
+        final styles = AppTextStyles.textTheme;
+        return Container(
+          margin: const EdgeInsets.only(top: 16),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.primaryContainer,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Waiting to join', style: styles.titleMedium),
+              const SizedBox(height: 8),
+              Text(
+                'These friend requests are waiting for the person to join with their X account.',
+                style: styles.bodySmall?.copyWith(
+                  color: AppColors.onPrimaryContainer,
+                  height: 1.5,
                 ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  // Matches web's wording (app/(app)/friends/page.tsx) —
-                  // "invite" overstates it since the target is never notified.
-                  'Waiting to join',
-                  style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w700),
-                ),
-                SizedBox(height: 4.h),
-                Text(
-                  "They'll be added automatically once they join ChumBucket with this X account.",
-                  style: TextStyle(fontSize: 11.sp, color: Colors.grey.shade500),
-                ),
-                SizedBox(height: 8.h),
-                ...unresolved.map(
-                  (target) => Padding(
-                    padding: EdgeInsets.symmetric(vertical: 6.h),
-                    child: Row(
-                      children: [
-                        BasilIcon(
-                          'twitter-outline',
-                          size: 16.w,
-                          color: Colors.grey.shade500,
-                        ),
-                        SizedBox(width: 8.w),
-                        Expanded(
-                          child: Text(
-                            '@${target.providerUsername}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 14.sp,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          'Not joined yet',
-                          style: TextStyle(
-                            fontSize: 11.sp,
-                            color: Colors.grey.shade500,
-                          ),
-                        ),
-                      ],
-                    ),
+              ),
+              const SizedBox(height: 12),
+              for (final target in unresolved)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '@${target.providerUsername}',
+                        style: styles.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text('Not joined yet', style: styles.bodySmall),
+                    ],
                   ),
                 ),
-              ],
-            ),
+            ],
           ),
         );
       },

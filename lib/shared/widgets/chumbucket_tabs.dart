@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
-
 import 'package:chumbucket/core/theme/app_colors.dart';
 
+/// Content filters, distinct from bottom navigation. Parents can scroll the
+/// strip horizontally at larger accessibility text sizes.
 class ChumbucketTabs extends StatelessWidget {
   final List<String> labels;
   final int selectedIndex;
@@ -26,41 +26,27 @@ class ChumbucketTabs extends StatelessWidget {
           selected: selected,
           child: InkWell(
             onTap: () => onSelected(index),
-            borderRadius: BorderRadius.circular(18.r),
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 10.h),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Flexible(
-                    child: Text(
-                      labels[index],
-                      maxLines: 1,
-                      overflow: TextOverflow.fade,
-                      softWrap: false,
-                      style: TextStyle(
-                        color:
-                            selected
-                                ? AppColors.textPrimary
-                                : AppColors.textTertiary,
-                        fontSize: 18.sp,
-                        fontWeight:
-                            selected ? FontWeight.w700 : FontWeight.w600,
-                      ),
-                    ),
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 48),
+              padding: const EdgeInsets.fromLTRB(12, 14, 12, 11),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: selected ? AppColors.primary : Colors.transparent,
+                    width: 3,
                   ),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    width: selected ? 8.w : 0,
-                    height: selected ? 8.w : 0,
-                    margin: EdgeInsets.only(left: selected ? 6.w : 0),
-                    decoration: const BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ],
+                ),
+              ),
+              child: Text(
+                labels[index],
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color:
+                      selected
+                          ? AppColors.textPrimary
+                          : AppColors.textSecondary,
+                ),
               ),
             ),
           ),

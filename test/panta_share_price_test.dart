@@ -199,7 +199,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Lock my call'));
+      await tester.tap(find.text('Lock my YES call'));
       await tester.pumpAndSettle();
       await tester.dragUntilVisible(
         find.text(

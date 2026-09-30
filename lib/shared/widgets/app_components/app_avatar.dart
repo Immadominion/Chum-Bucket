@@ -62,7 +62,10 @@ class AppAvatar extends StatelessWidget {
         image:
             imageUrl != null
                 ? DecorationImage(
-                  image: NetworkImage(imageUrl!),
+                  image:
+                      imageUrl!.startsWith('assets/')
+                          ? AssetImage(imageUrl!)
+                          : NetworkImage(imageUrl!) as ImageProvider,
                   fit: BoxFit.cover,
                 )
                 : null,

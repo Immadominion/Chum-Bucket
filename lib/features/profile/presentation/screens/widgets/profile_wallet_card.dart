@@ -1,196 +1,154 @@
-import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:provider/provider.dart';
-// MWA Wallet Provider for Pinocchio program integration
+import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
-import 'package:chumbucket/core/utils/base_change_notifier.dart'
-    show LoadingState;
-import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/wallet_modal.dart';
-import 'package:chumbucket/shared/services/address_name_resolver.dart';
+import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_settings_sheet.dart';
+import 'package:chumbucket/shared/utils/snackbar_utils.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
-/// Redesigned wallet balance card following the app's design system
+/// A private entry row. Financial amounts stay inside the wallet sheet.
 class ProfileWalletCard extends StatelessWidget {
   const ProfileWalletCard({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(20.w),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(26.r),
-        boxShadow: [
-          BoxShadow(color: Colors.grey.withOpacity(0.2), offset: Offset(0, 2)),
-        ],
+    final wallet = context.watch<MwaWalletProvider?>();
+    final connected = wallet?.walletAddress != null;
+    final styles = AppTextStyles.textTheme;
+    return Material(
+      color: AppColors.surface,
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        minVerticalPadding: 12,
+        leading: const BasilIcon(
+          'wallet-outline',
+          color: AppColors.textPrimary,
+        ),
+        title: Text('My wallet', style: styles.titleSmall),
+        subtitle: Text(
+          connected
+              ? 'Connected · visible only to you'
+              : 'Not connected · private',
+          style: styles.bodySmall?.copyWith(color: AppColors.textSecondary),
+        ),
+        trailing: const BasilIcon(
+          'arrow-right-outline',
+          color: AppColors.textPrimary,
+        ),
+        onTap: () {
+          if (!connected) {
+            showProfileSettingsSheet(context);
+            return;
+          }
+          showChumbucketWavySheet<void>(
+            context: context,
+            builder:
+                (_) => ChangeNotifierProvider<MwaWalletProvider>.value(
+                  value: wallet!,
+                  child: const ChumbucketWavySheet(
+                    title: 'My wallet',
+                    body: _PrivateWalletDetails(),
+                  ),
+                ),
+          );
+        },
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header row with wallet icon and title
-          Row(
-            children: [
-              Container(
-                padding: EdgeInsets.all(8.w),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFFF5A76), Color(0xFFFF3355)],
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                  ),
-                  borderRadius: BorderRadius.circular(12.r),
-                ),
-                child: BasilIcon(
-                  'wallet-outline',
-                  size: 20.w,
-                  color: Colors.white,
-                ),
-              ),
-              SizedBox(width: 12.w),
-              Expanded(
-                child: Text(
-                  'Wallet Balance',
-                  style: TextStyle(
-                    fontSize: 18.sp,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black87,
-                  ),
-                ),
-              ),
-            ],
+    );
+  }
+}
+
+class _PrivateWalletDetails extends StatelessWidget {
+  const _PrivateWalletDetails();
+
+  @override
+  Widget build(BuildContext context) {
+    final wallet = context.watch<MwaWalletProvider>();
+    final styles = AppTextStyles.textTheme;
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        Text(
+          'Private · only you can see this balance',
+          style: styles.bodySmall,
+        ),
+        const SizedBox(height: 16),
+        if (wallet.isLoading)
+          const LinearProgressIndicator()
+        else if (wallet.errorMessage != null)
+          Text(
+            'Balance unavailable. ${wallet.errorMessage}',
+            style: styles.bodyMedium,
+          )
+        else if (wallet.isInitialized && wallet.walletAddress != null)
+          Text(
+            '${wallet.balance.toStringAsFixed(2)} SOL',
+            style: styles.headlineMedium,
+          )
+        else
+          Text('Balance unavailable', style: styles.bodyMedium),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            style: TextButton.styleFrom(
+              minimumSize: const Size(48, 48),
+              foregroundColor: AppColors.textPrimary,
+            ),
+            onPressed: wallet.refreshWalletBalance,
+            icon: const BasilIcon('refresh-outline'),
+            label: const Text('Refresh balance'),
           ),
-
-          SizedBox(height: 16.h),
-
-          // Balance display
-          Consumer<MwaWalletProvider>(
-            builder: (context, walletProvider, _) {
-              if (walletProvider.loadingState == LoadingState.loading) {
-                return Row(
-                  children: [
-                    SizedBox(
-                      width: 20.w,
-                      height: 20.w,
-                      child: CircularProgressIndicator(
-                        color: const Color(0xFFFF5A76),
-                        strokeWidth: 2.w,
-                      ),
-                    ),
-                    SizedBox(width: 8.w),
-                    Expanded(
-                      child: Text(
-                        'Loading...',
-                        style: TextStyle(
-                          fontSize: 28.sp,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.black54,
-                        ),
-                      ),
-                    ),
-                  ],
+        ),
+        if (wallet.walletAddress != null) ...[
+          const Divider(),
+          SelectableText(wallet.walletAddress!, style: styles.bodyMedium),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            style: TextButton.styleFrom(
+              minimumSize: const Size(48, 48),
+              foregroundColor: AppColors.textPrimary,
+            ),
+            onPressed: () async {
+              await Clipboard.setData(
+                ClipboardData(text: wallet.walletAddress!),
+              );
+              if (context.mounted) {
+                SnackBarUtils.showInfo(
+                  context,
+                  title: 'Wallet address copied',
+                  subtitle: 'The address is on your clipboard.',
                 );
               }
-
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Main balance with reload icon
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          '${walletProvider.balance.toStringAsFixed(2)} SOL',
-                          style: TextStyle(
-                            fontSize: 28.sp,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ),
-                      SizedBox(width: 8.w),
-                      GestureDetector(
-                        onTap: () {
-                          walletProvider.refreshWalletBalance();
-                        },
-                        child: BasilIcon(
-                          'refresh-outline',
-                          size: 18.w,
-                          color: const Color(0xFFFF5A76),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 4.h),
-                  // Wallet address (shortened) and disclaimer
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (walletProvider.walletAddress != null)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          children: [
-                            Flexible(
-                              child: ResolvedAddressText(
-                                addressOrLabel: walletProvider.walletAddress!,
-                                style: TextStyle(
-                                  fontSize: 14.sp,
-                                  color: Colors.grey.shade600,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                maxLines: 1,
-                              ),
-                            ),
-                            SizedBox(width: 8.w),
-                            GestureDetector(
-                              onTap: () async {
-                                await Clipboard.setData(
-                                  ClipboardData(
-                                    text: walletProvider.walletAddress!,
-                                  ),
-                                );
-                                if (context.mounted) {
-                                  SnackBarUtils.showInfo(
-                                    context,
-                                    title: 'Wallet Address Copied',
-                                    subtitle:
-                                        'The wallet address has been copied to your clipboard.',
-                                  );
-                                }
-                              },
-                              child: BasilIcon(
-                                'copy-outline',
-                                size: 14.w,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                            Spacer(),
-                          ],
-                        ),
-                    ],
-                  ),
-
-                  SizedBox(height: 20.h),
-
-                  // Withdraw doesn't apply here — this is the player's own
-                  // MWA-connected wallet, not a custodied balance the app
-                  // could hold back. That flow existed from an earlier
-                  // custodial-wallet model; only Add SOL (topping up their
-                  // own wallet) is a real action from this card now.
-                  ChallengeButton(
-                    createNewChallenge: () => showWalletModal(context),
-                    label: 'Add SOL',
-                  ),
-                ],
-              );
             },
+            icon: const BasilIcon('copy-outline'),
+            label: const Text('Copy address'),
           ),
         ],
-      ),
+        const SizedBox(height: 16),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(48, 48),
+            backgroundColor: AppColors.primary,
+            foregroundColor: AppColors.textPrimary,
+            textStyle: styles.titleMedium,
+            padding: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          onPressed: () => showWalletModal(context),
+          child: const Text('Add SOL'),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Managed by your external wallet app. Free calls do not use this balance.',
+          style: styles.bodySmall?.copyWith(color: AppColors.textSecondary),
+        ),
+      ],
     );
   }
 }

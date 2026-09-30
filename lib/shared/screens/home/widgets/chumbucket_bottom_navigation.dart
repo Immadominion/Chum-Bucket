@@ -1,132 +1,103 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
-
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
+/// Home holds people's calls; Markets holds discovery. The rollback shell
+/// retains its original Calls destination through [showMarkets].
 class ChumbucketBottomNavigation extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onSelected;
+  final bool showMarkets;
 
   const ChumbucketBottomNavigation({
     super.key,
     required this.selectedIndex,
     required this.onSelected,
+    this.showMarkets = true,
   });
-
-  static const _items = <_NavigationItem>[
-    _NavigationItem(
-      label: 'Home',
-      regular: 'home-outline',
-      selected: 'home-solid',
-    ),
-    // L4: label + icon now match meaning — a feed/activity glyph for the
-    // call feed (not a shopping basket), and a people glyph for Friends (not
-    // an envelope).
-    //
-    // "Calls", not "Predictions": the tab shows people's calls, and the call
-    // is the social object the whole product is built around. A market is the
-    // subject of a call, never the thing being followed.
-    _NavigationItem(
-      label: 'Calls',
-      regular: 'hotspot-outline',
-      selected: 'hotspot-solid',
-    ),
-    _NavigationItem(
-      label: 'Friends',
-      regular: 'contacts-outline',
-      selected: 'contacts-solid',
-    ),
-    _NavigationItem(
-      label: 'Profile',
-      regular: 'user-outline',
-      selected: 'user-solid',
-    ),
-  ];
 
   @override
   Widget build(BuildContext context) {
+    final items = [
+      ('Home', 'home-outline', 'home-solid'),
+      (showMarkets ? 'Markets' : 'Calls', 'hotspot-outline', 'hotspot-solid'),
+      ('Friends', 'contacts-outline', 'contacts-solid'),
+      ('Profile', 'user-outline', 'user-solid'),
+    ];
     return SafeArea(
       top: false,
-      minimum: EdgeInsets.fromLTRB(12.w, 0, 12.w, 14.h),
-      child: Container(
-        height: 64.h,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(28.r),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.textPrimary.withValues(alpha: 0.08),
-              blurRadius: 28,
-              offset: const Offset(0, 8),
-            ),
-            BoxShadow(
-              color: AppColors.textPrimary.withValues(alpha: 0.05),
-              blurRadius: 3,
-              offset: const Offset(0, 1),
-            ),
-          ],
-        ),
-        child: Row(
-          children: List.generate(_items.length, (index) {
-            final item = _items[index];
-            final isSelected = selectedIndex == index;
-            return Expanded(
-              child: Semantics(
-                button: true,
-                selected: isSelected,
-                label: item.label,
-                child: InkWell(
-                  onTap: () => onSelected(index),
-                  borderRadius: BorderRadius.circular(24.r),
-                  child: SizedBox.expand(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          curve: Curves.easeOut,
-                          width: 48.w,
-                          height: 42.h,
-                          decoration: BoxDecoration(
-                            color:
-                                isSelected
-                                    ? AppColors.primaryContainer
-                                    : Colors.transparent,
-                            borderRadius: BorderRadius.circular(18.r),
-                          ),
-                          child: Center(
-                            child: BasilIcon(
-                              isSelected ? item.selected : item.regular,
-                              size: 25.w,
-                              color:
-                                  isSelected
-                                      ? AppColors.primary
-                                      : AppColors.textTertiary,
-                            ),
-                          ),
+      minimum: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      child: Material(
+        color: Colors.white,
+        elevation: 6,
+        shadowColor: AppColors.textPrimary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(24),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(5),
+          child: Row(
+            children: List.generate(items.length, (index) {
+              final item = items[index];
+              final selected = selectedIndex == index;
+              return Expanded(
+                child: Semantics(
+                  button: true,
+                  selected: selected,
+                  label: item.$1,
+                  child: InkWell(
+                    onTap: () => onSelected(index),
+                    borderRadius: BorderRadius.circular(19),
+                    child: ExcludeSemantics(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        constraints: const BoxConstraints(minHeight: 64),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        decoration: BoxDecoration(
+                          color:
+                              selected
+                                  ? AppColors.primaryContainer
+                                  : Colors.transparent,
+                          borderRadius: BorderRadius.circular(19),
                         ),
-                      ],
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            BasilIcon(
+                              selected ? item.$3 : item.$2,
+                              size: 22,
+                              color:
+                                  selected
+                                      ? const Color(0xFFB8173B)
+                                      : AppColors.textSecondary,
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              item.$1,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 12,
+                                height: 1.2,
+                                fontWeight:
+                                    selected
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                color:
+                                    selected
+                                        ? AppColors.textPrimary
+                                        : AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            );
-          }),
+              );
+            }),
+          ),
         ),
       ),
     );
   }
-}
-
-class _NavigationItem {
-  final String label;
-  final String regular;
-  final String selected;
-
-  const _NavigationItem({
-    required this.label,
-    required this.regular,
-    required this.selected,
-  });
 }

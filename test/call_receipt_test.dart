@@ -10,10 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 const String viewer = MockCallsRepository.demoViewerUserId;
 
-Future<CallReceipt> receiptFor(
-  MockCallsRepository repo,
-  String callId,
-) async {
+Future<CallReceipt> receiptFor(MockCallsRepository repo, String callId) async {
   final detail = await repo.fetchCall(callId: callId, viewerUserId: viewer);
   return CallReceipt.fromEntry(
     detail.entry,
@@ -25,89 +22,99 @@ Widget testApp(Widget child) => ScreenUtilInit(
   designSize: const Size(390, 844),
   builder:
       (context, _) => MaterialApp(
-        home: Scaffold(body: SingleChildScrollView(child: Center(child: child))),
+        home: Scaffold(
+          body: SingleChildScrollView(child: Center(child: child)),
+        ),
       ),
 );
 
 void main() {
-  group('CallReceipt carries the five required facts and nothing money-shaped', () {
-    test('a correct call', () async {
-      final repo = MockCallsRepository();
-      final receipt = await receiptFor(repo, 'call_you_fed');
+  group(
+    'CallReceipt carries the five required facts and nothing money-shaped',
+    () {
+      test('a correct call', () async {
+        final repo = MockCallsRepository();
+        final receipt = await receiptFor(repo, 'call_you_fed');
 
-      // 1. original timestamp
-      expect(receipt.lockedAt.isUtc, isTrue);
-      // 2. exact side
-      expect(receipt.side, Side.yes);
-      expect(receipt.sideLabel, 'Yes — 25bp cut');
-      // 3. entry probability
-      expect(receipt.entryProbability, closeTo(0.64, 1e-9));
-      // 4. result
-      expect(receipt.outcome, CallOutcome.correct);
-      expect(receipt.resolution, Resolution.yes);
-      expect(receipt.resolvedAt, isNotNull);
-      // 5. source market
-      expect(
-        receipt.marketQuestion,
-        'Did the FOMC cut by 25bp at the September meeting?',
-      );
-      // The mock's markets are all invented, so they are branded `fixture`
-      // and must attribute as demo. Asserting 'Jupiter' here is what let a
-      // fabricated result present as live venue evidence.
-      expect(receipt.venueLabel, 'Demo catalog');
-      expect(receipt.venueIsDemo, isTrue);
-      expect(receipt.marketResolutionId, 'res_fomc_sep_2026');
-      expect(receipt.shareUrl, 'https://chumbucket.app/c/call_you_fed');
-    });
+        // 1. original timestamp
+        expect(receipt.lockedAt.isUtc, isTrue);
+        // 2. exact side
+        expect(receipt.side, Side.yes);
+        expect(receipt.sideLabel, 'Yes — 25bp cut');
+        // 3. entry probability
+        expect(receipt.entryProbability, closeTo(0.64, 1e-9));
+        // 4. result
+        expect(receipt.outcome, CallOutcome.correct);
+        expect(receipt.resolution, Resolution.yes);
+        expect(receipt.resolvedAt, isNotNull);
+        // 5. source market
+        expect(
+          receipt.marketQuestion,
+          'Did the FOMC cut by 25bp at the September meeting?',
+        );
+        // The mock's markets are all invented, so they are branded `fixture`
+        // and must attribute as demo. Asserting 'Jupiter' here is what let a
+        // fabricated result present as live venue evidence.
+        expect(receipt.venueLabel, 'Demo catalog');
+        expect(receipt.venueIsDemo, isTrue);
+        expect(receipt.marketResolutionId, 'res_fomc_sep_2026');
+        expect(receipt.shareUrl, 'https://chumbucket.app/c/call_you_fed');
+      });
 
-    test('an incorrect call still shows the same five facts', () async {
-      final repo = MockCallsRepository();
-      final receipt = await receiptFor(repo, 'call_zed_fed');
-      expect(receipt.outcome, CallOutcome.incorrect);
-      expect(receipt.side, Side.no);
-      expect(receipt.resolution, Resolution.yes);
-      expect(receipt.entryProbability, isNotNull);
-    });
+      test('an incorrect call still shows the same five facts', () async {
+        final repo = MockCallsRepository();
+        final receipt = await receiptFor(repo, 'call_zed_fed');
+        expect(receipt.outcome, CallOutcome.incorrect);
+        expect(receipt.side, Side.no);
+        expect(receipt.resolution, Resolution.yes);
+        expect(receipt.entryProbability, isNotNull);
+      });
 
-    test('a void call is neither a win nor a loss', () async {
-      final repo = MockCallsRepository();
-      final receipt = await receiptFor(repo, 'call_kemi_listing');
-      expect(receipt.outcome, CallOutcome.voided);
-      expect(receipt.isVoid, isTrue);
-      expect(receipt.shareCaption, contains('void, not a loss'));
-    });
+      test('a void call is neither a win nor a loss', () async {
+        final repo = MockCallsRepository();
+        final receipt = await receiptFor(repo, 'call_kemi_listing');
+        expect(receipt.outcome, CallOutcome.voided);
+        expect(receipt.isVoid, isTrue);
+        expect(receipt.shareCaption, contains('void, not a loss'));
+      });
 
-    test('a pending call is not a receipt yet', () async {
-      final repo = MockCallsRepository();
-      final receipt = await receiptFor(repo, 'call_ada_btc');
-      expect(receipt.outcome, CallOutcome.pending);
-      expect(receipt.isSettled, isFalse);
-    });
+      test('a pending call is not a receipt yet', () async {
+        final repo = MockCallsRepository();
+        final receipt = await receiptFor(repo, 'call_ada_btc');
+        expect(receipt.outcome, CallOutcome.pending);
+        expect(receipt.isSettled, isFalse);
+      });
 
-    test('the share caption never mentions money', () async {
-      final repo = MockCallsRepository();
-      for (final id in ['call_you_fed', 'call_zed_fed', 'call_kemi_listing']) {
-        final caption = (await receiptFor(repo, id)).shareCaption.toLowerCase();
-        for (final forbidden in [
-          'stake',
-          'staked',
-          '\$',
-          'usdc',
-          'sol',
-          'profit',
-          'pnl',
-          'wager',
-          'bet',
+      test('the share caption never mentions money', () async {
+        final repo = MockCallsRepository();
+        for (final id in [
+          'call_you_fed',
+          'call_zed_fed',
+          'call_kemi_listing',
         ]) {
-          expect(
-            caption.contains(forbidden),
-            isFalse,
-            reason: '$id caption must not contain "$forbidden"',
-          );
+          final caption =
+              (await receiptFor(repo, id)).shareCaption.toLowerCase();
+          for (final forbidden in [
+            'stake',
+            'staked',
+            '\$',
+            'usdc',
+            'sol',
+            'profit',
+            'pnl',
+            'wager',
+            'bet',
+          ]) {
+            expect(
+              caption.contains(forbidden),
+              isFalse,
+              reason: '$id caption must not contain "$forbidden"',
+            );
+          }
         }
-      }
-    });
-  });
+      });
+    },
+  );
 
   group('CallReceiptCard renders the required facts, and no stake', () {
     testWidgets('a correct receipt', (tester) async {
@@ -117,11 +124,14 @@ void main() {
       await tester.pumpWidget(testApp(CallReceiptCard(receipt: receipt)));
       await tester.pump();
 
-      expect(find.text('CALLED IT'), findsOneWidget);
+      expect(find.text('Called it.'), findsOneWidget);
       // The exact side.
       expect(find.text('Yes — 25bp cut'), findsOneWidget);
       // The original timestamp.
-      expect(find.text(CallsFormat.timestampUtc(receipt.lockedAt)), findsOneWidget);
+      expect(
+        find.text(CallsFormat.timestampUtc(receipt.lockedAt)),
+        findsOneWidget,
+      );
       // The entry probability.
       expect(find.text('64%'), findsOneWidget);
       // The source market.
@@ -142,8 +152,8 @@ void main() {
       final receipt = await receiptFor(repo, 'call_zed_fed');
       await tester.pumpWidget(testApp(CallReceiptCard(receipt: receipt)));
       await tester.pump();
-      expect(find.text('GOT IT WRONG'), findsOneWidget);
-      expect(find.text('CALLED IT'), findsNothing);
+      expect(find.text('Missed this one.'), findsOneWidget);
+      expect(find.text('Called it.'), findsNothing);
     });
 
     testWidgets('a void receipt says void, never win or loss', (tester) async {
@@ -152,9 +162,9 @@ void main() {
       await tester.pumpWidget(testApp(CallReceiptCard(receipt: receipt)));
       await tester.pump();
 
-      expect(find.text('VOID'), findsOneWidget);
-      expect(find.text('CALLED IT'), findsNothing);
-      expect(find.text('GOT IT WRONG'), findsNothing);
+      expect(find.text('Market voided.'), findsOneWidget);
+      expect(find.text('Called it.'), findsNothing);
+      expect(find.text('Missed this one.'), findsNothing);
       expect(
         find.text(CallsFormat.outcomeSentence(CallOutcome.voided)),
         findsOneWidget,
@@ -177,10 +187,15 @@ void main() {
                 .map((t) => (t.data ?? '').toLowerCase())
                 .toList();
         for (final rendered in texts) {
-          for (final forbidden in ['stake', 'usdc', 'lamports', 'pnl', 'payout']) {
+          for (final forbidden in [
+            'stake',
+            'usdc',
+            'lamports',
+            'pnl',
+            'payout',
+          ]) {
             expect(
-              rendered.contains(forbidden) &&
-                  !rendered.contains('no stake'),
+              rendered.contains(forbidden) && !rendered.contains('no stake'),
               isFalse,
               reason: '$id rendered "$rendered"',
             );

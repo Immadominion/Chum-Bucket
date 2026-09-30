@@ -15,6 +15,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_person_screen.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_detail_screen.dart';
@@ -100,19 +101,27 @@ class _CallFeedScreenState extends State<CallFeedScreen>
     );
   }
 
-  Future<void> _respond(CallFeedEntry entry) async {
+  Future<void> _respond(CallFeedEntry entry, CallResponseKind kind) async {
     final provider = context.read<CallsProvider>();
     if (!provider.isSignedIn) {
       requestCallSignIn(context, onRequested: widget.onSignInRequested);
       return;
     }
-    await showCallResponseSheet(context: context, entry: entry);
+    final result = await showCallResponseSheet(
+      context: context,
+      entry: entry,
+      initialKind: kind,
+    );
+    if (mounted && result?.resultingCall != null) {
+      _openCall(result!.resultingCall!.call.id);
+    }
   }
 
   Future<void> _shareReceipt(CallFeedEntry entry) async {
     final provider = context.read<CallsProvider>();
     await showCallReceiptSheet(
       context: context,
+      entry: entry,
       receipt: CallReceipt.fromEntry(
         entry,
         shareUrl: provider.shareLinkForCall(entry.call.id),
@@ -144,7 +153,10 @@ class _CallFeedScreenState extends State<CallFeedScreen>
                 if (widget.showHeader)
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: 16.w),
-                    child: const ChumbucketAppHeader(title: 'Calls'),
+                    child: const ChumbucketAppHeader(
+                      title: 'Home',
+                      showAccountActions: false,
+                    ),
                   ),
                 _ModeBar(provider: provider, onCompose: _compose),
                 ..._notices(provider),
@@ -230,19 +242,46 @@ class _CallFeedScreenState extends State<CallFeedScreen>
               provider.feedMode == CallFeedMode.following
                   ? 'Follow a few people, or switch to Global to see everyone.'
                   : 'Be the first to go on record. It is free and it takes a tap.',
-          actionLabel: 'Make a call',
-          onAction: _compose,
+          actionLabel:
+              provider.feedMode == CallFeedMode.following
+                  ? 'View Global'
+                  : 'Make a call',
+          onAction:
+              provider.feedMode == CallFeedMode.following
+                  ? () => provider.setFeedMode(CallFeedMode.global)
+                  : _compose,
         );
       case CallsLoadState.ready:
+        // A real resolved call from this session, not an invented unread count.
+        final receipts =
+            provider.feed
+                .where(
+                  (entry) =>
+                      entry.author.id == provider.viewerUserId &&
+                      entry.isShareableReceipt &&
+                      entry.call.visibility == CallVisibility.public,
+                )
+                .toList()
+              ..sort((a, b) => b.call.createdAt.compareTo(a.call.createdAt));
+        final receipt = receipts.firstOrNull;
+        final headerCount = receipt == null ? 0 : 1;
         return RefreshIndicator(
           color: AppColors.primary,
           onRefresh: _refresh,
           child: ListView.separated(
             controller: _scrollController,
-            padding: EdgeInsets.fromLTRB(16.w, 4.h, 16.w, 110.h),
-            itemCount: provider.feed.length + (provider.hasMore ? 1 : 0),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 140),
+            itemCount:
+                headerCount + provider.feed.length + (provider.hasMore ? 1 : 0),
             separatorBuilder: (_, __) => SizedBox(height: 12.h),
             itemBuilder: (context, index) {
+              if (index == 0 && receipt != null) {
+                return _ReceiptNudge(
+                  entry: receipt,
+                  onTap: () => _shareReceipt(receipt),
+                );
+              }
+              index -= headerCount;
               if (index >= provider.feed.length) {
                 return Padding(
                   padding: EdgeInsets.symmetric(vertical: 20.h),
@@ -256,10 +295,14 @@ class _CallFeedScreenState extends State<CallFeedScreen>
                 entry: entry,
                 onOpenCall: () => _openCall(entry.call.id),
                 onOpenPerson: () => _openPerson(entry.author.id),
-                onRespond:
+                onBack:
                     entry.author.id == provider.viewerUserId
                         ? null
-                        : () => _respond(entry),
+                        : () => _respond(entry, CallResponseKind.back),
+                onFade:
+                    entry.author.id == provider.viewerUserId
+                        ? null
+                        : () => _respond(entry, CallResponseKind.fade),
                 onShareReceipt: () => _shareReceipt(entry),
               );
             },
@@ -288,12 +331,16 @@ class _ModeBar extends StatelessWidget {
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: ChumbucketTabs(
-                labels: CallFeedMode.values
-                    .map((m) => m.label)
-                    .toList(growable: false),
-                selectedIndex: CallFeedMode.values.indexOf(provider.feedMode),
+                labels: const [
+                  CallFeedMode.following,
+                  CallFeedMode.global,
+                ].map((m) => m.label).toList(growable: false),
+                selectedIndex:
+                    provider.feedMode == CallFeedMode.following ? 0 : 1,
                 onSelected:
-                    (index) => provider.setFeedMode(CallFeedMode.values[index]),
+                    (index) => provider.setFeedMode(
+                      index == 0 ? CallFeedMode.following : CallFeedMode.global,
+                    ),
               ),
             ),
           ),
@@ -302,23 +349,31 @@ class _ModeBar extends StatelessWidget {
             label: 'Make a call',
             child: InkWell(
               onTap: onCompose,
-              borderRadius: BorderRadius.circular(999.r),
+              borderRadius: BorderRadius.circular(12),
               child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 9.h),
+                constraints: const BoxConstraints(minHeight: 48),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(999.r),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    BasilIcon('add-outline', size: 15.w, color: Colors.white),
+                    const BasilIcon(
+                      'add-outline',
+                      size: 16,
+                      color: AppColors.textPrimary,
+                    ),
                     SizedBox(width: 5.w),
                     Text(
-                      'Call it',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 13.sp,
+                      'Call',
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -328,6 +383,75 @@ class _ModeBar extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ReceiptNudge extends StatelessWidget {
+  final CallFeedEntry entry;
+  final VoidCallback onTap;
+  const _ReceiptNudge({required this.entry, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.primaryContainer,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              const BasilIcon(
+                'award-outline',
+                size: 22,
+                color: Color(0xFFB8173B),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Your receipt',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${entry.outcome.label} · ${entry.market.question}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    if (entry.market.venue.isDemo)
+                      const Text(
+                        'DEMO DATA',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              const BasilIcon(
+                'arrow-right-outline',
+                size: 20,
+                color: AppColors.textPrimary,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

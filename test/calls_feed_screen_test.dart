@@ -77,7 +77,7 @@ void main() {
     expect(find.byType(CallCard), findsWidgets);
     expect(find.text('Global'), findsOneWidget);
     expect(find.text('Following'), findsOneWidget);
-    expect(find.text('Call it'), findsOneWidget);
+    expect(find.text('Call'), findsOneWidget);
   });
 
   testWidgets('every visible call is labelled "Free call", never "Funded"', (
@@ -101,11 +101,10 @@ void main() {
     await tester.pumpWidget(harness(provider));
     await tester.pumpAndSettle();
 
-    final rendered =
-        tester
-            .widgetList<Text>(find.byType(Text))
-            .map((t) => (t.data ?? '').toLowerCase())
-            .join(' | ');
+    final rendered = tester
+        .widgetList<Text>(find.byType(Text))
+        .map((t) => (t.data ?? '').toLowerCase())
+        .join(' | ');
 
     for (final forbidden in [
       'stake',
@@ -192,10 +191,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(CallCard), findsWidgets);
-    expect(
-      find.text('Offline — showing what we already had.'),
-      findsOneWidget,
-    );
+    expect(find.text('Offline — showing what we already had.'), findsOneWidget);
   });
 
   testWidgets('a stale feed says so and offers a refresh', (tester) async {
@@ -240,7 +236,7 @@ void main() {
     await tester.pumpWidget(harness(provider, onSignIn: () => asked++));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Call it'));
+    await tester.tap(find.text('Call'));
     await tester.pumpAndSettle();
 
     expect(asked, 1);

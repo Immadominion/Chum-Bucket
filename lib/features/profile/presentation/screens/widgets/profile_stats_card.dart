@@ -1,122 +1,98 @@
-// import 'package:flutter/material.dart';
-// import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter/material.dart';
+import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/core/theme/app_text_styles.dart';
+import 'package:chumbucket/features/calls/data/call_models.dart';
+import 'package:chumbucket/features/calls/data/calls_repository.dart';
+import 'package:chumbucket/features/record/data/category_record.dart';
 
-// /// Stats card showing user activity metrics in the profile
-// class ProfileStatsCard extends StatelessWidget {
-//   final int completedChallenges;
-//   final int totalChallenges;
-//   final double winRate;
+/// Counts only visible public free calls, never unscoped lifetime aggregates.
+/// A null list means unavailable, never a fabricated zero.
+class ProfileStatsCard extends StatelessWidget {
+  final List<CallFeedEntry>? entries;
+  const ProfileStatsCard({super.key, this.entries});
 
-//   const ProfileStatsCard({
-//     super.key,
-//     this.completedChallenges = 0,
-//     this.totalChallenges = 0,
-//     this.winRate = 0.0,
-//   });
+  @override
+  Widget build(BuildContext context) {
+    final styles = AppTextStyles.textTheme;
+    final publicEntries = entries?.where(
+      (entry) => entry.call.visibility == CallVisibility.public,
+    );
+    final record =
+        publicEntries == null
+            ? null
+            : PersonRecord.fromEntries(publicEntries).overall;
+    final correct = record?.tallies.first.count;
+    final incorrect = record?.tallies[1].count;
+    final voided = record?.tallies[2].count;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      color: AppColors.outlineVariant,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (record == null)
+            Text(
+              'Public call record unavailable',
+              style: styles.bodySmall?.copyWith(color: AppColors.textSecondary),
+            )
+          else ...[
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final stacked = MediaQuery.textScalerOf(context).scale(12) > 18;
+                final width =
+                    stacked
+                        ? constraints.maxWidth
+                        : (constraints.maxWidth - 24) / 3;
+                return Wrap(
+                  spacing: 12,
+                  runSpacing: 16,
+                  children: [
+                    _stat(
+                      styles,
+                      width,
+                      '$correct / ${record.decided}',
+                      'correct / decided',
+                    ),
+                    _stat(
+                      styles,
+                      width,
+                      '${record.pending}',
+                      'awaiting result',
+                    ),
+                    _stat(styles, width, '$voided', 'void · not scored'),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '$incorrect incorrect · ${record.decided} decided. Void excluded.',
+              style: styles.bodySmall?.copyWith(color: AppColors.textSecondary),
+            ),
+            if (publicEntries!.any((e) => e.market.venue.isDemo)) ...[
+              const SizedBox(height: 8),
+              Text('DEMO DATA · sample call record', style: styles.bodySmall),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
 
-//   @override
-//   Widget build(BuildContext context) {
-//     return Container(
-//       width: double.infinity,
-//       padding: EdgeInsets.all(20.w),
-//       decoration: BoxDecoration(
-//         color: Colors.white,
-//         borderRadius: BorderRadius.circular(26.r),
-//         boxShadow: [
-//           BoxShadow(
-//             color: Colors.black.withOpacity(0.08),
-//             offset: const Offset(0, 2),
-//             blurRadius: 8,
-//           ),
-//         ],
-//       ),
-//       child: Column(
-//         crossAxisAlignment: CrossAxisAlignment.start,
-//         children: [
-//           // Header
-//           Text(
-//             'Challenge Stats',
-//             style: TextStyle(
-//               fontSize: 18.sp,
-//               fontWeight: FontWeight.w700,
-//               color: Colors.black87,
-//             ),
-//           ),
-
-//           SizedBox(height: 16.h),
-
-//           // Stats row
-//           Row(
-//             children: [
-//               // Completed challenges
-//               Expanded(
-//                 child: _buildStatItem(
-//                   label: 'Completed',
-//                   value: completedChallenges.toString(),
-//                   color: Colors.green,
-//                 ),
-//               ),
-
-//               SizedBox(width: 16.w),
-
-//               // Total challenges
-//               Expanded(
-//                 child: _buildStatItem(
-//                   label: 'Total',
-//                   value: totalChallenges.toString(),
-//                   color: const Color(0xFFFF5A76),
-//                 ),
-//               ),
-
-//               SizedBox(width: 16.w),
-
-//               // Win rate
-//               Expanded(
-//                 child: _buildStatItem(
-//                   label: 'Win Rate',
-//                   value: '${(winRate * 100).toInt()}%',
-//                   color: Colors.blue,
-//                 ),
-//               ),
-//             ],
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-
-//   Widget _buildStatItem({
-//     required String label,
-//     required String value,
-//     required Color color,
-//   }) {
-//     return Column(
-//       children: [
-//         Container(
-//           padding: EdgeInsets.all(8.w),
-//           decoration: BoxDecoration(
-//             color: color.withOpacity(0.1),
-//             borderRadius: BorderRadius.circular(12.r),
-//           ),
-//           child: Text(
-//             value,
-//             style: TextStyle(
-//               fontSize: 20.sp,
-//               fontWeight: FontWeight.w700,
-//               color: color,
-//             ),
-//           ),
-//         ),
-//         SizedBox(height: 8.h),
-//         Text(
-//           label,
-//           style: TextStyle(
-//             fontSize: 12.sp,
-//             color: Colors.grey.shade600,
-//             fontWeight: FontWeight.w500,
-//           ),
-//         ),
-//       ],
-//     );
-//   }
-// }
+  Widget _stat(TextTheme styles, double width, String value, String label) =>
+      SizedBox(
+        width: width,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(value, style: styles.headlineSmall?.copyWith(fontSize: 22)),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: styles.bodySmall?.copyWith(color: AppColors.textSecondary),
+            ),
+          ],
+        ),
+      );
+}

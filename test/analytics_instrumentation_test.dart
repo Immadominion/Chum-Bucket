@@ -8,6 +8,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -370,11 +371,30 @@ void main() {
     ) async {
       useDesignSurface(tester);
       final receipt = await receiptFor('call_you_fed');
+      final entry =
+          (await repo.fetchCall(
+            callId: receipt.callId,
+            viewerUserId: viewer,
+          )).entry;
+      const shareChannel = MethodChannel('dev.fluttercommunity.plus/share');
+      var platformAttempts = 0;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(shareChannel, (_) async {
+            platformAttempts++;
+            throw PlatformException(code: 'share_failed');
+          });
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(shareChannel, null),
+      );
       await tester.pumpWidget(
-        host(CallReceiptSheet(receipt: receipt, analytics: recorder)),
+        host(
+          CallReceiptSheet(receipt: receipt, entry: entry, analytics: recorder),
+        ),
       );
       await tester.pumpAndSettle();
 
+      await tester.ensureVisible(find.text('Share link'));
       await tester.tap(find.text('Share link'));
       await tester.pump();
 
@@ -386,10 +406,16 @@ void main() {
       expect(started[AnalyticsProps.outcome], 'CORRECT');
       expect(started.props.values, isNot(contains(receipt.shareUrl)));
 
-      // The platform share sheet is unavailable in a widget test, which is the
-      // same shape as a person cancelling: a start with no completion.
+      // A real platform failure must leave a start with no completion, and
+      // release the busy state so the person can try again.
       await tester.pumpAndSettle();
+      expect(platformAttempts, 1);
       expect(sink.countOf(AnalyticsEventName.receiptShared), 0);
+      expect(
+        find.text('The link could not be shared. Try again.'),
+        findsOneWidget,
+      );
+      expect(find.text('Share link'), findsOneWidget);
     });
   });
 

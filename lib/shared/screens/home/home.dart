@@ -231,22 +231,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             child: IndexedStack(
               index: _selectedIndex,
               children: [
-                PredictionsHomeTab(
-                  callReceiptExperienceEnabled:
-                      widget.callReceiptExperienceEnabled,
-                  onProfileTap: () => _selectDestination(3),
-                  onViewCalls: () => _selectDestination(1),
-                  onBrowseMarkets: _openCallMarkets,
-                  onViewChallenges: _openChallengeHistory,
-                  onMarkChallengeCompleted: _markChallengeCompleted,
-                ),
-                // Add the preview inside Chumbucket, not in a second shell.
-                // Profile, friends, wallet and history retain their routes.
                 if (widget.callReceiptExperienceEnabled)
                   CallFeedScreen(
                     onSignInRequested: () => requestCallSignIn(context),
                     onBrowseMarkets: _openCallMarkets,
                   )
+                else
+                  PredictionsHomeTab(
+                    callReceiptExperienceEnabled:
+                        widget.callReceiptExperienceEnabled,
+                    onProfileTap: () => _selectDestination(3),
+                    onViewCalls: () => _selectDestination(1),
+                    onBrowseMarkets: _openCallMarkets,
+                    onViewChallenges: _openChallengeHistory,
+                    onMarkChallengeCompleted: _markChallengeCompleted,
+                  ),
+                // Add the preview inside Chumbucket, not in a second shell.
+                // Profile, friends, wallet and history retain their routes.
+                if (widget.callReceiptExperienceEnabled)
+                  const CallMarketsScreen(embedded: true)
                 else
                   const CallsScreen(),
                 FriendsHubTab(
@@ -273,6 +276,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             child: ChumbucketBottomNavigation(
               selectedIndex: _selectedIndex,
               onSelected: _selectDestination,
+              showMarkets: widget.callReceiptExperienceEnabled,
             ),
           ),
         ],
@@ -286,6 +290,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _openCallMarkets() {
+    if (widget.callReceiptExperienceEnabled) {
+      _selectDestination(1);
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder:

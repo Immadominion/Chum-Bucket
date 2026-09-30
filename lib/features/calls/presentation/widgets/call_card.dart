@@ -1,13 +1,8 @@
-/// One row of the call feed.
-///
-/// What is deliberately absent: any stake amount, any copy-trade control, any
-/// "N people are on this side" number, and any PnL. A call is a statement by a
-/// person, so the card leads with the person, the claim and the timestamp.
+/// Person-first call card. Response counts, crowd splits and public financial
+/// amounts deliberately do not belong in this surface.
 library;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
-
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
@@ -22,9 +17,9 @@ class CallCard extends StatelessWidget {
   final VoidCallback? onOpenMarket;
   final VoidCallback? onOpenPerson;
   final VoidCallback? onRespond;
+  final VoidCallback? onBack;
+  final VoidCallback? onFade;
   final VoidCallback? onShareReceipt;
-
-  /// Compact form for a person's page, where the author is already obvious.
   final bool showAuthor;
 
   const CallCard({
@@ -34,6 +29,8 @@ class CallCard extends StatelessWidget {
     this.onOpenMarket,
     this.onOpenPerson,
     this.onRespond,
+    this.onBack,
+    this.onFade,
     this.onShareReceipt,
     this.showAuthor = true,
   });
@@ -42,127 +39,164 @@ class CallCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final call = entry.call;
     final market = entry.market;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20.r),
-        border: Border.all(color: AppColors.outlineVariant),
-      ),
+    final canRespond =
+        market.status.acceptsNewCalls &&
+        (market.closesAtUtc == null ||
+            market.closesAtUtc!.isAfter(DateTime.now().toUtc())) &&
+        !entry.outcome.isSettled;
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
       clipBehavior: Clip.antiAlias,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onOpenCall ?? onOpenMarket,
-          child: Padding(
-            padding: EdgeInsets.all(16.w),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (showAuthor) ...[
-                  _AuthorRow(entry: entry, onOpenPerson: onOpenPerson),
-                  SizedBox(height: 12.h),
+      child: InkWell(
+        onTap: onOpenCall ?? onOpenMarket,
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (showAuthor) ...[
+                _AuthorRow(entry: entry, onOpenPerson: onOpenPerson),
+                const SizedBox(height: 18),
+              ],
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  SideChip(side: call.side, label: call.side.wire),
+                  if (entry.outcome.isSettled)
+                    CallOutcomeBadge(outcome: entry.outcome)
+                  else
+                    Text(
+                      CallsFormat.untilClose(market.closesAtUtc),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  DemoVenueBadge(venue: market.venue),
                 ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                market.question,
+                style: const TextStyle(
+                  fontFamily: 'PPNeueMachina',
+                  color: AppColors.textPrimary,
+                  fontSize: 20,
+                  height: 1.3,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              if (call.thesis?.isNotEmpty ?? false) ...[
+                const SizedBox(height: 10),
                 Text(
-                  market.question,
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 15.sp,
-                    height: 1.3,
-                    fontWeight: FontWeight.w700,
+                  call.thesis!,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 14,
+                    height: 1.5,
                   ),
-                ),
-                SizedBox(height: 10.h),
-                Wrap(
-                  spacing: 8.w,
-                  runSpacing: 8.h,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    SideChip(
-                      side: call.side,
-                      label: market.labelFor(call.side),
-                    ),
-                    // Entry probability — the price THIS person locked at.
-                    // Never the current crowd number.
-                    if (call.entryPrice != null)
-                      CallBadge(
-                        label:
-                            'Called at ${CallsFormat.sharePrice(call.entryPrice!.priceFor(call.side))}',
-                        color: AppColors.textSecondary,
-                      ),
-                    if (call.entryProbability != null)
-                      CallBadge(
-                        label:
-                            'Locked at ${CallsFormat.probability(call.entryProbability)}',
-                        color: AppColors.textSecondary,
-                        icon: 'lock-outline',
-                      ),
-                    FundingStateBadge(state: call.fundingState),
-                    if (entry.outcome.isSettled)
-                      CallOutcomeBadge(outcome: entry.outcome),
-                    DemoVenueBadge(venue: market.venue),
-                    if (call.visibility == CallVisibility.followers)
-                      CallBadge(
-                        label: call.visibility.label,
-                        color: AppColors.textTertiary,
-                        icon: 'eye-outline',
-                      ),
-                  ],
-                ),
-                if (call.thesis != null && call.thesis!.isNotEmpty) ...[
-                  SizedBox(height: 12.h),
-                  Text(
-                    call.thesis!,
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 13.sp,
-                      height: 1.45,
-                    ),
-                  ),
-                ],
-                if (call.confidence != null) ...[
-                  SizedBox(height: 8.h),
-                  Text(
-                    CallsFormat.confidence(call.confidence),
-                    style: TextStyle(
-                      color: AppColors.textTertiary,
-                      fontSize: 12.sp,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-                if (call.parentCallId != null) ...[
-                  SizedBox(height: 8.h),
-                  Row(
-                    children: [
-                      BasilIcon(
-                        'exchange-outline',
-                        size: 13.w,
-                        color: AppColors.textTertiary,
-                      ),
-                      SizedBox(width: 5.w),
-                      Flexible(
-                        child: Text(
-                          'Made in response to another call',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: AppColors.textTertiary,
-                            fontSize: 12.sp,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-                SizedBox(height: 14.h),
-                _FooterRow(
-                  entry: entry,
-                  onRespond: onRespond,
-                  onShareReceipt: onShareReceipt,
                 ),
               ],
-            ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  FundingStateBadge(state: call.fundingState),
+                  if (call.visibility == CallVisibility.followers)
+                    const CallBadge(
+                      label: 'Followers only',
+                      color: AppColors.textSecondary,
+                      icon: 'eye-outline',
+                    ),
+                ],
+              ),
+              if (call.entryPrice != null || call.entryProbability != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  call.entryPrice != null
+                      ? 'Called at ${CallsFormat.sharePrice(call.entryPrice!.priceFor(call.side))}'
+                      : 'Locked at ${CallsFormat.probability(call.entryProbability)}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 6),
+              Text(
+                CallsFormat.venueAttribution(market),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              if (call.parentCallId != null) ...[
+                const SizedBox(height: 6),
+                const Text(
+                  'In response to another call',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 14),
+              const Divider(height: 1, color: AppColors.outlineVariant),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  if (canRespond && onBack != null)
+                    _CardAction(
+                      label: 'Back',
+                      icon: 'arrow-up-outline',
+                      onTap: onBack!,
+                    ),
+                  if (canRespond && onFade != null)
+                    _CardAction(
+                      label: 'Fade',
+                      icon: 'arrow-down-outline',
+                      onTap: onFade!,
+                    ),
+                  if (canRespond &&
+                      onBack == null &&
+                      onFade == null &&
+                      onRespond != null)
+                    _CardAction(
+                      label: 'Respond',
+                      icon: 'exchange-outline',
+                      onTap: onRespond!,
+                      primary: true,
+                    ),
+                  if ((!canRespond ||
+                          (onRespond == null &&
+                              onBack == null &&
+                              onFade == null)) &&
+                      onOpenCall != null)
+                    _CardAction(
+                      label: 'View call',
+                      icon: 'arrow-right-outline',
+                      onTap: onOpenCall!,
+                    ),
+                  if (entry.isShareableReceipt &&
+                      call.visibility == CallVisibility.public &&
+                      onShareReceipt != null)
+                    _CardAction(
+                      label: 'Receipt',
+                      icon: 'share-outline',
+                      onTap: onShareReceipt!,
+                    ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -173,146 +207,86 @@ class CallCard extends StatelessWidget {
 class _AuthorRow extends StatelessWidget {
   final CallFeedEntry entry;
   final VoidCallback? onOpenPerson;
-
   const _AuthorRow({required this.entry, this.onOpenPerson});
 
   @override
   Widget build(BuildContext context) {
     final author = entry.author;
-    return Row(
-      children: [
-        AppAvatar(
-          initials: author.initials,
-          imageUrl: author.avatarUrl,
-          size: 34,
-          onTap: onOpenPerson,
-        ),
-        SizedBox(width: 10.w),
-        Expanded(
-          child: GestureDetector(
-            onTap: onOpenPerson,
-            behavior: HitTestBehavior.opaque,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  author.displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 14.sp,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                SizedBox(height: 1.h),
-                Text(
-                  '@${author.handle} · ${CallsFormat.relative(entry.call.createdAtUtc)}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: AppColors.textTertiary,
-                    fontSize: 12.sp,
-                  ),
-                ),
-              ],
+    return InkWell(
+      onTap: onOpenPerson,
+      borderRadius: BorderRadius.circular(10),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 48),
+        child: Row(
+          children: [
+            AppAvatar(
+              initials: author.initials,
+              imageUrl: author.avatarUrl,
+              size: 42,
             ),
-          ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    author.displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '@${author.handle} · ${CallsFormat.relative(entry.call.createdAtUtc)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-        // Accuracy, not PnL. Null until something has actually settled.
-        if (author.accuracy != null)
-          CallBadge(
-            label: '${CallsFormat.probability(author.accuracy)} accurate',
-            color: AppColors.textSecondary,
-            icon: 'award-outline',
-          ),
-      ],
+      ),
     );
   }
 }
 
-class _FooterRow extends StatelessWidget {
-  final CallFeedEntry entry;
-  final VoidCallback? onRespond;
-  final VoidCallback? onShareReceipt;
-
-  const _FooterRow({required this.entry, this.onRespond, this.onShareReceipt});
-
-  @override
-  Widget build(BuildContext context) {
-    final responses = entry.backCount + entry.fadeCount;
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            responses == 0
-                ? 'No one has answered this yet'
-                : '$responses ${responses == 1 ? 'person' : 'people'} answered',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: AppColors.textTertiary, fontSize: 12.sp),
-          ),
-        ),
-        if (entry.isShareableReceipt && onShareReceipt != null)
-          _FooterAction(
-            icon: 'share-outline',
-            label: 'Receipt',
-            onTap: onShareReceipt!,
-          ),
-        if (onRespond != null) ...[
-          SizedBox(width: 6.w),
-          _FooterAction(
-            icon: 'exchange-outline',
-            label: 'Answer',
-            emphasised: true,
-            onTap: onRespond!,
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _FooterAction extends StatelessWidget {
-  final String icon;
+class _CardAction extends StatelessWidget {
   final String label;
+  final String icon;
   final VoidCallback onTap;
-  final bool emphasised;
-
-  const _FooterAction({
-    required this.icon,
+  final bool primary;
+  const _CardAction({
     required this.label,
+    required this.icon,
     required this.onTap,
-    this.emphasised = false,
+    this.primary = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = emphasised ? AppColors.primary : AppColors.textSecondary;
-    return Semantics(
-      button: true,
-      label: label,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12.r),
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              BasilIcon(icon, size: 14.w, color: color),
-              SizedBox(width: 5.w),
-              Text(
-                label,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 12.sp,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ),
+    return TextButton.icon(
+      onPressed: onTap,
+      style: TextButton.styleFrom(
+        minimumSize: const Size(92, 48),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        foregroundColor: AppColors.textPrimary,
+        backgroundColor:
+            primary ? AppColors.primaryContainer : AppColors.background,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+      icon: BasilIcon(icon, size: 16, color: AppColors.textPrimary),
+      label: Text(
+        label,
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
       ),
     );
   }

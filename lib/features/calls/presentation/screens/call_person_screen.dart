@@ -1,14 +1,5 @@
-/// A person's calls, keyed by the canonical `public.users.id` (or handle).
-///
-/// This is deliberately **not** `CallerProfileScreen`: that screen is keyed by
-/// a wallet address (`caller_profile_screen.dart:15`) and this slice must work
-/// with no wallet at all. When a person happens to have a wallet linked, the
-/// arena profile is offered as a secondary link rather than made the identity.
-///
-/// The header is accuracy-first, never PnL-first: a call has no money in it, so
-/// there is no P&L to lead with — and accuracy itself is only ever rendered as
-/// a percentage once there is enough settled history for a percentage to mean
-/// something. See `lib/features/record/data/category_record.dart`.
+/// Public continuity for the canonical person. Wallets are never identity,
+/// and the public record counts only visible public free calls.
 library;
 
 import 'package:flutter/material.dart';
@@ -17,24 +8,24 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
-import 'package:chumbucket/features/arena/presentation/screens/caller_profile_screen.dart';
+import 'package:chumbucket/core/theme/app_text_styles.dart';
+import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_header.dart';
+import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_stats_card.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_tabs.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
+import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_detail_screen.dart';
 import 'package:chumbucket/features/calls/presentation/screens/market_detail_screen.dart';
-import 'package:chumbucket/features/calls/presentation/widgets/call_badges.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_card.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_response_sheet.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart';
-import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/features/receipts/data/call_receipt.dart';
 import 'package:chumbucket/features/receipts/presentation/call_receipt_sheet.dart';
 import 'package:chumbucket/features/record/data/category_record.dart';
-import 'package:chumbucket/features/record/presentation/widgets/category_record_card.dart';
 import 'package:chumbucket/features/rematch/data/rematch_offer.dart';
 import 'package:chumbucket/features/rematch/presentation/rematch_sheet.dart';
 import 'package:chumbucket/features/rematch/presentation/widgets/rematch_button.dart';
-import 'package:chumbucket/shared/widgets/app_components/app_avatar.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 
@@ -61,6 +52,7 @@ class CallPersonScreen extends StatefulWidget {
 }
 
 class _CallPersonScreenState extends State<CallPersonScreen> {
+  int _selectedTab = 0;
   @override
   void initState() {
     super.initState();
@@ -69,13 +61,17 @@ class _CallPersonScreenState extends State<CallPersonScreen> {
     });
   }
 
-  Future<void> _respond(CallFeedEntry entry) async {
+  Future<void> _respond(CallFeedEntry entry, [CallResponseKind? kind]) async {
     final provider = context.read<CallsProvider>();
     if (!provider.isSignedIn) {
       requestCallSignIn(context, onRequested: widget.onSignInRequested);
       return;
     }
-    final result = await showCallResponseSheet(context: context, entry: entry);
+    final result = await showCallResponseSheet(
+      context: context,
+      entry: entry,
+      initialKind: kind,
+    );
     if (result != null && mounted) {
       await provider.loadPerson(widget.personRef, force: true);
     }
@@ -139,6 +135,7 @@ class _CallPersonScreenState extends State<CallPersonScreen> {
     await showCallReceiptSheet(
       context: context,
       receipt: _receiptFor(provider, entry),
+      entry: entry,
     );
   }
 
@@ -173,10 +170,7 @@ class _CallPersonScreenState extends State<CallPersonScreen> {
         backgroundColor: AppColors.background,
         elevation: 0,
         foregroundColor: AppColors.textPrimary,
-        title: Text(
-          'Caller',
-          style: TextStyle(fontSize: 17.sp, fontWeight: FontWeight.w700),
-        ),
+        title: Text('Profile', style: AppTextStyles.textTheme.titleLarge),
       ),
       body: Consumer<CallsProvider>(
         builder: (context, provider, _) {
@@ -206,249 +200,185 @@ class _CallPersonScreenState extends State<CallPersonScreen> {
 
   Widget _body(CallsProvider provider, PersonDetail detail) {
     final person = detail.person;
-
-    // The record is derived from the calls actually on this page, by
-    // `deriveCallOutcome` — the only permitted derivation (contract §3).
-    // Nothing here decides an outcome; it only counts the ones the venue
-    // produced.
-    final record = PersonRecord.fromEntries(detail.calls);
-
-    return ListView(
-      padding: EdgeInsets.fromLTRB(16.w, 4.h, 16.w, 24.h),
-      children: [
-        if (widget.sharedByHandle != null)
-          CallsNotice(
-            icon: 'share-outline',
-            color: AppColors.textSecondary,
-            message: 'Shared with you by @${widget.sharedByHandle}.',
-          ),
-        Row(
-          children: [
-            AppAvatar(
-              initials: person.initials,
-              imageUrl: person.avatarUrl,
-              size: 56,
-            ),
-            SizedBox(width: 14.w),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    person.displayName,
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 20.sp,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  Text(
-                    '@${person.handle}',
-                    style: TextStyle(
-                      color: AppColors.textTertiary,
-                      fontSize: 13.sp,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (provider.viewerUserId != person.id) ...[
-              SizedBox(width: 8.w),
-              SizedBox(
-                width: 112.w,
-                child: ChallengeButton(
-                  label: detail.viewerIsFollowing ? 'Following' : 'Follow',
-                  isLoading: provider.isFollowBusy(person.id),
-                  blurRadius: false,
-                  createNewChallenge: () => _setFollowing(detail),
-                ),
-              ),
-            ],
-          ],
-        ),
-        SizedBox(height: 14.h),
-
-        // Lifetime totals, from the server's own aggregate. Shown as counts
-        // first — hits AND misses — with a percentage only once there is
-        // enough settled history for one to be honest.
-        _LifetimeSummary(person: person),
-
-        SizedBox(height: 14.h),
-        CategoryRecordCard(record: record, personName: person.displayName),
-        SizedBox(height: 6.h),
-        Text(
-          'Counted from the calls on this page. '
-          'Void calls count as neither correct nor incorrect.',
-          style: TextStyle(color: AppColors.textTertiary, fontSize: 11.sp),
-        ),
-
-        if (widget.allowArenaProfileLink && person.walletAddress != null) ...[
-          SizedBox(height: 10.h),
-          TextButton(
-            onPressed:
-                () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder:
-                        (_) => CallerProfileScreen(
-                          walletAddress: person.walletAddress!,
-                        ),
-                  ),
-                ),
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-              foregroundColor: AppColors.primary,
-            ),
-            child: Text(
-              'They also have a linked wallet — open their arena profile',
-              style: TextStyle(fontSize: 12.sp, fontWeight: FontWeight.w700),
-            ),
-          ),
-        ],
-
-        SizedBox(height: 18.h),
-        if (detail.calls.isEmpty)
-          const CallsEmptyView(
-            title: 'Nothing on record yet',
-            message: 'When they make a call, it shows up here.',
-          )
-        else
-          for (final entry in detail.calls)
-            Padding(
-              padding: EdgeInsets.only(bottom: 12.h),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  CallCard(
-                    entry: entry,
-                    showAuthor: false,
-                    onOpenCall:
-                        () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder:
-                                (_) => CallDetailScreen(callId: entry.call.id),
-                          ),
-                        ),
-                    onOpenMarket:
-                        () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder:
-                                (_) => MarketDetailScreen(
-                                  marketId: entry.market.id,
-                                ),
-                          ),
-                        ),
-                    onRespond:
-                        entry.author.id == provider.viewerUserId
-                            ? null
-                            : () => _respond(entry),
-                    onShareReceipt: () => _shareReceipt(entry),
-                  ),
-                  // Renders nothing unless the call actually settled and it is
-                  // somebody else's — a rematch answers a result.
-                  _RematchRow(
-                    offer: _offerFor(provider, entry),
-                    onPressed: () => _rematch(entry),
-                  ),
-                ],
-              ),
-            ),
-
-        if (detail.calls.isNotEmpty)
-          Center(
-            child: TextButton(
-              onPressed:
-                  () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder:
-                          (_) => CallDetailScreen(
-                            callId: detail.calls.first.call.id,
-                          ),
-                    ),
-                  ),
-              child: Text(
-                'Open their latest call',
-                style: TextStyle(fontSize: 12.sp, color: AppColors.primary),
-              ),
-            ),
-          ),
-      ],
+    final styles = AppTextStyles.textTheme;
+    // Only visible public free calls contribute to the public summary.
+    // Person's lifetime fields do not carry a visibility scope in this model.
+    final record = PersonRecord.fromEntries(
+      detail.calls.where((e) => e.call.visibility == CallVisibility.public),
     );
-  }
-}
-
-/// The person's lifetime totals as the repository reports them.
-///
-/// `Person.settledCalls` excludes VOID from both the numerator and the
-/// denominator (`calls_repository.dart`), so misses are exactly
-/// `settledCalls - correctCalls` — which is why this can, and does, always
-/// print the misses next to the hits. The percentage is held back below
-/// [kMinimumDecidedCallsForAccuracy] for the same reason the category record
-/// holds it back.
-class _LifetimeSummary extends StatelessWidget {
-  final Person person;
-
-  const _LifetimeSummary({required this.person});
-
-  @override
-  Widget build(BuildContext context) {
-    final decided = person.settledCalls;
-    final correct = person.correctCalls;
-    final incorrect = decided - correct;
-    final honest = decided >= kMinimumDecidedCallsForAccuracy;
-
-    if (decided <= 0) {
-      return Align(
-        alignment: Alignment.centerLeft,
-        child: CallBadge(
-          label: 'No settled calls yet',
-          color: AppColors.textSecondary,
-          icon: 'award-outline',
-        ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Wrap(
-          spacing: 8.w,
-          runSpacing: 8.h,
-          children: [
-            CallBadge(
-              label: '$correct correct',
-              color: AppColors.success,
-              icon: 'check-outline',
+    return RefreshIndicator(
+      color: AppColors.primary,
+      onRefresh: () async {
+        await provider.loadPerson(widget.personRef, force: true);
+      },
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          if (widget.sharedByHandle != null)
+            CallsNotice(
+              icon: 'share-outline',
+              color: AppColors.textSecondary,
+              message: 'Shared with you by @${widget.sharedByHandle}.',
             ),
-            // There is no branch that can drop this one.
-            CallBadge(
-              label: '$incorrect incorrect',
-              color: AppColors.error,
-              icon: 'cross-outline',
-            ),
-            if (honest)
-              CallBadge(
-                label:
-                    '${CallsFormat.probability(person.accuracy)} lifetime '
-                    'accuracy',
-                color: AppColors.textSecondary,
-                icon: 'award-outline',
+          ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: ColoredBox(
+              color: AppColors.outlineVariant,
+              child: Column(
+                children: [
+                  ProfileHeader(
+                    username: person.displayName,
+                    handle: person.handle,
+                    bio: '',
+                    profileImagePath: person.avatarUrl,
+                    canEdit: false,
+                    onEditProfile: () {},
+                    footer:
+                        provider.viewerUserId == person.id
+                            ? null
+                            : Padding(
+                              padding: const EdgeInsets.only(top: 16),
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  minHeight: 48,
+                                ),
+                                child: ChallengeButton(
+                                  label:
+                                      detail.viewerIsFollowing
+                                          ? 'Following'
+                                          : 'Follow',
+                                  isLoading: provider.isFollowBusy(person.id),
+                                  blurRadius: false,
+                                  createNewChallenge:
+                                      () => _setFollowing(detail),
+                                ),
+                              ),
+                            ),
+                  ),
+                  ProfileStatsCard(entries: detail.calls),
+                ],
               ),
-          ],
-        ),
-        SizedBox(height: 6.h),
-        Text(
-          honest
-              ? 'Lifetime, across $decided decided calls. Void excluded.'
-              : 'Lifetime, across $decided decided '
-                  '${decided == 1 ? 'call' : 'calls'} — too few to put a '
-                  'percentage on. Void excluded.',
-          style: TextStyle(
-            color: AppColors.textTertiary,
-            fontSize: 11.sp,
-            height: 1.35,
+            ),
           ),
-        ),
-      ],
+          const SizedBox(height: 12),
+          Text(
+            'Public free calls shown here, including incorrect calls. '
+            'Void excluded from scored results. Separate from trading performance.',
+            style: styles.bodySmall?.copyWith(
+              color: AppColors.textSecondary,
+              height: 1.5,
+            ),
+          ),
+          if (provider.isOffline ||
+              provider.personError(widget.personRef) != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Showing saved calls. Pull down to retry.',
+              style: styles.bodySmall,
+            ),
+          ],
+          // No wallet, stakes or arena money profile in a public identity panel.
+          // allowArenaProfileLink is retained only for constructor compatibility.
+          const SizedBox(height: 16),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: ChumbucketTabs(
+              labels: const ['Calls', 'Record'],
+              selectedIndex: _selectedTab,
+              onSelected: (index) => setState(() => _selectedTab = index),
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (_selectedTab == 1) ...[
+            for (final category in record.categories)
+              Container(
+                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(category.label, style: styles.titleMedium),
+                    const SizedBox(height: 12),
+                    for (final tally in category.tallies)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          '${tally.count} ${tally.outcome.label.toLowerCase()}',
+                          style: styles.bodyMedium,
+                        ),
+                      ),
+                    Text(
+                      '${category.pending} awaiting result · ${category.decided} decided',
+                      style: styles.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            if (record.isEmpty)
+              const CallsEmptyView(
+                title: 'Nothing on record yet',
+                message: 'No public free calls are available to score.',
+              ),
+          ] else if (detail.calls.isEmpty)
+            const CallsEmptyView(
+              title: 'Nothing on record yet',
+              message: 'When they make a call, it shows up here.',
+            )
+          else
+            for (final entry in detail.calls)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    CallCard(
+                      entry: entry,
+                      showAuthor: false,
+                      onOpenCall:
+                          () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder:
+                                  (_) =>
+                                      CallDetailScreen(callId: entry.call.id),
+                            ),
+                          ),
+                      onOpenMarket:
+                          () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder:
+                                  (_) => MarketDetailScreen(
+                                    marketId: entry.market.id,
+                                  ),
+                            ),
+                          ),
+                      onRespond:
+                          entry.author.id == provider.viewerUserId
+                              ? null
+                              : () => _respond(entry),
+                      onBack:
+                          entry.author.id == provider.viewerUserId
+                              ? null
+                              : () => _respond(entry, CallResponseKind.back),
+                      onFade:
+                          entry.author.id == provider.viewerUserId
+                              ? null
+                              : () => _respond(entry, CallResponseKind.fade),
+                      onShareReceipt: () => _shareReceipt(entry),
+                    ),
+                    _RematchRow(
+                      offer: _offerFor(provider, entry),
+                      onPressed: () => _rematch(entry),
+                    ),
+                  ],
+                ),
+              ),
+        ],
+      ),
     );
   }
 }

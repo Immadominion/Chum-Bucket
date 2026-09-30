@@ -32,7 +32,7 @@ class CallBadge extends StatelessWidget {
       padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
       decoration: BoxDecoration(
         color: emphasised ? color : color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(999.r),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: color.withValues(alpha: 0.34)),
       ),
       child: Row(
@@ -55,7 +55,7 @@ class CallBadge extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: emphasised ? Colors.white : color,
-                fontSize: 11.sp,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.2,
               ),
@@ -79,10 +79,13 @@ class FundingStateBadge extends StatelessWidget {
     final (color, icon) = switch (state) {
       FundingState.none => (AppColors.textSecondary, 'comment-outline'),
       FundingState.quoted => (AppColors.textSecondary, 'info-circle-outline'),
-      FundingState.submitted => (AppColors.warning, 'clock-outline'),
-      FundingState.filled => (AppColors.success, 'check-outline'),
-      FundingState.partial => (AppColors.warning, 'info-circle-outline'),
-      FundingState.failed => (AppColors.error, 'cross-outline'),
+      FundingState.submitted => (AppColors.onWarningContainer, 'clock-outline'),
+      FundingState.filled => (AppColors.onSuccessContainer, 'check-outline'),
+      FundingState.partial => (
+        AppColors.onWarningContainer,
+        'info-circle-outline',
+      ),
+      FundingState.failed => (const Color(0xFFB42318), 'cross-outline'),
       FundingState.closed => (AppColors.textSecondary, 'check-outline'),
       FundingState.claimable => (AppColors.tertiary, 'award-outline'),
       FundingState.claimed => (AppColors.textSecondary, 'check-outline'),
@@ -106,8 +109,16 @@ class CallOutcomeBadge extends StatelessWidget {
         'clock-outline',
         'Pending',
       ),
-      CallOutcome.correct => (AppColors.success, 'check-outline', 'Correct'),
-      CallOutcome.incorrect => (AppColors.error, 'cross-outline', 'Incorrect'),
+      CallOutcome.correct => (
+        AppColors.onSuccessContainer,
+        'check-outline',
+        'Correct',
+      ),
+      CallOutcome.incorrect => (
+        const Color(0xFFB42318),
+        'cross-outline',
+        'Incorrect',
+      ),
       CallOutcome.voided => (
         AppColors.textTertiary,
         'info-circle-outline',
@@ -128,9 +139,9 @@ class MarketStatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (color, icon) = switch (status) {
-      MarketStatus.open => (AppColors.success, 'unlock-outline'),
+      MarketStatus.open => (AppColors.onSuccessContainer, 'unlock-outline'),
       MarketStatus.closedPendingResolution => (
-        AppColors.warning,
+        AppColors.onWarningContainer,
         'lock-time-outline',
       ),
       MarketStatus.resolved => (AppColors.textPrimary, 'check-outline'),
@@ -153,7 +164,7 @@ class DemoVenueBadge extends StatelessWidget {
     if (!venue.isDemo) return const SizedBox.shrink();
     return const CallBadge(
       label: 'DEMO DATA',
-      color: AppColors.tertiary,
+      color: AppColors.onWarningContainer,
       icon: 'info-triangle-outline',
       emphasised: true,
     );
@@ -177,7 +188,8 @@ class SideChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = side == Side.yes ? AppColors.success : AppColors.error;
+    final color =
+        side == Side.yes ? AppColors.onSuccessContainer : AppColors.textPrimary;
     final content = Container(
       padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
       decoration: BoxDecoration(

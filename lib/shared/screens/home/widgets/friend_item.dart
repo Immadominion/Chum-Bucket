@@ -1,38 +1,54 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:chumbucket/widgets/friend_avatar.dart';
+import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/core/theme/app_text_styles.dart';
+import 'package:chumbucket/shared/widgets/app_components/app_avatar.dart';
 
 Widget buildFriendItem(Map<String, String> friend, onFriendSelected) {
-  return Column(
-    mainAxisSize: MainAxisSize.min, // Use minimum space needed
-    children: [
-      Flexible(
-        // Make avatar flexible instead of fixed size
-        flex: 3,
-        child: FriendAvatar(
-          name: friend['name']!,
-          colorHex: friend['avatarColor']!,
-          //To show based on index instead of random
-          imagePath: friend['imagePath'],
-          onTap: () => onFriendSelected(friend['name']!),
-          size: 75.sp, // Reduced from 90.sp
+  final name = friend['name'] ?? '';
+  final label = friend['xLabel'] ?? name;
+  final image = friend['imagePath'];
+  final fallback = AppAvatar(
+    initials: label.isEmpty ? '?' : label.characters.first,
+    size: 64,
+    backgroundColor: AppColors.primaryContainer,
+    textColor: AppColors.onPrimaryContainer,
+  );
+  return Semantics(
+    button: true,
+    label: 'Open $label',
+    child: InkWell(
+      onTap: () => onFriendSelected(name),
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ExcludeSemantics(
+              child:
+                  image == null
+                      ? fallback
+                      : ClipOval(
+                        child: Image.asset(
+                          image,
+                          width: 64,
+                          height: 64,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => fallback,
+                        ),
+                      ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: AppTextStyles.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
         ),
       ),
-      SizedBox(height: 6.h), // Reduced from 8.h
-      Flexible(
-        // Make text flexible
-        flex: 1,
-        child: Text(
-          friend['xLabel'] ?? friend['name']!,
-          style: TextStyle(
-            fontSize: 12.sp, // Reduced from 14.sp
-            fontWeight: FontWeight.w600,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-        ),
-      ),
-    ],
+    ),
   );
 }

@@ -1,26 +1,29 @@
-import 'package:chumbucket/core/theme/app_colors.dart';
-import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
-import 'package:chumbucket/features/arena/data/arena_models.dart';
-import 'package:chumbucket/features/arena/presentation/screens/my_pots_screen.dart';
-import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:intl/intl.dart';
-import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:provider/provider.dart';
-import 'package:chumbucket/features/profile/providers/profile_provider.dart';
-// MWA Auth Provider for wallet-based authentication
+import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
+import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
+import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
+import 'package:chumbucket/features/arena/presentation/screens/my_pots_screen.dart';
+import 'package:chumbucket/features/calls/data/calls_repository.dart';
+import 'package:chumbucket/features/calls/providers/calls_provider.dart';
+import 'package:chumbucket/features/calls/presentation/screens/call_detail_screen.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/call_card.dart';
+import 'package:chumbucket/features/profile/providers/profile_provider.dart';
 import 'package:chumbucket/features/profile/presentation/screens/edit_profile_screen.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_header.dart';
+import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_stats_card.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_wallet_card.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_settings_sheet.dart';
 import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_tabs.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
+import 'package:chumbucket/widgets/profile_picture_selection_modal.dart';
 
 class ProfileScreen extends StatefulWidget {
   final bool embedded;
   final VoidCallback? onOpenChallenges;
-
   const ProfileScreen({
     super.key,
     this.embedded = false,
@@ -31,120 +34,115 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _fadeController;
-
-  String _username = 'Username';
-  String _bio = 'This is a short bio that describes the user.';
-  String? _lastLoadedWallet; // Track which wallet we loaded data for
-
-  @override
-  void initState() {
-    super.initState();
-
-    _fadeController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-
-    // Start animation
-    _fadeController.forward();
-
-    // Load profile data
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _loadProfileData();
-    });
-  }
+class _ProfileScreenState extends State<ProfileScreen> {
+  Map<String, dynamic>? _existingProfile;
+  String? _profileWallet;
+  String? _requestedIdentity;
+  bool _loadingProfile = false;
+  String? _profileError;
+  int _selectedTab = 0;
+  int _request = 0;
 
   Future<void> _loadProfileData() async {
+    if (!mounted) return;
+    final calls = context.read<CallsProvider?>();
+    final wallet = context.read<MwaAuthProvider?>()?.walletAddress;
+    final userId = calls?.viewerUserId;
+    final profileProvider = context.read<ProfileProvider?>();
+    final request = ++_request;
+    setState(() {
+      _loadingProfile = true;
+      _profileError = null;
+    });
+    // This is the canonical user id supplied by the existing session, never
+    // derived from a wallet. The wallet lookup remains the old profile flow.
+    final personRead =
+        userId == null ? null : calls?.loadPerson(userId, force: true);
     try {
-      final authProvider = Provider.of<MwaAuthProvider>(context, listen: false);
-      final profileProvider = Provider.of<ProfileProvider>(
-        context,
-        listen: false,
-      );
-
-      if (authProvider.isAuthenticated) {
-        final walletAddress = authProvider.walletAddress!;
-
-        // Skip if we already loaded for this wallet
-        if (_lastLoadedWallet == walletAddress && _username != 'Username') {
-          debugPrint('🔄 Profile already loaded for wallet: $walletAddress');
-          return;
-        }
-
-        debugPrint('🔍 Loading profile for wallet: $walletAddress');
-
-        // ALWAYS fetch from database first for correct data (skip local cache)
-        // Local cache might be stale from previous user
-        var profile = await profileProvider.fetchUserProfileWithPfp(
-          walletAddress,
+      final profile =
+          wallet == null || profileProvider == null
+              ? null
+              : await profileProvider.fetchUserProfileWithPfp(wallet);
+      if (!mounted ||
+          request != _request ||
+          context.read<MwaAuthProvider?>()?.walletAddress != wallet) {
+        return;
+      }
+      setState(() {
+        _profileWallet = wallet;
+        _existingProfile = profile;
+        _profileError =
+            wallet != null && profile == null
+                ? 'Your existing profile could not be loaded. Pull down to retry.'
+                : null;
+      });
+    } catch (_) {
+      if (mounted && request == _request) {
+        setState(
+          () =>
+              _profileError =
+                  'Your profile is unavailable. Pull down to retry.',
         );
-        debugPrint('🗄️ Database profile: $profile');
-
-        if (mounted) {
-          setState(() {
-            _lastLoadedWallet = walletAddress;
-            if (profile != null) {
-              _username =
-                  profile['full_name'] ??
-                  profile['name'] ??
-                  // For MWA, show truncated wallet address if no name
-                  '${walletAddress.substring(0, 4)}...${walletAddress.substring(walletAddress.length - 4)}';
-              _bio =
-                  profile['bio'] ??
-                  'This is a short bio that describes the user.';
-              debugPrint(
-                '✅ Profile loaded: $_username (from ${profile.keys.toList()})',
-              );
-            } else {
-              // If no profile, use wallet address as fallback
-              _username =
-                  '${walletAddress.substring(0, 4)}...${walletAddress.substring(walletAddress.length - 4)}';
-              _bio = 'This is a short bio that describes the user.';
-              debugPrint('🔄 Using wallet address fallback: $_username');
-            }
-          });
-        }
       }
-
-      if (!mounted) return;
-      final walletProvider = Provider.of<MwaWalletProvider>(
-        context,
-        listen: false,
-      );
-      walletProvider.refreshWalletBalance();
-
-      final wallet = authProvider.walletAddress;
-      if (wallet != null && mounted) {
-        final arena = context.read<ArenaProvider>();
-        await Future.wait([
-          arena.loadMyPots(walletAddress: wallet),
-          arena.loadProfile(targetWallet: wallet, viewerWallet: wallet),
-        ]);
+    } finally {
+      await personRead;
+      if (mounted && request == _request) {
+        setState(() => _loadingProfile = false);
       }
-    } catch (e) {
-      debugPrint('❌ Error loading profile: $e');
     }
   }
 
-  @override
-  void dispose() {
-    _fadeController.dispose();
-    super.dispose();
-  }
-
-  void _onEditProfile() {
-    Navigator.of(context).push(
+  Future<void> _onEditProfile() async {
+    await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => const EditProfileScreen(showCancelIcon: true),
+        builder: (_) => const EditProfileScreen(showCancelIcon: true),
       ),
     );
+    if (mounted) await _loadProfileData();
+  }
+
+  Future<void> _onEditAvatar(String image) async {
+    await ProfilePictureSelectionModal.show(
+      context,
+      currentProfilePicture: image,
+    );
+    if (mounted) await _loadProfileData();
   }
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<MwaAuthProvider?>();
+    final calls = context.watch<CallsProvider?>();
+    final session = context.watch<ChumbucketSession?>();
+    final challenges = context.watch<ChallengeStateProvider?>();
+    final wallet = auth?.walletAddress;
+    final userId = calls?.viewerUserId;
+    final identityKey = '$userId|$wallet';
+    if (_requestedIdentity != identityKey) {
+      _requestedIdentity = identityKey;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _loadProfileData();
+      });
+    }
+    final detail = userId == null ? null : calls?.personDetail(userId);
+    final person = detail?.person;
+    // Do not merge data from unrelated linked credentials.
+    final existing =
+        _profileWallet == wallet &&
+                (person == null ||
+                    _existingProfile?['id'] == person.id ||
+                    person.walletAddress == wallet)
+            ? _existingProfile
+            : null;
+    final name =
+        person?.displayName ??
+        existing?['full_name']?.toString() ??
+        existing?['name']?.toString() ??
+        'Your profile';
+    final image = person?.avatarUrl ?? existing?['pfp_path']?.toString();
+    final styles = AppTextStyles.textTheme;
+    final canEdit = auth?.isAuthenticated == true && existing != null;
+    final pending = session?.isBusy == true || _loadingProfile;
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -155,198 +153,215 @@ class _ProfileScreenState extends State<ProfileScreen>
           child: ListView(
             key: const PageStorageKey('profile-root'),
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: EdgeInsets.fromLTRB(
-              20.w,
-              12.h,
-              20.w,
-              widget.embedded ? 112.h : 32.h,
-            ),
+            padding: EdgeInsets.fromLTRB(16, 8, 16, widget.embedded ? 140 : 32),
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  Expanded(
+                    child: Text('Profile', style: styles.headlineMedium),
+                  ),
                   IconButton(
                     tooltip: 'Settings',
+                    constraints: const BoxConstraints(
+                      minWidth: 48,
+                      minHeight: 48,
+                    ),
                     onPressed: () => showProfileSettingsSheet(context),
-                    icon: BasilIcon(
+                    icon: const BasilIcon(
                       'settings-outline',
-                      size: 28.w,
-                      color: AppColors.primary,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                   if (!widget.embedded)
                     IconButton(
                       tooltip: 'Close',
+                      constraints: const BoxConstraints(
+                        minWidth: 48,
+                        minHeight: 48,
+                      ),
                       onPressed: () => Navigator.of(context).pop(),
-                      icon: BasilIcon(
+                      icon: const BasilIcon(
                         'cancel-outline',
-                        size: 30.w,
-                        color: AppColors.textSecondary,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                 ],
               ),
-              ProfileHeader(
-                username: _username,
-                bio: _bio,
-                onEditProfile: _onEditProfile,
-              ),
-              SizedBox(height: 20.h),
-              const ProfileWalletCard(),
-              SizedBox(height: 24.h),
-              Consumer2<ArenaProvider, MwaAuthProvider>(
-                builder: (context, arena, auth, _) {
-                  final wallet = auth.walletAddress;
-                  final profile =
-                      wallet == null ? null : arena.cachedProfile(wallet);
-                  return _PredictionSummary(profile: profile);
-                },
-              ),
-              SizedBox(height: 24.h),
-              Text(
-                'Your activity',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 18.sp,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              SizedBox(height: 12.h),
-              Material(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20.r),
-                clipBehavior: Clip.antiAlias,
-                child: Column(
-                  children: [
-                    Consumer<ArenaProvider>(
-                      builder:
-                          (context, arena, _) => _ProfileActionRow(
-                            icon: 'hotspot-outline',
-                            title: 'Prediction history',
-                            detail:
-                                '${arena.myPots.length} ${arena.myPots.length == 1 ? 'position' : 'positions'}',
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const MyPotsScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                    ),
-                    Divider(
-                      height: 1,
-                      indent: 16.w,
-                      endIndent: 16.w,
-                      color: AppColors.divider,
-                    ),
-                    Consumer<ChallengeStateProvider>(
-                      builder:
-                          (context, challengeState, _) => _ProfileActionRow(
-                            icon: 'contacts-outline',
-                            title: 'Challenge history',
-                            detail:
-                                '${challengeState.challenges.length} ${challengeState.challenges.length == 1 ? 'challenge' : 'challenges'}',
-                            onTap: widget.onOpenChallenges,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: 34.h),
-              Center(
-                child: Text(
-                  'Chum Bucket v0.0.1',
-                  style: TextStyle(
-                    fontSize: 12.sp,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textTertiary,
+              const SizedBox(height: 16),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: ColoredBox(
+                  color: AppColors.outlineVariant,
+                  child: Column(
+                    children: [
+                      ProfileHeader(
+                        username: name,
+                        handle: person?.handle,
+                        bio: existing?['bio']?.toString() ?? '',
+                        profileImagePath: image,
+                        canEdit: canEdit,
+                        onEditProfile: _onEditProfile,
+                        onEditAvatar:
+                            canEdit && image != null
+                                ? () => _onEditAvatar(image)
+                                : null,
+                        footer: const ProfileWalletCard(),
+                      ),
+                      ProfileStatsCard(entries: detail?.calls),
+                    ],
                   ),
                 ),
               ),
+              const SizedBox(height: 12),
+              Text(
+                'Public free calls shown here, including incorrect calls. '
+                'Separate from trading performance.',
+                style: styles.bodySmall?.copyWith(
+                  color: AppColors.textSecondary,
+                  height: 1.5,
+                ),
+              ),
+              if (pending) ...[
+                const SizedBox(height: 16),
+                const LinearProgressIndicator(),
+                const SizedBox(height: 8),
+                Text('Loading your existing profile…', style: styles.bodySmall),
+              ],
+              if (_profileError != null && person == null) ...[
+                const SizedBox(height: 12),
+                Text(_profileError!, style: styles.bodyMedium),
+              ],
+              if (userId == null && !pending) ...[
+                const SizedBox(height: 16),
+                _ProfileActionRow(
+                  icon: 'user-outline',
+                  title:
+                      wallet != null
+                          ? 'Connect your existing account'
+                          : 'Sign in to your account',
+                  detail:
+                      session?.error?.message ??
+                      'Recover your profile to see your call record.',
+                  onTap:
+                      session == null ? null : () => requestCallSignIn(context),
+                ),
+              ],
+              if (challenges != null &&
+                  challenges.pendingChallenges.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                _ProfileActionRow(
+                  icon: 'clock-outline',
+                  title: 'Active challenges',
+                  detail: 'Open your challenges to review outstanding actions.',
+                  onTap: widget.onOpenChallenges,
+                ),
+              ],
+              const SizedBox(height: 16),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: ChumbucketTabs(
+                  labels: const ['Calls', 'Positions', 'Challenges'],
+                  selectedIndex: _selectedTab,
+                  onSelected: (index) => setState(() => _selectedTab = index),
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (_selectedTab == 0)
+                ..._callRecord(calls, detail, userId, styles),
+              if (_selectedTab == 1)
+                _ProfileActionRow(
+                  icon: 'lock-outline',
+                  title: 'Private positions',
+                  detail:
+                      'Your Panta positions are not available here yet. '
+                      'Free calls are not positions, and submitted orders are not confirmed fills.',
+                  onTap: null,
+                ),
+              if (_selectedTab == 2) ...[
+                _ProfileActionRow(
+                  icon: 'contacts-outline',
+                  title: 'Challenge history',
+                  detail:
+                      widget.onOpenChallenges == null
+                          ? 'Your challenge history is unavailable from this screen.'
+                          : 'Your original challenges, including active actions, claims and refunds.',
+                  onTap: widget.onOpenChallenges,
+                ),
+                const SizedBox(height: 12),
+                _ProfileActionRow(
+                  icon: 'hotspot-outline',
+                  title: 'Prediction history',
+                  detail:
+                      'Open your existing predictions and their original terms.',
+                  onTap:
+                      () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const MyPotsScreen()),
+                      ),
+                ),
+              ],
             ],
           ),
         ),
       ),
     );
   }
-}
 
-// Plain inline stat row — no card chrome. The wallet balance above and the
-// "Your activity" list below are already white cards; a third white box in
-// between just reads as more of the same rather than as its own thing.
-// Thin dividers give it separation without another rounded rectangle.
-class _PredictionSummary extends StatelessWidget {
-  final ArenaSocialProfile? profile;
-
-  const _PredictionSummary({required this.profile});
-
-  @override
-  Widget build(BuildContext context) {
-    final stats = profile?.stats;
-    final calls = stats?.callsMade ?? 0;
-    final winRate = stats?.winRate ?? 0.0;
-    final pnl = stats?.pnlBaseUnits ?? BigInt.zero;
-    return Row(
-      children: [
-        _SummaryStat(label: 'Calls', value: '$calls'),
-        const _StatDivider(),
-        _SummaryStat(label: 'Win rate', value: '${(winRate * 100).round()}%'),
-        const _StatDivider(),
-        _SummaryStat(
-          label: 'PnL',
-          value: _formatPnl(pnl),
-          color:
-              pnl > BigInt.zero
-                  ? AppColors.success
-                  : pnl < BigInt.zero
-                  ? AppColors.error
-                  : AppColors.textSecondary,
+  List<Widget> _callRecord(
+    CallsProvider? provider,
+    PersonDetail? detail,
+    String? userId,
+    TextTheme styles,
+  ) {
+    if (detail == null) {
+      final error = userId == null ? null : provider?.personError(userId);
+      return [
+        _ProfileActionRow(
+          icon: 'comment-outline',
+          title: 'Your calls',
+          detail:
+              error ??
+              (userId == null
+                  ? 'Connect your existing account to load your calls.'
+                  : 'Your call record is not available yet.'),
+          onTap: userId == null ? null : _loadProfileData,
         ),
-      ],
-    );
-  }
-}
-
-class _StatDivider extends StatelessWidget {
-  const _StatDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(width: 1, height: 32.h, color: AppColors.divider);
-  }
-}
-
-class _SummaryStat extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color? color;
-
-  const _SummaryStat({required this.label, required this.value, this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: color ?? AppColors.textPrimary,
-              fontSize: 16.sp,
-              fontWeight: FontWeight.w700,
-            ),
+      ];
+    }
+    if (detail.calls.isEmpty) {
+      return [
+        _ProfileActionRow(
+          icon: 'comment-outline',
+          title: 'Nothing on record yet',
+          detail:
+              'Your calls will appear here once you make one. Calling is free.',
+          onTap: null,
+        ),
+      ];
+    }
+    return [
+      if (provider?.isOffline == true || provider?.personError(userId!) != null)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Text(
+            'Showing saved calls. Pull down to retry.',
+            style: styles.bodySmall,
           ),
-          SizedBox(height: 4.h),
-          Text(
-            label,
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 11.sp),
+        ),
+      for (final entry in detail.calls)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: CallCard(
+            entry: entry,
+            showAuthor: false,
+            onOpenCall:
+                () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => CallDetailScreen(callId: entry.call.id),
+                  ),
+                ),
           ),
-        ],
-      ),
-    );
+        ),
+    ];
   }
 }
 
@@ -355,7 +370,6 @@ class _ProfileActionRow extends StatelessWidget {
   final String title;
   final String detail;
   final VoidCallback? onTap;
-
   const _ProfileActionRow({
     required this.icon,
     required this.title,
@@ -365,36 +379,34 @@ class _ProfileActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      onTap: onTap,
-      contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 4.h),
-      leading: Container(
-        width: 42.w,
-        height: 42.w,
-        decoration: const BoxDecoration(
-          color: AppColors.primaryContainer,
-          shape: BoxShape.circle,
+    final styles = AppTextStyles.textTheme;
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: ListTile(
+        onTap: onTap,
+        contentPadding: const EdgeInsets.all(16),
+        leading: BasilIcon(icon, color: AppColors.textPrimary),
+        title: Text(title, style: styles.titleMedium),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Text(
+            detail,
+            style: styles.bodySmall?.copyWith(
+              color: AppColors.textSecondary,
+              height: 1.5,
+            ),
+          ),
         ),
-        child: BasilIcon(icon, color: AppColors.primary, size: 20.w),
-      ),
-      title: Text(
-        title,
-        style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
-      ),
-      subtitle: Text(
-        detail,
-        style: TextStyle(color: AppColors.textSecondary, fontSize: 11.sp),
-      ),
-      trailing: const BasilIcon(
-        'caret-right-outline',
-        color: AppColors.textTertiary,
+        trailing:
+            onTap == null
+                ? null
+                : const BasilIcon(
+                  'arrow-right-outline',
+                  color: AppColors.textPrimary,
+                ),
       ),
     );
   }
-}
-
-String _formatPnl(BigInt baseUnits) {
-  final amount = baseUnits.toDouble() / 1000000;
-  final sign = amount > 0 ? '+' : '';
-  return '$sign${NumberFormat.compactCurrency(symbol: '\$', decimalDigits: 1).format(amount)}';
 }

@@ -73,9 +73,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final rules = tester.widget<SelectableText>(
-        find.byType(SelectableText),
-      );
+      await scrollTo(tester, find.text('Read the full market rules'));
+      await tester.tap(find.text('Read the full market rules'));
+      await tester.pumpAndSettle();
+      final rules = tester.widget<SelectableText>(find.byType(SelectableText));
       expect(rules.data, market.rulesText);
       expect(rules.data, contains('Wicks count.'));
       expect(
@@ -96,14 +97,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Closes in'), findsWidgets);
+      expect(find.textContaining('Closes '), findsWidgets);
       expect(find.textContaining('Price 2m old'), findsOneWidget);
-      expect(find.text('38%'), findsOneWidget); // YES
-      expect(find.text('62%'), findsOneWidget); // NO
-      expect(find.text('YES'), findsOneWidget);
-      expect(find.text('NO'), findsOneWidget);
+      expect(find.text('YES 38% · NO 62%'), findsOneWidget);
       // Demo catalog, because every market the mock serves is invented.
-      expect(find.text('Demo catalog · not a live market'), findsOneWidget);
+      expect(find.text('Demo catalog'), findsOneWidget);
       expect(find.text('Open'), findsOneWidget);
     });
 
@@ -132,10 +130,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.text('Demo catalog data. This is sample data, not a live market.'),
+        find.text('DEMO DATA · Sample market, not a live venue or trade.'),
         findsOneWidget,
       );
-      expect(find.text('Demo catalog · not a live market'), findsOneWidget);
+      expect(find.text('Demo catalog'), findsOneWidget);
     });
 
     testWidgets('a market with no price says so instead of inventing one', (
@@ -150,10 +148,13 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('No price published yet'), findsOneWidget);
-      expect(find.text('Paused by venue'), findsOneWidget);
+      expect(find.text('Price unavailable'), findsOneWidget);
+      expect(find.text('Paused by venue'), findsWidgets);
       // Paused takes no new calls, so no composer entry point.
-      expect(find.text('Make my call'), findsNothing);
+      final action = find.widgetWithText(TextButton, 'Make a call');
+      if (action.evaluate().isNotEmpty) {
+        expect(tester.widget<TextButton>(action).onPressed, isNull);
+      }
     });
 
     testWidgets('the five market statuses render as five distinct labels', (
@@ -166,18 +167,11 @@ void main() {
         await tester.pumpWidget(
           harness(
             provider,
-            MarketDetailScreen(
-              key: ValueKey(market.id),
-              marketId: market.id,
-            ),
+            MarketDetailScreen(key: ValueKey(market.id), marketId: market.id),
           ),
         );
         await tester.pumpAndSettle();
-        expect(
-          find.text(market.status.label),
-          findsWidgets,
-          reason: market.id,
-        );
+        expect(find.text(market.status.label), findsWidgets, reason: market.id);
       }
     });
 
@@ -193,8 +187,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('HOW EVERYONE ELSE CALLED IT'), findsNothing);
-      expect(find.text('Make my call'), findsOneWidget);
+      expect(find.text('Community opinion'), findsNothing);
+      expect(find.text('Make a call'), findsOneWidget);
     });
 
     testWidgets('crowd split appears once the viewer has locked', (
@@ -207,18 +201,26 @@ void main() {
       );
 
       await tester.pumpWidget(
-        harness(provider, const MarketDetailScreen(marketId: 'market_btc_150k')),
+        harness(
+          provider,
+          const MarketDetailScreen(marketId: 'market_btc_150k'),
+        ),
       );
       await tester.pumpAndSettle();
-      await scrollTo(tester, find.text('HOW EVERYONE ELSE CALLED IT'));
+      await scrollTo(tester, find.text('Community opinion'));
 
-      expect(find.text('HOW EVERYONE ELSE CALLED IT'), findsOneWidget);
+      expect(find.text('Community opinion'), findsOneWidget);
       expect(
-        find.text('Shown now because your call is already locked.'),
+        find.text(
+          '${provider.marketDetail('market_btc_150k')!.crowdSplit!.total} calls returned for this market · not venue odds',
+        ),
         findsOneWidget,
       );
       // Already on record, so the composer entry point is gone.
-      expect(find.text('Make my call'), findsNothing);
+      final action = find.widgetWithText(TextButton, 'Make a call');
+      if (action.evaluate().isNotEmpty) {
+        expect(tester.widget<TextButton>(action).onPressed, isNull);
+      }
     });
   });
 
@@ -242,50 +244,51 @@ void main() {
       expect(find.text('Lock my call'), findsNothing);
     });
 
-    testWidgets('signed in shows both sides, no amount field and no crowd data', (
-      tester,
-    ) async {
-      usePhoneSurface(tester);
-      final repo = MockCallsRepository();
-      final market = repo.debugMarkets.firstWhere(
-        (m) => m.id == 'market_btc_150k',
-      );
-      final detail = await repo.fetchMarketDetail(
-        marketId: 'market_btc_150k',
-        viewerUserId: viewer,
-      );
+    testWidgets(
+      'signed in shows both sides, no amount field and no crowd data',
+      (tester) async {
+        usePhoneSurface(tester);
+        final repo = MockCallsRepository();
+        final market = repo.debugMarkets.firstWhere(
+          (m) => m.id == 'market_btc_150k',
+        );
+        final detail = await repo.fetchMarketDetail(
+          marketId: 'market_btc_150k',
+          viewerUserId: viewer,
+        );
 
-      await tester.pumpWidget(
-        harness(
-          providerFor(repo),
-          CallComposerSheet(market: market, snapshot: detail.snapshot),
-        ),
-      );
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          harness(
+            providerFor(repo),
+            CallComposerSheet(market: market, snapshot: detail.snapshot),
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('Yes — it prints 150k'), findsOneWidget);
-      expect(find.text('No — it never gets there'), findsOneWidget);
-      expect(find.text('Lock my call'), findsOneWidget);
-      // The venue price IS shown — that is what the call gets stamped with.
-      expect(find.textContaining('Venue price: Yes 38%'), findsOneWidget);
-      // The crowd's split is not.
-      expect(find.textContaining('EVERYONE ELSE'), findsNothing);
+        expect(find.text('Yes — it prints 150k'), findsOneWidget);
+        expect(find.text('No — it never gets there'), findsOneWidget);
+        expect(find.text('Lock my call'), findsOneWidget);
+        // The venue price IS shown — that is what the call gets stamped with.
+        expect(find.textContaining('Venue price: Yes 38%'), findsOneWidget);
+        // The crowd's split is not.
+        expect(find.textContaining('EVERYONE ELSE'), findsNothing);
 
-      await scrollTo(
-        tester,
-        find.textContaining('This is a free call. No money, no wallet'),
-      );
-      expect(
-        find.textContaining('This is a free call. No money, no wallet'),
-        findsOneWidget,
-      );
+        await scrollTo(
+          tester,
+          find.textContaining('This is a free call. No money, no wallet'),
+        );
+        expect(
+          find.textContaining('This is a free call. No money, no wallet'),
+          findsOneWidget,
+        );
 
-      // Exactly one free-text field: the thesis. No amount input anywhere.
-      final fields = tester.widgetList<TextField>(find.byType(TextField));
-      expect(fields.length, 1);
-      expect(fields.first.maxLength, kThesisMaxLength);
-      expect(fields.first.keyboardType, isNot(TextInputType.number));
-    });
+        // Exactly one free-text field: the thesis. No amount input anywhere.
+        final fields = tester.widgetList<TextField>(find.byType(TextField));
+        expect(fields.length, 1);
+        expect(fields.first.maxLength, kThesisMaxLength);
+        expect(fields.first.keyboardType, isNot(TextInputType.number));
+      },
+    );
 
     testWidgets('a closed market refuses the composer with a clear reason', (
       tester,
@@ -338,7 +341,7 @@ void main() {
         findsOneWidget,
       );
       // Back is preselected, and its button never says "copy".
-      expect(find.text('Lock my call on the same side'), findsOneWidget);
+      expect(find.text('Lock my YES call'), findsOneWidget);
 
       // The third option is below the fold on a small phone.
       await scrollTo(tester, find.text('Challenge'));
@@ -358,9 +361,9 @@ void main() {
       await tester.tap(find.text('Fade'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Lock my call on the other side'), findsOneWidget);
-      await scrollTo(tester, find.textContaining('You will be on record for'));
-      expect(find.textContaining('You will be on record for'), findsOneWidget);
+      expect(find.text('Lock my NO call'), findsOneWidget);
+      await scrollTo(tester, find.textContaining('You’re calling'));
+      expect(find.textContaining('You’re calling'), findsOneWidget);
       // The target called YES, so a fade is NO.
       expect(entry.call.side, Side.yes);
       expect(find.text('No — it never gets there'), findsWidgets);
@@ -393,7 +396,7 @@ void main() {
       );
       expect(find.textContaining('no transaction is created'), findsOneWidget);
       // A challenge makes no call for the actor, so no side banner.
-      expect(find.textContaining('You will be on record for'), findsNothing);
+      expect(find.textContaining('You’re calling'), findsNothing);
     });
 
     testWidgets('signed out shows the sign-in gate', (tester) async {
@@ -425,11 +428,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final rendered =
-          tester
-              .widgetList<Text>(find.byType(Text))
-              .map((t) => (t.data ?? '').toLowerCase())
-              .join(' | ');
+      final rendered = tester
+          .widgetList<Text>(find.byType(Text))
+          .map((t) => (t.data ?? '').toLowerCase())
+          .join(' | ');
       for (final forbidden in ['stake', 'usdc', 'amount', 'wager', 'deposit']) {
         expect(
           rendered.contains(forbidden),

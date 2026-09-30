@@ -34,67 +34,70 @@ class CallsStateView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 32.w, vertical: 28.h),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 56.w,
-              height: 56.w,
-              decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.10),
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: BasilIcon(icon, size: 26.w, color: accent),
-              ),
-            ),
-            SizedBox(height: 14.h),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 17.sp,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            SizedBox(height: 6.h),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 13.sp,
-                height: 1.4,
-              ),
-            ),
-            if (actionLabel != null && onAction != null) ...[
-              SizedBox(height: 16.h),
-              TextButton(
-                onPressed: onAction,
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.primary,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 18.w,
-                    vertical: 10.h,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12.r),
-                    side: const BorderSide(color: AppColors.primary),
-                  ),
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 32.w, vertical: 28.h),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 56.w,
+                height: 56.w,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.10),
+                  shape: BoxShape.circle,
                 ),
-                child: Text(
-                  actionLabel!,
-                  style: TextStyle(
-                    fontSize: 14.sp,
-                    fontWeight: FontWeight.w700,
-                  ),
+                child: Center(
+                  child: BasilIcon(icon, size: 26.w, color: accent),
                 ),
               ),
+              SizedBox(height: 14.h),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 17.sp,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              SizedBox(height: 6.h),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13.sp,
+                  height: 1.4,
+                ),
+              ),
+              if (actionLabel != null && onAction != null) ...[
+                SizedBox(height: 16.h),
+                TextButton(
+                  onPressed: onAction,
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFFB8173B),
+                    minimumSize: const Size(48, 48),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 18.w,
+                      vertical: 10.h,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12.r),
+                      side: const BorderSide(color: AppColors.primary),
+                    ),
+                  ),
+                  child: Text(
+                    actionLabel!,
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -185,7 +188,7 @@ class CallsEmptyView extends StatelessWidget {
     this.title = 'No calls yet',
     this.message =
         'When someone goes on record, their call shows up here — free, '
-        'timestamped and locked.',
+            'timestamped and locked.',
     this.actionLabel,
     this.onAction,
   });
@@ -247,7 +250,7 @@ class CallsSignedOutView extends StatelessWidget {
     super.key,
     this.message =
         'Sign in to go on record. No wallet, no money — just your call, '
-        'timestamped.',
+            'timestamped.',
     this.onSignIn,
   });
 
@@ -280,14 +283,16 @@ class CallsNotice extends StatelessWidget {
   });
 
   /// Content is on screen but older than the provider's staleness window.
-  factory CallsNotice.stale({required String message, VoidCallback? onRefresh}) =>
-      CallsNotice(
-        icon: 'clock-outline',
-        message: message,
-        color: AppColors.warning,
-        actionLabel: onRefresh == null ? null : 'Refresh',
-        onAction: onRefresh,
-      );
+  factory CallsNotice.stale({
+    required String message,
+    VoidCallback? onRefresh,
+  }) => CallsNotice(
+    icon: 'clock-outline',
+    message: message,
+    color: AppColors.warning,
+    actionLabel: onRefresh == null ? null : 'Refresh',
+    onAction: onRefresh,
+  );
 
   /// Content is on screen but it is cached, not live.
   factory CallsNotice.offline({VoidCallback? onRetry}) => CallsNotice(

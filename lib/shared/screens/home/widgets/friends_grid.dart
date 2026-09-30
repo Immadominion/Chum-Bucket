@@ -1,21 +1,16 @@
+import 'package:flutter/material.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/shared/screens/home/widgets/friend_item.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class FriendsGrid extends StatelessWidget {
   final List<Map<String, String>> friends;
   final Function(String) onFriendSelected;
-  final Widget Function(BuildContext context, int remainingCount)
-  buildViewMoreItem;
+  final Widget Function(BuildContext, int) buildViewMoreItem;
   final VoidCallback? onViewMorePressed;
-
-  /// Opens the add-a-friend flow. When set, the empty state shows a real
-  /// "Add a friend" button instead of a blank gap (H14).
   final VoidCallback? onAddFriend;
-  final int maxVisibleFriends; // Maximum friends to show before "View More"
-
+  final int maxVisibleFriends;
   const FriendsGrid({
     super.key,
     required this.friends,
@@ -23,91 +18,86 @@ class FriendsGrid extends StatelessWidget {
     required this.buildViewMoreItem,
     this.onViewMorePressed,
     this.onAddFriend,
-    this.maxVisibleFriends =
-        5, // Default to 5 friends visible (2 rows of 3, minus 1 for view more)
+    this.maxVisibleFriends = 5,
   });
 
   @override
   Widget build(BuildContext context) {
-    // H14: a real empty state, not a blank 10px gap that reads as broken.
+    final styles = AppTextStyles.textTheme;
     if (friends.isEmpty) {
       return Padding(
-        padding: EdgeInsets.symmetric(vertical: 18.h),
+        padding: const EdgeInsets.symmetric(vertical: 24),
         child: Column(
           children: [
-            BasilIcon(
+            const BasilIcon(
               'user-plus-outline',
-              size: 34.sp,
-              color: AppColors.textTertiary,
+              size: 40,
+              color: AppColors.textPrimary,
             ),
-            SizedBox(height: 10.h),
+            const SizedBox(height: 16),
             Text(
-              'No friends yet — add someone to challenge them',
+              'Bring your people',
+              style: styles.titleLarge,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13.sp,
-                fontWeight: FontWeight.w600,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Add a friend to keep the conversation going.',
+              textAlign: TextAlign.center,
+              style: styles.bodyMedium?.copyWith(
                 color: AppColors.textSecondary,
               ),
             ),
             if (onAddFriend != null) ...[
-              SizedBox(height: 12.h),
-              OutlinedButton.icon(
-                onPressed: onAddFriend,
-                icon: BasilIcon(
-                  'add-outline',
-                  size: 16.sp,
-                  color: AppColors.primary,
-                ),
-                label: Text(
-                  'Add a friend',
-                  style: TextStyle(
-                    fontSize: 13.sp,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primary,
-                  ),
-                ),
+              const SizedBox(height: 16),
+              OutlinedButton(
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AppColors.primary),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12.r),
-                  ),
+                  minimumSize: const Size(48, 48),
+                  foregroundColor: AppColors.textPrimary,
                 ),
+                onPressed: onAddFriend,
+                child: const Text('Add a friend'),
               ),
             ],
           ],
         ),
       );
     }
-
-    final hasMoreFriends = friends.length > maxVisibleFriends;
-    final visibleFriends =
-        hasMoreFriends ? friends.take(maxVisibleFriends).toList() : friends;
-
-    // Only add 1 to itemCount if there are more friends to show
-    final itemCount =
-        hasMoreFriends ? visibleFriends.length + 1 : visibleFriends.length;
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 12.w,
-        childAspectRatio: 1,
-      ),
-      itemCount: itemCount,
-      itemBuilder: (context, index) {
-        if (index < visibleFriends.length) {
-          return buildFriendItem(visibleFriends[index], onFriendSelected);
-        } else {
-          // This is the "View More" item - only shows when hasMoreFriends is true
-          final remainingCount = friends.length - maxVisibleFriends;
-          return GestureDetector(
-            onTap: onViewMorePressed,
-            child: buildViewMoreItem(context, remainingCount),
-          );
-        }
+    final visible = friends.take(maxVisibleFriends).toList();
+    final remaining = friends.length - visible.length;
+    // Wrap provides intrinsic height: names and 200% text never fit into a
+    // fixed square. Keep the familiar three columns, two for larger text.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = MediaQuery.textScalerOf(context).scale(14) > 21 ? 2 : 3;
+        final width = (constraints.maxWidth - 12 * (columns - 1)) / columns;
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            for (final friend in visible)
+              SizedBox(
+                width: width,
+                child: buildFriendItem(friend, onFriendSelected),
+              ),
+            if (remaining > 0)
+              SizedBox(
+                width: width,
+                child: Semantics(
+                  button: true,
+                  label: 'View $remaining more friends',
+                  child: InkWell(
+                    onTap: onViewMorePressed,
+                    borderRadius: BorderRadius.circular(16),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 100),
+                      child: buildViewMoreItem(context, remaining),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
       },
     );
   }
