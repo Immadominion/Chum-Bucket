@@ -94,9 +94,10 @@ class _CallPersonScreenState extends State<CallPersonScreen> {
       SnackBarUtils.showSuccess(
         context,
         title: following ? 'Following' : 'Unfollowed',
-        subtitle: following
-            ? 'Their calls will now appear in Following.'
-            : 'This caller was removed from your feed.',
+        subtitle:
+            following
+                ? 'Their calls will now appear in Following.'
+                : 'This caller was removed from your feed.',
       );
     } on CallsException catch (error) {
       if (!mounted) return;
@@ -320,6 +321,13 @@ class _CallPersonScreenState extends State<CallPersonScreen> {
                   CallCard(
                     entry: entry,
                     showAuthor: false,
+                    onOpenCall:
+                        () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder:
+                                (_) => CallDetailScreen(callId: entry.call.id),
+                          ),
+                        ),
                     onOpenMarket:
                         () => Navigator.of(context).push(
                           MaterialPageRoute(

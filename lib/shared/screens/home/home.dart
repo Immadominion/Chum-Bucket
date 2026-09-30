@@ -232,8 +232,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               index: _selectedIndex,
               children: [
                 PredictionsHomeTab(
+                  callReceiptExperienceEnabled:
+                      widget.callReceiptExperienceEnabled,
                   onProfileTap: () => _selectDestination(3),
                   onViewCalls: () => _selectDestination(1),
+                  onBrowseMarkets: _openCallMarkets,
                   onViewChallenges: _openChallengeHistory,
                   onMarkChallengeCompleted: _markChallengeCompleted,
                 ),

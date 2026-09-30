@@ -22,6 +22,7 @@ import 'package:provider/provider.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
+import 'package:chumbucket/features/calls/presentation/screens/call_detail_screen.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_badges.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_card.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_composer_sheet.dart';
@@ -69,9 +70,16 @@ class _MarketDetailScreenState extends State<MarketDetailScreen> {
       sharePrice: detail.sharePrice,
     );
     if (entry != null && mounted) {
-      await provider.loadMarketDetail(widget.marketId, force: true);
+      await _openCall(entry.call.id);
+      if (mounted) {
+        await provider.loadMarketDetail(widget.marketId, force: true);
+      }
     }
   }
+
+  Future<void> _openCall(String callId) => Navigator.of(context).push<void>(
+    MaterialPageRoute(builder: (_) => CallDetailScreen(callId: callId)),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -200,7 +208,11 @@ class _MarketDetailScreenState extends State<MarketDetailScreen> {
                   ),
                 ),
                 SizedBox(height: 8.h),
-                CallCard(entry: detail.viewerCall!, showAuthor: false),
+                CallCard(
+                  entry: detail.viewerCall!,
+                  showAuthor: false,
+                  onOpenCall: () => _openCall(detail.viewerCall!.call.id),
+                ),
               ],
 
               // Only ever non-null once the viewer has locked. Before that the

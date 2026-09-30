@@ -18,6 +18,7 @@ import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class CallCard extends StatelessWidget {
   final CallFeedEntry entry;
+  final VoidCallback? onOpenCall;
   final VoidCallback? onOpenMarket;
   final VoidCallback? onOpenPerson;
   final VoidCallback? onRespond;
@@ -29,6 +30,7 @@ class CallCard extends StatelessWidget {
   const CallCard({
     super.key,
     required this.entry,
+    this.onOpenCall,
     this.onOpenMarket,
     this.onOpenPerson,
     this.onRespond,
@@ -51,7 +53,7 @@ class CallCard extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: onOpenMarket,
+          onTap: onOpenCall ?? onOpenMarket,
           child: Padding(
             padding: EdgeInsets.all(16.w),
             child: Column(

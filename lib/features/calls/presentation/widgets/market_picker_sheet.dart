@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
+import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_badges.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_composer_sheet.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart';
@@ -19,8 +20,8 @@ import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
-Future<void> showMarketPickerSheet({required BuildContext context}) {
-  return showChumbucketWavySheet<void>(
+Future<CallFeedEntry?> showMarketPickerSheet({required BuildContext context}) {
+  return showChumbucketWavySheet<CallFeedEntry>(
     context: context,
     builder: (_) => const MarketPickerSheet(),
   );
@@ -52,7 +53,7 @@ class _MarketPickerSheetState extends State<MarketPickerSheet> {
       snapshot: detail?.snapshot,
       sharePrice: detail?.sharePrice,
     );
-    if (entry != null && mounted) Navigator.of(context).pop();
+    if (entry != null && mounted) Navigator.of(context).pop(entry);
   }
 
   @override

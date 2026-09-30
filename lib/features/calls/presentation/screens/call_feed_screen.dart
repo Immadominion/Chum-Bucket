@@ -17,7 +17,7 @@ import 'package:provider/provider.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_person_screen.dart';
-import 'package:chumbucket/features/calls/presentation/screens/market_detail_screen.dart';
+import 'package:chumbucket/features/calls/presentation/screens/call_detail_screen.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_card.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_response_sheet.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart';
@@ -88,10 +88,10 @@ class _CallFeedScreenState extends State<CallFeedScreen>
   Future<void> _refresh() =>
       context.read<CallsProvider>().loadFeed(force: true);
 
-  void _openMarket(String marketId) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => MarketDetailScreen(marketId: marketId)),
-    );
+  void _openCall(String callId) {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => CallDetailScreen(callId: callId)));
   }
 
   void _openPerson(String personRef) {
@@ -126,7 +126,8 @@ class _CallFeedScreenState extends State<CallFeedScreen>
       requestCallSignIn(context, onRequested: widget.onSignInRequested);
       return;
     }
-    await showMarketPickerSheet(context: context);
+    final entry = await showMarketPickerSheet(context: context);
+    if (entry != null && mounted) _openCall(entry.call.id);
   }
 
   @override
@@ -253,7 +254,7 @@ class _CallFeedScreenState extends State<CallFeedScreen>
               final entry = provider.feed[index];
               return CallCard(
                 entry: entry,
-                onOpenMarket: () => _openMarket(entry.market.id),
+                onOpenCall: () => _openCall(entry.call.id),
                 onOpenPerson: () => _openPerson(entry.author.id),
                 onRespond:
                     entry.author.id == provider.viewerUserId

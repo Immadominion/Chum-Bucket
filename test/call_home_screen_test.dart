@@ -9,7 +9,11 @@ import 'package:chumbucket/features/authentication/presentation/widgets/call_sig
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/authentication/session/session_bff_client.dart';
 import 'package:chumbucket/features/calls/data/mock_calls_repository.dart';
+import 'package:chumbucket/features/calls/data/bff_calls_repository.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/call_market_card.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_feed_screen.dart';
+import 'package:chumbucket/features/calls/presentation/screens/call_detail_screen.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/call_card.dart';
 import 'package:chumbucket/features/calls/presentation/screens/market_detail_screen.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/challenge_history_screen.dart';
@@ -33,10 +37,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 import 'session_fakes.dart';
+import 'bff_calls_fixtures.dart' as bff;
+
+const homeMarketId = '11111111-1111-5111-8111-111111111111';
 
 class OfflineArena extends ArenaProvider {
+  int matchdayLoads = 0;
   @override
-  Future<void> loadMatchday() async {}
+  Future<void> loadMatchday() async {
+    matchdayLoads++;
+  }
+
   @override
   Future<void> loadHotCallers() async {}
   @override
@@ -69,9 +80,11 @@ void main() {
   late FakeSupabaseAuthPort auth;
   late ChumbucketSession session;
   late CallsProvider calls;
+  late OfflineArena arena;
 
   setUp(() {
     AppConfig.initialize();
+    arena = OfflineArena();
     auth = FakeSupabaseAuthPort()..deliverOnSignIn = snapshot();
     session = ChumbucketSession(
       auth: auth,
@@ -90,6 +103,7 @@ void main() {
     AppLifecycleService.onNavigateToChallenge = null;
     session.dispose();
     calls.dispose();
+    arena.dispose();
     await auth.close();
   });
 
@@ -112,7 +126,7 @@ void main() {
           ChangeNotifierProvider<MwaWalletProvider>(
             create: (_) => OfflineWallet(),
           ),
-          ChangeNotifierProvider<ArenaProvider>(create: (_) => OfflineArena()),
+          ChangeNotifierProvider<ArenaProvider>.value(value: arena),
           ChangeNotifierProvider<ProfileProvider>(
             create: (_) => UnusedProfile(),
           ),
@@ -149,6 +163,242 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
   }
 
+  bff.FakeBffServer usePantaCatalog({
+    bool Function()? fail,
+    bool empty = false,
+  }) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final market = {
+      ...bff.marketJson(id: homeMarketId, venue: 'panta'),
+      'venueMarketId': 'panta-synthetic-home',
+      'closesAt': now + const Duration(days: 1).inMilliseconds,
+      'lastSyncedAt': now,
+    };
+    final price = {
+      'id': '22222222-2222-5222-8222-222222222222',
+      'marketId': homeMarketId,
+      'venue': 'panta',
+      'currency': 'USDC',
+      'unit': 'per_share',
+      'yesPrice': '0.40',
+      'noPrice': '0.65',
+      'observedAt': now,
+      'source': 'venue',
+      'attribution': 'Powered by Panta',
+      'executable': false,
+    };
+    final entry = bff.feedEntryJson(
+      market: market,
+      author: bff.personJson(id: kCanonicalUserId, walletAddress: null),
+      call: {
+        ...bff.callJson(
+          id: 'synthetic-created-call',
+          marketId: homeMarketId,
+          userId: kCanonicalUserId,
+          entryProbability: null,
+          snapshotId: null,
+        ),
+        'createdAt': now,
+        'lockedAt': now,
+        'entryPrice': price,
+      },
+      viewerHasCalled: true,
+    );
+    var created = false;
+    final server = bff.FakeBffServer((request) {
+      if (request.procedurePath == 'markets.open') {
+        if (fail?.call() == true) {
+          return bff.errorResponse(
+            code: 'SERVICE_UNAVAILABLE',
+            httpStatus: 503,
+            message: 'Markets are temporarily unavailable.',
+          );
+        }
+        return bff.okResponse(empty ? [] : [market]);
+      }
+      if (request.procedurePath == 'markets.detail') {
+        return bff.okResponse({
+          ...bff.marketDetailJson(
+            market: market,
+            snapshot: null,
+            viewerCall: created ? entry : null,
+          ),
+          'sharePrice': price,
+        });
+      }
+      if (request.procedurePath == 'calls.create') {
+        created = true;
+        return bff.okResponse(entry);
+      }
+      if (request.procedurePath == 'calls.get') {
+        return bff.okResponse(
+          bff.callDetailJson(entry: entry, parent: null, responses: []),
+        );
+      }
+      if (request.procedurePath == 'calls.invitations') {
+        return bff.okResponse([]);
+      }
+      return bff.okResponse(
+        bff.feedPageJson(entries: created ? [entry] : [], nextCursor: null),
+      );
+    });
+    calls.dispose();
+    calls = CallsProvider(
+      repository: BffCallsRepository(
+        baseUrl: 'https://home-test.invalid',
+        httpClient: server.client,
+        authToken: () => 'synthetic-test-session',
+      ),
+    );
+    return server;
+  }
+
+  testWidgets(
+    'Home → Panta market → locked call reaches its optional funding and can reopen from feed',
+    (tester) async {
+      final server = usePantaCatalog();
+      calls.setViewer(kCanonicalUserId);
+      await mount(tester);
+      await tester.tap(find.byType(CallMarketCard));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.tap(find.text('Make my call'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.text('Yes — it prints 150k'));
+      await tester.pump();
+      await tester.tap(find.text('Lock my call'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byType(CallDetailScreen), findsOneWidget);
+      expect(find.text('Fund this call · optional'), findsOneWidget);
+      expect(server.requestFor('calls.create').input['marketId'], homeMarketId);
+      expect(server.requestFor('calls.create').input['side'], 'YES');
+      expect(
+        server.received.where(
+          (r) => r.procedurePath.startsWith('pantaTrading.'),
+        ),
+        isEmpty,
+      );
+      Navigator.of(tester.element(find.byType(CallDetailScreen))).pop();
+      await tester.pumpAndSettle();
+      Navigator.of(tester.element(find.byType(MarketDetailScreen))).pop();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await select(tester, 1);
+      await tester.tap(find.byType(CallCard));
+      await tester.pumpAndSettle();
+      expect(find.byType(CallDetailScreen), findsOneWidget);
+      expect(find.text('Fund this call · optional'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('Home opens the exact Panta market without football or sign-in', (
+    tester,
+  ) async {
+    final server = usePantaCatalog();
+    await mount(tester);
+    expect(arena.matchdayLoads, 0);
+    expect(find.text("Today's matches"), findsNothing);
+    expect(find.text('Panta'), findsOneWidget);
+    expect(find.byType(CallMarketCard), findsOneWidget);
+    expect(server.requestFor('markets.open').input, {'category': 'crypto'});
+    await tester.tap(find.byType(CallMarketCard));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(MarketDetailScreen), findsOneWidget);
+    expect(server.requestFor('markets.detail').input['marketId'], homeMarketId);
+    expect(auth.startCount, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Calls market picker opens the newly locked call', (
+    tester,
+  ) async {
+    usePantaCatalog();
+    calls.setViewer(kCanonicalUserId);
+    await mount(tester);
+    await select(tester, 1);
+    await tester.tap(find.text('Call it'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(
+      find.text(bff.marketJson()['question'] as String).hitTestable(),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('Yes — it prints 150k'));
+    await tester.pump();
+    await tester.tap(find.text('Lock my call'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(CallDetailScreen), findsOneWidget);
+    expect(find.text('Fund this call · optional'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'Home catalog error retries the BFF without falling back to matches',
+    (tester) async {
+      var failing = true;
+      usePantaCatalog(fail: () => failing);
+      await mount(tester);
+      expect(find.text('Markets are temporarily unavailable.'), findsOneWidget);
+      expect(arena.matchdayLoads, 0);
+      failing = false;
+      await tester.tap(find.text('Try again'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Panta'), findsOneWidget);
+      expect(arena.matchdayLoads, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('Home keeps last catalog visible with a failed refresh notice', (
+    tester,
+  ) async {
+    var failing = false;
+    usePantaCatalog(fail: () => failing);
+    await mount(tester);
+    failing = true;
+    await calls.loadOpenMarkets(force: true);
+    await tester.pump();
+    expect(find.byType(CallMarketCard), findsOneWidget);
+    expect(
+      find.text('Couldn’t refresh markets. Showing the last catalog.'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Home shows an honest empty catalog and keeps calls reachable', (
+    tester,
+  ) async {
+    usePantaCatalog(empty: true);
+    await mount(tester);
+    expect(find.text('No markets ready for calls'), findsOneWidget);
+    expect(find.byType(CallMarketCard), findsNothing);
+    await tester.tap(find.text('See calls'));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(CallFeedScreen), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Panta Home and its market remain usable at large text size', (
+    tester,
+  ) async {
+    usePantaCatalog();
+    await mount(tester, scale: 2);
+    await tester.ensureVisible(find.byType(CallMarketCard));
+    await tester.tap(find.byType(CallMarketCard));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(MarketDetailScreen), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'default entry restores the existing splash and gates new links',
     (tester) async {
@@ -168,6 +418,7 @@ void main() {
   ) async {
     await mount(tester, preview: false);
     expect(find.byType(PredictionsHomeTab), findsOneWidget);
+    expect(arena.matchdayLoads, 1);
     await select(tester, 1);
     expect(find.byType(CallsScreen), findsOneWidget);
     expect(find.byType(CallFeedScreen), findsNothing);
@@ -187,7 +438,7 @@ void main() {
   testWidgets('profile still opens settings and wallet details and returns', (
     tester,
   ) async {
-    await mount(tester, preview: false);
+    await mount(tester);
     await select(tester, 3);
     await tester.tap(find.byTooltip('Settings'));
     await tester.pump();
@@ -218,7 +469,7 @@ void main() {
   testWidgets('both existing history routes remain reachable from profile', (
     tester,
   ) async {
-    await mount(tester, preview: false);
+    await mount(tester);
     await select(tester, 3);
     // The app's floating navigation overlays the bottom edge. Scroll the
     // activity rows above it, just as a person does, before tapping them.

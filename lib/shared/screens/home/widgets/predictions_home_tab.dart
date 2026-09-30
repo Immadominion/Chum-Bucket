@@ -12,6 +12,11 @@ import 'package:chumbucket/features/arena/presentation/screens/my_pots_screen.da
 import 'package:chumbucket/features/arena/presentation/widgets/match_callers_sheet.dart';
 import 'package:chumbucket/features/arena/presentation/widgets/arena_format.dart';
 import 'package:chumbucket/features/arena/providers/arena_provider.dart';
+import 'package:chumbucket/features/calls/data/call_models.dart';
+import 'package:chumbucket/features/calls/providers/calls_provider.dart';
+import 'package:chumbucket/features/calls/presentation/screens/market_detail_screen.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/call_market_card.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart';
 import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenges_preview.dart';
 import 'package:chumbucket/shared/screens/home/widgets/header.dart';
@@ -19,16 +24,20 @@ import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class PredictionsHomeTab extends StatefulWidget {
+  final bool callReceiptExperienceEnabled;
   final VoidCallback onProfileTap;
   final VoidCallback onViewCalls;
+  final VoidCallback? onBrowseMarkets;
   final VoidCallback onViewChallenges;
   final Future<void> Function(Map<String, dynamic>, bool)
   onMarkChallengeCompleted;
 
   const PredictionsHomeTab({
     super.key,
+    this.callReceiptExperienceEnabled = false,
     required this.onProfileTap,
     required this.onViewCalls,
+    this.onBrowseMarkets,
     required this.onViewChallenges,
     required this.onMarkChallengeCompleted,
   });
@@ -47,15 +56,22 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _load();
+    });
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool force = false}) async {
     final arena = context.read<ArenaProvider>();
     final auth = context.read<MwaAuthProvider>();
     final wallet = auth.walletAddress;
 
-    final requests = <Future<void>>[arena.loadMatchday()];
+    final requests = <Future<void>>[
+      if (widget.callReceiptExperienceEnabled)
+        context.read<CallsProvider>().loadOpenMarkets(force: force)
+      else
+        arena.loadMatchday(),
+    ];
     if (wallet != null) {
       requests.add(arena.loadClaimable(walletAddress: wallet));
       requests.add(arena.loadMyPots(walletAddress: wallet));
@@ -63,11 +79,13 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
         ChallengeStateProvider.instance.softRefresh(wallet).catchError((_) {}),
       );
       try {
-        await arena.ensureArenaService(
-          authProvider: auth,
-          walletAddress: wallet,
-          rpcUrl: NetworkConfig.rpcUrl,
-        );
+        if (!widget.callReceiptExperienceEnabled) {
+          await arena.ensureArenaService(
+            authProvider: auth,
+            walletAddress: wallet,
+            rpcUrl: NetworkConfig.rpcUrl,
+          );
+        }
       } catch (_) {
         // The transaction screen retries and reports a useful wallet error.
       }
@@ -120,6 +138,7 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    if (widget.callReceiptExperienceEnabled) return _venueHome();
     return SafeArea(
       bottom: false,
       child: Consumer<ArenaProvider>(
@@ -277,7 +296,7 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
               media.textScaler.scale(1) > 1.2 || media.size.height < 700;
           final markets = RefreshIndicator(
             color: AppColors.primary,
-            onRefresh: _load,
+            onRefresh: () => _load(force: true),
             child: CustomScrollView(
               key: const PageStorageKey('predictions-home-markets'),
               physics: const AlwaysScrollableScrollPhysics(),
@@ -294,6 +313,152 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
       ),
     );
   }
+
+  void _openVenueMarket(VenueMarket market) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => MarketDetailScreen(marketId: market.id),
+      ),
+    );
+  }
+
+  Widget _venueHome() => SafeArea(
+    bottom: false,
+    child: Consumer2<CallsProvider, ArenaProvider>(
+      builder: (context, calls, arena, _) {
+        final markets = calls.openMarkets.take(_kHomeMarketsPreview).toList();
+        return RefreshIndicator(
+          color: AppColors.primary,
+          onRefresh: () => _load(force: true),
+          child: CustomScrollView(
+            key: const PageStorageKey('venue-home-markets'),
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(20.w, 4.h, 20.w, 12.h),
+                sliver: SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ChumbucketAppHeader(
+                        title: 'Home',
+                        onProfileTap: widget.onProfileTap,
+                      ),
+                      if (arena.claimablePositions.isNotEmpty) ...[
+                        _ClaimableStrip(
+                          count: arena.claimablePositions.length,
+                          onTap: _openPositions,
+                        ),
+                        SizedBox(height: 16.h),
+                      ],
+                      _SectionHeader(
+                        title: 'Markets',
+                        action: 'See calls',
+                        onAction: widget.onViewCalls,
+                      ),
+                      Text(
+                        'Pick a question. Put your call on record.',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 13.sp,
+                        ),
+                      ),
+                      if (calls.openMarketsError != null &&
+                          markets.isNotEmpty) ...[
+                        SizedBox(height: 12.h),
+                        CallsNotice.stale(
+                          message:
+                              'Couldn’t refresh markets. Showing the last catalog.',
+                          onRefresh: () => _load(force: true),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              if (calls.isLoadingOpenMarkets && markets.isEmpty)
+                SliverPadding(
+                  padding: EdgeInsets.symmetric(horizontal: 20.w),
+                  sliver: SliverList.list(
+                    children: [
+                      Text(
+                        'Loading markets…',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12.sp,
+                        ),
+                      ),
+                      SizedBox(height: 12.h),
+                      const _MarketSkeleton(),
+                      SizedBox(height: 12.h),
+                      const _MarketSkeleton(),
+                    ],
+                  ),
+                )
+              else if (calls.openMarketsError != null && markets.isEmpty)
+                SliverToBoxAdapter(
+                  child: CallsErrorView(
+                    message: calls.openMarketsError!,
+                    onRetry: () => _load(force: true),
+                  ),
+                )
+              else if (markets.isEmpty)
+                SliverToBoxAdapter(
+                  child: CallsEmptyView(
+                    title: 'No markets ready for calls',
+                    message:
+                        'Calls need an open market with current venue prices. '
+                        'Refresh to check again.',
+                    actionLabel: 'Refresh',
+                    onAction: () => _load(force: true),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: EdgeInsets.symmetric(horizontal: 20.w),
+                  sliver: SliverList.separated(
+                    itemCount: markets.length,
+                    separatorBuilder: (_, __) => SizedBox(height: 12.h),
+                    itemBuilder:
+                        (_, index) => CallMarketCard(
+                          market: markets[index],
+                          onTap: () => _openVenueMarket(markets[index]),
+                        ),
+                  ),
+                ),
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(20.w, 12.h, 20.w, 112.h),
+                sliver: SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (markets.isNotEmpty && widget.onBrowseMarkets != null)
+                        TextButton(
+                          onPressed: widget.onBrowseMarkets,
+                          child: const Text('Explore all markets'),
+                        ),
+                      SizedBox(height: 16.h),
+                      _SectionHeader(
+                        title: 'Your challenges',
+                        action: 'View all',
+                        onAction: widget.onViewChallenges,
+                      ),
+                      SizedBox(height: 12.h),
+                      ChallengesPreview(
+                        onViewAll: widget.onViewChallenges,
+                        onMarkChallengeCompleted:
+                            widget.onMarkChallengeCompleted,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
 }
 
 class _SectionHeader extends StatelessWidget {

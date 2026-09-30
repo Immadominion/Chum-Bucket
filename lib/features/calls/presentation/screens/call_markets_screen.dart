@@ -1,8 +1,6 @@
-import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/calls/presentation/screens/market_detail_screen.dart';
-import 'package:chumbucket/features/calls/presentation/widgets/call_badges.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/call_market_card.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart';
-import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -64,9 +62,13 @@ class _CallMarketsScreenState extends State<CallMarketsScreen> {
                 return CallsEmptyView(
                   title:
                       _query.isEmpty
-                          ? 'Nothing open right now'
+                          ? 'No markets ready for calls'
                           : 'No matching questions',
-                  message: 'Try another search or refresh the venue catalog.',
+                  message:
+                      _query.isEmpty
+                          ? 'Calls need an open market with current venue prices. '
+                              'Refresh to check again.'
+                          : 'Try another search or refresh the venue catalog.',
                   actionLabel: 'Refresh',
                   onAction: () => provider.loadOpenMarkets(force: true),
                 );
@@ -80,49 +82,16 @@ class _CallMarketsScreenState extends State<CallMarketsScreen> {
                   separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
                     final market = rows[index];
-                    return Card(
-                      margin: EdgeInsets.zero,
-                      color: AppColors.surface,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap:
-                            () => Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder:
-                                    (_) =>
-                                        MarketDetailScreen(marketId: market.id),
-                              ),
+                    return CallMarketCard(
+                      market: market,
+                      onTap:
+                          () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder:
+                                  (_) =>
+                                      MarketDetailScreen(marketId: market.id),
                             ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                market.question,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 17,
-                                  height: 1.4,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  MarketStatusBadge(status: market.status),
-                                  DemoVenueBadge(venue: market.venue),
-                                  Text(market.venue.label),
-                                  Text(
-                                    CallsFormat.untilClose(market.closesAtUtc),
-                                  ),
-                                ],
-                              ),
-                            ],
                           ),
-                        ),
-                      ),
                     );
                   },
                 ),
