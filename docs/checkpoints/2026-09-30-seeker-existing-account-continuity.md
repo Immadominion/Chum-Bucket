@@ -99,6 +99,10 @@ the established account-link path rather than changing identity authorization.
   three-market smoke pass is therefore not sustained discovery availability.
   Intermittent Panta price/discovery behavior remains a separate test-readiness
   issue; no stale price or alternate provider was substituted to hide it.
+  A subsequent zero-spend smoke passed 8/8 with **one** market; tapping Home's
+  Refresh then displayed that same one-market catalog. The phone was left on
+  Home, signed in. The visible BTC market is 91 days out, so the intended
+  roughly 4-hour–7-day content horizon is also not yet enforced.
 
 ## Verification
 
