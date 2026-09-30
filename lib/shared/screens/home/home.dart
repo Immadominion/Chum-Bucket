@@ -8,6 +8,7 @@ import 'package:chumbucket/features/challenges/presentation/screens/challenge_de
 import 'package:chumbucket/features/challenges/presentation/screens/challenge_history_screen.dart';
 import 'package:chumbucket/features/profile/presentation/screens/profile_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/core/utils/app_logger.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
@@ -223,7 +224,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final shell = Scaffold(
       backgroundColor: AppColors.background,
       body: Stack(
         children: [
@@ -281,6 +282,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         ],
       ),
+    );
+
+    // These tabs use custom headers, not AppBars. Own the system-bar style
+    // declaratively so the splash/wallet/detail route cannot leave white
+    // icons on our light canvas when this shell becomes visible again.
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+        systemNavigationBarColor: AppColors.background,
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ),
+      child: shell,
     );
   }
 

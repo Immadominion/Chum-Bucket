@@ -160,6 +160,13 @@ void main() {
       expect(find.text('Ada Okafor'), findsOneWidget);
       expect(profile.lookups, [walletFixture, walletFixture]);
       expect(find.text('Create my profile'), findsNothing);
+      expect(find.text('Complete Your Profile'), findsNothing);
+      expect(find.text('Edit Profile'), findsOneWidget);
+      await tester.tap(find.byTooltip('Cancel editing'));
+      await tester.pumpAndSettle();
+      expect(find.byType(EditProfileScreen), findsNothing);
+      expect(find.byType(ProfileScreen), findsOneWidget);
+      expect(find.text('Ada Okafor'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

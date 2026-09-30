@@ -1,4 +1,3 @@
-import 'dart:developer';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
@@ -35,13 +34,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _nameController = TextEditingController();
   final _bioController = TextEditingController();
   bool _isLoading = false;
+  bool _profileLoading = true;
+  String? _profileLoadError;
+  String? _loadedWallet;
 
   @override
   void initState() {
     super.initState();
     // Defer profile loading until after the build phase
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadUserProfile();
+      if (mounted) _loadUserProfile();
     });
   }
 
@@ -53,98 +55,132 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _loadUserProfile() async {
+    setState(() {
+      _profileLoading = true;
+      _profileLoadError = null;
+      _loadedWallet = null;
+    });
     final authProvider = Provider.of<MwaAuthProvider>(context, listen: false);
     final profileProvider = Provider.of<ProfileProvider>(
       context,
       listen: false,
     );
 
-    if (!authProvider.isAuthenticated) return;
-
-    final profile = await profileProvider.fetchUserProfile(
-      authProvider.walletAddress!,
-    );
-
-    log('Fetched profile: $profile');
-
-    if (mounted) {
+    final wallet = authProvider.walletAddress;
+    if (!authProvider.isAuthenticated || wallet == null) {
       setState(() {
-        if (profile != null) {
-          _nameController.text = profile['full_name']?.toString() ?? '';
-          _bioController.text = profile['bio']?.toString() ?? '';
-        } else {
-          _nameController.text = '';
-          _bioController.text = '';
-        }
+        _profileLoading = false;
+        _profileLoadError = 'Connect your wallet to load your profile.';
       });
+      return;
+    }
 
-      // Show error only if there's an actual issue
-      if (profile == null && profileProvider.errorMessage != null) {
-        SnackBarUtils.showError(
-          context,
-          title: 'Error',
-          subtitle: profileProvider.errorMessage!,
+    try {
+      final profile = await profileProvider.fetchUserProfile(wallet);
+      if (!mounted) return;
+      if (!authProvider.isAuthenticated ||
+          authProvider.walletAddress != wallet) {
+        setState(
+          () =>
+              _profileLoadError =
+                  'Your account changed. Retry to load the current profile.',
+        );
+        return;
+      }
+      setState(() {
+        if (profile == null) {
+          _profileLoadError =
+              'Your profile could not be loaded. Retry before making changes.';
+          return;
+        }
+        _loadedWallet = wallet;
+        _nameController.text = profile['full_name']?.toString() ?? '';
+        _bioController.text = profile['bio']?.toString() ?? '';
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () =>
+              _profileLoadError =
+                  'Your profile could not be loaded. Retry before making changes.',
         );
       }
+    } finally {
+      if (mounted) setState(() => _profileLoading = false);
     }
   }
 
-  void _saveProfile() async {
-    if (_formKey.currentState?.validate() ?? false) {
-      setState(() {
-        _isLoading = true;
-      });
-
-      final authProvider = Provider.of<MwaAuthProvider>(context, listen: false);
-      final profileProvider = Provider.of<ProfileProvider>(
+  Future<void> _saveProfile() async {
+    if (_isLoading ||
+        _profileLoading ||
+        _loadedWallet == null ||
+        _profileLoadError != null ||
+        !(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
+    final authProvider = context.read<MwaAuthProvider>();
+    final wallet = _loadedWallet!;
+    if (!authProvider.isAuthenticated || authProvider.walletAddress != wallet) {
+      SnackBarUtils.showError(
         context,
-        listen: false,
+        title: 'Account changed',
+        subtitle: 'Reload your profile before saving changes.',
       );
+      return;
+    }
+    final profileProvider = context.read<ProfileProvider>();
+    final updates = {
+      'full_name': _nameController.text.trim(),
+      'bio': _bioController.text.trim(),
+    };
+    setState(() => _isLoading = true);
 
-      if (!authProvider.isAuthenticated) return;
-
-      final updates = {
-        'full_name': _nameController.text.trim(),
-        'bio': _bioController.text.trim(),
-      };
-
-      final success = await profileProvider.updateUserProfile(
-        authProvider.walletAddress!,
-        updates,
-      );
-
-      if (success && mounted) {
+    try {
+      final success = await profileProvider.updateUserProfile(wallet, updates);
+      if (!mounted) return;
+      if (!authProvider.isAuthenticated ||
+          authProvider.walletAddress != wallet) {
+        return;
+      }
+      if (success) {
         SnackBarUtils.showSuccess(
           context,
           title: 'Success',
           subtitle: 'Profile updated successfully',
         );
 
-        final onboardingProvider = Provider.of<OnboardingProvider>(
-          context,
-          listen: false,
-        );
-        // Always mark onboarding as completed when user fills out profile
-        await onboardingProvider.completeOnboarding();
-        if (!mounted) return;
-
-        // Go directly to home screen
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-        );
-      } else if (mounted) {
+        if (widget.isRequired) {
+          await context.read<OnboardingProvider>().completeOnboarding();
+          if (!mounted) return;
+          if (!authProvider.isAuthenticated ||
+              authProvider.walletAddress != wallet) {
+            return;
+          }
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const HomeScreen()),
+          );
+        } else {
+          // Return to the same Profile tab. Editing is not onboarding and
+          // must not construct a second Home shell or change its selected tab.
+          Navigator.of(context).pop(true);
+        }
+      } else {
         SnackBarUtils.showError(
           context,
           title: 'Error',
           subtitle: profileProvider.errorMessage ?? 'Failed to update profile',
         );
       }
-
+    } catch (_) {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        SnackBarUtils.showError(
+          context,
+          title: 'Unable to save',
+          subtitle: 'Your changes are still here. Please try again.',
+        );
       }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -156,35 +192,28 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         leading:
             widget.showCancelIcon
                 ? IconButton(
+                  tooltip: 'Cancel editing',
                   icon: BasilIcon(
                     'cancel-outline',
                     color: Theme.of(context).colorScheme.primary,
                     size: 33.w,
                   ),
-                  onPressed: () async {
-                    // If profile is required, show a message
-                    if (widget.isRequired) {
-                      SnackBarUtils.showError(
-                        context,
-                        title: 'Name Required',
-                        subtitle: 'Please enter your name to continue',
-                      );
-                      return;
-                    }
+                  onPressed:
+                      _isLoading
+                          ? null
+                          : () {
+                            // If profile is required, show a message
+                            if (widget.isRequired) {
+                              SnackBarUtils.showError(
+                                context,
+                                title: 'Name Required',
+                                subtitle: 'Please enter your name to continue',
+                              );
+                              return;
+                            }
 
-                    // Allow skipping profile setup, but mark onboarding as completed
-                    final onboardingProvider = Provider.of<OnboardingProvider>(
-                      context,
-                      listen: false,
-                    );
-                    await onboardingProvider.completeOnboarding();
-
-                    if (context.mounted) {
-                      Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(builder: (_) => const HomeScreen()),
-                      );
-                    }
-                  },
+                            Navigator.of(context).pop();
+                          },
                 )
                 : null,
         backgroundColor: Theme.of(context).colorScheme.surface,
@@ -205,7 +234,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               children: [
                 SizedBox(height: 20.h),
                 Text(
-                  "Complete Your Profile",
+                  widget.isRequired ? 'Complete Your Profile' : 'Edit Profile',
                   style: TextStyle(
                     fontSize: 28.sp,
                     fontWeight: FontWeight.bold,
@@ -213,6 +242,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                 ),
                 SizedBox(height: 40.h),
+                if (_profileLoading) ...[
+                  const LinearProgressIndicator(
+                    semanticsLabel: 'Loading your profile',
+                  ),
+                  const SizedBox(height: 12),
+                  const Text('Loading your profile…'),
+                  const SizedBox(height: 20),
+                ],
+                if (_profileLoadError != null) ...[
+                  Text(_profileLoadError!),
+                  TextButton(
+                    onPressed: _loadUserProfile,
+                    child: const Text('Retry'),
+                  ),
+                  const SizedBox(height: 20),
+                ],
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -229,6 +274,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     SizedBox(height: 8.h),
                     TextFormField(
                       controller: _nameController,
+                      enabled:
+                          !_profileLoading &&
+                          _profileLoadError == null &&
+                          !_isLoading,
                       decoration: InputDecoration(
                         hintText: "Enter your name",
                         hintStyle: TextStyle(
@@ -265,7 +314,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         fontWeight: FontWeight.w700,
                       ),
                       validator: (value) {
-                        if (value == null || value.isEmpty) {
+                        if (value == null || value.trim().isEmpty) {
                           return 'Please enter your full name';
                         }
                         return null;
@@ -290,6 +339,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     SizedBox(height: 8.h),
                     TextFormField(
                       controller: _bioController,
+                      enabled:
+                          !_profileLoading &&
+                          _profileLoadError == null &&
+                          !_isLoading,
                       decoration: InputDecoration(
                         hintText: "Tell us about yourself",
                         hintStyle: TextStyle(
@@ -332,11 +385,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
                 SizedBox(height: 40.h),
                 ChallengeButton(
-                  createNewChallenge: () {
-                    if (!_isLoading) {
-                      _saveProfile();
-                    }
-                  },
+                  enabled:
+                      !_profileLoading &&
+                      _profileLoadError == null &&
+                      !_isLoading,
+                  isLoading: _isLoading,
+                  createNewChallenge: _saveProfile,
                   label: _isLoading ? 'Saving...' : 'Save Changes',
                 ),
                 SizedBox(height: 30.h),

@@ -31,6 +31,7 @@ import 'package:chumbucket/shared/screens/home/widgets/predictions_home_tab.dart
 import 'package:chumbucket/shared/screens/splash/mwa_splash_screen.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -258,6 +259,61 @@ void main() {
       ),
     );
     return server;
+  }
+
+  for (final preview in [false, true]) {
+    testWidgets('shell restores readable system bars (calls=$preview)', (
+      tester,
+    ) async {
+      tester.view.padding = const FakeViewPadding(top: 24, bottom: 24);
+      tester.view.viewPadding = const FakeViewPadding(top: 24, bottom: 24);
+      addTearDown(tester.view.resetPadding);
+      addTearDown(tester.view.resetViewPadding);
+      // Reproduce the light-icon style left behind by the real splash screen.
+      SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
+      await mount(tester, preview: preview);
+
+      for (var index = 0; index < 4; index++) {
+        await select(tester, index);
+        expect(
+          SystemChrome.latestStyle?.statusBarIconBrightness,
+          Brightness.dark,
+        );
+        expect(
+          SystemChrome.latestStyle?.systemNavigationBarIconBrightness,
+          Brightness.dark,
+        );
+      }
+
+      final navigator = Navigator.of(tester.element(find.byType(HomeScreen)));
+      final route = navigator.push<void>(
+        MaterialPageRoute(
+          builder:
+              (_) => Scaffold(
+                backgroundColor: Colors.black,
+                appBar: AppBar(
+                  backgroundColor: Colors.black,
+                  systemOverlayStyle: SystemUiOverlayStyle.light,
+                ),
+              ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(
+        SystemChrome.latestStyle?.statusBarIconBrightness,
+        Brightness.light,
+      );
+      navigator.pop();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await route;
+      expect(
+        SystemChrome.latestStyle?.statusBarIconBrightness,
+        Brightness.dark,
+      );
+      expect(tester.takeException(), isNull);
+    });
   }
 
   testWidgets(
