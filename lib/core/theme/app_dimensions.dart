@@ -1,5 +1,5 @@
 /// Application dimensions and spacing constants
-library app_dimensions;
+library;
 
 import 'package:flutter/material.dart';
 

@@ -5,8 +5,7 @@ import 'dart:typed_data';
 import 'package:solana/base58.dart';
 import 'package:solana/encoder.dart' as encoder;
 import 'package:solana/solana.dart' as solana;
-import 'package:solana/src/programs/associated_token_account_program/instruction.dart';
-import 'package:solana/src/rpc/dto/account_data/account_data.dart';
+import 'package:solana/dto.dart' show AccountData, BinaryAccountData;
 
 import 'package:chumbucket/core/config/network_config.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
@@ -17,14 +16,13 @@ import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.d
 /// Adapter. It intentionally avoids Privy/Anchor wallet adapters because the
 /// live Chumbucket app authenticates and signs with MWA on Solana Mobile.
 class MatchArenaService {
-  static const String PROGRAM_ID =
+  static const String programId =
       'AMFpYiYPCUwiVbYMkhnaCmnSDv226yew17QXLhVWk9CG';
 
   /// Devnet test USDC mint (onchain/gaffer_verifier/scripts/devnet-lifecycle/test-usdc-mint.json).
-  static const String USDC_MINT =
-      '3r7XYUxoGZ57Fm91zbTw8GtmwCYzPV5CdmabqgDwtdhY';
+  static const String usdcMint = '3r7XYUxoGZ57Fm91zbTw8GtmwCYzPV5CdmabqgDwtdhY';
 
-  static const int USDC_DECIMALS = 6;
+  static const int usdcDecimals = 6;
   static const int _usdcBaseUnitsPerWhole = 1000000;
 
   static const int bucketHome = 0;
@@ -109,12 +107,12 @@ class MatchArenaService {
       authProvider: authProvider,
       client: client,
       playerPubkey: solana.Ed25519HDPublicKey.fromBase58(walletAddress),
-      programPubkey: solana.Ed25519HDPublicKey.fromBase58(PROGRAM_ID),
-      usdcMintPubkey: solana.Ed25519HDPublicKey.fromBase58(USDC_MINT),
+      programPubkey: solana.Ed25519HDPublicKey.fromBase58(programId),
+      usdcMintPubkey: solana.Ed25519HDPublicKey.fromBase58(usdcMint),
     );
 
     try {
-      final programAccount = await client.rpcClient.getAccountInfo(PROGRAM_ID);
+      final programAccount = await client.rpcClient.getAccountInfo(programId);
       if (programAccount.value == null) {
         throw Exception(
           'chumbucket_arena program not found on-chain. Please deploy it first.',
@@ -186,7 +184,7 @@ class MatchArenaService {
 
     log('💳 Player USDC ATA does not exist yet, creating: ${ata.toBase58()}');
     return [
-      AssociatedTokenAccountInstruction.createAccount(
+      solana.AssociatedTokenAccountInstruction.createAccount(
         funder: player,
         address: ata,
         owner: player,

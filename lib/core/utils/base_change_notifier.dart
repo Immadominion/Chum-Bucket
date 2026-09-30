@@ -104,7 +104,9 @@ class BaseChangeNotifier extends ChangeNotifier {
     try {
       // Step 1: Check network interface status
       final connectivityResult = await Connectivity().checkConnectivity();
-      if (connectivityResult == ConnectivityResult.none) {
+      if (!connectivityResult.any(
+        (result) => result != ConnectivityResult.none,
+      )) {
         return false; // No network interface available
       }
 

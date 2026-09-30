@@ -141,7 +141,7 @@ class ModalContainer extends StatelessWidget {
               width: 40.w,
               height: 4.h,
               decoration: BoxDecoration(
-                color: AppColors.onSurfaceVariant.withOpacity(0.3),
+                color: AppColors.onSurfaceVariant.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),

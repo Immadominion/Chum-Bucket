@@ -1,3 +1,4 @@
+import 'package:chumbucket/core/utils/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
@@ -30,7 +31,9 @@ class AnimatedOnboardingImage extends StatelessWidget {
               borderRadius: BorderRadius.circular(24.r),
               boxShadow: [
                 BoxShadow(
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.3),
                   blurRadius: 30,
                   spreadRadius: 5,
                 ),
@@ -47,7 +50,9 @@ class AnimatedOnboardingImage extends StatelessWidget {
             borderRadius: BorderRadius.circular(24.r),
             boxShadow: [
               BoxShadow(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.3),
                 blurRadius: 30,
                 spreadRadius: 5,
               ),
@@ -62,7 +67,9 @@ class AnimatedOnboardingImage extends StatelessWidget {
                   shape: BoxShape.circle,
                   gradient: LinearGradient(
                     colors: [
-                      Theme.of(context).colorScheme.primary.withOpacity(0.8),
+                      Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.8),
                       Theme.of(context).colorScheme.primary,
                     ],
                     begin: Alignment.topLeft,
@@ -110,7 +117,8 @@ class AnimatedOnboardingImage extends StatelessWidget {
                   fit: BoxFit.cover,
                   cacheHeight: 600,
                   cacheWidth: 800,
-                  errorBuilder: (context, __, ___) => _buildErrorPlaceholder(context),
+                  errorBuilder:
+                      (context, __, ___) => _buildErrorPlaceholder(context),
                 )
                 : _buildErrorPlaceholder(context);
           },
@@ -125,7 +133,7 @@ class AnimatedOnboardingImage extends StatelessWidget {
         );
       }
     } catch (e) {
-      print("Exception while loading animated image: $e");
+      AppLogger.debug('Onboarding image loading failed');
       return _buildErrorPlaceholder(context);
     }
   }
@@ -135,7 +143,10 @@ class AnimatedOnboardingImage extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Theme.of(context).colorScheme.primary.withOpacity(0.8), Theme.of(context).colorScheme.primary],
+          colors: [
+            Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
+            Theme.of(context).colorScheme.primary,
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

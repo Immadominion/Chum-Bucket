@@ -4,8 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 class HomeScreenTabBar extends StatefulWidget {
   final TabController tabController;
 
-  const HomeScreenTabBar({Key? key, required this.tabController})
-    : super(key: key);
+  const HomeScreenTabBar({super.key, required this.tabController});
 
   @override
   State<HomeScreenTabBar> createState() => _HomeScreenTabBarState();

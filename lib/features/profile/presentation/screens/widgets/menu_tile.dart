@@ -14,7 +14,7 @@ class MenuTile extends StatelessWidget {
   final bool isDanger;
 
   const MenuTile({
-    Key? key,
+    super.key,
     this.basilIcon,
     this.icon,
     required this.title,
@@ -22,8 +22,7 @@ class MenuTile extends StatelessWidget {
     required this.onTap,
     this.iconColor,
     this.isDanger = false,
-  }) : assert(basilIcon != null || icon != null, 'provide basilIcon or icon'),
-       super(key: key);
+  }) : assert(basilIcon != null || icon != null, 'provide basilIcon or icon');
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +32,9 @@ class MenuTile extends StatelessWidget {
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16.r),
         border: Border.all(
-          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.08),
+          color: Theme.of(
+            context,
+          ).colorScheme.onSurface.withValues(alpha: 0.08),
           width: 1,
         ),
       ),
@@ -46,7 +47,7 @@ class MenuTile extends StatelessWidget {
             padding: EdgeInsets.all(8.w),
             decoration: BoxDecoration(
               color: (iconColor ?? Theme.of(context).colorScheme.primary)
-                  .withOpacity(0.1),
+                  .withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10.r),
             ),
             child:
@@ -89,7 +90,7 @@ class MenuTile extends StatelessWidget {
                       fontSize: 14.sp,
                       color: Theme.of(
                         context,
-                      ).colorScheme.onSurface.withOpacity(0.6),
+                      ).colorScheme.onSurface.withValues(alpha: 0.6),
                       fontWeight: FontWeight.w700,
                     ),
                   )
@@ -97,7 +98,9 @@ class MenuTile extends StatelessWidget {
           trailing: BasilIcon(
             'caret-right-outline',
             size: 16.sp,
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.3),
           ),
           onTap: onTap,
         ),

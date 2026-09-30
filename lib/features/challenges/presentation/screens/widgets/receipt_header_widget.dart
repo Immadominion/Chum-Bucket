@@ -30,7 +30,7 @@ class ReceiptHeaderWidget extends StatelessWidget {
               width: 43.w,
               height: 3.2.h,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.3),
+                color: Colors.white.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(2.r),
               ),
             ),

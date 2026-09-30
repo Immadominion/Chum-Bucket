@@ -92,7 +92,7 @@ class _ChallengeStateScreenState extends State<ChallengeStateScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withOpacity(0.5),
+      barrierColor: Colors.black.withValues(alpha: 0.5),
       elevation: 0,
       builder: (context) {
         return BackdropFilter(

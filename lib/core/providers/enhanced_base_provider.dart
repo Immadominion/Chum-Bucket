@@ -214,7 +214,9 @@ class EnhancedBaseChangeNotifier extends ChangeNotifier {
   Future<bool> hasInternetConnection() async {
     try {
       final connectivityResult = await Connectivity().checkConnectivity();
-      if (connectivityResult == ConnectivityResult.none) {
+      if (!connectivityResult.any(
+        (result) => result != ConnectivityResult.none,
+      )) {
         return false;
       }
 

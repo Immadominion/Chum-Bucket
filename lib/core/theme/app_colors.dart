@@ -1,5 +1,5 @@
 /// Application color palette following Material 3 design system
-library app_colors;
+library;
 
 import 'package:flutter/material.dart';
 

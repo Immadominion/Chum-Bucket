@@ -84,7 +84,7 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
         borderRadius: BorderRadius.circular(43.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
+            color: Colors.black.withValues(alpha: 0.15),
             offset: const Offset(0, 8),
             blurRadius: 24,
           ),
@@ -124,7 +124,7 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
                         width: 43.w,
                         height: 3.2.h,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.3),
+                          color: Colors.white.withValues(alpha: 0.3),
                           borderRadius: BorderRadius.circular(2.r),
                         ),
                       ),
@@ -146,7 +146,7 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
                         'Select a friend to challenge',
                         style: TextStyle(
                           fontSize: 13.sp,
-                          color: Colors.white.withOpacity(0.8),
+                          color: Colors.white.withValues(alpha: 0.8),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -167,7 +167,7 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
                         color: Colors.white,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.grey.withOpacity(0.1),
+                            color: Colors.grey.withValues(alpha: 0.1),
                             offset: const Offset(0, -2),
                             blurRadius: 4,
                           ),
@@ -263,10 +263,13 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20.r),
           color: Colors.white,
-          border: Border.all(color: Colors.grey.withOpacity(0.12), width: 1),
+          border: Border.all(
+            color: Colors.grey.withValues(alpha: 0.12),
+            width: 1,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               offset: const Offset(0, 2),
               blurRadius: 8,
               spreadRadius: 0,
@@ -282,12 +285,12 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(26.r),
                 border: Border.all(
-                  color: Colors.grey.withOpacity(0.15),
+                  color: Colors.grey.withValues(alpha: 0.15),
                   width: 2,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
+                    color: Colors.black.withValues(alpha: 0.06),
                     offset: const Offset(0, 1),
                     blurRadius: 3,
                   ),
@@ -301,11 +304,11 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) {
                     return Container(
-                      color: AppColors.primary.withOpacity(0.1),
+                      color: AppColors.primary.withValues(alpha: 0.1),
                       child: BasilIcon(
                         'user-outline',
                         size: 26.sp,
-                        color: AppColors.primary.withOpacity(0.7),
+                        color: AppColors.primary.withValues(alpha: 0.7),
                       ),
                     );
                   },
@@ -384,7 +387,7 @@ Future<void> showViewMoreFriendsSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withOpacity(0.5),
+    barrierColor: Colors.black.withValues(alpha: 0.5),
     elevation: 0,
     builder: (context) {
       return BackdropFilter(

@@ -56,7 +56,7 @@ class _WalletModalState extends State<WalletModal> {
         borderRadius: BorderRadius.circular(43.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
+            color: Colors.black.withValues(alpha: 0.15),
             offset: const Offset(0, 8),
             blurRadius: 24,
           ),
@@ -108,7 +108,7 @@ class _WalletModalState extends State<WalletModal> {
                     width: 43.w,
                     height: 3.2.h,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.3),
+                      color: Colors.white.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(2.r),
                     ),
                   ),
@@ -118,7 +118,7 @@ class _WalletModalState extends State<WalletModal> {
                     'Wallet',
                     style: TextStyle(
                       fontSize: 14.sp,
-                      color: Colors.white.withOpacity(0.7),
+                      color: Colors.white.withValues(alpha: 0.7),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -299,11 +299,7 @@ class _WalletModalState extends State<WalletModal> {
                     ),
           ),
           SizedBox(width: 4.w),
-          BasilIcon(
-            'copy-outline',
-            size: 18.w,
-            color: const Color(0xFFFF5A76),
-          ),
+          BasilIcon('copy-outline', size: 18.w, color: const Color(0xFFFF5A76)),
         ],
       ),
     );
@@ -324,7 +320,7 @@ Future<void> showWalletModal(BuildContext context) async {
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withOpacity(0.5),
+    barrierColor: Colors.black.withValues(alpha: 0.5),
     elevation: 0,
     builder: (BuildContext modalContext) {
       return BackdropFilter(

@@ -50,7 +50,7 @@ class AppListTile extends StatelessWidget {
             color:
                 enabled
                     ? AppColors.onSurface
-                    : AppColors.onSurface.withOpacity(0.6),
+                    : AppColors.onSurface.withValues(alpha: 0.6),
           ),
         ),
         subtitle:
@@ -62,7 +62,7 @@ class AppListTile extends StatelessWidget {
                     color:
                         enabled
                             ? AppColors.onSurfaceVariant
-                            : AppColors.onSurfaceVariant.withOpacity(0.6),
+                            : AppColors.onSurfaceVariant.withValues(alpha: 0.6),
                   ),
                 )
                 : null,
@@ -150,7 +150,7 @@ class ChallengeListItem extends StatelessWidget {
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 2.h),
                 decoration: BoxDecoration(
-                  color: _getStatusColor(status).withOpacity(0.1),
+                  color: _getStatusColor(status).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12.r),
                 ),
                 child: Text(
@@ -224,8 +224,8 @@ class TransactionListItem extends StatelessWidget {
         width: 40.w,
         height: 40.h,
         decoration: BoxDecoration(
-          color: (isIncoming ? AppColors.success : AppColors.error).withOpacity(
-            0.1,
+          color: (isIncoming ? AppColors.success : AppColors.error).withValues(
+            alpha: 0.1,
           ),
           shape: BoxShape.circle,
         ),
@@ -291,7 +291,7 @@ class MenuListItem extends StatelessWidget {
         width: 40.w,
         height: 40.h,
         decoration: BoxDecoration(
-          color: (iconColor ?? AppColors.primary).withOpacity(0.1),
+          color: (iconColor ?? AppColors.primary).withValues(alpha: 0.1),
           shape: BoxShape.circle,
         ),
         child: Icon(icon, color: iconColor ?? AppColors.primary, size: 20.sp),

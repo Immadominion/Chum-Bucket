@@ -18,12 +18,12 @@ class MwaChallengeService {
 
   // Platform configuration - Simple flat fee structure
   // 2.5% fee, capped at 0.1 SOL (~$20)
-  static const double FEE_PERCENTAGE = 0.025; // 2.5%
-  static const double MAX_FEE_SOL = 0.1; // Cap fee at 0.1 SOL (~$20)
+  static const double feePercentage = 0.025; // 2.5%
+  static const double maxFeeSol = 0.1; // Cap fee at 0.1 SOL (~$20)
 
   String get platformWalletAddress =>
       dotenv.env['PLATFORM_WALLET_ADDRESS'] ??
-      PinocchioEscrowService.PLATFORM_FEE_WALLET;
+      PinocchioEscrowService.platformFeeWallet;
 
   // Getters for accessing services
   RealtimeService get realtimeService => _realtimeService;

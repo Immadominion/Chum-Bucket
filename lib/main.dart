@@ -67,8 +67,9 @@ void main() async {
 
     // Configure UnifiedDatabaseService with the Supabase client
     UnifiedDatabaseService.configure(supabase: Supabase.instance.client);
-    if (kDebugMode)
+    if (kDebugMode) {
       debugPrint("UnifiedDatabaseService configured successfully");
+    }
   } catch (e) {
     if (kDebugMode) debugPrint("Warning: Failed to initialize Supabase: $e");
   }
@@ -88,8 +89,9 @@ void main() async {
     await NotificationService.initialize();
     if (kDebugMode) debugPrint("Notification service initialized");
   } catch (e) {
-    if (kDebugMode)
+    if (kDebugMode) {
       debugPrint("Warning: Failed to initialize notifications: $e");
+    }
     // Notifications are optional - app works without them
   }
 

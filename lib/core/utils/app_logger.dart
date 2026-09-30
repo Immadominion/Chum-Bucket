@@ -8,6 +8,8 @@
 ///   AppLogger.info('Info message');
 ///   AppLogger.warning('Warning message');
 ///   AppLogger.error('Error message', error: e, stackTrace: stack);
+library;
+
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 

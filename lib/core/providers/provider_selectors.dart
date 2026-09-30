@@ -14,8 +14,8 @@ class ProviderSelectors {
     return Selector<T, R>(
       selector: (_, provider) => selector(provider),
       builder: builder,
-      child: child,
       shouldRebuild: shouldRebuild,
+      child: child,
     );
   }
 

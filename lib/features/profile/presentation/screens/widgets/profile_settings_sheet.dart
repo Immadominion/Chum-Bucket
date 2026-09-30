@@ -35,7 +35,7 @@ class ProfileSettingsSheet extends StatelessWidget {
         borderRadius: BorderRadius.circular(43.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
+            color: Colors.black.withValues(alpha: 0.15),
             offset: const Offset(0, 8),
             blurRadius: 24,
           ),
@@ -81,7 +81,7 @@ class ProfileSettingsSheet extends StatelessWidget {
                             width: 43.w,
                             height: 3.2.h,
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.3),
+                              color: Colors.white.withValues(alpha: 0.3),
                               borderRadius: BorderRadius.circular(2.r),
                             ),
                           ),
@@ -91,7 +91,7 @@ class ProfileSettingsSheet extends StatelessWidget {
                             'Settings',
                             style: TextStyle(
                               fontSize: 14.sp,
-                              color: Colors.white.withOpacity(0.5),
+                              color: Colors.white.withValues(alpha: 0.5),
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -235,7 +235,7 @@ class WalletExportWarningSheet extends StatefulWidget {
 }
 
 class _WalletExportWarningSheetState extends State<WalletExportWarningSheet> {
-  bool _isLoading = false;
+  final bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -254,7 +254,7 @@ class _WalletExportWarningSheetState extends State<WalletExportWarningSheet> {
         borderRadius: BorderRadius.circular(43.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
+            color: Colors.black.withValues(alpha: 0.15),
             offset: const Offset(0, 8),
             blurRadius: 24,
           ),
@@ -300,7 +300,7 @@ class _WalletExportWarningSheetState extends State<WalletExportWarningSheet> {
                             width: 43.w,
                             height: 3.2.h,
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.3),
+                              color: Colors.white.withValues(alpha: 0.3),
                               borderRadius: BorderRadius.circular(2.r),
                             ),
                           ),
@@ -527,7 +527,7 @@ class WalletCopySheet extends StatelessWidget {
         borderRadius: BorderRadius.circular(43.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
+            color: Colors.black.withValues(alpha: 0.15),
             offset: const Offset(0, 8),
             blurRadius: 24,
           ),
@@ -573,7 +573,7 @@ class WalletCopySheet extends StatelessWidget {
                             width: 43.w,
                             height: 3.2.h,
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.3),
+                              color: Colors.white.withValues(alpha: 0.3),
                               borderRadius: BorderRadius.circular(2.r),
                             ),
                           ),
@@ -732,7 +732,7 @@ class WalletExportNotAvailableSheet extends StatelessWidget {
         borderRadius: BorderRadius.circular(43.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
+            color: Colors.black.withValues(alpha: 0.15),
             offset: const Offset(0, 8),
             blurRadius: 24,
           ),
@@ -778,7 +778,7 @@ class WalletExportNotAvailableSheet extends StatelessWidget {
                             width: 43.w,
                             height: 3.2.h,
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.3),
+                              color: Colors.white.withValues(alpha: 0.3),
                               borderRadius: BorderRadius.circular(2.r),
                             ),
                           ),
@@ -874,7 +874,7 @@ Future<void> showProfileSettingsSheet(BuildContext context) async {
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withOpacity(0.5),
+    barrierColor: Colors.black.withValues(alpha: 0.5),
     elevation: 0,
     builder: (context) {
       return BackdropFilter(

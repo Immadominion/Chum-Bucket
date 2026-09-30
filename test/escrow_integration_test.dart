@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:chumbucket/shared/services/pinocchio_escrow_service.dart';
 import 'package:solana/solana.dart' as solana;
@@ -10,9 +11,9 @@ void main() {
 
     setUpAll(() async {
       // Note: These tests require a local validator to be running
-      print('🚀 Setting up PinocchioEscrowService integration tests');
-      print('📋 Test wallet: $testWalletAddress');
-      print(
+      debugPrint('🚀 Setting up PinocchioEscrowService integration tests');
+      debugPrint('📋 Test wallet: $testWalletAddress');
+      debugPrint(
         '📋 Ensure local validator is running: solana-test-validator --reset',
       );
     });
@@ -26,10 +27,10 @@ void main() {
         escrowService = PinocchioEscrowService(client: client);
 
         expect(escrowService, isNotNull);
-        print('✅ PinocchioEscrowService initialized successfully');
+        debugPrint('✅ PinocchioEscrowService initialized successfully');
       } catch (e) {
-        print('❌ Failed to initialize PinocchioEscrowService: $e');
-        print(
+        debugPrint('❌ Failed to initialize PinocchioEscrowService: $e');
+        debugPrint(
           '💡 Make sure local validator is running and program is deployed',
         );
         // Mark as skipped if validator is not available
@@ -51,12 +52,12 @@ void main() {
         if (challengeData != null) {
           expect(challengeData.initiator, isNotNull);
           expect(challengeData.witness, isNotNull);
-          print('✅ Challenge data fetched successfully');
+          debugPrint('✅ Challenge data fetched successfully');
         } else {
-          print('⚠️ Challenge not found (expected if not created)');
+          debugPrint('⚠️ Challenge not found (expected if not created)');
         }
       } catch (e) {
-        print('❌ Fetch challenge test failed: $e');
+        debugPrint('❌ Fetch challenge test failed: $e');
         if (e.toString().contains('Connection refused')) {
           markTestSkipped('Local validator not available: $e');
         } else {
@@ -66,15 +67,17 @@ void main() {
     }, timeout: const Timeout(Duration(seconds: 30)));
 
     test('should demonstrate full challenge lifecycle', () async {
-      print('📚 Full Challenge Lifecycle Demo:');
-      print(
+      debugPrint('📚 Full Challenge Lifecycle Demo:');
+      debugPrint(
         '1. 🏗️ Create Challenge: Alice creates 1 SOL challenge, Bob as witness',
       );
-      print('2. 💰 Platform Fee: 0.1 SOL fee deducted, 0.9 SOL in escrow');
-      print(
+      debugPrint('2. 💰 Platform Fee: 0.1 SOL fee deducted, 0.9 SOL in escrow');
+      debugPrint(
         '3. 🎯 Resolve Challenge: Alice completes challenge (success=true)',
       );
-      print('4. 💸 Payout: Alice gets 0.9 SOL back, platform gets 0.1 SOL fee');
+      debugPrint(
+        '4. 💸 Payout: Alice gets 0.9 SOL back, platform gets 0.1 SOL fee',
+      );
 
       // This test documents the expected flow without requiring actual execution
       expect(true, isTrue); // Always passes to show the flow
@@ -83,42 +86,42 @@ void main() {
 
   group('Integration Architecture Documentation', () {
     test('should document the complete integration stack', () {
-      print('📋 Chumbucket Pinocchio Escrow Integration Stack:');
-      print('');
-      print('🎯 Frontend Layer:');
-      print('  - Flutter UI with challenge creation/management');
-      print('  - MWA (Mobile Wallet Adapter) for wallet authentication');
-      print('  - Real-time updates via Supabase subscriptions');
-      print('');
-      print('🔧 Service Layer:');
-      print('  - MwaChallengeService: Orchestrates business logic');
-      print('  - PinocchioEscrowService: On-chain data reading');
-      print('  - MwaWalletProvider: Transaction building and signing');
-      print('  - UnifiedDatabaseService: Local/remote data management');
-      print('');
-      print('⛓️ Blockchain Layer:');
-      print('  - Pinocchio Program: chumbucket-pinocchio on Solana');
-      print('  - Direct instruction building for minimal overhead');
-      print('  - MWA: Signs transactions via external wallet');
-      print('');
-      print('📊 Data Flow:');
-      print('  1. User creates challenge in UI');
-      print(
+      debugPrint('📋 Chumbucket Pinocchio Escrow Integration Stack:');
+      debugPrint('');
+      debugPrint('🎯 Frontend Layer:');
+      debugPrint('  - Flutter UI with challenge creation/management');
+      debugPrint('  - MWA (Mobile Wallet Adapter) for wallet authentication');
+      debugPrint('  - Real-time updates via Supabase subscriptions');
+      debugPrint('');
+      debugPrint('🔧 Service Layer:');
+      debugPrint('  - MwaChallengeService: Orchestrates business logic');
+      debugPrint('  - PinocchioEscrowService: On-chain data reading');
+      debugPrint('  - MwaWalletProvider: Transaction building and signing');
+      debugPrint('  - UnifiedDatabaseService: Local/remote data management');
+      debugPrint('');
+      debugPrint('⛓️ Blockchain Layer:');
+      debugPrint('  - Pinocchio Program: chumbucket-pinocchio on Solana');
+      debugPrint('  - Direct instruction building for minimal overhead');
+      debugPrint('  - MWA: Signs transactions via external wallet');
+      debugPrint('');
+      debugPrint('📊 Data Flow:');
+      debugPrint('  1. User creates challenge in UI');
+      debugPrint(
         '  2. MwaChallengeService calls MwaWalletProvider.createChallenge()',
       );
-      print('  3. MwaWalletProvider builds Pinocchio instruction');
-      print('  4. MWA wallet signs the transaction');
-      print('  5. Challenge is created on-chain with SOL escrowed');
-      print('  6. Challenge details saved to local/remote database');
-      print('  7. UI updates with new challenge status');
-      print('');
-      print('🎮 Resolution Flow:');
-      print('  1. User marks challenge as completed');
-      print('  2. MwaWalletProvider.resolveChallenge() called');
-      print('  3. Pinocchio resolve instruction built and signed via MWA');
-      print('  4. Platform fee sent to platform wallet');
-      print('  5. Remaining SOL sent to winner');
-      print('  6. Database updated with completion status');
+      debugPrint('  3. MwaWalletProvider builds Pinocchio instruction');
+      debugPrint('  4. MWA wallet signs the transaction');
+      debugPrint('  5. Challenge is created on-chain with SOL escrowed');
+      debugPrint('  6. Challenge details saved to local/remote database');
+      debugPrint('  7. UI updates with new challenge status');
+      debugPrint('');
+      debugPrint('🎮 Resolution Flow:');
+      debugPrint('  1. User marks challenge as completed');
+      debugPrint('  2. MwaWalletProvider.resolveChallenge() called');
+      debugPrint('  3. Pinocchio resolve instruction built and signed via MWA');
+      debugPrint('  4. Platform fee sent to platform wallet');
+      debugPrint('  5. Remaining SOL sent to winner');
+      debugPrint('  6. Database updated with completion status');
 
       expect(true, isTrue);
     });

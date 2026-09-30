@@ -142,7 +142,7 @@ class EfficientSyncService {
       final onChain = await sync.fullSyncForUser(walletAddress, userId);
 
       // Show snackbar if many challenges found and context available
-      if (onChain.length > 5 && context != null) {
+      if (onChain.length > 5 && context != null && context.mounted) {
         SnackBarUtils.showInfo(
           context,
           title: 'Loading...',
@@ -768,14 +768,12 @@ class EfficientSyncService {
               .maybeSingle();
 
       // Fallback to privy_id if wallet_address lookup fails
-      if (creatorResponse == null) {
-        creatorResponse =
-            await Supabase.instance.client
-                .from('users')
-                .select('id, wallet_address')
-                .eq('privy_id', challenge.creatorId)
-                .maybeSingle();
-      }
+      creatorResponse ??=
+          await Supabase.instance.client
+              .from('users')
+              .select('id, wallet_address')
+              .eq('privy_id', challenge.creatorId)
+              .maybeSingle();
 
       if (creatorResponse == null) {
         AppLogger.warning(

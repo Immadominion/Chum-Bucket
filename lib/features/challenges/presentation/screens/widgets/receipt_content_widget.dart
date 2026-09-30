@@ -53,7 +53,7 @@ class ReceiptContentWidget extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16.r),
-        color: Colors.black.withOpacity(0.4),
+        color: Colors.black.withValues(alpha: 0.4),
       ),
       child: Padding(
         padding: EdgeInsets.all(20.r),
@@ -82,9 +82,11 @@ class ReceiptContentWidget extends StatelessWidget {
                 width: double.infinity,
                 padding: EdgeInsets.all(16.r),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
+                  color: Colors.white.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12.r),
-                  border: Border.all(color: Colors.white.withOpacity(0.2)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -100,7 +102,7 @@ class ReceiptContentWidget extends StatelessWidget {
                 child: Text(
                   'Powered by Chumbucket',
                   style: TextStyle(
-                    color: AppColors.primary.withOpacity(0.8),
+                    color: AppColors.primary.withValues(alpha: 0.8),
                     fontSize: 12.sp,
                     fontWeight: FontWeight.bold,
                   ),
@@ -210,7 +212,7 @@ class ReceiptContentWidget extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            color: Colors.white.withOpacity(0.8),
+            color: Colors.white.withValues(alpha: 0.8),
             fontSize: 13.sp,
             fontWeight: FontWeight.w500,
           ),
@@ -238,7 +240,7 @@ class ReceiptContentWidget extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            color: Colors.white.withOpacity(0.8),
+            color: Colors.white.withValues(alpha: 0.8),
             fontSize: 13.sp,
             fontWeight: FontWeight.w500,
           ),

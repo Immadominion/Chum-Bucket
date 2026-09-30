@@ -10,12 +10,12 @@ class GradientButton extends StatelessWidget {
   final String? icon;
 
   const GradientButton({
-    Key? key,
+    super.key,
     required this.text,
     required this.onPressed,
     this.gradientColors,
     this.icon,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -84,11 +84,11 @@ class SecondaryButton extends StatelessWidget {
   final IconData? icon;
 
   const SecondaryButton({
-    Key? key,
+    super.key,
     required this.text,
     required this.onPressed,
     this.icon,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -96,9 +96,9 @@ class SecondaryButton extends StatelessWidget {
       width: double.infinity,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16.r),
-        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.05),
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
         border: Border.all(
-          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
           width: 1,
         ),
       ),

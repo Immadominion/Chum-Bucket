@@ -2,27 +2,27 @@ import 'dart:developer';
 import 'dart:typed_data';
 import 'package:solana/base58.dart';
 import 'package:solana/solana.dart' as solana;
-import 'package:solana/src/rpc/dto/account_data/account_data.dart';
+import 'package:solana/dto.dart' show BinaryAccountData;
 
 /// Pinocchio Escrow Service
 /// Lightweight service for interacting with the Pinocchio escrow program
 /// Works with MWA wallet provider for transaction signing
 class PinocchioEscrowService {
   // Pinocchio program ID (deployed to devnet)
-  static const String PROGRAM_ID =
+  static const String programId =
       'D6mjMGW1fX8oH3UcwZDh3teWcHEWvghUqaR2aeWD9sF1';
 
   // Platform fee wallet
-  static const String PLATFORM_FEE_WALLET =
+  static const String platformFeeWallet =
       '3yHQosvdAhoFZHs66iFcdfRuT2aApAu6Yst2yoeDNjZm';
 
   // Constants
-  static const int LAMPORTS_PER_SOL = 1000000000;
-  static const int MIN_STAKE = 10000000; // 0.01 SOL
-  static const int CHALLENGE_ACCOUNT_SIZE = 146;
+  static const int lamportsPerSol = 1000000000;
+  static const int minStake = 10000000; // 0.01 SOL
+  static const int challengeAccountSize = 146;
 
   // Challenge discriminator
-  static const List<int> CHALLENGE_DISCRIMINATOR = [
+  static const List<int> challengeDiscriminator = [
     0x43,
     0x48,
     0x41,
@@ -34,9 +34,9 @@ class PinocchioEscrowService {
   ]; // "CHALL001"
 
   // Instruction discriminators
-  static const int CREATE_CHALLENGE = 0x01;
-  static const int RESOLVE_CHALLENGE = 0x02;
-  static const int CANCEL_CHALLENGE = 0x03;
+  static const int createChallenge = 0x01;
+  static const int resolveChallenge = 0x02;
+  static const int cancelChallenge = 0x03;
 
   final solana.SolanaClient _client;
 
@@ -72,9 +72,9 @@ class PinocchioEscrowService {
       //         amount(8) + original_amount(8) + platform_fee(8) + deadline(8) +
       //         is_resolved(1) + is_success(1) + is_cancelled(1) + padding(7)
 
-      if (data.length < CHALLENGE_ACCOUNT_SIZE) {
+      if (data.length < challengeAccountSize) {
         log(
-          '⚠️ Account data too small: ${data.length} < $CHALLENGE_ACCOUNT_SIZE',
+          '⚠️ Account data too small: ${data.length} < $challengeAccountSize',
         );
         return null;
       }
@@ -83,7 +83,7 @@ class PinocchioEscrowService {
       final discriminator = data.sublist(0, 8);
       bool validDiscriminator = true;
       for (int i = 0; i < 8; i++) {
-        if (discriminator[i] != CHALLENGE_DISCRIMINATOR[i]) {
+        if (discriminator[i] != challengeDiscriminator[i]) {
           validDiscriminator = false;
           break;
         }
@@ -187,7 +187,7 @@ class PinocchioEscrowService {
   /// Verify program exists on-chain
   Future<bool> verifyProgramExists() async {
     try {
-      final accountInfo = await _client.rpcClient.getAccountInfo(PROGRAM_ID);
+      final accountInfo = await _client.rpcClient.getAccountInfo(programId);
       final exists = accountInfo.value != null;
       log(exists ? '✅ Program verified on-chain' : '❌ Program not found');
       return exists;
@@ -226,11 +226,11 @@ class ChallengeAccount {
     required this.isCancelled,
   });
 
-  double get amountSol => amount / PinocchioEscrowService.LAMPORTS_PER_SOL;
+  double get amountSol => amount / PinocchioEscrowService.lamportsPerSol;
   double get originalAmountSol =>
-      originalAmount / PinocchioEscrowService.LAMPORTS_PER_SOL;
+      originalAmount / PinocchioEscrowService.lamportsPerSol;
   double get platformFeeSol =>
-      platformFee / PinocchioEscrowService.LAMPORTS_PER_SOL;
+      platformFee / PinocchioEscrowService.lamportsPerSol;
 
   DateTime get deadlineDate =>
       DateTime.fromMillisecondsSinceEpoch(deadline * 1000);

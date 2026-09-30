@@ -41,7 +41,7 @@ class ReceiptModal extends StatelessWidget {
         borderRadius: BorderRadius.circular(43.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
+            color: Colors.black.withValues(alpha: 0.15),
             offset: const Offset(0, 8),
             blurRadius: 24,
           ),
@@ -61,18 +61,12 @@ class ReceiptModal extends StatelessWidget {
                 Expanded(
                   child: Screenshot(
                     controller: screenshotController,
-                    child: Container(
-                      // Remove any background color that might cause black space
-                      // Use intrinsic sizing to fit content exactly
-                      child: IntrinsicHeight(
-                        child: IntrinsicWidth(
-                          child: Container(
-                            // Your receipt content here
-                            child: ReceiptContentWidget(
-                              challenge: challenge,
-                              status: status,
-                            ),
-                          ),
+                    // Use intrinsic sizing to fit content exactly.
+                    child: IntrinsicHeight(
+                      child: IntrinsicWidth(
+                        child: ReceiptContentWidget(
+                          challenge: challenge,
+                          status: status,
                         ),
                       ),
                     ),
@@ -105,19 +99,21 @@ class ReceiptModal extends StatelessWidget {
       final imageFile = File(imagePath);
       await imageFile.writeAsBytes(imageBytes);
 
-      await Share.shareXFiles([
-        XFile(imageFile.path),
-      ], text: 'Challenge Receipt');
+      if (!context.mounted) return;
+      await SharePlus.instance.share(
+        ShareParams(files: [XFile(imageFile.path)], text: 'Challenge Receipt'),
+      );
 
+      if (!context.mounted) return;
       Navigator.pop(context);
     } catch (e) {
-      Navigator.pop(context);
       if (context.mounted) {
         SnackBarUtils.showError(
           context,
           title: 'Error',
           subtitle: 'Error sharing receipt: $e',
         );
+        Navigator.pop(context);
       }
     }
   }
@@ -144,17 +140,21 @@ class ReceiptModal extends StatelessWidget {
       final pdfFile = File(pdfPath);
       await pdfFile.writeAsBytes(await pdf.save());
 
-      await Share.shareXFiles([XFile(pdfFile.path)], text: 'Challenge Receipt');
+      if (!context.mounted) return;
+      await SharePlus.instance.share(
+        ShareParams(files: [XFile(pdfFile.path)], text: 'Challenge Receipt'),
+      );
 
+      if (!context.mounted) return;
       Navigator.pop(context);
     } catch (e) {
-      Navigator.pop(context);
       if (context.mounted) {
         SnackBarUtils.showError(
           context,
           title: 'Error',
           subtitle: 'Error creating PDF: $e',
         );
+        Navigator.pop(context);
       }
     }
   }

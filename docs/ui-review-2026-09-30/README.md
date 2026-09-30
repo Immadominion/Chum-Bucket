@@ -2,6 +2,8 @@
 
 Implemented in the existing Flutter app, not a parallel app. [Open the actual-widget screen gallery](index.html).
 
+**1 October follow-up:** the analyzer is now clean (zero findings), and the suite passes **960 tests, 11 skipped, 0 failed**. See the [lint cleanup and regression-test record](lint-follow-up-2026-10-01.md). The original UI verification below is retained as historical evidence.
+
 ## Workspace and scope
 
 - Worktree: `/Users/mac/Documents/codes/opensauce/world/chumbucket-social-calls`

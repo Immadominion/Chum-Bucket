@@ -88,6 +88,7 @@ class _ProfilePictureSelectionModalState
           // Force deep state refresh by re-fetching user profile with new PFP
           // This will cause all dependent widgets to rebuild with new profile picture
           await profileProvider.fetchUserProfileWithPfp(walletAddress);
+          if (!mounted) return;
 
           // Show success feedback
           ScaffoldMessenger.of(context).showSnackBar(
@@ -157,7 +158,7 @@ class _ProfilePictureSelectionModalState
         borderRadius: BorderRadius.circular(43.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
+            color: Colors.black.withValues(alpha: 0.15),
             offset: const Offset(0, 8),
             blurRadius: 24,
           ),
@@ -202,7 +203,7 @@ class _ProfilePictureSelectionModalState
                 width: 40.w,
                 height: 4.h,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.3),
+                  color: Colors.white.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(2.r),
                 ),
               ),
@@ -220,7 +221,7 @@ class _ProfilePictureSelectionModalState
               Text(
                 'Select from our collection',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.8),
+                  color: Colors.white.withValues(alpha: 0.8),
                   fontSize: 14.sp,
                   fontWeight: FontWeight.w400,
                 ),
@@ -266,7 +267,9 @@ class _ProfilePictureSelectionModalState
                       boxShadow: [
                         if (isSelected)
                           BoxShadow(
-                            color: const Color(0xFFFF5A76).withOpacity(0.2),
+                            color: const Color(
+                              0xFFFF5A76,
+                            ).withValues(alpha: 0.2),
                             blurRadius: 8,
                             offset: const Offset(0, 4),
                           ),
@@ -344,7 +347,9 @@ class _ProfilePictureSelectionModalState
                     (_selectedImageId != null && !_isLoading)
                         ? [
                           BoxShadow(
-                            color: const Color(0xFFFF5A76).withOpacity(0.3),
+                            color: const Color(
+                              0xFFFF5A76,
+                            ).withValues(alpha: 0.3),
                             offset: const Offset(0, 4),
                             blurRadius: 12,
                           ),
@@ -382,7 +387,7 @@ class _ProfilePictureSelectionModalState
           // Secondary action - Cancel (following TertiaryActionButton pattern)
           GestureDetector(
             onTap: _isLoading ? null : _cancelSelection,
-            child: Container(
+            child: SizedBox(
               height: 44.h,
               child: Center(
                 child: Text(

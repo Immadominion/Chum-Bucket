@@ -127,7 +127,7 @@ class _ResolveChallengeSheetState extends State<ResolveChallengeSheet> {
         borderRadius: BorderRadius.circular(43.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
+            color: Colors.black.withValues(alpha: 0.15),
             offset: const Offset(0, 8),
             blurRadius: 24,
           ),
@@ -163,7 +163,7 @@ class _ResolveChallengeSheetState extends State<ResolveChallengeSheet> {
                         color: Colors.white,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.grey.withOpacity(0.1),
+                            color: Colors.grey.withValues(alpha: 0.1),
                             offset: const Offset(0, -2),
                             blurRadius: 4,
                           ),
@@ -221,7 +221,7 @@ Future<void> showResolveChallengeSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withOpacity(0.5),
+    barrierColor: Colors.black.withValues(alpha: 0.5),
     elevation: 0,
     builder: (context) {
       return BackdropFilter(

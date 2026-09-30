@@ -1,7 +1,6 @@
 import 'dart:developer';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
@@ -127,6 +126,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         );
         // Always mark onboarding as completed when user fills out profile
         await onboardingProvider.completeOnboarding();
+        if (!mounted) return;
 
         // Go directly to home screen
         Navigator.of(context).pushReplacement(
@@ -179,7 +179,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     );
                     await onboardingProvider.completeOnboarding();
 
-                    if (mounted) {
+                    if (context.mounted) {
                       Navigator.of(context).pushReplacement(
                         MaterialPageRoute(builder: (_) => const HomeScreen()),
                       );
@@ -223,7 +223,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         fontWeight: FontWeight.w600,
                         color: Theme.of(
                           context,
-                        ).colorScheme.onSurface.withOpacity(0.7),
+                        ).colorScheme.onSurface.withValues(alpha: 0.7),
                       ),
                     ),
                     SizedBox(height: 8.h),
@@ -234,14 +234,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         hintStyle: TextStyle(
                           color: Theme.of(
                             context,
-                          ).colorScheme.onSurface.withOpacity(0.5),
+                          ).colorScheme.onSurface.withValues(alpha: 0.5),
                           fontSize: 20.sp,
                           fontWeight: FontWeight.w700,
                         ),
                         filled: true,
                         fillColor: Theme.of(
                           context,
-                        ).colorScheme.onSurface.withOpacity(0.05),
+                        ).colorScheme.onSurface.withValues(alpha: 0.05),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12.r),
                           borderSide: BorderSide.none,
@@ -284,7 +284,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         fontWeight: FontWeight.w600,
                         color: Theme.of(
                           context,
-                        ).colorScheme.onSurface.withOpacity(0.7),
+                        ).colorScheme.onSurface.withValues(alpha: 0.7),
                       ),
                     ),
                     SizedBox(height: 8.h),
@@ -295,7 +295,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         hintStyle: TextStyle(
                           color: Theme.of(
                             context,
-                          ).colorScheme.onSurface.withOpacity(0.5),
+                          ).colorScheme.onSurface.withValues(alpha: 0.5),
                           fontSize: 20.sp,
                           fontWeight: FontWeight.w700,
                         ),
@@ -303,7 +303,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         filled: true,
                         fillColor: Theme.of(
                           context,
-                        ).colorScheme.onSurface.withOpacity(0.05),
+                        ).colorScheme.onSurface.withValues(alpha: 0.05),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12.r),
                           borderSide: BorderSide.none,

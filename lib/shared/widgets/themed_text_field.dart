@@ -91,7 +91,7 @@ class ThemedTextField extends StatelessWidget {
 
         // Use theme's input decoration
         filled: true,
-        fillColor: colorScheme.outline.withOpacity(0.1),
+        fillColor: colorScheme.outline.withValues(alpha: 0.1),
 
         // Borders
         border: OutlineInputBorder(

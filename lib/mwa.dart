@@ -102,7 +102,7 @@
 /// - `pinocchio_escrow_service.dart` - On-chain data parsing
 /// - `mwa_challenge_service.dart` - Database operations with wallet-based identity
 
-library chumbucket_mwa;
+library;
 
 // Auth
 export 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';

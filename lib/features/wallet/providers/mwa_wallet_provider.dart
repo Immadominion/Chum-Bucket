@@ -39,21 +39,21 @@ class MwaWalletProvider extends ChangeNotifier {
   }
 
   // Pinocchio program ID (deployed to devnet)
-  static const String ESCROW_PROGRAM_ID =
+  static const String escrowProgramId =
       'D6mjMGW1fX8oH3UcwZDh3teWcHEWvghUqaR2aeWD9sF1';
 
   // Platform fee wallet
-  static const String PLATFORM_FEE_WALLET =
+  static const String platformFeeWallet =
       '3yHQosvdAhoFZHs66iFcdfRuT2aApAu6Yst2yoeDNjZm';
 
   // System program
-  static const String SYSTEM_PROGRAM_ID = '11111111111111111111111111111111';
+  static const String systemProgramId = '11111111111111111111111111111111';
 
   // Minimum stake (0.01 SOL in lamports)
-  static const int MIN_STAKE_LAMPORTS = 10_000_000;
+  static const int minStakeLamports = 10_000_000;
 
   // Challenge account size (matches Pinocchio struct)
-  static const int CHALLENGE_ACCOUNT_SIZE = 146;
+  static const int challengeAccountSize = 146;
 
   late final solana.SolanaClient _client;
   MwaChallengeService? _challengeService;
@@ -218,9 +218,7 @@ class MwaWalletProvider extends ChangeNotifier {
       initiatorAddress,
     );
     final witnessPubkey = solana.Ed25519HDPublicKey.fromBase58(witnessAddress);
-    final programPubkey = solana.Ed25519HDPublicKey.fromBase58(
-      ESCROW_PROGRAM_ID,
-    );
+    final programPubkey = solana.Ed25519HDPublicKey.fromBase58(escrowProgramId);
 
     // challengeId as 8 bytes little endian
     final challengeIdBytes = Uint8List(8);
@@ -269,14 +267,10 @@ class MwaWalletProvider extends ChangeNotifier {
     );
     final witnessPubkey = solana.Ed25519HDPublicKey.fromBase58(witnessAddress);
     final platformPubkey = solana.Ed25519HDPublicKey.fromBase58(
-      PLATFORM_FEE_WALLET,
+      platformFeeWallet,
     );
-    final programPubkey = solana.Ed25519HDPublicKey.fromBase58(
-      ESCROW_PROGRAM_ID,
-    );
-    final systemPubkey = solana.Ed25519HDPublicKey.fromBase58(
-      SYSTEM_PROGRAM_ID,
-    );
+    final programPubkey = solana.Ed25519HDPublicKey.fromBase58(escrowProgramId);
+    final systemPubkey = solana.Ed25519HDPublicKey.fromBase58(systemProgramId);
 
     // Convert SOL to lamports
     final lamports = (amountSol * solana.lamportsPerSol).round();
@@ -367,11 +361,9 @@ class MwaWalletProvider extends ChangeNotifier {
     );
     final witnessPubkey = solana.Ed25519HDPublicKey.fromBase58(witnessAddress);
     final platformPubkey = solana.Ed25519HDPublicKey.fromBase58(
-      PLATFORM_FEE_WALLET,
+      platformFeeWallet,
     );
-    final programPubkey = solana.Ed25519HDPublicKey.fromBase58(
-      ESCROW_PROGRAM_ID,
-    );
+    final programPubkey = solana.Ed25519HDPublicKey.fromBase58(escrowProgramId);
 
     // Build instruction data: discriminator(1) + initiator_won(1) = 2 bytes
     // Program does split_first on discriminator, so data becomes [initiator_won]
@@ -435,9 +427,7 @@ class MwaWalletProvider extends ChangeNotifier {
       initiatorAddress,
     );
     final witnessPubkey = solana.Ed25519HDPublicKey.fromBase58(witnessAddress);
-    final programPubkey = solana.Ed25519HDPublicKey.fromBase58(
-      ESCROW_PROGRAM_ID,
-    );
+    final programPubkey = solana.Ed25519HDPublicKey.fromBase58(escrowProgramId);
 
     // Build instruction data: discriminator(1) = 1 byte
     final instructionData = Uint8List(1);
@@ -503,6 +493,12 @@ class MwaWalletProvider extends ChangeNotifier {
         throw Exception('User must be authenticated');
       }
 
+      // Capture app state before any async work. Persist a submitted challenge
+      // even if the initiating screen has closed while the wallet was open.
+      final challengeStateProvider = Provider.of<ChallengeStateProvider>(
+        context,
+        listen: false,
+      );
       final walletAddress = authProvider.walletAddress!;
 
       // Resolve .sol domains - simplified for now, can add SNS lookup later
@@ -529,7 +525,7 @@ class MwaWalletProvider extends ChangeNotifier {
 
       // Validate minimum stake
       final lamports = (amount * solana.lamportsPerSol).round();
-      if (lamports < MIN_STAKE_LAMPORTS) {
+      if (lamports < minStakeLamports) {
         throw Exception('Minimum stake is 0.01 SOL');
       }
 
@@ -637,10 +633,6 @@ class MwaWalletProvider extends ChangeNotifier {
       );
 
       // Update challenge state provider
-      final challengeStateProvider = Provider.of<ChallengeStateProvider>(
-        context,
-        listen: false,
-      );
       challengeStateProvider.addChallenge(createdChallenge);
 
       // Track analytics for challenge creation (fire-and-forget)

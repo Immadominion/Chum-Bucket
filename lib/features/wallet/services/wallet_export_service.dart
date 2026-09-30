@@ -163,7 +163,7 @@ class WalletExportService {
         'address': keypair.publicKey.toBase58(),
       };
     } catch (e) {
-      print('Error getting wallet info: $e');
+      AppLogger.debug('Wallet info lookup failed');
       return null;
     }
   }

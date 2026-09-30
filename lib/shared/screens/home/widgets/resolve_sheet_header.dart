@@ -33,7 +33,7 @@ class ResolveSheetHeader extends StatelessWidget {
             width: 43.w,
             height: 3.2.h,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.3),
+              color: Colors.white.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(2.r),
             ),
           ),
@@ -43,7 +43,7 @@ class ResolveSheetHeader extends StatelessWidget {
             'Bet Amount',
             style: TextStyle(
               fontSize: 14.sp,
-              color: Colors.white.withOpacity(0.5),
+              color: Colors.white.withValues(alpha: 0.5),
               fontWeight: FontWeight.w700,
             ),
           ),

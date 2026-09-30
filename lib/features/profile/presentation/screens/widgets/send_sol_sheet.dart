@@ -118,6 +118,7 @@ class _SendSolSheetState extends State<SendSolSheet> {
       }
 
       // Call wallet provider method to transfer SOL
+      if (!mounted) return;
       final transactionSignature = await walletProvider.transferSol(
         destinationAddress: destinationAddress,
         amount: amount,
@@ -206,7 +207,7 @@ class _SendSolSheetState extends State<SendSolSheet> {
           borderRadius: BorderRadius.circular(43.r),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.15),
+              color: Colors.black.withValues(alpha: 0.15),
               offset: const Offset(0, 8),
               blurRadius: 24,
             ),
@@ -248,7 +249,7 @@ class _SendSolSheetState extends State<SendSolSheet> {
                             width: 43.w,
                             height: 3.2.h,
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.3),
+                              color: Colors.white.withValues(alpha: 0.3),
                               borderRadius: BorderRadius.circular(2.r),
                             ),
                           ),
@@ -258,7 +259,7 @@ class _SendSolSheetState extends State<SendSolSheet> {
                             width: 60.w,
                             height: 60.w,
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
+                              color: Colors.white.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(18.r),
                             ),
                             child: BasilIcon(
@@ -284,7 +285,7 @@ class _SendSolSheetState extends State<SendSolSheet> {
                                 style: TextStyle(
                                   fontSize: 16.sp,
                                   fontWeight: FontWeight.w500,
-                                  color: Colors.white.withOpacity(0.9),
+                                  color: Colors.white.withValues(alpha: 0.9),
                                 ),
                               );
                             },
@@ -407,7 +408,7 @@ class _SendSolSheetState extends State<SendSolSheet> {
                                 style: TextButton.styleFrom(
                                   backgroundColor: const Color(
                                     0xFFFF5A76,
-                                  ).withOpacity(0.1),
+                                  ).withValues(alpha: 0.1),
                                   foregroundColor: const Color(0xFFFF5A76),
                                   minimumSize: Size(50.w, 32.h),
                                   padding: EdgeInsets.symmetric(
@@ -467,7 +468,8 @@ class _SendSolSheetState extends State<SendSolSheet> {
                           textInputAction: TextInputAction.done,
                           onSubmitted: (_) => FocusScope.of(context).unfocus(),
                           decoration: InputDecoration(
-                            hintText: 'Enter wallet address or domain (.skr, .abc...)',
+                            hintText:
+                                'Enter wallet address or domain (.skr, .abc...)',
                             hintStyle: TextStyle(
                               fontSize: 16.sp,
                               color: Colors.grey.shade400,
@@ -544,7 +546,7 @@ Future<void> showSendSolSheet(BuildContext context) async {
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withOpacity(0.5),
+    barrierColor: Colors.black.withValues(alpha: 0.5),
     elevation: 0,
     builder: (context) {
       return BackdropFilter(

@@ -11,8 +11,9 @@ import 'app_lifecycle_service.dart';
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  if (kDebugMode)
+  if (kDebugMode) {
     debugPrint('Background message received: ${message.messageId}');
+  }
   await FcmTokenService._handleRemoteMessage(message, fromBackground: true);
 }
 
@@ -92,14 +93,16 @@ class FcmTokenService {
         settings.authorizationStatus == AuthorizationStatus.authorized ||
         settings.authorizationStatus == AuthorizationStatus.provisional;
 
-    if (kDebugMode)
+    if (kDebugMode) {
       debugPrint('🔔 FCM Permission status: ${settings.authorizationStatus}');
+    }
 
     // Also request local notification permission for displaying notifications
     // when app is in foreground
     final localNotifGranted = await NotificationService.requestPermission();
-    if (kDebugMode)
+    if (kDebugMode) {
       debugPrint('🔔 Local notification permission: $localNotifGranted');
+    }
 
     return granted;
   }
@@ -307,8 +310,9 @@ class FcmTokenService {
         },
       );
 
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint('Challenge notification sent for: $challengeId');
+      }
     } catch (e) {
       if (kDebugMode) debugPrint('Failed to send challenge notification: $e');
       // Don't throw - notifications are best-effort
@@ -336,8 +340,9 @@ class FcmTokenService {
         },
       );
 
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint('Resolution notification sent for: $challengeId');
+      }
     } catch (e) {
       if (kDebugMode) debugPrint('Failed to send resolution notification: $e');
       // Don't throw - notifications are best-effort

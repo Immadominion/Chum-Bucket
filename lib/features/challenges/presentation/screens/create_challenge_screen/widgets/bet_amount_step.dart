@@ -16,7 +16,7 @@ class BetAmountStep extends StatefulWidget {
   final ValueChanged<double> onBetAmountChanged;
   final VoidCallback? onBackPressed;
 
-  BetAmountStep({
+  const BetAmountStep({
     super.key,
     required this.friendName,
     required this.friendAvatarColor,

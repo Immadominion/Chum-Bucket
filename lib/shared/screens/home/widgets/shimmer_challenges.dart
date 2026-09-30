@@ -40,7 +40,10 @@ class _ShimmerChallengesState extends State<ShimmerChallenges>
         color: Colors.white,
         borderRadius: BorderRadius.circular(26.r),
         boxShadow: [
-          BoxShadow(color: Colors.grey.withOpacity(0.2), offset: Offset(0, 2)),
+          BoxShadow(
+            color: Colors.grey.withValues(alpha: 0.2),
+            offset: Offset(0, 2),
+          ),
         ],
       ),
       child: Column(

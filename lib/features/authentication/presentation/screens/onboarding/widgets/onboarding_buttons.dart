@@ -1,3 +1,4 @@
+import 'package:chumbucket/core/utils/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 // MWA Login Screen for wallet-based authentication (replaces email login)
@@ -50,7 +51,7 @@ class OnboardingButtons extends StatelessWidget {
                 );
               } else {
                 // Use the controller to navigate to next page
-                print("Moving to next page");
+                AppLogger.debug('Moving to next onboarding page');
                 // Get the controller from context
                 final controller = OnboardingPageController.of(context);
                 if (controller != null) {
@@ -65,7 +66,9 @@ class OnboardingButtons extends StatelessWidget {
                   }
                 } else {
                   // Fallback: just update the provider
-                  print("Controller not found, just updating provider");
+                  AppLogger.debug(
+                    'Onboarding controller unavailable; using provider',
+                  );
                   onSetCurrentPage(currentPage + 1);
                 }
               }
@@ -100,7 +103,7 @@ class OnboardingButtons extends StatelessWidget {
               Expanded(
                 child: TextButton(
                   onPressed: () {
-                    print("Back button tapped");
+                    AppLogger.debug('Onboarding back button tapped');
                     // Go to previous page
                     final controller = OnboardingPageController.of(context);
                     if (controller != null) {
@@ -130,7 +133,7 @@ class OnboardingButtons extends StatelessWidget {
               Expanded(
                 child: TextButton(
                   onPressed: () {
-                    print("Skip button tapped");
+                    AppLogger.debug('Onboarding skip button tapped');
                     onCompleteOnboarding();
                     Navigator.of(context).pushReplacement(
                       MaterialPageRoute(builder: (_) => const MwaLoginScreen()),

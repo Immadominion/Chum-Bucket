@@ -1,3 +1,4 @@
+import 'package:chumbucket/core/utils/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -106,7 +107,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       await _audioService.startOnboardingMusic();
     } catch (e) {
       // Silently handle audio errors to prevent app crashes
-      print('Audio initialization error: $e');
+      AppLogger.debug('Onboarding audio initialization failed');
     }
   }
 
@@ -156,7 +157,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       await _audioService.dispose();
     } catch (e) {
       // Silently handle audio errors
-      print('Audio disposal error: $e');
+      AppLogger.debug('Onboarding audio disposal failed');
     }
   }
 

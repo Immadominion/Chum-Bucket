@@ -1,5 +1,5 @@
 /// Main application theme configuration
-library app_theme;
+library;
 
 import 'package:flutter/material.dart';
 import 'app_colors.dart';

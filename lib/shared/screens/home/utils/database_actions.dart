@@ -7,28 +7,30 @@ class DatabaseActions {
     showDialog(
       context: context,
       builder:
-          (context) => AlertDialog(
+          (dialogContext) => AlertDialog(
             title: const Text('Clear Database'),
             content: const Text(
               'This will delete ALL data including friends, challenges, and other records. This action cannot be undone.\n\nAre you sure?',
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => Navigator.pop(dialogContext),
                 child: const Text('Cancel'),
               ),
               TextButton(
                 onPressed: () async {
                   try {
                     await UnifiedDatabaseService.clearAllData();
-                    Navigator.pop(context);
+                    if (dialogContext.mounted) Navigator.pop(dialogContext);
+                    if (!context.mounted) return;
                     SnackBarUtils.showInfo(
                       context,
                       title: 'Success',
                       subtitle: 'Database cleared successfully!',
                     );
                   } catch (e) {
-                    Navigator.pop(context);
+                    if (dialogContext.mounted) Navigator.pop(dialogContext);
+                    if (!context.mounted) return;
                     SnackBarUtils.showError(
                       context,
                       title: 'Error',

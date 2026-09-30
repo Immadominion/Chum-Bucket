@@ -25,12 +25,12 @@ import 'package:chumbucket/shared/models/models.dart';
 /// [139..146]: reserved (7 bytes)
 class BlockchainSyncService {
   // Pinocchio program ID (updated from legacy Anchor program)
-  static const String ESCROW_PROGRAM_ID =
+  static const String escrowProgramId =
       'D6mjMGW1fX8oH3UcwZDh3teWcHEWvghUqaR2aeWD9sF1';
 
   // Challenge account discriminator: "CHALL001" in ASCII
   // This matches the Pinocchio program's CHALLENGE_DISCRIMINATOR constant
-  static const List<int> CHALLENGE_DISCRIMINATOR = [
+  static const List<int> challengeDiscriminator = [
     0x43, // 'C'
     0x48, // 'H'
     0x41, // 'A'
@@ -42,7 +42,7 @@ class BlockchainSyncService {
   ];
 
   // Pinocchio challenge account size (146 bytes)
-  static const int CHALLENGE_ACCOUNT_SIZE = 146;
+  static const int challengeAccountSize = 146;
 
   // Caching & throttling
   static final Map<String, List<Challenge>> _cacheByWallet = {};
@@ -80,7 +80,7 @@ class BlockchainSyncService {
         tag: 'BlockchainSyncService',
       );
       AppLogger.info(
-        '📡 Calling getProgramAccounts for program: $ESCROW_PROGRAM_ID',
+        '📡 Calling getProgramAccounts for program: $escrowProgramId',
         tag: 'BlockchainSyncService',
       );
       AppLogger.info(
@@ -93,14 +93,14 @@ class BlockchainSyncService {
       // First, verify the program actually exists
       try {
         final programAccountInfo = await _solanaClient.rpcClient.getAccountInfo(
-          ESCROW_PROGRAM_ID,
+          escrowProgramId,
           encoding: Encoding.base64,
         );
 
         if (programAccountInfo.value == null) {
           if (_verbose) {
             AppLogger.info(
-              '❌ PROGRAM NOT FOUND ON NETWORK! -> $ESCROW_PROGRAM_ID',
+              '❌ PROGRAM NOT FOUND ON NETWORK! -> $escrowProgramId',
               tag: 'BlockchainSyncService',
             );
           }
@@ -122,30 +122,32 @@ class BlockchainSyncService {
           }
         }
       } catch (e) {
-        if (_verbose)
+        if (_verbose) {
           AppLogger.info(
             '❌ Error checking program existence: $e',
             tag: 'BlockchainSyncService',
           );
+        }
         return [];
       }
 
       final programAccounts = await _solanaClient.rpcClient.getProgramAccounts(
-        ESCROW_PROGRAM_ID,
+        escrowProgramId,
         encoding: Encoding.base64,
         filters: [
           // Filter by account data size - Pinocchio Challenge accounts are 146 bytes
-          ProgramDataFilter.dataSize(CHALLENGE_ACCOUNT_SIZE),
+          ProgramDataFilter.dataSize(challengeAccountSize),
           // Filter by discriminator to only get Challenge accounts
-          ProgramDataFilter.memcmp(offset: 0, bytes: CHALLENGE_DISCRIMINATOR),
+          ProgramDataFilter.memcmp(offset: 0, bytes: challengeDiscriminator),
         ],
       );
 
-      if (_verbose)
+      if (_verbose) {
         AppLogger.info(
           '📊 Found ${programAccounts.length} total Challenge accounts',
           tag: 'BlockchainSyncService',
         );
+      }
 
       if (programAccounts.isEmpty) {
         return [];
@@ -155,11 +157,12 @@ class BlockchainSyncService {
 
       for (final programAccount in programAccounts) {
         try {
-          if (_verbose)
+          if (_verbose) {
             AppLogger.info(
               '🔍 Processing account: ${programAccount.pubkey}',
               tag: 'BlockchainSyncService',
             );
+          }
 
           // Convert to map format for our decoder
           final accountMap = {
@@ -185,11 +188,12 @@ class BlockchainSyncService {
 
           if (challenge != null) {
             challenges.add(challenge);
-            if (_verbose)
+            if (_verbose) {
               AppLogger.info(
                 '✅ Successfully decoded challenge: ${challenge.id}',
                 tag: 'BlockchainSyncService',
               );
+            }
           } else {
             if (_verbose) {
               AppLogger.info(
@@ -210,11 +214,12 @@ class BlockchainSyncService {
         }
       }
 
-      if (_verbose)
+      if (_verbose) {
         AppLogger.info(
           '✅ Discovered ${challenges.length} challenges for user',
           tag: 'BlockchainSyncService',
         );
+      }
       return challenges;
     } catch (e) {
       AppLogger.debug(
@@ -234,11 +239,12 @@ class BlockchainSyncService {
     final accountData = account['data'];
     final pubkey = programAccount['pubkey'] as String;
 
-    if (_verbose)
+    if (_verbose) {
       AppLogger.info(
         '🔍 Decoding account: $pubkey for user: $userWalletAddress',
         tag: 'BlockchainSyncService',
       );
+    }
 
     try {
       if (accountData == null) return null;
@@ -246,11 +252,12 @@ class BlockchainSyncService {
       late Uint8List data;
       if (accountData is List<int>) {
         data = Uint8List.fromList(accountData);
-        if (_verbose)
+        if (_verbose) {
           AppLogger.info(
             '✅ Account data is List<int> with ${data.length} bytes',
             tag: 'BlockchainSyncService',
           );
+        }
       } else if (accountData is String) {
         // Handle base64 encoded data
         try {
@@ -261,11 +268,12 @@ class BlockchainSyncService {
             );
           }
         } catch (e) {
-          if (_verbose)
+          if (_verbose) {
             AppLogger.info(
               '⚠️ Failed to decode base64 data: $pubkey - $e',
               tag: 'BlockchainSyncService',
             );
+          }
           return null;
         }
       } else if (accountData.runtimeType.toString().contains(
@@ -317,14 +325,14 @@ class BlockchainSyncService {
       if (data.length < 8) return null;
 
       final discriminator = data.sublist(0, 8);
-      if (!_listEquals(discriminator, CHALLENGE_DISCRIMINATOR)) {
+      if (!_listEquals(discriminator, challengeDiscriminator)) {
         if (_verbose) {
           AppLogger.info(
             '⚠️ Invalid discriminator for account: $pubkey',
             tag: 'BlockchainSyncService',
           );
           AppLogger.info(
-            '   Expected: $CHALLENGE_DISCRIMINATOR',
+            '   Expected: $challengeDiscriminator',
             tag: 'BlockchainSyncService',
           );
           AppLogger.info(
@@ -349,10 +357,10 @@ class BlockchainSyncService {
       // [137]:     initiator_won (1 byte)
       // [138]:     bump (1 byte)
       // [139..146]: reserved (7 bytes)
-      if (data.length < CHALLENGE_ACCOUNT_SIZE) {
+      if (data.length < challengeAccountSize) {
         if (_verbose) {
           AppLogger.info(
-            '⚠️ Challenge account data incomplete: $pubkey (${data.length} bytes, need $CHALLENGE_ACCOUNT_SIZE)',
+            '⚠️ Challenge account data incomplete: $pubkey (${data.length} bytes, need $challengeAccountSize)',
           );
         }
         return null;
@@ -414,11 +422,12 @@ class BlockchainSyncService {
 
       if (!isUserInitiator && !isUserWitness) {
         // User is not involved in this challenge
-        if (_verbose)
+        if (_verbose) {
           AppLogger.info(
             '❌ User not involved in this challenge, filtering out',
             tag: 'BlockchainSyncService',
           );
+        }
         return null;
       }
 
@@ -542,7 +551,7 @@ class BlockchainSyncService {
         createdAt: estimatedCreationTime,
         expiresAt: deadlineDateTime,
         escrowAddress: pubkey, // The challenge account itself
-        vaultAddress: ESCROW_PROGRAM_ID, // Program ID as vault reference
+        vaultAddress: escrowProgramId, // Program ID as vault reference
         platformFee: platformFee / solana.lamportsPerSol,
         winnerAmount:
             winnerAmount / solana.lamportsPerSol, // Net amount after fee
@@ -571,11 +580,12 @@ class BlockchainSyncService {
   ) async {
     // Skip remote sync unless explicitly enabled
     if (!_remoteSyncEnabled) {
-      if (_verbose)
+      if (_verbose) {
         AppLogger.debug(
           '⏭️ Remote sync disabled. Skipping Supabase writes.',
           tag: 'BlockchainSyncService',
         );
+      }
       return;
     }
 
@@ -798,11 +808,12 @@ class BlockchainSyncService {
       // We need to mark those as completed in the database.
       await _markClosedChallengesAsCompleted(userWalletAddress, userId);
 
-      if (_verbose)
+      if (_verbose) {
         AppLogger.info(
           '🚨 DATABASE SYNC COMPLETED',
           tag: 'BlockchainSyncService',
         );
+      }
 
       AppLogger.debug(
         '✅ Full sync completed. Found ${onChainChallenges.length} challenges',
@@ -871,7 +882,7 @@ class BlockchainSyncService {
       }
 
       // Decode using Pinocchio layout (146 bytes)
-      if (data.length < CHALLENGE_ACCOUNT_SIZE) return null;
+      if (data.length < challengeAccountSize) return null;
 
       // Skip discriminator(8) + initiator(32) + witness(32) + platform_fee_account(32)
       int offset = 8 + 32 + 32 + 32; // = 104

@@ -24,7 +24,7 @@ class SnackBarUtils {
                 height: 20.w,
                 padding: EdgeInsets.all(2.w),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(10.r),
                 ),
                 child: CircularProgressIndicator(
@@ -51,7 +51,7 @@ class SnackBarUtils {
                       subtitle,
                       style: TextStyle(
                         fontSize: 13.sp,
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                       ),
                     ),
                   ],
@@ -118,7 +118,7 @@ class SnackBarUtils {
                       subtitle,
                       style: TextStyle(
                         fontSize: 13.sp,
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                       ),
                     ),
                   ],
@@ -185,7 +185,7 @@ class SnackBarUtils {
                       subtitle,
                       style: TextStyle(
                         fontSize: 13.sp,
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -253,7 +253,7 @@ class SnackBarUtils {
                       subtitle,
                       style: TextStyle(
                         fontSize: 13.sp,
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                       ),
                     ),
                   ],
@@ -320,7 +320,7 @@ class SnackBarUtils {
                       subtitle,
                       style: TextStyle(
                         fontSize: 13.sp,
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                       ),
                     ),
                   ],
@@ -372,8 +372,7 @@ class SnackBarUtils {
           userWon
               ? 'Congratulations on your victory!'
               : 'Better luck next time!',
-      icon:
-          userWon ? Icons.sentiment_satisfied_alt : Icons.sentiment_neutral,
+      icon: userWon ? Icons.sentiment_satisfied_alt : Icons.sentiment_neutral,
     );
   }
 

@@ -11,8 +11,8 @@ class OnboardingPageController extends InheritedWidget {
     super.key,
     required this.controller,
     required this.context,
-    required Widget child,
-  }) : super(child: child);
+    required super.child,
+  });
 
   // Use findAncestorWidgetOfExactType for performance boost
   static OnboardingPageController? of(BuildContext context) {

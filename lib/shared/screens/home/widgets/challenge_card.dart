@@ -43,7 +43,7 @@ class ChallengeCard extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             // color: _getStatusColor(status).withOpacity(0.1),
-            color: Colors.grey.withOpacity(0.2),
+            color: Colors.grey.withValues(alpha: 0.2),
             offset: const Offset(0, 2),
           ),
         ],

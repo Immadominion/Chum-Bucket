@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
 import 'package:chumbucket/core/utils/app_logger.dart';

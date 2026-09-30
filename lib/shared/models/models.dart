@@ -70,13 +70,7 @@ class Challenge {
   });
 
   factory Challenge.fromJson(Map<String, dynamic> json) {
-    // Debug: Log escrow address values from JSON
     final id = json['id'] as String;
-    final multisigAddr = json['multisig_address'];
-    final escrowAddr = json['escrow_address'];
-    print(
-      '🔍 DEBUG Challenge.fromJson: id=$id, multisig_address=$multisigAddr, escrow_address=$escrowAddr',
-    );
 
     return Challenge(
       id: id,

@@ -16,7 +16,7 @@ import 'dart:ui';
 import 'dart:io';
 
 class SettingsBottomSheet extends StatefulWidget {
-  const SettingsBottomSheet({Key? key}) : super(key: key);
+  const SettingsBottomSheet({super.key});
 
   @override
   State<SettingsBottomSheet> createState() => _SettingsBottomSheetState();
@@ -131,7 +131,7 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
           context: context,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
-          barrierColor: Colors.black.withOpacity(0.5),
+          barrierColor: Colors.black.withValues(alpha: 0.5),
           elevation: 0,
           builder: (context) {
             return BackdropFilter(

@@ -127,7 +127,7 @@ class _SupportWebViewScreenState extends State<SupportWebViewScreen> {
 
   Widget _buildLoadingWidget() {
     return Container(
-      color: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.8),
+      color: Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.8),
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -148,7 +148,9 @@ class _SupportWebViewScreenState extends State<SupportWebViewScreen> {
             Text(
               'Please wait while we connect you to our support team',
               style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.7),
                 fontSize: 14.sp,
               ),
               textAlign: TextAlign.center,
@@ -184,7 +186,9 @@ class _SupportWebViewScreenState extends State<SupportWebViewScreen> {
             Text(
               _errorMessage,
               style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.7),
                 fontSize: 16.sp,
               ),
               textAlign: TextAlign.center,

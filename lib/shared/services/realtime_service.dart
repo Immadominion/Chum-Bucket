@@ -168,10 +168,12 @@ class RealtimeService {
       if (status == ChallengeStatus.completed) {
         updateData['completed_at'] = DateTime.now().toIso8601String();
         if (winnerId != null) updateData['winner_privy_id'] = winnerId;
-        if (transactionSignature != null)
+        if (transactionSignature != null) {
           updateData['transaction_signature'] = transactionSignature;
-        if (feeTransactionSignature != null)
+        }
+        if (feeTransactionSignature != null) {
           updateData['fee_transaction_signature'] = feeTransactionSignature;
+        }
       }
 
       await _supabase

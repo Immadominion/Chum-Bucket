@@ -23,10 +23,10 @@ class ChallengeStatusBadge extends StatelessWidget {
     return Container(
       padding: padding ?? EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
       decoration: BoxDecoration(
-        color: _getStatusColor(status).withOpacity(0.1),
+        color: _getStatusColor(status).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12.r),
         border: Border.all(
-          color: _getStatusColor(status).withOpacity(0.3),
+          color: _getStatusColor(status).withValues(alpha: 0.3),
           width: 1,
         ),
       ),
@@ -120,7 +120,7 @@ class AmountDisplay extends StatelessWidget {
             text: ' $currency',
             style: TextStyle(
               fontSize: (fontSize ?? 16.sp) * 0.8,
-              color: (color ?? AppColors.onSurface).withOpacity(0.7),
+              color: (color ?? AppColors.onSurface).withValues(alpha: 0.7),
               fontWeight: FontWeight.w500,
             ),
           ),

@@ -217,7 +217,7 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
               selected
                   ? [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
+                      color: Colors.black.withValues(alpha: 0.08),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),
@@ -231,8 +231,7 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
             BasilIcon(
               icon,
               size: 15.w,
-              color:
-                  selected ? const Color(0xFFFF5A76) : Colors.grey.shade500,
+              color: selected ? const Color(0xFFFF5A76) : Colors.grey.shade500,
             ),
             SizedBox(width: 6.w),
             Text(
@@ -305,6 +304,7 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
           friendWalletAddress = await AddressNameResolver.resolveAddress(
             addressInput,
           );
+          if (!mounted) return;
           if (friendWalletAddress == null) {
             SnackBarUtils.showError(
               context,
@@ -317,7 +317,8 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
           SnackBarUtils.showError(
             context,
             title: 'Input Error',
-            subtitle: 'Enter a valid wallet address or domain (.skr, .abc, ...)',
+            subtitle:
+                'Enter a valid wallet address or domain (.skr, .abc, ...)',
           );
           return;
         }
@@ -329,6 +330,7 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
         friendName: name,
         friendWalletAddress: friendWalletAddress,
       );
+      if (!mounted) return;
 
       if (success) {
         await SafeModalUtils.safeCloseAndExecute(
@@ -399,11 +401,10 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
             authProvider: authProvider,
             xHandle: handleInput,
           );
+      if (!mounted) return;
 
-      final normalizedHandle = handleInput
-          .trim()
-          .replaceFirst(RegExp(r'^@+'), '')
-          .toLowerCase();
+      final normalizedHandle =
+          handleInput.trim().replaceFirst(RegExp(r'^@+'), '').toLowerCase();
 
       if (result.alreadyResolved && result.resolvedWalletAddress != null) {
         // Mirror the web client's guard: the resolved handle might be the
@@ -427,6 +428,7 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
           friendName: name,
           friendWalletAddress: result.resolvedWalletAddress!,
         );
+        if (!mounted) return;
 
         if (success) {
           await SafeModalUtils.safeCloseAndExecute(
@@ -502,7 +504,7 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
           borderRadius: BorderRadius.circular(43.r),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.15),
+              color: Colors.black.withValues(alpha: 0.15),
               offset: const Offset(0, 8),
               blurRadius: 24,
             ),
@@ -541,7 +543,7 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
                             width: 40.w,
                             height: 4.h,
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.3),
+                              color: Colors.white.withValues(alpha: 0.3),
                               borderRadius: BorderRadius.circular(2.r),
                             ),
                           ),
@@ -559,7 +561,7 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
                             'Enter your friend\'s details to start challenging them',
                             style: TextStyle(
                               fontSize: 14.sp,
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -823,7 +825,7 @@ Future<void> showAddFriendSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withOpacity(0.5),
+    barrierColor: Colors.black.withValues(alpha: 0.5),
     elevation: 0,
     builder: (context) {
       return BackdropFilter(

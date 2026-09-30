@@ -51,6 +51,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     // Show and animate bucket
     await Future.delayed(const Duration(milliseconds: 100));
+    if (!mounted) return;
     setState(() {
       _showBucket = true;
     });
@@ -58,6 +59,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     // Show and animate text
     await Future.delayed(const Duration(milliseconds: 50));
+    if (!mounted) return;
     setState(() {
       _showText = true;
     });
@@ -65,6 +67,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     // Hold the bucket and text logo
     await Future.delayed(const Duration(milliseconds: 400));
+    if (!mounted) return;
 
     // Check login state and onboarding completion
     final authProvider = Provider.of<MwaAuthProvider>(context, listen: false);
@@ -83,6 +86,7 @@ class _SplashScreenState extends State<SplashScreen>
     final isLoggedIn = await authProvider.isLoggedIn();
     final hasCompletedOnboarding =
         await onboardingProvider.isOnboardingCompleted();
+    if (!mounted) return;
 
     debugPrint(
       'Login status: $isLoggedIn, Onboarding completed: $hasCompletedOnboarding',

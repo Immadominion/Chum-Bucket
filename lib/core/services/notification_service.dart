@@ -223,6 +223,7 @@ class NotificationService {
   ) async {
     final isAllowed = await NotificationService.isAllowed();
     if (isAllowed) return true;
+    if (!context.mounted) return false;
 
     // Show a dialog explaining why we need notifications
     final shouldRequest = await showDialog<bool>(

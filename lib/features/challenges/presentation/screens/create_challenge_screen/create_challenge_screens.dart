@@ -1,3 +1,4 @@
+import 'package:chumbucket/core/utils/app_logger.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/create_challenge_screen/widgets/action_button.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/create_challenge_screen/widgets/description_step.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/create_challenge_screen/widgets/top_divider.dart';
@@ -150,9 +151,8 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
           ),
         );
       }
-    } catch (e, stackTrace) {
-      print('❌ UI: Exception in challenge creation: $e');
-      print('❌ UI: Stack trace: $stackTrace');
+    } catch (e) {
+      AppLogger.debug('Challenge creation failed');
       if (mounted) {
         // Replace the pending screen with the failed screen
         Navigator.pushReplacement(
