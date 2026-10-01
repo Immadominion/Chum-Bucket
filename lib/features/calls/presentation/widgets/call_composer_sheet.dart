@@ -280,11 +280,13 @@ class CallJourneySheet extends StatelessWidget {
   final String title;
   final Widget body;
   final bool busy;
+  final double heightFactor;
   const CallJourneySheet({
     super.key,
     required this.title,
     required this.body,
     this.busy = false,
+    this.heightFactor = .88,
   });
   @override
   Widget build(BuildContext context) {
@@ -305,7 +307,7 @@ class CallJourneySheet extends StatelessWidget {
       canPop: !busy,
       child: ChumbucketWavySheet(
         title: '',
-        height: MediaQuery.sizeOf(context).height * .88,
+        height: MediaQuery.sizeOf(context).height * heightFactor,
         headerHeight: headerHeight / 1.h,
         headerLeading: SizedBox(
           width: width,
