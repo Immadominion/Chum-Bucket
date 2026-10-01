@@ -321,11 +321,13 @@ class _CallPersonScreenState extends State<CallPersonScreen> {
               ),
             if (record.isEmpty)
               const CallsEmptyView(
+                artwork: ChumbucketStateArtwork.record,
                 title: 'Nothing on record yet',
                 message: 'No public free calls are available to score.',
               ),
           ] else if (detail.calls.isEmpty)
             const CallsEmptyView(
+              artwork: ChumbucketStateArtwork.record,
               title: 'Nothing on record yet',
               message: 'When they make a call, it shows up here.',
             )

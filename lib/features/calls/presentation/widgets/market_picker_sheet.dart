@@ -153,6 +153,7 @@ class _MarketPickerSheetState extends State<MarketPickerSheet> {
               ],
               if (rows.isEmpty)
                 CallsEmptyView(
+                  artwork: ChumbucketStateArtwork.search,
                   title: 'Nothing open in this window',
                   message: 'Try another search or time filter.',
                   actionLabel:

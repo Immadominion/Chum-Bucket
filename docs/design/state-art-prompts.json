@@ -1,0 +1,70 @@
+{
+  "generator": "Built-in image_gen imagegen; one reference-guided image per asset",
+  "date": "2026-10-01",
+  "reference": "assets/images/ai_gen/logo/bucket_logo.png",
+  "styleAnchor": "assets/images/states/empty_calls.png",
+  "prompts": {
+    "empty_calls": "Use case: stylized-concept.\nCreate ONE production illustration for an empty prediction-call feed in the Chumbucket mobile app. Image 1 is the brand/style reference, NOT a background to reproduce. Preserve its distinctive pink, tapered bucket-shaped little building, riveted broad curved rim, three cyan portholes, purple bent pipe and small arched door. Same charming hand-inked dark-plum outlines and restrained cel-shaded painted cartoon finish, simplified to remain crisp at 140 logical pixels.\nScene: the bucket-house is quiet, with a single blank speech-bubble-shaped notice card on a little stand beside the door; the notice card has no marks or writing. Slightly curious/inviting mood, not sad or abandoned. This means \"no one has posted a call yet\", not a financial loss.\nCentered isolated compact composition, house is hero, one small supporting prop only. All objects fully visible with 10% outer margin. Square 1024x1024 asset. GENUINELY TRANSPARENT alpha background, no white rectangle, no checkerboard painted into the image, no scenery, no ground plane except a tiny faint contact shadow. Pink/coral #FF3355 and #FF5A76, cyan windows and muted purple pipes derived from reference; dark-plum ink. No words, lettering, numbers, currency, coins, charts, trophy, people, logos/wordmarks, watermark, sparkle confetti, 3D plastic or photorealism. Retain building shape; do not add eyes, face, arms or legs. This is an illustration asset, not a screenshot or UI card.",
+    "record": "undefinedSTATE: no calls on record yet. One large detached upright cream paper record card leans on the ground BESIDE the bucket-house, held by a thin purple clipboard frame. Blank rectangular paper with two clipped lower corners, no writing, lines, checkmark, score or chart. CRITICAL: NO ROLL, no dispenser, no curling strip, no paper mounted to house; this must not resemble toilet tissue. Same compact composition and alpha background."
+  },
+  "outputs": [
+    {
+      "name": "empty_calls",
+      "path": "assets/images/states/empty_calls.png",
+      "original": "/Users/mac/.codex/generated_images/01a09c2e-b95d-7ca0-8cba-9845b17da76d/exec-dc9d9558-9d35-44ac-818c-9d0e9a6cb3e2.png"
+    },
+    {
+      "name": "people",
+      "path": "assets/images/states/people.png",
+      "original": "/Users/mac/.codex/generated_images/01a09c2e-b95d-7ca0-8cba-9845b17da76d/exec-df8c5f53-fc3f-4bd1-809d-d94358bb29f4.png"
+    },
+    {
+      "name": "search",
+      "path": "assets/images/states/search.png",
+      "original": "/Users/mac/.codex/generated_images/01a09c2e-b95d-7ca0-8cba-9845b17da76d/exec-b4b299c0-3dbf-4d4e-8160-ab069b0e0abc.png"
+    },
+    {
+      "name": "inbox",
+      "path": "assets/images/states/inbox.png",
+      "original": "/Users/mac/.codex/generated_images/01a09c2e-b95d-7ca0-8cba-9845b17da76d/exec-cc00ef9f-5d06-423d-830f-feca0308cb2e.png"
+    },
+    {
+      "name": "record",
+      "path": "assets/images/states/record.png",
+      "original": "/Users/mac/.codex/generated_images/01a09c2e-b95d-7ca0-8cba-9845b17da76d/exec-df37ce4f-505d-4c4b-8f24-ef4e548481a3.png"
+    },
+    {
+      "name": "challenges",
+      "path": "assets/images/states/challenges.png",
+      "original": "/Users/mac/.codex/generated_images/01a09c2e-b95d-7ca0-8cba-9845b17da76d/exec-04876762-5d48-44f8-9bb0-bb753e886b00.png"
+    },
+    {
+      "name": "waiting",
+      "path": "assets/images/states/waiting.png",
+      "original": "/Users/mac/.codex/generated_images/01a09c2e-b95d-7ca0-8cba-9845b17da76d/exec-3dff5950-ca47-4d6c-828f-d6bbe0d42314.png"
+    },
+    {
+      "name": "offline",
+      "path": "assets/images/states/offline.png",
+      "original": "/Users/mac/.codex/generated_images/01a09c2e-b95d-7ca0-8cba-9845b17da76d/exec-4ef670fa-1918-4a12-9c7d-ddc623b316b5.png"
+    },
+    {
+      "name": "error",
+      "path": "assets/images/states/error.png",
+      "original": "/Users/mac/.codex/generated_images/01a09c2e-b95d-7ca0-8cba-9845b17da76d/exec-ed4aafe5-3de9-4732-a48b-c2d9c4cace61.png"
+    },
+    {
+      "name": "access",
+      "path": "assets/images/states/access.png",
+      "original": "/Users/mac/.codex/generated_images/01a09c2e-b95d-7ca0-8cba-9845b17da76d/exec-eed24e44-6e5a-4cfc-b907-ff6a6c3a1f77.png"
+    },
+    {
+      "name": "success",
+      "path": "assets/images/states/success.png",
+      "original": "/Users/mac/.codex/generated_images/01a09c2e-b95d-7ca0-8cba-9845b17da76d/exec-90bd31a1-e631-4aba-b9fb-84a2f18687a5.png"
+    }
+  ],
+  "rejected": {
+    "record": "First receipt roll resembled a paper dispenser; regenerated as a detached blank clipboard. Original retained outside the project."
+  }
+}

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:lottie/lottie.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
@@ -235,12 +235,10 @@ Widget buildNoChallengesView({withText = false}) {
     child: Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        withText ? SizedBox(height: 80.h) : SizedBox.shrink(),
-        LottieBuilder.asset(
-          'assets/animations/lottie/done.json',
-          width: withText ? 150.w : 100.w,
-          height: withText ? 150.w : 100.w,
-          fit: BoxFit.contain,
+        if (withText) const SizedBox(height: 24),
+        ChumbucketStateArt(
+          ChumbucketStateArtwork.challenges,
+          size: withText ? 144 : 96,
         ),
         SizedBox(height: 16.h),
         withText

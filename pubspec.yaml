@@ -86,6 +86,7 @@ flutter:
     - assets/fonts/Montserrat/
     - assets/chumbucket_arena_idl.json
     - assets/images/
+    - assets/images/states/
     - assets/images/ai_gen/
     - assets/images/ai_gen/logo/
     - assets/images/ai_gen/profile_images/

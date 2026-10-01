@@ -185,6 +185,7 @@ class _CallMarketsScreenState extends State<CallMarketsScreen> {
           else if (rows.isEmpty)
             SliverToBoxAdapter(
               child: CallsEmptyView(
+                artwork: ChumbucketStateArtwork.search,
                 title:
                     _query.trim().isEmpty
                         ? 'No open markets match these filters'

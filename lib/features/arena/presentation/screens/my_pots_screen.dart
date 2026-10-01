@@ -11,7 +11,7 @@ import 'package:chumbucket/features/arena/data/arena_models.dart';
 import 'package:chumbucket/features/arena/presentation/widgets/arena_format.dart';
 import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
-import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
 
 /// "My Pots" - every Arena match the player has staked into, its status,
 /// and a Claim action once the match has settled. Distinct from the
@@ -116,7 +116,9 @@ class _MyPotsScreenState extends State<MyPotsScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 80.h),
         children: [
-          BasilIcon('award-outline', size: 48.sp, color: Colors.grey),
+          const Center(
+            child: ChumbucketStateArt(ChumbucketStateArtwork.record),
+          ),
           SizedBox(height: 12.h),
           Text(
             'You haven\'t backed any matches yet. Pick a match and put '

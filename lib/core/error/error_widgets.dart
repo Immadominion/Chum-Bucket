@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
 import '../error/error_handler.dart';
 
 /// Error boundary widget that catches and handles widget tree errors
@@ -118,7 +119,7 @@ class DefaultErrorWidget extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.error_outline, size: 64.w, color: Colors.red.shade400),
+          const ChumbucketStateArt.compact(ChumbucketStateArtwork.error),
           SizedBox(height: 16.h),
           Text(
             'Something went wrong',
@@ -208,7 +209,7 @@ class NetworkErrorWidget extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.wifi_off, size: 64.w, color: Colors.orange.shade400),
+          const ChumbucketStateArt.compact(ChumbucketStateArtwork.offline),
           SizedBox(height: 16.h),
           Text(
             'Connection Problem',
@@ -255,7 +256,7 @@ class LoadingErrorWidget extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.warning_amber, size: 48.w, color: Colors.orange),
+          const ChumbucketStateArt.compact(ChumbucketStateArtwork.error),
           SizedBox(height: 12.h),
           Text(
             'Failed to Load',

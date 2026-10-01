@@ -103,6 +103,7 @@ class _RematchSheetState extends State<RematchSheet> {
   Widget _unavailable(RematchOffer offer) => switch (offer.availability) {
     RematchAvailability.notSettled => const CallsStateView(
       icon: 'clock-outline',
+      artwork: ChumbucketStateArtwork.waiting,
       title: 'Not settled yet',
       message:
           'A rematch answers a result. This call is still pending, so there '
@@ -110,6 +111,7 @@ class _RematchSheetState extends State<RematchSheet> {
     ),
     RematchAvailability.ownCall => const CallsStateView(
       icon: 'user-outline',
+      artwork: ChumbucketStateArtwork.record,
       title: 'That one is yours',
       message:
           'You can\'t rematch yourself. Open somebody else\'s settled call to '

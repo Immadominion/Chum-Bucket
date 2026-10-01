@@ -8,6 +8,7 @@ import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.d
 import 'package:chumbucket/features/arena/data/arena_models.dart';
 import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
@@ -133,11 +134,7 @@ class _InboxBody extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              BasilIcon(
-                'cloud-off-outline',
-                size: 36.sp,
-                color: AppColors.textSecondary,
-              ),
+              const ChumbucketStateArt.compact(ChumbucketStateArtwork.error),
               SizedBox(height: 10.h),
               Text(
                 'Could not load notifications',
@@ -158,11 +155,7 @@ class _InboxBody extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              BasilIcon(
-                'notification-outline',
-                size: 40.sp,
-                color: AppColors.textSecondary,
-              ),
+              const ChumbucketStateArt.compact(ChumbucketStateArtwork.inbox),
               SizedBox(height: 10.h),
               Text(
                 'Nothing new right now',

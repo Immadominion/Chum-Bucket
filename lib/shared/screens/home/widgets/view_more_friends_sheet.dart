@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
@@ -74,7 +75,14 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       child:
           widget.friends.isEmpty
-              ? const Text('Your friends will appear here.')
+              ? const Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ChumbucketStateArt.compact(ChumbucketStateArtwork.people),
+                  SizedBox(height: 12),
+                  Text('Your friends will appear here.'),
+                ],
+              )
               : SizedBox(
                 // A wheel needs a bounded viewport. Size it to the actual rows
                 // (up to three), with room for the selected row's magnification.

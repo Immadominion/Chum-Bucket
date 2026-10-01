@@ -12,6 +12,7 @@ import 'package:chumbucket/shared/screens/home/widgets/friends_tab.dart';
 import 'package:chumbucket/shared/screens/home/widgets/header.dart';
 import 'package:chumbucket/shared/widgets/app_components/app_avatar.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_tabs.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class FriendsHubTab extends StatefulWidget {
@@ -156,6 +157,7 @@ class _FollowingPeopleState extends State<_FollowingPeople> {
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 140),
         children: [
           _PeopleNotice(
+            artwork: ChumbucketStateArtwork.access,
             title: 'Keep up with your people',
             message: 'Sign in to see people from your Following feed.',
             action:
@@ -196,6 +198,7 @@ class _FollowingPeopleState extends State<_FollowingPeople> {
                 const LinearProgressIndicator(color: AppColors.primary),
               if (snapshot.hasError)
                 _PeopleNotice(
+                  artwork: ChumbucketStateArtwork.error,
                   title: 'Following unavailable',
                   message:
                       snapshot.error is CallsException
@@ -208,6 +211,7 @@ class _FollowingPeopleState extends State<_FollowingPeople> {
                   !snapshot.hasError &&
                   people.isEmpty)
                 const _PeopleNotice(
+                  artwork: ChumbucketStateArtwork.people,
                   title: 'No recent calls here',
                   message:
                       'Follow someone from their call or profile. Their calls will appear on Home.',
@@ -393,11 +397,13 @@ class _CallInvitationsState extends State<_CallInvitations> {
 }
 
 class _PeopleNotice extends StatelessWidget {
+  final ChumbucketStateArtwork? artwork;
   final String title;
   final String message;
   final VoidCallback? action;
   final String? actionLabel;
   const _PeopleNotice({
+    this.artwork,
     required this.title,
     required this.message,
     this.action,
@@ -415,6 +421,10 @@ class _PeopleNotice extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (artwork != null) ...[
+            Center(child: ChumbucketStateArt.compact(artwork!)),
+            const SizedBox(height: 12),
+          ],
           Text(title, style: styles.titleMedium),
           const SizedBox(height: 8),
           Text(

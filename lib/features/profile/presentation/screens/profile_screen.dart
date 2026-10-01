@@ -10,6 +10,7 @@ import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_detail_screen.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_card.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart';
 import 'package:chumbucket/features/profile/providers/profile_provider.dart';
 import 'package:chumbucket/features/profile/presentation/screens/edit_profile_screen.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_header.dart';
@@ -329,12 +330,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
     if (detail.calls.isEmpty) {
       return [
-        _ProfileActionRow(
-          icon: 'comment-outline',
+        const CallsEmptyView(
+          artwork: ChumbucketStateArtwork.record,
           title: 'Nothing on record yet',
-          detail:
+          message:
               'Your calls will appear here once you make one. Calling is free.',
-          onTap: null,
         ),
       ];
     }

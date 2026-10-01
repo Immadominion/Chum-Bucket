@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/shared/screens/home/widgets/friend_item.dart';
-import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
 
 class FriendsGrid extends StatelessWidget {
   final List<Map<String, String>> friends;
@@ -29,12 +29,8 @@ class FriendsGrid extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 24),
         child: Column(
           children: [
-            const BasilIcon(
-              'user-plus-outline',
-              size: 40,
-              color: AppColors.textPrimary,
-            ),
-            const SizedBox(height: 16),
+            const ChumbucketStateArt(ChumbucketStateArtwork.people),
+            const SizedBox(height: 12),
             Text(
               'Bring your people',
               style: styles.titleLarge,

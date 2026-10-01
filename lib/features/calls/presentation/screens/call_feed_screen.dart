@@ -234,6 +234,10 @@ class _CallFeedScreenState extends State<CallFeedScreen>
           );
         }
         return CallsEmptyView(
+          artwork:
+              provider.feedMode == CallFeedMode.following
+                  ? ChumbucketStateArtwork.people
+                  : ChumbucketStateArtwork.calls,
           title:
               provider.feedMode == CallFeedMode.following
                   ? 'Nobody you follow has called anything'

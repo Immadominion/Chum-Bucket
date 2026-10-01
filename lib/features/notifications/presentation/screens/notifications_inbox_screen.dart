@@ -204,6 +204,7 @@ class _NotificationsInboxScreenState extends State<NotificationsInboxScreen> {
 
       case NotificationsLoadState.empty:
         return CallsEmptyView(
+          artwork: ChumbucketStateArtwork.inbox,
           title:
               provider.filter == NotificationFilter.unread
                   ? 'Nothing unread'

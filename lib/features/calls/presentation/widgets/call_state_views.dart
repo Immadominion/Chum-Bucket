@@ -10,7 +10,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
+
+export 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
 
 /// Shared shell: icon, headline, one explanatory line, at most one action.
 class CallsStateView extends StatelessWidget {
@@ -20,6 +23,7 @@ class CallsStateView extends StatelessWidget {
   final String? actionLabel;
   final VoidCallback? onAction;
   final Color accent;
+  final ChumbucketStateArtwork? artwork;
 
   const CallsStateView({
     super.key,
@@ -29,6 +33,7 @@ class CallsStateView extends StatelessWidget {
     this.actionLabel,
     this.onAction,
     this.accent = AppColors.textTertiary,
+    this.artwork,
   });
 
   @override
@@ -40,17 +45,20 @@ class CallsStateView extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 56.w,
-                height: 56.w,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.10),
-                  shape: BoxShape.circle,
+              if (artwork != null)
+                ChumbucketStateArt(artwork!)
+              else
+                Container(
+                  width: 56.w,
+                  height: 56.w,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.10),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: BasilIcon(icon, size: 26.w, color: accent),
+                  ),
                 ),
-                child: Center(
-                  child: BasilIcon(icon, size: 26.w, color: accent),
-                ),
-              ),
               SizedBox(height: 14.h),
               Text(
                 title,
@@ -178,6 +186,7 @@ class _SkeletonCard extends StatelessWidget {
 
 /// Empty — loaded successfully, there is simply nothing here yet.
 class CallsEmptyView extends StatelessWidget {
+  final ChumbucketStateArtwork artwork;
   final String title;
   final String message;
   final String? actionLabel;
@@ -185,6 +194,7 @@ class CallsEmptyView extends StatelessWidget {
 
   const CallsEmptyView({
     super.key,
+    this.artwork = ChumbucketStateArtwork.calls,
     this.title = 'No calls yet',
     this.message =
         'When someone goes on record, their call shows up here — free, '
@@ -196,6 +206,7 @@ class CallsEmptyView extends StatelessWidget {
   @override
   Widget build(BuildContext context) => CallsStateView(
     icon: 'comment-outline',
+    artwork: artwork,
     title: title,
     message: message,
     actionLabel: actionLabel,
@@ -213,6 +224,7 @@ class CallsErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) => CallsStateView(
     icon: 'info-triangle-outline',
+    artwork: ChumbucketStateArtwork.error,
     accent: AppColors.error,
     title: 'That didn\'t load',
     message: message,
@@ -230,6 +242,7 @@ class CallsOfflineView extends StatelessWidget {
   @override
   Widget build(BuildContext context) => CallsStateView(
     icon: 'cloud-off-outline',
+    artwork: ChumbucketStateArtwork.offline,
     accent: AppColors.warning,
     title: 'You\'re offline',
     message:
@@ -257,6 +270,7 @@ class CallsSignedOutView extends StatelessWidget {
   @override
   Widget build(BuildContext context) => CallsStateView(
     icon: 'user-outline',
+    artwork: ChumbucketStateArtwork.access,
     title: 'Sign in to make a call',
     message: message,
     actionLabel: onSignIn == null ? null : 'Sign in',

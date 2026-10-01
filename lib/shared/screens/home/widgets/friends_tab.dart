@@ -13,6 +13,7 @@ import 'package:chumbucket/shared/screens/home/widgets/challenges_preview.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/shared/services/unified_database_service.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
 
 /// Merge in each friend's resolved X-handle/display-name label, when the
 /// wallet-profile cache already has one — leaves the map untouched otherwise
@@ -384,7 +385,9 @@ class _FriendsTabState extends State<FriendsTab>
                               style: styles.bodySmall,
                             ),
                           ] else if (_hasLoadError && friends.isEmpty) ...[
-                            const BasilIcon('cloud-off-outline', size: 32),
+                            const ChumbucketStateArt.compact(
+                              ChumbucketStateArtwork.error,
+                            ),
                             const SizedBox(height: 12),
                             Text(
                               'Couldn’t load your friends. Check your connection.',

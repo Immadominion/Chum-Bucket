@@ -411,6 +411,7 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
               else if (markets.isEmpty)
                 SliverToBoxAdapter(
                   child: CallsEmptyView(
+                    artwork: ChumbucketStateArtwork.search,
                     title: 'No markets ready for calls',
                     message:
                         'Calls need an open market with current venue prices. '
