@@ -280,6 +280,112 @@ void main() {
     expect(find.text('No matching questions'), findsOneWidget);
   });
 
+  for (final picker in [false, true]) {
+    testWidgets('Panta attribution and units appear once (picker=$picker)', (
+      tester,
+    ) async {
+      final markets = [
+        market('BTC', const Duration(hours: 12), question: 'Will BTC rise?'),
+        market('ETH', const Duration(hours: 13), question: 'Will ETH rise?'),
+      ];
+      final provider = CallsProvider(repository: CatalogRepository(markets))
+        ..setViewer('test-person');
+      addTearDown(provider.dispose);
+      await mount(
+        tester,
+        provider,
+        picker ? const MarketPickerSheet() : const CallMarketsScreen(),
+      );
+      expect(find.textContaining('Powered by Panta'), findsOneWidget);
+      expect(find.textContaining('Prices in USDC/share'), findsOneWidget);
+      expect(find.byType(CallMarketCard), findsNWidgets(2));
+      for (final card in find.byType(CallMarketCard).evaluate()) {
+        expect(
+          find.descendant(
+            of: find.byWidget(card.widget),
+            matching: find.textContaining('Powered by Panta'),
+          ),
+          findsNothing,
+        );
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets(
+    'compact row keeps its complete question, exact price and units',
+    (tester) async {
+      final m = market(
+        'BTC',
+        const Duration(hours: 12),
+        question: 'Will BTC rise?',
+      );
+      final provider = CallsProvider(repository: CatalogRepository([m]));
+      addTearDown(provider.dispose);
+      var opened = false;
+      await mount(
+        tester,
+        provider,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: CallMarketCard(
+            market: m,
+            sharePrice: SharePriceSnapshot(
+              id: 'compact-test',
+              marketId: m.id,
+              yesPrice: '0.62',
+              noPrice: '0.43',
+              observedAt: DateTime.now().millisecondsSinceEpoch,
+            ),
+            onTap: () => opened = true,
+          ),
+        ),
+      );
+      final rowSize = tester.getSize(find.byType(CallMarketCard));
+      expect(rowSize.height, lessThanOrEqualTo(120));
+      expect(rowSize.height, greaterThanOrEqualTo(48));
+      final question = tester.widget<Text>(find.text(m.question));
+      expect(question.maxLines, isNull);
+      expect(question.overflow, isNot(TextOverflow.ellipsis));
+      expect(
+        tester.widget<Text>(find.text('0.62')).semanticsLabel,
+        '0.62 USDC per share, indicative',
+      );
+      expect(find.textContaining('Powered by Panta'), findsNothing);
+      await tester.tap(find.byType(CallMarketCard));
+      expect(opened, isTrue);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('long compact-row question is never clipped at 320dp / 2x', (
+    tester,
+  ) async {
+    final m = market(
+      'OIL',
+      const Duration(hours: 12),
+      question:
+          'Will ICE Brent Crude Oil Futures (December 2026 Contract) settle at or above '
+          r'$104.00 per barrel on Thursday, October 1, 2026, at 6:30 PM BST?',
+    );
+    final provider = CallsProvider(repository: CatalogRepository([m]));
+    addTearDown(provider.dispose);
+    await mount(
+      tester,
+      provider,
+      SingleChildScrollView(
+        child: CallMarketCard(market: m, sharePrice: price(m.id), onTap: () {}),
+      ),
+      width: 320,
+      scale: 2,
+    );
+    final question = tester.widget<Text>(find.text(m.question));
+    expect(question.maxLines, isNull);
+    expect(question.overflow, isNot(TextOverflow.ellipsis));
+    await reveal(tester, find.text('0.430000000000000001'));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('missing side stays unavailable; stale price stays labelled', (
     tester,
   ) async {

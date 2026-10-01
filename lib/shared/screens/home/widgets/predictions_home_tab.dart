@@ -363,6 +363,12 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
                           fontSize: 13.sp,
                         ),
                       ),
+                      if (markets.any(
+                        (market) => market.venue == MarketVenue.panta,
+                      )) ...[
+                        SizedBox(height: 8.h),
+                        const MarketCatalogLegend(),
+                      ],
                       if (calls.openMarketsError != null &&
                           markets.isNotEmpty) ...[
                         SizedBox(height: 12.h),

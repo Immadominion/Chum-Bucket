@@ -120,6 +120,10 @@ class _MarketPickerSheetState extends State<MarketPickerSheet> {
               MarketDiscoveryWindow.endingSoon => 'Closing within 48 hours',
               MarketDiscoveryWindow.thisWeek => 'Closing within 7 days',
             }, style: AppTextStyles.textTheme.bodySmall),
+            if (rows.any((market) => market.venue == MarketVenue.panta)) ...[
+              const SizedBox(height: 8),
+              const MarketCatalogLegend(),
+            ],
             const SizedBox(height: 16),
             if (!provider.isSignedIn)
               const CallsSignedOutView()

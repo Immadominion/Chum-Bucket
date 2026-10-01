@@ -4,7 +4,6 @@ import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart';
-import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 /// Presentation windows only. Server eligibility still governs every write.
 enum MarketDiscoveryWindow {
@@ -100,7 +99,22 @@ class MarketWindowFilters extends StatelessWidget {
   );
 }
 
+/// One attribution/unit legend for the catalog, rather than one per row.
+/// Panta's API terms §6 allow attribution on the relevant market module.
+class MarketCatalogLegend extends StatelessWidget {
+  const MarketCatalogLegend({super.key});
+
+  @override
+  Widget build(BuildContext context) => Text(
+    '${SharePriceSnapshot.attribution} · Prices in USDC/share',
+    style: AppTextStyles.textTheme.bodySmall?.copyWith(
+      color: AppColors.textSecondary,
+    ),
+  );
+}
+
 /// A flat catalog row. Only an actual Panta snapshot supplies share prices.
+/// The parent catalog supplies [MarketCatalogLegend]; detail retains full units.
 class CallMarketCard extends StatelessWidget {
   const CallMarketCard({
     super.key,
@@ -119,56 +133,29 @@ class CallMarketCard extends StatelessWidget {
     child: InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryContainer,
-                    borderRadius: BorderRadius.circular(11),
-                  ),
-                  child: const Center(
-                    child: BasilIcon(
-                      'chart-pie-alt-outline',
-                      size: 22,
-                      color: AppColors.onPrimaryContainer,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        market.question,
-                        style: AppTextStyles.textTheme.titleMedium?.copyWith(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          height: 1.3,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        market.closesAtUtc == null
-                            ? 'Close time unavailable'
-                            : 'Closes ${CallsFormat.timestampShortUtc(market.closesAtUtc!)}',
-                        style: AppTextStyles.textTheme.bodySmall?.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            Text(
+              market.question,
+              style: AppTextStyles.textTheme.titleMedium?.copyWith(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                height: 1.3,
+              ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 4),
+            Text(
+              market.closesAtUtc == null
+                  ? 'Close time unavailable'
+                  : 'Closes ${CallsFormat.timestampShortUtc(market.closesAtUtc!)}',
+              style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 8),
             if (market.venue == MarketVenue.panta)
               MarketSharePrices(
                 snapshot: sharePrice?.marketId == market.id ? sharePrice : null,
@@ -216,7 +203,7 @@ class MarketSharePrices extends StatelessWidget {
                         ),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 10,
-                          vertical: 8,
+                          vertical: 6,
                         ),
                         decoration: BoxDecoration(
                           color:
@@ -242,6 +229,10 @@ class MarketSharePrices extends StatelessWidget {
                             ),
                             Text(
                               snapshot?.priceFor(side) ?? 'Price unavailable',
+                              semanticsLabel:
+                                  snapshot?.priceFor(side) == null
+                                      ? 'Price unavailable'
+                                      : '${snapshot!.priceFor(side)} USDC per share, indicative',
                               style: AppTextStyles.textTheme.bodyMedium
                                   ?.copyWith(fontWeight: FontWeight.w600),
                             ),
@@ -250,20 +241,15 @@ class MarketSharePrices extends StatelessWidget {
                       ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  '${SharePriceSnapshot.attribution} · USDC per share',
-                  style: AppTextStyles.textTheme.bodySmall?.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                if (snapshot != null && !fresh)
+                if (snapshot != null && !fresh) ...[
+                  const SizedBox(height: 6),
                   Text(
                     'Last updated ${CallsFormat.timestampShortUtc(snapshot!.observedAtUtc)} · stale or incomplete',
                     style: AppTextStyles.textTheme.bodySmall?.copyWith(
                       color: AppColors.onWarningContainer,
                     ),
                   ),
+                ],
               ],
             ),
       );

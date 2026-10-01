@@ -1,5 +1,6 @@
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
+import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/presentation/screens/market_detail_screen.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_market_card.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart';
@@ -129,6 +130,12 @@ class _CallMarketsScreenState extends State<CallMarketsScreen> {
                     materialTapTargetSize: MaterialTapTargetSize.padded,
                     visualDensity: VisualDensity.standard,
                   ),
+                  if (rows.any(
+                    (market) => market.venue == MarketVenue.panta,
+                  )) ...[
+                    const SizedBox(height: 8),
+                    const MarketCatalogLegend(),
+                  ],
                 ],
               ),
             ),
