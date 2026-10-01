@@ -2,6 +2,12 @@
 
 Implemented in the existing Flutter app, not a parallel app. [Open the actual-widget screen gallery](index.html).
 
+**Latest correction (1 October):** [whole-app design audit](../design-audit-2026-10-01.md)
+and [1.0.13 catalog/friend checkpoint](../checkpoints/2026-10-01-panta-catalog-and-friends.md).
+Panta discovery now uses a price-independent catalog with all categories/dates
+by default; Add Friend detects wallet/X in one field. The original restricted
+window described below is historical and has been superseded by the user's choice.
+
 **1 October follow-up:** the analyzer is now clean (zero findings), and the suite passes **960 tests, 11 skipped, 0 failed**. See the [lint cleanup and regression-test record](lint-follow-up-2026-10-01.md). The original UI verification below is retained as historical evidence.
 
 **Latest device checkpoint:** **1.0.12** is installed on the Seeker with the existing account preserved. Profile-edit routing, system-bar contrast and large-text navigation were corrected; **972 tests pass, 11 skipped, analyzer clean**. See the [device evidence, artifact hashes and remaining authorization/Panta blockers](../checkpoints/2026-10-01-seeker-ui-continuity.md). This does not establish funded-trading readiness.
