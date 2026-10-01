@@ -277,6 +277,10 @@ void main() {
   });
 
   testWidgets('state family contact sheet', (tester) async {
+    final families = <String, List<ChumbucketStateArtwork>>{};
+    for (final art in ChumbucketStateArtwork.values) {
+      (families[art.assetPath] ??= []).add(art);
+    }
     await _mount(
       tester,
       RepaintBoundary(
@@ -294,7 +298,7 @@ void main() {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Logo-derived artwork · transparent backgrounds · live copy stays in the app',
+                  'Plankton & Karen · different moments, one family · transparent backgrounds',
                   style: TextStyle(fontFamily: 'Montserrat', fontSize: 13),
                 ),
                 const SizedBox(height: 24),
@@ -306,16 +310,16 @@ void main() {
                     childAspectRatio: 1.12,
                     physics: const NeverScrollableScrollPhysics(),
                     children: [
-                      for (final art in ChumbucketStateArtwork.values)
+                      for (final family in families.values)
                         ColoredBox(
                           color: Colors.white,
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              ChumbucketStateArt(art),
+                              ChumbucketStateArt(family.first),
                               const SizedBox(height: 4),
                               Text(
-                                art.name,
+                                family.map((art) => art.name).join(' / '),
                                 style: const TextStyle(
                                   fontFamily: 'Montserrat',
                                   fontSize: 13,
@@ -333,7 +337,7 @@ void main() {
         ),
       ),
       width: 1040,
-      height: 800,
+      height: 590,
     );
     expect(tester.takeException(), isNull);
     await expectLater(
@@ -351,7 +355,20 @@ void main() {
     );
     expect(
       ChumbucketStateArtwork.values.map((a) => a.assetPath).toSet().length,
-      11,
+      8,
+    );
+    expect(ChumbucketStateArtwork.values.length, 11);
+    final bundledPngs =
+        Directory('assets/images/states')
+            .listSync()
+            .whereType<File>()
+            .where((file) => file.path.endsWith('.png'))
+            .map((file) => file.path)
+            .toSet();
+    expect(
+      bundledPngs,
+      ChumbucketStateArtwork.values.map((art) => art.assetPath).toSet(),
+      reason: 'Do not silently bundle the superseded house illustrations.',
     );
   });
 }

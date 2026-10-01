@@ -1,32 +1,37 @@
 # Chumbucket state illustrations
 
-Generated 2026-10-01 with the built-in image-generation tool, using the existing
-`assets/images/ai_gen/logo/bucket_logo.png` as the style reference. The original
-logo is unchanged. Image-generation and design-system skills guided the coherent
-family, explicit state mapping, compact sizing and accessible text separation.
+Revised 2026-10-01 following the founder's direction: use Plankton and his wife
+Karen, not the Chum Bucket building in every state. Generated with the built-in
+image-generation tool. These are the requested recognizable characters from
+SpongeBob, not new original mascots. The original app logo is unchanged.
 
-![The eleven state illustrations](../../test/goldens/state_art_family.png)
+Image-generation and design-system skills guided distinct little character
+scenes with consistent ink, coral accents, compact sizing and live text. The
+first house-based set was rejected; it remains recoverable in commit `8aa1fe3`
+but is replaced in the asset bundle, not shipped alongside the character set.
+
+![The character scenes mapped to eleven states](../../test/goldens/state_art_family.png)
 
 ## Assets and state inventory
 
 All files live in `assets/images/states/`. Each is a separate, square 1254px PNG
 with genuine alpha transparency, not a white background or a sprite-sheet crop.
-The family is approximately 11 MiB. Flutter decodes displayed illustrations at
+The family is approximately 6.2 MiB. Flutter decodes displayed illustrations at
 512px and loads them only when their state is shown.
 
 | Asset | Meaning | Integrated surfaces |
 | --- | --- | --- |
-| `empty_calls.png` | Nothing posted yet; blank call sign | Global call feed and the shared empty-call view |
-| `people.png` | Bring your people; two bucket-houses | Empty friends grid, Following feed, Following people card, empty All Friends sheet |
-| `search.png` | Nothing available for this search/window | Markets, market picker, empty open-market section in Predictions |
-| `inbox.png` | No notifications; empty mailbox | Social inbox (All/Unread), original notification sheet |
-| `record.png` | Nothing on record; blank clipboard | Loaded-empty profile calls, person calls/record, original prediction-history empty state |
-| `challenges.png` | No invitations/challenges; two blank bubbles | Original challenge list and challenge preview |
-| `waiting.png` | No result yet; hourglass | Rematch's not-settled state |
-| `offline.png` | Disconnected; separated cable ends | Shared calls offline state and generic network-error widget |
-| `error.png` | Recoverable load failure; repair wrench | Shared calls error, friends load failure, Following failure, original inbox failure, generic error/loading-error widgets |
-| `access.png` | An account is needed; key | Shared signed-out state and Following sign-in card |
-| `success.png` | Explicit confirmation; single check | Available in the shared library; deliberately not substituted for trading, claims or financial result evidence |
+| `empty_calls.png` | Plankton calling out through a coral megaphone | Global call feed and the shared empty-call view |
+| `people.png` | Plankton offers a tin-can phone; Karen welcomes you | Empty friends grid, Following feed, Following people card, empty All Friends sheet |
+| `search.png` | Plankton plays detective, eye enlarged through a magnifier | Markets, market picker, empty open-market section in Predictions |
+| `inbox.png` | Karen presents a genuinely empty inbox tray | Social inbox (All/Unread), original notification sheet |
+| `record.png` | Plankton thinks over an unwritten notebook | Loaded-empty profile calls, person calls/record, original prediction-history empty state |
+| `people.png` reused for challenges | A friendly invitation from Plankton and Karen | Original challenge list and challenge preview |
+| `record.png` reused for waiting | Thoughtful Plankton; anticipation, not a decided outcome | Rematch's not-settled state |
+| `offline.png` | Karen inspects two disconnected cable ends | Shared calls offline state and generic network-error widget |
+| `error.png` | Plankton helps repair Karen's side panel | Shared calls error, friends load failure, Following failure, original inbox failure, generic error/loading-error widgets |
+| `people.png` reused for access | A welcome from Plankton and Karen | Shared signed-out state and Following sign-in card |
+| `success.png` | Plankton and Karen share a little high-five | Available in the shared library; deliberately not substituted for trading, claims or financial result evidence |
 
 The call detail and market detail screens reuse the same shared error/offline/
 signed-out components. No provider state, data retrieval, status derivation,
@@ -87,10 +92,19 @@ const CallsEmptyView(
 ## Reproducibility
 
 The exact prompts and original output paths are in [state-art-prompts.json](state-art-prompts.json).
-Each sibling used the first generated call illustration as its style anchor.
-The first record variation looked too much like a paper dispenser, so it was
-rejected and regenerated as a blank clipboard. Rejected/original outputs remain
-outside the repository; only the eleven selected outputs are bundled.
+The call, friends and offline scenes established the characters. Other scenes
+used the friends illustration as a character/ink reference while changing the
+action, angle, props and expression. A tool-side output rejection interrupted
+the challenge/waiting requests in a concurrent batch. Neither delivered a
+selected asset; these states reuse the completed invitation/thinking scenes.
+The separate access generation was also rejected; it uses the completed welcome
+scene. Success completed independently. Rejected/interrupted requests were not
+retried through another tool, and no rejected output was recovered.
+
+Eight distinct scenes serve eleven semantic states. No house illustration remains
+in the selected family. Original generated outputs remain outside the project;
+the app loads repository-local PNGs. The three unused house files were removed;
+the rejected house family is recoverable from commit `8aa1fe3`.
 
 `test/chumbucket_state_art_test.dart` verifies bundling, real transparent
 backgrounds and substantial opaque artwork, decorative semantics, compact
