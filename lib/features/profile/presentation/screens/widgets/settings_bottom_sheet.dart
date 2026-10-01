@@ -11,9 +11,6 @@ import 'package:chumbucket/features/profile/presentation/screens/widgets/profile
 import 'package:chumbucket/features/profile/presentation/screens/widgets/identity_link_sheet.dart';
 import 'package:chumbucket/core/services/chat_service.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
-import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
-import 'dart:ui';
-import 'dart:io';
 
 class SettingsBottomSheet extends StatefulWidget {
   const SettingsBottomSheet({super.key});
@@ -24,41 +21,21 @@ class SettingsBottomSheet extends StatefulWidget {
 
 class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
   @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
+  Widget build(BuildContext context) => ChumbucketWavySheet(
+    title: 'Settings & Support',
+    height: MediaQuery.sizeOf(context).height * .8,
+    body: SingleChildScrollView(
       child: Padding(
         padding: EdgeInsets.only(
           left: 24.w,
           right: 24.w,
           top: 24.h,
-          bottom:
-              MediaQuery.of(context).viewInsets.bottom +
-              24.h, // Adjust for keyboard
+          bottom: 24.h,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                IconButton(
-                  icon: BasilIcon('cross-outline', size: 18.sp),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-                SizedBox(width: 24.w),
-              ],
-            ),
-            SizedBox(height: 12.h),
-            Text(
-              "Settings & Support",
-              style: TextStyle(
-                fontSize: 28.sp,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-            ),
-            SizedBox(height: 16.h),
             Consumer<MwaWalletProvider>(
               builder: (context, walletProvider, _) {
                 return MenuTile(
@@ -115,8 +92,8 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
 
   void _showWalletExportWarning(BuildContext context) {
     // First close the settings sheet
@@ -127,28 +104,9 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
       // Check if context is still mounted before showing new modal
       if (context.mounted) {
         // Show wallet export warning sheet
-        showModalBottomSheet(
+        showChumbucketWavySheet<void>(
           context: context,
-          isScrollControlled: true,
-          backgroundColor: Colors.transparent,
-          barrierColor: Colors.black.withValues(alpha: 0.5),
-          elevation: 0,
-          builder: (context) {
-            return BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0),
-              child: SafeArea(
-                child: Padding(
-                  padding: EdgeInsets.only(
-                    bottom:
-                        Platform.isIOS
-                            ? MediaQuery.of(context).padding.bottom + 10.h
-                            : MediaQuery.of(context).padding.bottom + 20.h,
-                  ),
-                  child: const WalletExportWarningSheet(),
-                ),
-              ),
-            );
-          },
+          builder: (_) => const WalletExportWarningSheet(),
         );
       }
     });

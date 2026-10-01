@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'dart:ui';
-import 'dart:io';
-import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
@@ -68,170 +66,51 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
   }
 
   @override
-  Widget build(BuildContext context) {
-    // Calculate responsive height
-    final screenHeight = MediaQuery.of(context).size.height;
-    final maxHeight = screenHeight * 0.87;
-    final minHeight = 450.h;
-    final preferredHeight = 500.h;
-    final finalHeight = preferredHeight.clamp(minHeight, maxHeight);
-
-    return Container(
-      height: finalHeight,
-      margin: EdgeInsets.symmetric(horizontal: 12.w),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(43.r),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            offset: const Offset(0, 8),
-            blurRadius: 24,
-          ),
-        ],
-      ),
-      child: Stack(
+  Widget build(BuildContext context) => ChumbucketWavySheet(
+    title: 'All Friends',
+    subtitle: 'Select a friend to challenge',
+    height: MediaQuery.sizeOf(context).height * .7,
+    body: Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(horizontal: 16.w),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header with gradient background and wave
-          Container(
-            height: 180.h.clamp(140.h, maxHeight * 0.28),
-            width: double.infinity,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(43.r),
-                topRight: Radius.circular(43.r),
-              ),
-            ),
-            child: Stack(
-              children: [
-                // Gradient header
-                Container(
-                  width: double.infinity,
-                  height: 150.h,
-                  decoration: BoxDecoration(
-                    gradient: AppColors.primaryGradient,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(43.r),
-                      topRight: Radius.circular(43.r),
-                    ),
-                  ),
+          // Scrollable friends list with iOS circular picker behavior
+          Expanded(
+            child: AnimatedBuilder(
+              animation: _scrollAnimation,
+              builder: (context, child) {
+                return NotificationListener<ScrollNotification>(
+                  onNotification: (notification) {
+                    // Add subtle feedback on scroll
+                    if (notification is ScrollUpdateNotification) {
+                      // Optional: Add haptic feedback or scroll indicators
+                    }
+                    return false;
+                  },
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      SizedBox(height: 8.h),
-                      // Drag handle
-                      Container(
-                        width: 43.w,
-                        height: 3.2.h,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(2.r),
-                        ),
-                      ),
-                      SizedBox(height: 20.h),
-
-                      SizedBox(height: 8.h),
-                      // Main title
-                      Text(
-                        'All Friends',
-                        style: TextStyle(
-                          fontSize: 24.sp,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      SizedBox(height: 4.h),
-                      // Subtitle
-                      Text(
-                        'Select a friend to challenge',
-                        style: TextStyle(
-                          fontSize: 13.sp,
-                          color: Colors.white.withValues(alpha: 0.8),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                      // iOS Wheel Picker for friends
+                      Expanded(child: _buildFriendsGrid()),
                     ],
                   ),
-                ),
-
-                // White wavy section with smooth waves
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: ClipPath(
-                    clipper: DetailedWaveClipper(),
-                    child: Container(
-                      height: 150.h,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.grey.withValues(alpha: 0.1),
-                            offset: const Offset(0, -2),
-                            blurRadius: 4,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Friends list with iOS-style circular scroll
-          Positioned(
-            top: 120.h,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Container(
-              width: double.infinity,
-              padding: EdgeInsets.symmetric(horizontal: 16.w),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Scrollable friends list with iOS circular picker behavior
-                  Expanded(
-                    child: AnimatedBuilder(
-                      animation: _scrollAnimation,
-                      builder: (context, child) {
-                        return NotificationListener<ScrollNotification>(
-                          onNotification: (notification) {
-                            // Add subtle feedback on scroll
-                            if (notification is ScrollUpdateNotification) {
-                              // Optional: Add haptic feedback or scroll indicators
-                            }
-                            return false;
-                          },
-                          child: Column(
-                            children: [
-                              // iOS Wheel Picker for friends
-                              _buildFriendsGrid(),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
+                );
+              },
             ),
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
 
   Widget _buildFriendsGrid() {
     // iOS-style circular wheel picker for friends
     return Container(
-      height: 350.h, // Fixed height for the wheel picker
       padding: EdgeInsets.symmetric(horizontal: 14.w),
       child: ListWheelScrollView.useDelegate(
         controller: _wheelController,
-        itemExtent: 80.h, // Height of each friend item in the wheel
+        itemExtent: 64 + MediaQuery.textScalerOf(context).scale(40),
         diameterRatio: 1.8, // Controls the curvature - larger = flatter
         perspective: 0.004, // 3D perspective effect for depth
         offAxisFraction: 0.0, // Keep items centered horizontally
@@ -350,12 +229,16 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
                         ),
                       ),
                       SizedBox(width: 6.w),
-                      Text(
-                        'Available',
-                        style: TextStyle(
-                          fontSize: 12.sp,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.grey.shade600,
+                      Flexible(
+                        child: Text(
+                          'Available',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12.sp,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey.shade600,
+                          ),
                         ),
                       ),
                     ],
@@ -382,31 +265,11 @@ Future<void> showViewMoreFriendsSheet(
   BuildContext context, {
   required List<Map<String, String>> friends,
   required Function(String) onFriendSelected,
-}) async {
-  await showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withValues(alpha: 0.5),
-    elevation: 0,
-    builder: (context) {
-      return BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0),
-        child: SafeArea(
-          child: Padding(
-            padding: EdgeInsets.only(
-              bottom:
-                  Platform.isIOS
-                      ? MediaQuery.of(context).padding.bottom + 10.h
-                      : MediaQuery.of(context).padding.bottom + 20.h,
-            ),
-            child: ViewMoreFriendsSheet(
-              friends: friends,
-              onFriendSelected: onFriendSelected,
-            ),
-          ),
-        ),
-      );
-    },
-  );
-}
+}) => showChumbucketWavySheet<void>(
+  context: context,
+  builder:
+      (_) => ViewMoreFriendsSheet(
+        friends: friends,
+        onFriendSelected: onFriendSelected,
+      ),
+);

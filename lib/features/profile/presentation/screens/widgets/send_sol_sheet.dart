@@ -1,17 +1,13 @@
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:provider/provider.dart';
 // MWA Wallet Provider for Pinocchio program integration
 import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
-import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/shared/widgets/widgets.dart';
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
 import 'package:chumbucket/features/wallet/presentation/screens/sol_transfer_result_screen.dart';
-import 'dart:ui';
-import 'dart:io';
 
 class SendSolSheet extends StatefulWidget {
   const SendSolSheet({super.key});
@@ -192,381 +188,224 @@ class _SendSolSheetState extends State<SendSolSheet> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        top: 80.h,
-        bottom: MediaQuery.of(context).viewInsets.bottom * 0.1,
-      ),
-      child: Container(
-        // Simplified height calculation to prevent issues
-        height: MediaQuery.of(context).size.height * 0.7,
-        margin: EdgeInsets.symmetric(horizontal: 12.w),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(43.r),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              offset: const Offset(0, 8),
-              blurRadius: 24,
-            ),
-          ],
-        ),
+  Widget build(BuildContext context) => ChumbucketWavySheet(
+    title: 'Send SOL',
+    subtitle:
+        'Available: ${context.watch<MwaWalletProvider>().balance.toStringAsFixed(4)} SOL',
+    height: MediaQuery.sizeOf(context).height * .8,
+    canDismiss: !_isTransferring,
+    body: Container(
+      padding: EdgeInsets.fromLTRB(24.w, 20.h, 24.w, 24.h),
+      child: SingleChildScrollView(
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Top section with gradient background
+            // Amount input
+            Text(
+              'Amount (SOL)',
+              style: TextStyle(
+                fontSize: 16.sp,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            SizedBox(height: 8.h),
             Container(
-              height: 200.h.clamp(
-                160.h,
-                MediaQuery.of(context).size.height * 0.4,
-              ),
-              width: double.infinity,
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFFF5A76), Color(0xFFFF3355)],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(43.r),
-                  topRight: Radius.circular(43.r),
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(16.r),
+                border: Border.all(
+                  color:
+                      _amountFocusNode.hasFocus
+                          ? const Color(0xFFFF5A76)
+                          : Colors.grey.shade200,
                 ),
               ),
-              child: Stack(
+              child: Row(
                 children: [
-                  // Header content
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    child: Container(
-                      padding: EdgeInsets.fromLTRB(24.w, 20.h, 24.w, 0),
-                      child: Column(
-                        children: [
-                          // Handle bar
-                          Container(
-                            width: 43.w,
-                            height: 3.2.h,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.3),
-                              borderRadius: BorderRadius.circular(2.r),
-                            ),
-                          ),
-                          SizedBox(height: 24.h),
-                          // Icon
-                          Container(
-                            width: 60.w,
-                            height: 60.w,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(18.r),
-                            ),
-                            child: BasilIcon(
-                              'send-outline',
-                              size: 32.w,
-                              color: Colors.white,
-                            ),
-                          ),
-                          SizedBox(height: 16.h),
-                          Text(
-                            'Send SOL',
-                            style: TextStyle(
-                              fontSize: 24.sp,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                          SizedBox(height: 8.h),
-                          Consumer<MwaWalletProvider>(
-                            builder: (context, walletProvider, _) {
-                              return Text(
-                                'Available: ${walletProvider.balance.toStringAsFixed(4)} SOL',
-                                style: TextStyle(
-                                  fontSize: 16.sp,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.white.withValues(alpha: 0.9),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
+                  Expanded(
+                    child: TextField(
+                      controller: _amountController,
+                      focusNode: _amountFocusNode,
+                      onTap: () {
+                        setState(() {}); // Force rebuild to update border color
+                      },
+                      onChanged: (value) {
+                        setState(() {}); // Force rebuild for validation
+                      },
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      textInputAction: TextInputAction.next,
+                      onSubmitted: (_) => _addressFocusNode.requestFocus(),
+                      decoration: InputDecoration(
+                        hintText: '0.05',
+                        hintStyle: TextStyle(
+                          fontSize: 16.sp,
+                          color: Colors.grey.shade400,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16.r),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16.r),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16.r),
+                          borderSide: BorderSide.none,
+                        ),
+                        errorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16.r),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedErrorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16.r),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 16.w,
+                          vertical: 16.h,
+                        ),
+                      ),
+                      style: TextStyle(
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
                       ),
                     ),
                   ),
-
-                  // White wavy bottom section
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: ClipPath(
-                      clipper: DetailedWaveClipper(),
-                      child: Container(height: 40.h, color: Colors.white),
+                  // Max button
+                  Padding(
+                    padding: EdgeInsets.only(right: 8.w),
+                    child: TextButton(
+                      onPressed: _useMaxAmount,
+                      style: TextButton.styleFrom(
+                        backgroundColor: const Color(
+                          0xFFFF5A76,
+                        ).withValues(alpha: 0.1),
+                        foregroundColor: const Color(0xFFFF5A76),
+                        minimumSize: Size(50.w, 32.h),
+                        padding: EdgeInsets.symmetric(horizontal: 12.w),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8.r),
+                        ),
+                      ),
+                      child: Text(
+                        'MAX',
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
 
-            // Bottom section with form
-            Expanded(
-              child: Container(
-                padding: EdgeInsets.fromLTRB(24.w, 20.h, 24.w, 24.h),
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Amount input
-                      Text(
-                        'Amount (SOL)',
-                        style: TextStyle(
-                          fontSize: 16.sp,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      SizedBox(height: 8.h),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(16.r),
-                          border: Border.all(
-                            color:
-                                _amountFocusNode.hasFocus
-                                    ? const Color(0xFFFF5A76)
-                                    : Colors.grey.shade200,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _amountController,
-                                focusNode: _amountFocusNode,
-                                onTap: () {
-                                  setState(
-                                    () {},
-                                  ); // Force rebuild to update border color
-                                },
-                                onChanged: (value) {
-                                  setState(
-                                    () {},
-                                  ); // Force rebuild for validation
-                                },
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                      decimal: true,
-                                    ),
-                                textInputAction: TextInputAction.next,
-                                onSubmitted:
-                                    (_) => _addressFocusNode.requestFocus(),
-                                decoration: InputDecoration(
-                                  hintText: '0.05',
-                                  hintStyle: TextStyle(
-                                    fontSize: 16.sp,
-                                    color: Colors.grey.shade400,
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(16.r),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(16.r),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(16.r),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  errorBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(16.r),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  focusedErrorBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(16.r),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 16.w,
-                                    vertical: 16.h,
-                                  ),
-                                ),
-                                style: TextStyle(
-                                  fontSize: 16.sp,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                            ),
-                            // Max button
-                            Padding(
-                              padding: EdgeInsets.only(right: 8.w),
-                              child: TextButton(
-                                onPressed: _useMaxAmount,
-                                style: TextButton.styleFrom(
-                                  backgroundColor: const Color(
-                                    0xFFFF5A76,
-                                  ).withValues(alpha: 0.1),
-                                  foregroundColor: const Color(0xFFFF5A76),
-                                  minimumSize: Size(50.w, 32.h),
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 12.w,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8.r),
-                                  ),
-                                ),
-                                child: Text(
-                                  'MAX',
-                                  style: TextStyle(
-                                    fontSize: 12.sp,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+            SizedBox(height: 20.h),
 
-                      SizedBox(height: 20.h),
-
-                      // Recipient address input
-                      Text(
-                        'Recipient Address',
-                        style: TextStyle(
-                          fontSize: 16.sp,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      SizedBox(height: 8.h),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(16.r),
-                          border: Border.all(
-                            color:
-                                _addressFocusNode.hasFocus
-                                    ? const Color(0xFFFF5A76)
-                                    : Colors.grey.shade200,
-                          ),
-                        ),
-                        child: TextField(
-                          controller: _addressController,
-                          focusNode: _addressFocusNode,
-                          onTap: () {
-                            setState(
-                              () {},
-                            ); // Force rebuild to update border color
-                          },
-                          onChanged: (value) {
-                            setState(() {}); // Force rebuild for validation
-                          },
-                          textInputAction: TextInputAction.done,
-                          onSubmitted: (_) => FocusScope.of(context).unfocus(),
-                          decoration: InputDecoration(
-                            hintText:
-                                'Enter wallet address or domain (.skr, .abc...)',
-                            hintStyle: TextStyle(
-                              fontSize: 16.sp,
-                              color: Colors.grey.shade400,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16.r),
-                              borderSide: BorderSide.none,
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16.r),
-                              borderSide: BorderSide.none,
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16.r),
-                              borderSide: BorderSide.none,
-                            ),
-                            errorBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16.r),
-                              borderSide: BorderSide.none,
-                            ),
-                            focusedErrorBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16.r),
-                              borderSide: BorderSide.none,
-                            ),
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 16.w,
-                              vertical: 16.h,
-                            ),
-                          ),
-                          style: TextStyle(
-                            fontSize: 16.sp,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.black87,
-                          ),
-                          maxLines: 2,
-                        ),
-                      ),
-
-                      SizedBox(height: 20.h),
-
-                      // Action buttons
-                      ChallengeButton(
-                        createNewChallenge:
-                            _canSendSol ? _performSendSol : () {},
-                        label: _isTransferring ? 'Sending...' : 'Send SOL',
-                        enabled: _canSendSol,
-                        isLoading: _isTransferring,
-                      ),
-                      SizedBox(height: 8.h),
-                      // Cancel button styled like "Failed to complete"
-                      TertiaryActionButton(
-                        text: 'Cancel',
-                        onPressed:
-                            _isTransferring
-                                ? null
-                                : () => Navigator.pop(context),
-                        textColor: const Color(0xFFFF5A76),
-                      ),
-                      SizedBox(height: 20.h), // Extra padding at bottom
-                    ],
-                  ),
-                ),
+            // Recipient address input
+            Text(
+              'Recipient Address',
+              style: TextStyle(
+                fontSize: 16.sp,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
               ),
             ),
+            SizedBox(height: 8.h),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(16.r),
+                border: Border.all(
+                  color:
+                      _addressFocusNode.hasFocus
+                          ? const Color(0xFFFF5A76)
+                          : Colors.grey.shade200,
+                ),
+              ),
+              child: TextField(
+                controller: _addressController,
+                focusNode: _addressFocusNode,
+                onTap: () {
+                  setState(() {}); // Force rebuild to update border color
+                },
+                onChanged: (value) {
+                  setState(() {}); // Force rebuild for validation
+                },
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                decoration: InputDecoration(
+                  hintText: 'Enter wallet address or domain (.skr, .abc...)',
+                  hintStyle: TextStyle(
+                    fontSize: 16.sp,
+                    color: Colors.grey.shade400,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16.r),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16.r),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16.r),
+                    borderSide: BorderSide.none,
+                  ),
+                  errorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16.r),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedErrorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16.r),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 16.w,
+                    vertical: 16.h,
+                  ),
+                ),
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black87,
+                ),
+                maxLines: 2,
+              ),
+            ),
+
+            SizedBox(height: 20.h),
+
+            // Action buttons
+            ChallengeButton(
+              createNewChallenge: _canSendSol ? _performSendSol : () {},
+              label: _isTransferring ? 'Sending...' : 'Send SOL',
+              enabled: _canSendSol,
+              isLoading: _isTransferring,
+            ),
+            SizedBox(height: 8.h),
+            // Cancel button styled like "Failed to complete"
+            TertiaryActionButton(
+              text: 'Cancel',
+              onPressed: _isTransferring ? null : () => Navigator.pop(context),
+              textColor: const Color(0xFFFF5A76),
+            ),
+            SizedBox(height: 20.h), // Extra padding at bottom
           ],
         ),
       ),
-    );
-  }
-}
-
-Future<void> showSendSolSheet(BuildContext context) async {
-  await showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withValues(alpha: 0.5),
-    elevation: 0,
-    builder: (context) {
-      return BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0),
-        child: SafeArea(
-          child: Padding(
-            padding: EdgeInsets.only(
-              // Keyboard handling plus consistent bottom spacing
-              bottom:
-                  MediaQuery.of(
-                    context,
-                  ).viewInsets.bottom.clamp(0.0, double.infinity) +
-                  (Platform.isIOS
-                      ? MediaQuery.of(context).padding.bottom + 10.h
-                      : MediaQuery.of(context).padding.bottom + 20.h),
-            ),
-            child: const SendSolSheet(),
-          ),
-        ),
-      );
-    },
+    ),
   );
 }
+
+Future<void> showSendSolSheet(BuildContext context) =>
+    showChumbucketWavySheet<void>(
+      context: context,
+      builder: (_) => const SendSolSheet(),
+    );

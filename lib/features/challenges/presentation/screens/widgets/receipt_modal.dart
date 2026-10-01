@@ -1,13 +1,12 @@
 import 'dart:io';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/shared/models/models.dart';
 import 'package:screenshot/screenshot.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'receipt_header_widget.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'receipt_content_widget.dart';
 import 'receipt_action_buttons.dart';
 
@@ -25,68 +24,29 @@ class ReceiptModal extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    // Calculate responsive height
-    final screenHeight = MediaQuery.of(context).size.height;
-    final maxHeight = screenHeight * 0.9;
-    final minHeight = 450.h;
-    final preferredHeight = 550.h;
-    final finalHeight = preferredHeight.clamp(minHeight, maxHeight);
-
-    return Container(
-      height: finalHeight,
-      margin: EdgeInsets.symmetric(horizontal: 12.w),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(43.r),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            offset: const Offset(0, 8),
-            blurRadius: 24,
+  Widget build(BuildContext context) => ChumbucketWavySheet(
+    title: 'Challenge receipt',
+    height: MediaQuery.sizeOf(context).height * .85,
+    body: SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+      child: Center(
+        child: Screenshot(
+          controller: screenshotController,
+          child: SizedBox(
+            width: double.infinity,
+            child: ReceiptContentWidget(challenge: challenge, status: status),
           ),
-        ],
+        ),
       ),
-      child: Stack(
-        children: [
-          // Header section
-          const ReceiptHeaderWidget(),
-
-          // Receipt content
-          Padding(
-            padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 24.h),
-            child: Column(
-              children: [
-                // Receipt image with wave stacking effect
-                Expanded(
-                  child: Screenshot(
-                    controller: screenshotController,
-                    // Use intrinsic sizing to fit content exactly.
-                    child: IntrinsicHeight(
-                      child: IntrinsicWidth(
-                        child: ReceiptContentWidget(
-                          challenge: challenge,
-                          status: status,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                SizedBox(height: 24.h),
-
-                // Action buttons
-                ReceiptActionButtons(
-                  onShareImage: () => _shareAsImage(context),
-                  onSharePDF: () => _shareAsPDF(context),
-                ),
-              ],
-            ),
-          ),
-        ],
+    ),
+    footer: Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+      child: ReceiptActionButtons(
+        onShareImage: () => _shareAsImage(context),
+        onSharePDF: () => _shareAsPDF(context),
       ),
-    );
-  }
+    ),
+  );
 
   Future<void> _shareAsImage(BuildContext context) async {
     try {

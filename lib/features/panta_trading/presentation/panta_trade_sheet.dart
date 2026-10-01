@@ -6,7 +6,6 @@ import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../data/panta_trading_models.dart';
 import '../panta_trade_controller.dart';
@@ -85,11 +84,7 @@ class _PantaTradeSheetState extends State<PantaTradeSheet> {
     final phase = controller.phase;
     return ChumbucketWavySheet(
       title: phase == PantaTradePhase.order ? 'Order status' : 'Review trade',
-      // The full question is in the scrollable review, never ellipsized by the
-      // shared sheet header. Reserve enough wave height at large text.
-      headerHeight:
-          (MediaQuery.textScalerOf(context).scale(22) > 33 ? 162.0 : 122.0) /
-          ScreenUtil().scaleHeight,
+      onClose: _close,
       height: MediaQuery.sizeOf(context).height * 0.86,
       body: ListView(
         controller: _scroll,

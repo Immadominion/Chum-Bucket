@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/features/arena/presentation/screens/arena_notifications_screen.dart';
 import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
@@ -42,17 +43,7 @@ class ChumbucketAppHeader extends StatelessWidget {
           if (showAccountActions) _ProfileAvatar(onTap: onProfileTap),
           if (title != null) ...[
             if (showAccountActions) SizedBox(width: 12.w),
-            Expanded(
-              child: Text(
-                title!,
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontFamily: 'PPNeueMachina',
-                  fontSize: 27.sp,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
+            Expanded(child: Text(title!, style: AppTextStyles.pageTitle)),
           ] else
             const Spacer(),
           if (showAccountActions) ...[

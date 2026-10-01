@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
@@ -14,7 +12,7 @@ import 'package:chumbucket/features/arena/presentation/widgets/arena_notificatio
 import 'package:chumbucket/features/arena/presentation/widgets/arena_format.dart';
 import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
-import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
@@ -125,10 +123,8 @@ class _ArenaActivityScreenState extends State<ArenaActivityScreen> {
       return;
     }
 
-    showModalBottomSheet<void>(
+    showChumbucketWavySheet<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder:
           (_) => _CallerProfileSheet(
             wallet: wallet,
@@ -163,10 +159,8 @@ class _ArenaActivityScreenState extends State<ArenaActivityScreen> {
   }
 
   void _openNotifications() {
-    showModalBottomSheet<void>(
+    showChumbucketWavySheet<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder:
           (_) => ArenaNotificationsSheet(
             onOpenClaimable: () {
@@ -354,10 +348,7 @@ class _NotificationBell extends StatelessWidget {
         label: Text(unreadCount > 9 ? '9+' : '$unreadCount'),
         backgroundColor: AppColors.primary,
         textColor: Colors.white,
-        child: BasilIcon(
-          'notification-outline',
-          color: AppColors.textPrimary,
-        ),
+        child: BasilIcon('notification-outline', color: AppColors.textPrimary),
       ),
     );
   }
@@ -949,262 +940,145 @@ class _CallerProfileSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-      child: DraggableScrollableSheet(
-        initialChildSize: 0.82,
-        minChildSize: 0.55,
-        maxChildSize: 0.94,
-        builder: (context, controller) {
-          return Consumer2<ArenaProvider, MwaAuthProvider>(
-            builder: (context, arena, auth, _) {
-              final profile = arena.cachedProfile(wallet);
-              final stats = profile?.stats;
-              final isMe = auth.walletAddress == wallet;
-              final following = arena.isFollowing(wallet);
-              final busy = arena.isFollowBusy(wallet);
+    return Consumer2<ArenaProvider, MwaAuthProvider>(
+      builder: (context, arena, auth, _) {
+        final profile = arena.cachedProfile(wallet);
+        final stats = profile?.stats;
+        final isMe = auth.walletAddress == wallet;
+        final following = arena.isFollowing(wallet);
+        final busy = arena.isFollowBusy(wallet);
 
-              return Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(38.r),
-                  ),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: CustomScrollView(
-                  controller: controller,
-                  slivers: [
-                    SliverToBoxAdapter(
-                      child: SizedBox(
-                        height: 194.h,
-                        child: Stack(
-                          children: [
-                            Container(
-                              height: 168.h,
-                              decoration: const BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    AppColors.lightPrimary,
-                                    AppColors.primary,
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              left: 0,
-                              right: 0,
-                              bottom: 0,
-                              child: ClipPath(
-                                clipper: DetailedWaveClipper(),
-                                child: Container(
-                                  height: 52.h,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              top: 10.h,
-                              left: 0,
-                              right: 0,
-                              child: Center(
-                                child: Container(
-                                  width: 42.w,
-                                  height: 5.h,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.72),
-                                    borderRadius: BorderRadius.circular(99.r),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              top: 54.h,
-                              left: 20.w,
-                              right: 20.w,
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  _CallerAvatar(wallet: wallet, size: 76.w),
-                                  SizedBox(width: 14.w),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          isMe ? 'You' : _shortWallet(wallet),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 24.sp,
-                                            fontWeight: FontWeight.w900,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                        SizedBox(height: 4.h),
-                                        Text(
-                                          wallet,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 11.sp,
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.white.withValues(
-                                              alpha: 0.85,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  if (!isMe)
-                                    _FollowPill(
-                                      isFollowing: following,
-                                      isBusy: busy,
-                                      light: true,
-                                      onTap: busy ? null : onToggleFollow,
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ],
+        return ChumbucketWavySheet(
+          title: isMe ? 'You' : _shortWallet(wallet),
+          subtitle: wallet,
+          headerLeading: _CallerAvatar(wallet: wallet, size: 48),
+          height: MediaQuery.sizeOf(context).height * .86,
+          body: CustomScrollView(
+            slivers: [
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 28.h),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate.fixed([
+                    if (!isMe)
+                      Padding(
+                        padding: EdgeInsets.only(bottom: 14.h),
+                        child: ChallengeButton(
+                          label:
+                              busy
+                                  ? 'Updating...'
+                                  : following
+                                  ? 'Following'
+                                  : 'Follow caller',
+                          isLoading: busy,
+                          blurRadius: false,
+                          createNewChallenge: onToggleFollow,
                         ),
                       ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ProfileStatCard(
+                            label: 'Calls',
+                            value: '${stats?.callsMade ?? 0}',
+                          ),
+                        ),
+                        SizedBox(width: 10.w),
+                        Expanded(
+                          child: _ProfileStatCard(
+                            label: 'Win rate',
+                            value: ArenaFormat.percent(stats?.winRate ?? 0),
+                          ),
+                        ),
+                      ],
                     ),
-                    SliverPadding(
-                      padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 28.h),
-                      sliver: SliverList(
-                        delegate: SliverChildListDelegate.fixed([
-                          if (!isMe)
-                            Padding(
-                              padding: EdgeInsets.only(bottom: 14.h),
-                              child: ChallengeButton(
-                                label:
-                                    busy
-                                        ? 'Updating...'
-                                        : following
-                                        ? 'Following'
-                                        : 'Follow caller',
-                                isLoading: busy,
-                                blurRadius: false,
-                                createNewChallenge: onToggleFollow,
-                              ),
+                    SizedBox(height: 10.h),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ProfileStatCard(
+                            label: 'PnL',
+                            value: _formatSignedUsdc(
+                              stats?.pnlBaseUnits ?? BigInt.zero,
                             ),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _ProfileStatCard(
-                                  label: 'Calls',
-                                  value: '${stats?.callsMade ?? 0}',
-                                ),
-                              ),
-                              SizedBox(width: 10.w),
-                              Expanded(
-                                child: _ProfileStatCard(
-                                  label: 'Win rate',
-                                  value: ArenaFormat.percent(
-                                    stats?.winRate ?? 0,
-                                  ),
-                                ),
-                              ),
-                            ],
+                            valueColor: _moneyColor(
+                              stats?.pnlBaseUnits ?? BigInt.zero,
+                            ),
                           ),
-                          SizedBox(height: 10.h),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _ProfileStatCard(
-                                  label: 'PnL',
-                                  value: _formatSignedUsdc(
-                                    stats?.pnlBaseUnits ?? BigInt.zero,
-                                  ),
-                                  valueColor: _moneyColor(
-                                    stats?.pnlBaseUnits ?? BigInt.zero,
-                                  ),
-                                ),
-                              ),
-                              SizedBox(width: 10.w),
-                              Expanded(
-                                child: _ProfileStatCard(
-                                  label: 'Streak',
-                                  value: '${stats?.currentStreak ?? 0}',
-                                ),
-                              ),
-                            ],
+                        ),
+                        SizedBox(width: 10.w),
+                        Expanded(
+                          child: _ProfileStatCard(
+                            label: 'Streak',
+                            value: '${stats?.currentStreak ?? 0}',
                           ),
-                          SizedBox(height: 14.h),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 14.h),
+                    Container(
+                      padding: EdgeInsets.all(14.w),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceVariant,
+                        borderRadius: BorderRadius.circular(18.r),
+                        border: Border.all(color: AppColors.outlineVariant),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _MiniCount(
+                              label: 'Followers',
+                              value: '${profile?.counts.followers ?? 0}',
+                            ),
+                          ),
                           Container(
-                            padding: EdgeInsets.all(14.w),
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceVariant,
-                              borderRadius: BorderRadius.circular(18.r),
-                              border: Border.all(
-                                color: AppColors.outlineVariant,
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: _MiniCount(
-                                    label: 'Followers',
-                                    value: '${profile?.counts.followers ?? 0}',
-                                  ),
-                                ),
-                                Container(
-                                  width: 1,
-                                  height: 32.h,
-                                  color: AppColors.outlineVariant,
-                                ),
-                                Expanded(
-                                  child: _MiniCount(
-                                    label: 'Following',
-                                    value: '${profile?.counts.following ?? 0}',
-                                  ),
-                                ),
-                              ],
+                            width: 1,
+                            height: 32.h,
+                            color: AppColors.outlineVariant,
+                          ),
+                          Expanded(
+                            child: _MiniCount(
+                              label: 'Following',
+                              value: '${profile?.counts.following ?? 0}',
                             ),
                           ),
-                          SizedBox(height: 18.h),
-                          Text(
-                            'Recent calls',
-                            style: TextStyle(
-                              fontSize: 16.sp,
-                              fontWeight: FontWeight.w900,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          SizedBox(height: 10.h),
-                          if ((profile?.activity ?? const []).isEmpty)
-                            Text(
-                              'No public calls yet.',
-                              style: TextStyle(
-                                fontSize: 13.sp,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textSecondary,
-                              ),
-                            )
-                          else
-                            ...profile!.activity
-                                .take(5)
-                                .map(
-                                  (event) => Padding(
-                                    padding: EdgeInsets.only(bottom: 10.h),
-                                    child: _CompactActivityRow(event: event),
-                                  ),
-                                ),
-                        ]),
+                        ],
                       ),
                     ),
-                  ],
+                    SizedBox(height: 18.h),
+                    Text(
+                      'Recent calls',
+                      style: TextStyle(
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    SizedBox(height: 10.h),
+                    if ((profile?.activity ?? const []).isEmpty)
+                      Text(
+                        'No public calls yet.',
+                        style: TextStyle(
+                          fontSize: 13.sp,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary,
+                        ),
+                      )
+                    else
+                      ...profile!.activity
+                          .take(5)
+                          .map(
+                            (event) => Padding(
+                              padding: EdgeInsets.only(bottom: 10.h),
+                              child: _CompactActivityRow(event: event),
+                            ),
+                          ),
+                  ]),
                 ),
-              );
-            },
-          );
-        },
-      ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -1353,30 +1227,19 @@ class _MiniCount extends StatelessWidget {
 class _FollowPill extends StatelessWidget {
   final bool isFollowing;
   final bool isBusy;
-  final bool light;
   final VoidCallback? onTap;
 
   const _FollowPill({
     required this.isFollowing,
     required this.isBusy,
-    this.light = false,
     this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final background =
-        light
-            ? Colors.white.withValues(alpha: 0.18)
-            : isFollowing
-            ? AppColors.surfaceVariant
-            : AppColors.primaryContainer;
-    final foreground =
-        light
-            ? Colors.white
-            : isFollowing
-            ? AppColors.textPrimary
-            : AppColors.primary;
+        isFollowing ? AppColors.surfaceVariant : AppColors.primaryContainer;
+    final foreground = isFollowing ? AppColors.textPrimary : AppColors.primary;
 
     return Material(
       color: background,

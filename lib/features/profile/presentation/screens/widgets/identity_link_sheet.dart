@@ -61,14 +61,7 @@ class _IdentityLinkSheetState extends State<IdentityLinkSheet> {
               title: 'Link Google',
               subtitle: 'Keep your Chumbucket profile, calls and history.',
               height: 500.h,
-              headerTrailing: IconButton(
-                tooltip: 'Close',
-                onPressed:
-                    session.isLinkingExistingAccount
-                        ? null
-                        : () => Navigator.of(context).pop(),
-                icon: const BasilIcon('cancel-outline', color: Colors.white),
-              ),
+              canDismiss: !session.isLinkingExistingAccount,
               body: SingleChildScrollView(
                 padding: EdgeInsets.fromLTRB(20.w, 10.h, 20.w, 24.h),
                 child: Column(

@@ -7,7 +7,7 @@ import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/arena/data/arena_models.dart';
 import 'package:chumbucket/features/arena/providers/arena_provider.dart';
-import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
@@ -56,136 +56,38 @@ class _ArenaNotificationsSheetState extends State<ArenaNotificationsSheet> {
     return Consumer<ArenaProvider>(
       builder: (context, arena, _) {
         final notifications = arena.notifications;
-        return Container(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * 0.78,
-          ),
-          decoration: BoxDecoration(
-            color: AppColors.background,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28.r)),
-          ),
-          child: SafeArea(
-            top: false,
-            child: Column(
-              children: [
-                _InboxHeader(
-                  unreadCount: arena.unreadNotificationCount,
-                  isMarkingRead: _isMarkingRead,
-                  onClose: () => Navigator.of(context).pop(),
-                  onMarkAllRead: _markAllRead,
-                ),
-                Expanded(
-                  child: _InboxBody(
-                    notifications: notifications,
-                    isLoading: arena.isLoadingNotifications,
-                    error: arena.notificationsError,
-                    onRetry: _retry,
-                    onOpenClaimable: widget.onOpenClaimable,
+        return ChumbucketWavySheet(
+          title: 'Inbox',
+          subtitle:
+              arena.unreadNotificationCount == 0
+                  ? 'You are all caught up.'
+                  : '${arena.unreadNotificationCount} unread updates',
+          height: MediaQuery.sizeOf(context).height * .78,
+          body: Column(
+            children: [
+              if (arena.unreadNotificationCount > 0)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: _isMarkingRead ? null : _markAllRead,
+                    child: Text(
+                      _isMarkingRead ? 'Marking read…' : 'Mark all read',
+                    ),
                   ),
                 ),
-              ],
-            ),
+              Expanded(
+                child: _InboxBody(
+                  notifications: notifications,
+                  isLoading: arena.isLoadingNotifications,
+                  error: arena.notificationsError,
+                  onRetry: _retry,
+                  onOpenClaimable: widget.onOpenClaimable,
+                ),
+              ),
+            ],
           ),
         );
       },
-    );
-  }
-}
-
-class _InboxHeader extends StatelessWidget {
-  final int unreadCount;
-  final bool isMarkingRead;
-  final VoidCallback onClose;
-  final VoidCallback onMarkAllRead;
-
-  const _InboxHeader({
-    required this.unreadCount,
-    required this.isMarkingRead,
-    required this.onClose,
-    required this.onMarkAllRead,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 142.h,
-      child: Stack(
-        children: [
-          ClipPath(
-            clipper: DetailedWaveClipper(),
-            child: Container(
-              height: 132.h,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFFFF5A76), Color(0xFFFF3355)],
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: EdgeInsets.fromLTRB(20.w, 12.h, 12.w, 0),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Inbox',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 22.sp,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Close notifications',
-                      onPressed: onClose,
-                      icon: const BasilIcon('cross-outline', color: Colors.white),
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    Text(
-                      unreadCount == 0
-                          ? 'You are all caught up.'
-                          : '$unreadCount unread ${unreadCount == 1 ? 'update' : 'updates'}',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.86),
-                        fontSize: 12.sp,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const Spacer(),
-                    if (unreadCount > 0)
-                      TextButton(
-                        onPressed: isMarkingRead ? null : onMarkAllRead,
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          padding: EdgeInsets.symmetric(horizontal: 10.w),
-                        ),
-                        child:
-                            isMarkingRead
-                                ? SizedBox(
-                                  width: 16.w,
-                                  height: 16.w,
-                                  child: const CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                                : const Text('Mark all read'),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

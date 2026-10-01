@@ -138,14 +138,7 @@ class CallMarketCard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              market.question,
-              style: AppTextStyles.textTheme.titleMedium?.copyWith(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                height: 1.3,
-              ),
-            ),
+            Text(market.question, style: AppTextStyles.questionTitle),
             const SizedBox(height: 4),
             Text(
               market.closesAtUtc == null

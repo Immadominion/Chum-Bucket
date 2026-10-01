@@ -26,6 +26,30 @@ TextStyle _ppNeueMachina({
 );
 
 class AppTextStyles {
+  /// Product roles use logical pixels, independent of viewport width. System
+  /// text scaling remains in charge. Match the current bundled brand fonts.
+  static const pageTitle = TextStyle(
+    fontFamily: 'PPNeueMachina',
+    fontSize: 28,
+    fontWeight: FontWeight.w800,
+    height: 1.2,
+    color: Color(0xFF111827),
+  );
+  static const questionTitle = TextStyle(
+    fontFamily: 'PPNeueMachina',
+    fontSize: 18,
+    fontWeight: FontWeight.w800,
+    height: 1.3,
+    color: Color(0xFF111827),
+  );
+  static const sheetTitle = TextStyle(
+    fontFamily: 'PPNeueMachina',
+    fontSize: 22,
+    fontWeight: FontWeight.w800,
+    height: 1.25,
+    color: Color(0xFF111827),
+  );
+
   // Backwards compatible static getter using a default dark theme
   static TextTheme get textTheme => textThemeWithColorScheme(
     const ColorScheme(

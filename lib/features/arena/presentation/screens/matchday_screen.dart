@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
@@ -15,7 +13,7 @@ import 'package:chumbucket/features/arena/presentation/screens/my_pots_screen.da
 import 'package:chumbucket/features/arena/presentation/widgets/arena_format.dart';
 import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
-import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 /// Arena matchday list - open fixtures with live pot totals per bucket
@@ -197,10 +195,8 @@ class _MatchCardState extends State<_MatchCard> {
       force: true,
     );
     if (!mounted) return;
-    showModalBottomSheet<void>(
+    showChumbucketWavySheet<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder: (_) => _MatchCallersSheet(match: widget.match),
     );
   }
@@ -495,188 +491,73 @@ class _MatchCallersSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final matchId = match.fixture.matchId;
+    return Consumer<ArenaProvider>(
+      builder: (context, arena, _) {
+        final callers = arena.matchCallersFor(matchId);
+        final isLoading = arena.isLoadingMatchCallers(matchId);
 
-    return BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-      child: DraggableScrollableSheet(
-        initialChildSize: 0.78,
-        minChildSize: 0.5,
-        maxChildSize: 0.92,
-        builder: (context, controller) {
-          return Consumer<ArenaProvider>(
-            builder: (context, arena, _) {
-              final callers = arena.matchCallersFor(matchId);
-              final isLoading = arena.isLoadingMatchCallers(matchId);
+        return ChumbucketWavySheet(
+          title: 'Match callers',
+          subtitle: '${match.fixture.competition} · ${match.fixture.title}',
 
-              return Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(38.r),
-                  ),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: CustomScrollView(
-                  controller: controller,
-                  slivers: [
-                    SliverToBoxAdapter(
-                      child: _CallersSheetHeader(match: match),
+          height: MediaQuery.sizeOf(context).height * .86,
+          body: CustomScrollView(
+            slivers: [
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 28.h),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    ChallengeButton(
+                      label: 'Back this match',
+                      blurRadius: false,
+                      createNewChallenge: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => DareYourselfScreen(match: match),
+                          ),
+                        );
+                      },
                     ),
-                    SliverPadding(
-                      padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 28.h),
-                      sliver: SliverList(
-                        delegate: SliverChildListDelegate([
-                          ChallengeButton(
-                            label: 'Back this match',
-                            blurRadius: false,
-                            createNewChallenge: () {
-                              Navigator.pop(context);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder:
-                                      (_) => DareYourselfScreen(match: match),
-                                ),
-                              );
-                            },
-                          ),
-                          SizedBox(height: 18.h),
-                          Text(
-                            'Who\'s predicting',
-                            style: TextStyle(
-                              fontSize: 16.sp,
-                              fontWeight: FontWeight.w900,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          SizedBox(height: 10.h),
-                          if (isLoading && callers.isEmpty)
-                            ...List.generate(
-                              4,
-                              (_) => Padding(
-                                padding: EdgeInsets.only(bottom: 10.h),
-                                child: const _CallerRowSkeleton(),
-                              ),
-                            )
-                          else if (callers.isEmpty)
-                            _EmptyCallers(match: match)
-                          else
-                            ...callers.map(
-                              (caller) => Padding(
-                                padding: EdgeInsets.only(bottom: 10.h),
-                                child: _CallerRow(
-                                  caller: caller,
-                                  home: match.fixture.home,
-                                  away: match.fixture.away,
-                                ),
-                              ),
-                            ),
-                        ]),
+                    SizedBox(height: 18.h),
+                    Text(
+                      'Who\'s predicting',
+                      style: TextStyle(
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.textPrimary,
                       ),
                     ),
-                  ],
-                ),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _CallersSheetHeader extends StatelessWidget {
-  final ArenaMatchEntry match;
-
-  const _CallersSheetHeader({required this.match});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 190.h,
-      child: Stack(
-        children: [
-          Container(
-            height: 164.h,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [AppColors.lightPrimary, AppColors.primary],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: ClipPath(
-              clipper: DetailedWaveClipper(),
-              child: Container(height: 52.h, color: Colors.white),
-            ),
-          ),
-          Positioned(
-            top: 10.h,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Container(
-                width: 42.w,
-                height: 5.h,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.72),
-                  borderRadius: BorderRadius.circular(99.r),
+                    SizedBox(height: 10.h),
+                    if (isLoading && callers.isEmpty)
+                      ...List.generate(
+                        4,
+                        (_) => Padding(
+                          padding: EdgeInsets.only(bottom: 10.h),
+                          child: const _CallerRowSkeleton(),
+                        ),
+                      )
+                    else if (callers.isEmpty)
+                      _EmptyCallers(match: match)
+                    else
+                      ...callers.map(
+                        (caller) => Padding(
+                          padding: EdgeInsets.only(bottom: 10.h),
+                          child: _CallerRow(
+                            caller: caller,
+                            home: match.fixture.home,
+                            away: match.fixture.away,
+                          ),
+                        ),
+                      ),
+                  ]),
                 ),
               ),
-            ),
+            ],
           ),
-          Positioned(
-            top: 48.h,
-            left: 22.w,
-            right: 22.w,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  match.fixture.competition,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12.sp,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white.withValues(alpha: 0.82),
-                  ),
-                ),
-                SizedBox(height: 6.h),
-                Text(
-                  match.fixture.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 24.sp,
-                    height: 1.05,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                  ),
-                ),
-                SizedBox(height: 8.h),
-                Text(
-                  DateFormat(
-                    'E, MMM d - h:mm a',
-                  ).format(match.fixture.kickoff.toLocal()),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12.sp,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white.withValues(alpha: 0.86),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

@@ -17,34 +17,31 @@ class ReceiptContentWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: EdgeInsets.only(top: 50.h), // Overlap the header
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16.r),
-        child: Stack(
-          children: [
-            // Background image - properly contained
-            Container(
-              width: double.infinity,
-              constraints: BoxConstraints(minHeight: 200.h, maxHeight: 550.h),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16.r),
-                image: const DecorationImage(
-                  image: AssetImage(
-                    'assets/images/open_sourced_design_inspiration/3d-texture.JPG',
-                  ),
-                  fit: BoxFit.cover,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16.r),
+      child: Stack(
+        children: [
+          // Background image - properly contained
+          Container(
+            width: double.infinity,
+            constraints: BoxConstraints(minHeight: 200.h),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16.r),
+              image: const DecorationImage(
+                image: AssetImage(
+                  'assets/images/open_sourced_design_inspiration/3d-texture.JPG',
                 ),
-              ),
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16.r),
-                ),
-                child: _buildReceiptContent(),
+                fit: BoxFit.cover,
               ),
             ),
-          ],
-        ),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16.r),
+              ),
+              child: _buildReceiptContent(),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -206,8 +203,8 @@ class ReceiptContentWidget extends StatelessWidget {
   }
 
   Widget _buildReceiptRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
@@ -217,25 +214,23 @@ class ReceiptContentWidget extends StatelessWidget {
             fontWeight: FontWeight.w500,
           ),
         ),
-        Flexible(
-          child: Text(
-            value,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 13.sp,
-              fontWeight: FontWeight.w600,
-            ),
-            textAlign: TextAlign.right,
-            overflow: TextOverflow.ellipsis,
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 13.sp,
+            fontWeight: FontWeight.w600,
           ),
+          textAlign: TextAlign.left,
         ),
       ],
     );
   }
 
   Widget _buildReceiptRowWithResolver(String label, String address) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
@@ -245,14 +240,13 @@ class ReceiptContentWidget extends StatelessWidget {
             fontWeight: FontWeight.w500,
           ),
         ),
-        Flexible(
-          child: ResolvedAddressText(
-            addressOrLabel: address,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 13.sp,
-              fontWeight: FontWeight.w600,
-            ),
+        const SizedBox(height: 4),
+        ResolvedAddressText(
+          addressOrLabel: address,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 13.sp,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ],

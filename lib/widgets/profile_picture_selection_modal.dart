@@ -1,3 +1,4 @@
+import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
@@ -14,10 +15,8 @@ class ProfilePictureSelectionModal extends StatefulWidget {
     BuildContext context, {
     String? currentProfilePicture,
   }) async {
-    return showModalBottomSheet<int>(
+    return showChumbucketWavySheet<int>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder:
           (context) => ProfilePictureSelectionModal(
             currentProfilePicture: currentProfilePicture,
@@ -142,96 +141,15 @@ class _ProfilePictureSelectionModalState
   }
 
   @override
-  Widget build(BuildContext context) {
-    // Calculate responsive height
-    final screenHeight = MediaQuery.of(context).size.height;
-    final maxHeight = screenHeight * 0.85;
-    final minHeight = 400.h;
-    final preferredHeight = 580.h;
-    final finalHeight = preferredHeight.clamp(minHeight, maxHeight);
-
-    return Container(
-      height: finalHeight,
-      margin: EdgeInsets.only(left: 12.w, right: 12.w, bottom: 36.h),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(43.r),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            offset: const Offset(0, 8),
-            blurRadius: 24,
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(43.r),
-        child: Column(
-          children: [
-            // Header with gradient background
-            _buildHeader(),
-            // Profile picture grid
-            Expanded(child: _buildProfilePictureGrid()),
-            // Action buttons
-            _buildActionButtons(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      height: 140.h,
-      width: double.infinity,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFFFF5A76), Color(0xFFFF3355)],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 20.h),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Handle bar
-              Container(
-                width: 40.w,
-                height: 4.h,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2.r),
-                ),
-              ),
-              SizedBox(height: 16.h),
-              // Title
-              Text(
-                'Choose Your Avatar',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22.sp,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              SizedBox(height: 4.h),
-              Text(
-                'Select from our collection',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.8),
-                  fontSize: 14.sp,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => ChumbucketWavySheet(
+    title: 'Choose Your Avatar',
+    subtitle: 'Select from our collection',
+    height: MediaQuery.sizeOf(context).height * .78,
+    canDismiss: !_isLoading,
+    onClose: _cancelSelection,
+    body: _buildProfilePictureGrid(),
+    footer: _buildActionButtons(),
+  );
 
   Widget _buildProfilePictureGrid() {
     return Padding(
@@ -328,7 +246,8 @@ class _ProfilePictureSelectionModalState
                     ? null
                     : _saveProfilePicture,
             child: Container(
-              height: 56.h,
+              constraints: const BoxConstraints(minHeight: 56),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
               decoration: BoxDecoration(
                 gradient:
                     (_selectedImageId != null && !_isLoading)
@@ -371,6 +290,7 @@ class _ProfilePictureSelectionModalState
                         )
                         : Text(
                           'Save Profile Picture',
+                          textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 18.sp,
                             fontWeight: FontWeight.w700,
@@ -387,8 +307,9 @@ class _ProfilePictureSelectionModalState
           // Secondary action - Cancel (following TertiaryActionButton pattern)
           GestureDetector(
             onTap: _isLoading ? null : _cancelSelection,
-            child: SizedBox(
-              height: 44.h,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 48),
+              padding: const EdgeInsets.symmetric(vertical: 12),
               child: Center(
                 child: Text(
                   'Cancel',

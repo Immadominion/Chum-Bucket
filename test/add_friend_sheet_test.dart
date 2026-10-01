@@ -96,11 +96,16 @@ Future<void> enter(WidgetTester tester, String value) async {
 
 Future<void> submit(WidgetTester tester, [String label = 'Add friend']) async {
   final button = find.widgetWithText(TextButton, label);
+  await tester.pumpAndSettle();
   await tester.scrollUntilVisible(
     button,
     100,
     scrollable: find.byType(Scrollable).first,
   );
+  await tester.pumpAndSettle();
+  await tester.ensureVisible(button);
+  await tester.pumpAndSettle();
+  expect(button.hitTestable(), findsOneWidget);
   await tester.tap(button);
   await tester.pumpAndSettle();
 }

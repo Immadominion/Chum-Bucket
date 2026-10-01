@@ -3,7 +3,6 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
@@ -290,47 +289,11 @@ class CallJourneySheet extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) {
-    // Use the existing header slot for dark, dynamically sized brand type.
-    final width = (MediaQuery.sizeOf(context).width - 84.w).clamp(
-      100.0,
-      double.infinity,
-    );
-    final style = callJourneyHeading(context, 22);
-    final painter = TextPainter(
-      text: TextSpan(text: title, style: style),
-      textDirection: Directionality.of(context),
-      textScaler: MediaQuery.textScalerOf(context),
-    )..layout(maxWidth: width - 56);
-    final headerHeight = (painter.height < 48 ? 48.0 : painter.height) + 76.h;
-    painter.dispose();
-    return PopScope(
-      canPop: !busy,
-      child: ChumbucketWavySheet(
-        title: '',
-        height: MediaQuery.sizeOf(context).height * heightFactor,
-        headerHeight: headerHeight / 1.h,
-        headerLeading: SizedBox(
-          width: width,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: Text(title, style: style)),
-              const SizedBox(width: 8),
-              IconButton(
-                tooltip: 'Close',
-                constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-                onPressed: busy ? null : () => Navigator.of(context).maybePop(),
-                icon: const BasilIcon(
-                  'cross-outline',
-                  size: 22,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ],
-          ),
-        ),
-        body: DefaultTextStyle(style: callJourneyBody(), child: body),
-      ),
+    return ChumbucketWavySheet(
+      title: title,
+      canDismiss: !busy,
+      height: MediaQuery.sizeOf(context).height * heightFactor,
+      body: DefaultTextStyle(style: callJourneyBody(), child: body),
     );
   }
 }

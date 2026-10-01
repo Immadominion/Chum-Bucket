@@ -9,11 +9,9 @@ import 'package:chumbucket/core/utils/base_change_notifier.dart'
     show LoadingState;
 // MWA Wallet Provider for Pinocchio program integration
 import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
-import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'dart:ui';
-import 'dart:io';
 
 /// Wallet modal following the new bottom sheet design pattern
 class WalletModal extends StatefulWidget {
@@ -40,116 +38,12 @@ class _WalletModalState extends State<WalletModal> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    // Calculate responsive height
-    final screenHeight = MediaQuery.of(context).size.height;
-    final maxHeight = screenHeight * 0.85;
-    final minHeight = 450.h;
-    final preferredHeight = 550.h;
-    final finalHeight = preferredHeight.clamp(minHeight, maxHeight);
-
-    return Container(
-      height: finalHeight,
-      margin: EdgeInsets.symmetric(horizontal: 12.w),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(43.r),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            offset: const Offset(0, 8),
-            blurRadius: 24,
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(43.r),
-        child: Stack(
-          children: [
-            // Header with gradient background and wave
-            _buildHeader(),
-
-            // Scrollable content
-            Positioned(
-              top: 120.h,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: _buildScrollableContent(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return SizedBox(
-      height: 200.h,
-      child: Stack(
-        children: [
-          // Gradient Background
-          Container(
-            height: 200.h,
-            width: double.infinity,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFFFF5A76), Color(0xFFFF3355)],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-            ),
-            child: SafeArea(
-              child: Column(
-                children: [
-                  SizedBox(height: 8.h),
-                  // Drag handle
-                  Container(
-                    width: 43.w,
-                    height: 3.2.h,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(2.r),
-                    ),
-                  ),
-                  SizedBox(height: 32.h),
-                  // Title
-                  Text(
-                    'Wallet',
-                    style: TextStyle(
-                      fontSize: 14.sp,
-                      color: Colors.white.withValues(alpha: 0.7),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  SizedBox(height: 4.h),
-                  Text(
-                    'My Wallet Details',
-                    style: TextStyle(
-                      fontSize: 22.sp,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Wave at bottom
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: ClipPath(
-              clipper: DetailedWaveClipper(),
-              child: Container(height: 80.h, color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => ChumbucketWavySheet(
+    title: 'My Wallet Details',
+    subtitle: 'Wallet',
+    height: MediaQuery.sizeOf(context).height * .8,
+    body: SingleChildScrollView(child: _buildScrollableContent()),
+  );
 
   Widget _buildScrollableContent() {
     return Padding(
@@ -163,8 +57,8 @@ class _WalletModalState extends State<WalletModal> {
                 children: [
                   // QR Code
                   Container(
-                    width: 300.w,
-                    height: 300.w,
+                    width: 240,
+                    height: 240,
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16.r),
@@ -180,7 +74,7 @@ class _WalletModalState extends State<WalletModal> {
                 ],
               ),
 
-              Spacer(),
+              const SizedBox(height: 24),
 
               // Disclaimer
               Text(
@@ -307,39 +201,18 @@ class _WalletModalState extends State<WalletModal> {
 }
 
 /// Function to show the wallet modal with backdrop blur
-Future<void> showWalletModal(BuildContext context) async {
-  // Get the wallet provider first to ensure it's available to the modal
-  final walletProvider = Provider.of<MwaWalletProvider>(context, listen: false);
-
-  // Ensure we have the wallet address
+Future<void> showWalletModal(BuildContext context) {
+  // Preserve the originating wallet even when it is scoped below Navigator.
+  final walletProvider = context.read<MwaWalletProvider>();
   if (walletProvider.walletAddress == null) {
     walletProvider.refreshWalletBalance();
   }
-
-  await showModalBottomSheet(
+  return showChumbucketWavySheet<void>(
     context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withValues(alpha: 0.5),
-    elevation: 0,
-    builder: (BuildContext modalContext) {
-      return BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0),
-        child: SafeArea(
-          child: Padding(
-            padding: EdgeInsets.only(
-              bottom:
-                  Platform.isIOS
-                      ? MediaQuery.of(context).padding.bottom + 10.h
-                      : MediaQuery.of(context).padding.bottom + 20.h,
-            ),
-            child: ChangeNotifierProvider<MwaWalletProvider>.value(
-              value: walletProvider,
-              child: const WalletModal(),
-            ),
-          ),
+    builder:
+        (_) => ChangeNotifierProvider<MwaWalletProvider>.value(
+          value: walletProvider,
+          child: const WalletModal(),
         ),
-      );
-    },
   );
 }

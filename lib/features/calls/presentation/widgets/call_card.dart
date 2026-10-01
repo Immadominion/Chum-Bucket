@@ -4,6 +4,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_badges.dart';
@@ -79,16 +80,7 @@ class CallCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              Text(
-                market.question,
-                style: const TextStyle(
-                  fontFamily: 'PPNeueMachina',
-                  color: AppColors.textPrimary,
-                  fontSize: 20,
-                  height: 1.3,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
+              Text(market.question, style: AppTextStyles.questionTitle),
               if (call.thesis?.isNotEmpty ?? false) ...[
                 const SizedBox(height: 10),
                 Text(

@@ -2,7 +2,6 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
@@ -66,10 +65,6 @@ class _MarketPickerSheetState extends State<MarketPickerSheet> {
   @override
   Widget build(BuildContext context) => ChumbucketWavySheet(
     title: 'Choose a market',
-    // Keep long questions in the scrolling body, outside the fixed wave header.
-    headerHeight:
-        (MediaQuery.textScalerOf(context).scale(22) > 33 ? 162.0 : 122.0) /
-        ScreenUtil().scaleHeight,
     height: MediaQuery.sizeOf(context).height * 0.86,
     body: Consumer<CallsProvider>(
       builder: (context, provider, _) {

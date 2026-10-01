@@ -192,6 +192,8 @@ void main() {
       expect(find.text('Ada Okafor'), findsOneWidget);
       expect(find.textContaining('win rate'), findsNothing);
       expect(tester.takeException(), isNull);
+      await revealPeopleText(tester, 'Ada Okafor');
+      expect(find.text('Ada Okafor').hitTestable(), findsOneWidget);
       await tester.tap(find.text('Ada Okafor'));
       await tester.pumpAndSettle();
       expect(find.byType(CallPersonScreen), findsOneWidget);
