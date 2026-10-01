@@ -178,7 +178,7 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
     final isHandle = _target?.kind == FriendIdentifierKind.xHandle;
     return CallJourneySheet(
       title: 'Add a friend',
-      heightFactor: .72,
+      heightFactor: .64,
       busy: _busy,
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
@@ -195,8 +195,6 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
               onPressed: () => Navigator.of(context).maybePop(),
             ),
           ] else ...[
-            Text('Find your people.', style: callJourneyHeading(context, 20)),
-            const SizedBox(height: 8),
             Text(
               'Paste their wallet or type their X handle. We’ll recognise it.',
               style: callJourneyBody(),
