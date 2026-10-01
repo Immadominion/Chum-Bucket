@@ -11,6 +11,16 @@ the floating white card, pink gradient and repeating white scalloped edge.
 Its older Inter/Phosphor notes do **not** override the current app's bundled
 PP Neue Machina/Montserrat/Basil fonts and icons.
 
+The saved Irfan inspiration is also in the repository:
+[`img1.jpeg`](../../assets/images/open_sourced_design_inspiration/irfan/img1.jpeg),
+[`img2.jpeg`](../../assets/images/open_sourced_design_inspiration/irfan/img2.jpeg),
+[`img3.jpeg`](../../assets/images/open_sourced_design_inspiration/irfan/img3.jpeg).
+The original X post was not verified. These saved images show purposeful groups:
+a summary, people, the challenge, then actions with a small bottom inset. The
+amount-summary header is larger because of its content, not because every sheet
+must consume the same fraction of the phone. Preserve the floating-card/wave
+language without imposing that summary layout on a short form or menu.
+
 The previous Flutter wave used a control-point amplitude of 2% of its height.
 A quadratic curve reaches only half that amplitude: typical headers showed
 less than one pixel of curvature. Independent sheet frames and title-size
@@ -47,16 +57,36 @@ showChumbucketWavySheet<void>(
   builder: (_) => ChumbucketWavySheet(
     title: 'Add a friend',
     canDismiss: !busy,
-    body: ListView(children: formFields),
+    body: ListView(
+      shrinkWrap: true,
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+      children: formFields,
+    ),
     // footer: optionalContentSizedActions,
   ),
 );
 ```
 
-The default height is 72% of the screen, clamped to the available viewport.
-Callers can request a different height. Body content must be scrollable when
-it can exceed that space. On short viewports/large text, the header can scroll
-within half the sheet; a footer can scroll within 30%. This leaves a usable
+Sheets now **hug content**, up to the available viewport. There is no default
+screen fraction or minimum height. `maxHeight`, when provided, is a ceiling,
+not a requested height. A short result must shrink after replacing a longer
+form. Avoid `IntrinsicHeight`: lazy viewports cannot provide intrinsic sizes.
+
+Use `SingleChildScrollView` for a finite form, or `shrinkWrap: true` on a list,
+grid or sliver viewport. In a body with pinned actions, use a `Column` with
+`mainAxisSize: MainAxisSize.min` and a **loose `Flexible`** scroll region. An
+`Expanded`, `Spacer`, full-height `Center`, or non-shrink-wrapped viewport
+reintroduces the empty space. The friend wheel is the bounded-viewport exception:
+its height follows the actual number of rows (up to three), not phone height.
+
+Body padding is normally 20dp horizontally, 8dp after the wave and 24dp below
+the last action. A separate footer uses 8dp top / 24dp bottom; its preceding
+scroll body ends with 16dp. Use 8dp within a group, 16–24dp between groups.
+Do not stack extra 32/48dp bottom spacers on top of the frame's clearance.
+
+Content must scroll when it exceeds the ceiling. On short viewports/large text,
+the header can scroll within half the available height; a footer can scroll
+within 30%. This leaves a usable
 body area rather than covering form fields with an absolute-positioned wave.
 Do not double-apply keyboard offsets inside callers. Use minimum button
 heights and wrapping text, not fixed heights that clip enlarged labels.
@@ -89,6 +119,10 @@ Challenge receipt content grows with its data rather than using a clipped
 `test/chumbucket_sheet_system_test.dart` checks the common entry point, wave
 geometry, shared typography, single close control, busy dismissal, viewport
 clearance and 11 existing sheet variants at 390dp/1x and 320dp/2x.
+The 320dp/2x variants are also exercised with a 300dp keyboard.
+`test/chumbucket_sheet_content_fit_test.dart` checks content-only height across
+three phone heights, ceiling semantics, growth/shrinkage, bottom-action spacing,
+short avatar grids and actual fake friend-submission confirmation shrinkage.
 `test/add_friend_sheet_test.dart` additionally proves that the submit button
 is hit-testable with a 300dp keyboard and 2x text; writes use an in-memory fake.
 `test/ui_sheet_system_visual_test.dart` captures the real bundled fonts in

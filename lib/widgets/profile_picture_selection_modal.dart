@@ -144,7 +144,6 @@ class _ProfilePictureSelectionModalState
   Widget build(BuildContext context) => ChumbucketWavySheet(
     title: 'Choose Your Avatar',
     subtitle: 'Select from our collection',
-    height: MediaQuery.sizeOf(context).height * .78,
     canDismiss: !_isLoading,
     onClose: _cancelSelection,
     body: _buildProfilePictureGrid(),
@@ -153,11 +152,14 @@ class _ProfilePictureSelectionModalState
 
   Widget _buildProfilePictureGrid() {
     return Padding(
-      padding: EdgeInsets.all(24.w),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
+          Flexible(
             child: GridView.builder(
+              shrinkWrap: true,
+              padding: EdgeInsets.zero,
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 3,
                 crossAxisSpacing: 16.w,
@@ -235,7 +237,7 @@ class _ProfilePictureSelectionModalState
 
   Widget _buildActionButtons() {
     return Container(
-      padding: EdgeInsets.fromLTRB(24.w, 0, 24.w, 24.h),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

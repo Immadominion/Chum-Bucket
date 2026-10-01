@@ -26,9 +26,8 @@ class ReceiptModal extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ChumbucketWavySheet(
     title: 'Challenge receipt',
-    height: MediaQuery.sizeOf(context).height * .85,
     body: SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
       child: Center(
         child: Screenshot(
           controller: screenshotController,

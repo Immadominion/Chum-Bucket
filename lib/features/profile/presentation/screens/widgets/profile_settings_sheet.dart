@@ -17,72 +17,66 @@ class ProfileSettingsSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ChumbucketWavySheet(
     title: 'Account & Support',
-    height: MediaQuery.sizeOf(context).height * .78,
-    body: Padding(
-      padding: EdgeInsets.fromLTRB(12.w, 0, 12.w, 0.h),
+    body: SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           // Menu items - scrollable content
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  // Note: "My Wallet - Export private key" removed since
-                  // wallet is connected via MWA (Mobile Wallet Adapter)
-                  // Users manage their keys in their wallet app (Phantom, etc.)
-                  ProfileMenuItem(
-                    basilIcon: 'star-outline',
-                    title: 'Rate Chum Bucket',
-                    subtitle: 'Share your experience',
-                    iconColor: Colors.amber,
-                    onTap: () {},
-                  ),
-
-                  ProfileMenuItem(
-                    icon: Icons.help_outline,
-                    title: 'Talk To Support',
-                    subtitle: 'Get help when you need it',
-                    iconColor: Colors.blue,
-                    onTap: () => _openTawkToSupport(context),
-                    iconSize: 30,
-                  ),
-
-                  ProfileMenuItem(
-                    basilIcon: 'user-outline',
-                    title: 'Link Google',
-                    subtitle: 'Keep your existing profile and history',
-                    iconColor: AppColors.primary,
-                    onTap: () => _showIdentityLink(context),
-                  ),
-
-                  ProfileMenuItem(
-                    basilIcon: 'trash-outline',
-                    title: 'Delete Your Account',
-                    subtitle: 'Permanently remove your account',
-                    isDanger: true,
-                    onTap: () {
-                      Navigator.pop(context);
-                      SnackBarUtils.showInfo(
-                        context,
-                        title: 'Coming Soon...',
-                        subtitle: 'You can open a ticket about that for now.',
-                      );
-                    },
-                  ),
-
-                  SizedBox(height: 16.h),
-                ],
+          Column(
+            children: [
+              // Note: "My Wallet - Export private key" removed since
+              // wallet is connected via MWA (Mobile Wallet Adapter)
+              // Users manage their keys in their wallet app (Phantom, etc.)
+              ProfileMenuItem(
+                basilIcon: 'star-outline',
+                title: 'Rate Chum Bucket',
+                subtitle: 'Share your experience',
+                iconColor: Colors.amber,
+                onTap: () {},
               ),
-            ),
+
+              ProfileMenuItem(
+                icon: Icons.help_outline,
+                title: 'Talk To Support',
+                subtitle: 'Get help when you need it',
+                iconColor: Colors.blue,
+                onTap: () => _openTawkToSupport(context),
+                iconSize: 30,
+              ),
+
+              ProfileMenuItem(
+                basilIcon: 'user-outline',
+                title: 'Link Google',
+                subtitle: 'Keep your existing profile and history',
+                iconColor: AppColors.primary,
+                onTap: () => _showIdentityLink(context),
+              ),
+
+              ProfileMenuItem(
+                basilIcon: 'trash-outline',
+                title: 'Delete Your Account',
+                subtitle: 'Permanently remove your account',
+                isDanger: true,
+                onTap: () {
+                  Navigator.pop(context);
+                  SnackBarUtils.showInfo(
+                    context,
+                    title: 'Coming Soon...',
+                    subtitle: 'You can open a ticket about that for now.',
+                  );
+                },
+              ),
+
+              SizedBox(height: 16.h),
+            ],
           ),
 
-          // Fixed bottom buttons
+          // Actions follow the menu; no screen-height spacer or empty tail.
           ChallengeButton(
             createNewChallenge: () => signOutOfChumbucket(context),
             label: 'Sign Out',
           ),
-
-          SizedBox(height: 48.h),
         ],
       ),
     ),
@@ -125,13 +119,11 @@ class _WalletExportWarningSheetState extends State<WalletExportWarningSheet> {
   @override
   Widget build(BuildContext context) => ChumbucketWavySheet(
     title: 'Export Wallet',
-    height: MediaQuery.sizeOf(context).height * .78,
     body: SingleChildScrollView(
       child: Padding(
-        padding: EdgeInsets.fromLTRB(24.w, 0, 24.w, 24.h),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         child: Column(
           children: [
-            SizedBox(height: 20.h),
             Text(
               'Are you sure you want to export your wallet secret phrase?',
               style: TextStyle(
@@ -210,7 +202,6 @@ class _WalletExportWarningSheetState extends State<WalletExportWarningSheet> {
                 ),
               ),
             ),
-            SizedBox(height: 8.h),
           ],
         ),
       ),
@@ -291,24 +282,11 @@ class WalletCopySheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ChumbucketWavySheet(
     title: 'Wallet Address',
-    height: MediaQuery.sizeOf(context).height * .78,
     body: SingleChildScrollView(
       child: Padding(
-        padding: EdgeInsets.fromLTRB(24.w, 0, 24.w, 24.h),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         child: Column(
           children: [
-            SizedBox(height: 20.h),
-            Text(
-              'Your Wallet Address',
-              style: TextStyle(
-                fontSize: 18.sp,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: 16.h),
-
             // Wallet address display
             Container(
               padding: EdgeInsets.all(16.w),
@@ -373,7 +351,6 @@ class WalletCopySheet extends StatelessWidget {
                 ),
               ),
             ),
-            SizedBox(height: 8.h),
           ],
         ),
       ),
@@ -388,13 +365,11 @@ class WalletExportNotAvailableSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ChumbucketWavySheet(
     title: 'Export Not Available',
-    height: MediaQuery.sizeOf(context).height * .78,
     body: SingleChildScrollView(
       child: Padding(
-        padding: EdgeInsets.fromLTRB(24.w, 0, 24.w, 24.h),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         child: Column(
           children: [
-            SizedBox(height: 20.h),
             Text(
               'Your holdings are held in cryptocurrency wallets in your custody.',
               style: TextStyle(
@@ -423,8 +398,6 @@ class WalletExportNotAvailableSheet extends StatelessWidget {
               label: 'Got It',
               hasGradient: false,
             ),
-
-            SizedBox(height: 8.h),
           ],
         ),
       ),

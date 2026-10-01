@@ -233,8 +233,9 @@ class _CallReceiptSheetState extends State<CallReceiptSheet> {
       title: receipt.isSettled ? 'Your receipt' : 'On record',
       busy: _busy,
       body: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
+          Flexible(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               child: Column(

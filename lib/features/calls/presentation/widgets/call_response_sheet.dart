@@ -100,8 +100,9 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
     final blocked = _kind.createsOwnCall && (closed || alreadyCalled);
     final busy = provider.isSubmitting;
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Expanded(
+        Flexible(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
             child: Column(

@@ -63,130 +63,125 @@ class ResolveSheetContent extends StatelessWidget {
     // Only witness can resolve - initiator sees waiting message
     final canResolve = isPending && isWitness;
 
-    return Expanded(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(24.w, 12.h, 24.w, 12.h),
-        child: Column(
-          children: [
-            // Challenge description
-            Flexible(
-              flex: 3,
-              child: Center(
-                child: Container(
-                  constraints: BoxConstraints(maxWidth: 350.w, minHeight: 60.h),
-                  child: Text(
-                    (challenge['description'] as String?) ??
-                        (challenge['title'] as String?) ??
-                        'Create challenge first',
-                    style: TextStyle(
-                      fontSize: 20.sp,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.black,
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Challenge description
+          Center(
+            child: Container(
+              constraints: BoxConstraints(maxWidth: 350.w),
+              child: Text(
+                (challenge['description'] as String?) ??
+                    (challenge['title'] as String?) ??
+                    'Create challenge first',
+                style: TextStyle(
+                  fontSize: 20.sp,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+
+          // View on Explorer button - show if transaction signature or escrow address exists
+          if (_hasExplorerLink()) ...[
+            SizedBox(height: 12.h),
+            TextButton.icon(
+              onPressed: () => _openExplorer(context),
+              icon: BasilIcon(
+                'share-box-outline',
+                size: 18.w,
+                color: Colors.blue.shade600,
+              ),
+              label: Text(
+                'View on Solscan',
+                style: TextStyle(
+                  fontSize: 14.sp,
+                  color: Colors.blue.shade600,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),
+          ],
 
-            // View on Explorer button - show if transaction signature or escrow address exists
-            if (_hasExplorerLink()) ...[
-              SizedBox(height: 12.h),
-              TextButton.icon(
-                onPressed: () => _openExplorer(context),
-                icon: BasilIcon(
-                  'share-box-outline',
-                  size: 18.w,
-                  color: Colors.blue.shade600,
+          const SizedBox(height: 24),
+
+          // Action buttons - only shown to witness
+          if (canResolve) ...[
+            // Challenge completed button
+            ChallengeButton(
+              createNewChallenge: () => onMarkCompleted(challenge, true),
+              label: 'Challenge Completed',
+            ),
+            SizedBox(height: 8.h),
+            // Failed to complete button
+            TextButton(
+              onPressed: () => onMarkCompleted(challenge, false),
+              child: Text(
+                'Failed to complete',
+                style: TextStyle(
+                  fontSize: 17.sp,
+                  color: const Color(0xFFFF5A76),
+                  fontWeight: FontWeight.bold,
                 ),
-                label: Text(
-                  'View on Solscan',
-                  style: TextStyle(
-                    fontSize: 14.sp,
-                    color: Colors.blue.shade600,
-                    fontWeight: FontWeight.w500,
+              ),
+            ),
+          ] else if (isPending && !isWitness) ...[
+            // Initiator sees waiting message
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(25.r),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  BasilIcon(
+                    'sand-watch-outline',
+                    color: Colors.orange.shade600,
+                    size: 20.w,
                   ),
-                ),
-              ),
-            ],
-
-            // Spacer to push buttons to bottom
-            const Spacer(),
-
-            // Action buttons - only shown to witness
-            if (canResolve) ...[
-              // Challenge completed button
-              ChallengeButton(
-                createNewChallenge: () => onMarkCompleted(challenge, true),
-                label: 'Challenge Completed',
-              ),
-              SizedBox(height: 8.h),
-              // Failed to complete button
-              TextButton(
-                onPressed: () => onMarkCompleted(challenge, false),
-                child: Text(
-                  'Failed to complete',
-                  style: TextStyle(
-                    fontSize: 17.sp,
-                    color: const Color(0xFFFF5A76),
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ] else if (isPending && !isWitness) ...[
-              // Initiator sees waiting message
-              Container(
-                width: double.infinity,
-                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(25.r),
-                  border: Border.all(color: Colors.orange.shade200),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    BasilIcon(
-                      'sand-watch-outline',
-                      color: Colors.orange.shade600,
-                      size: 20.w,
-                    ),
-                    SizedBox(width: 8.w),
-                    Flexible(
-                      child: Text(
-                        'Waiting for witness to resolve',
-                        style: TextStyle(
-                          fontSize: 16.sp,
-                          color: Colors.orange.shade700,
-                          fontWeight: FontWeight.w600,
-                        ),
+                  SizedBox(width: 8.w),
+                  Flexible(
+                    child: Text(
+                      'Waiting for witness to resolve',
+                      style: TextStyle(
+                        fontSize: 16.sp,
+                        color: Colors.orange.shade700,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ] else ...[
-              // Completed state
-              Container(
-                width: double.infinity,
-                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(12.r),
-                  border: Border.all(color: Colors.green.shade200),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    BasilIcon(
-                      'check-outline',
-                      color: Colors.green.shade600,
-                      size: 20.w,
-                    ),
-                    SizedBox(width: 8.w),
-                    Text(
+            ),
+          ] else ...[
+            // Completed state
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(12.r),
+                border: Border.all(color: Colors.green.shade200),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  BasilIcon(
+                    'check-outline',
+                    color: Colors.green.shade600,
+                    size: 20.w,
+                  ),
+                  SizedBox(width: 8.w),
+                  Flexible(
+                    child: Text(
                       'Challenge completed',
                       style: TextStyle(
                         fontSize: 16.sp,
@@ -194,13 +189,12 @@ class ResolveSheetContent extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-            SizedBox(height: 8.h), // Bottom padding
+            ),
           ],
-        ),
+        ],
       ),
     );
   }

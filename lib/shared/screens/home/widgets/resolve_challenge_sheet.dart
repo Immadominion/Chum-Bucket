@@ -111,30 +111,33 @@ class _ResolveChallengeSheetState extends State<ResolveChallengeSheet> {
     return ChumbucketWavySheet(
       title: 'Bet Amount',
       subtitle: '$amountText SOL',
-      height: MediaQuery.sizeOf(context).height * .78,
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 8, bottom: 16),
-            child: FutureBuilder<String>(
-              future: AddressNameResolver.resolveDisplayName(friendRaw),
-              builder:
-                  (context, snapshot) => OverlappingProfileAvatars(
-                    userImagePath: 'assets/images/ai_gen/profile_images/1.png',
-                    friendImagePath:
-                        'assets/images/ai_gen/profile_images/2.png',
-                    friendDisplayName:
-                        snapshot.data ?? _shortenAddress(friendRaw),
-                  ),
+      body: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 16),
+              child: FutureBuilder<String>(
+                future: AddressNameResolver.resolveDisplayName(friendRaw),
+                builder:
+                    (context, snapshot) => OverlappingProfileAvatars(
+                      userImagePath:
+                          'assets/images/ai_gen/profile_images/1.png',
+                      friendImagePath:
+                          'assets/images/ai_gen/profile_images/2.png',
+                      friendDisplayName:
+                          snapshot.data ?? _shortenAddress(friendRaw),
+                    ),
+              ),
             ),
-          ),
-          ResolveSheetContent(
-            challenge: widget.challenge,
-            isPending: isResolvable,
-            isWitness: widget.challenge['isCurrentUserWitness'] == true,
-            onMarkCompleted: _safeMarkCompleted,
-          ),
-        ],
+            ResolveSheetContent(
+              challenge: widget.challenge,
+              isPending: isResolvable,
+              isWitness: widget.challenge['isCurrentUserWitness'] == true,
+              onMarkCompleted: _safeMarkCompleted,
+            ),
+          ],
+        ),
       ),
     );
   }

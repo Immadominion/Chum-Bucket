@@ -60,7 +60,6 @@ class _IdentityLinkSheetState extends State<IdentityLinkSheet> {
             child: ChumbucketWavySheet(
               title: 'Link Google',
               subtitle: 'Keep your Chumbucket profile, calls and history.',
-              height: 500.h,
               canDismiss: !session.isLinkingExistingAccount,
               body: SingleChildScrollView(
                 padding: EdgeInsets.fromLTRB(20.w, 10.h, 20.w, 24.h),

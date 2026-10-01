@@ -192,10 +192,9 @@ class _SendSolSheetState extends State<SendSolSheet> {
     title: 'Send SOL',
     subtitle:
         'Available: ${context.watch<MwaWalletProvider>().balance.toStringAsFixed(4)} SOL',
-    height: MediaQuery.sizeOf(context).height * .8,
     canDismiss: !_isTransferring,
     body: Container(
-      padding: EdgeInsets.fromLTRB(24.w, 20.h, 24.w, 24.h),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

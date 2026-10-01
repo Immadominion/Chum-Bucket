@@ -952,8 +952,8 @@ class _CallerProfileSheet extends StatelessWidget {
           title: isMe ? 'You' : _shortWallet(wallet),
           subtitle: wallet,
           headerLeading: _CallerAvatar(wallet: wallet, size: 48),
-          height: MediaQuery.sizeOf(context).height * .86,
           body: CustomScrollView(
+            shrinkWrap: true,
             slivers: [
               SliverPadding(
                 padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 28.h),

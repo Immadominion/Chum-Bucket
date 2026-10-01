@@ -40,14 +40,12 @@ class _WalletModalState extends State<WalletModal> {
   @override
   Widget build(BuildContext context) => ChumbucketWavySheet(
     title: 'My Wallet Details',
-    subtitle: 'Wallet',
-    height: MediaQuery.sizeOf(context).height * .8,
     body: SingleChildScrollView(child: _buildScrollableContent()),
   );
 
   Widget _buildScrollableContent() {
     return Padding(
-      padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 18.h),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       child: Consumer<MwaWalletProvider>(
         builder: (context, walletProvider, _) {
           return Column(

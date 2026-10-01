@@ -65,7 +65,6 @@ class _MarketPickerSheetState extends State<MarketPickerSheet> {
   @override
   Widget build(BuildContext context) => ChumbucketWavySheet(
     title: 'Choose a market',
-    height: MediaQuery.sizeOf(context).height * 0.86,
     body: Consumer<CallsProvider>(
       builder: (context, provider, _) {
         final rows = discoveryMarkets(
@@ -74,7 +73,8 @@ class _MarketPickerSheetState extends State<MarketPickerSheet> {
           query: _query,
         );
         return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
           children: [
             Text(
               'Your opinion. No money involved.',

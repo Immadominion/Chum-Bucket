@@ -276,13 +276,18 @@ void main() {
       );
       expect(find.textContaining('no amount is set'), findsOneWidget);
 
-      // The note field sits below the fold on a 390pt phone, and a ListView
-      // only builds what it can show — so scroll to it before asserting.
-      // Deliberately scrolled rather than asserted blind: the point of this
-      // test is that no amount input exists ANYWHERE in the sheet, and that
-      // claim is only meaningful once the whole sheet has been built.
-      await tester.scrollUntilVisible(find.byType(TextField), 200);
+      // The content-sized list also builds the note's editable Scrollable.
+      // Target the outer form instead of assuming a single scrollable exists.
+      await tester.scrollUntilVisible(
+        find.byType(TextField),
+        200,
+        scrollable: find.descendant(
+          of: find.byType(ListView),
+          matching: find.byType(Scrollable),
+        ).first,
+      );
       await tester.pumpAndSettle();
+      expect(find.byType(TextField).hitTestable(), findsOneWidget);
 
       // Exactly one input, and it is the note. No amount field, no slider.
       expect(find.byType(TextField), findsOneWidget);

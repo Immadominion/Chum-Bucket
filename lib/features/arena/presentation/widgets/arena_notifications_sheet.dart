@@ -62,8 +62,8 @@ class _ArenaNotificationsSheetState extends State<ArenaNotificationsSheet> {
               arena.unreadNotificationCount == 0
                   ? 'You are all caught up.'
                   : '${arena.unreadNotificationCount} unread updates',
-          height: MediaQuery.sizeOf(context).height * .78,
           body: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               if (arena.unreadNotificationCount > 0)
                 Align(
@@ -75,7 +75,7 @@ class _ArenaNotificationsSheetState extends State<ArenaNotificationsSheet> {
                     ),
                   ),
                 ),
-              Expanded(
+              Flexible(
                 child: _InboxBody(
                   notifications: notifications,
                   isLoading: arena.isLoadingNotifications,
@@ -111,6 +111,7 @@ class _InboxBody extends StatelessWidget {
   Widget build(BuildContext context) {
     if (isLoading && notifications.isEmpty) {
       return ListView.separated(
+        shrinkWrap: true,
         padding: EdgeInsets.fromLTRB(20.w, 4.h, 20.w, 24.h),
         itemCount: 4,
         separatorBuilder: (_, __) => SizedBox(height: 10.h),
@@ -126,6 +127,7 @@ class _InboxBody extends StatelessWidget {
     }
     if (error != null && notifications.isEmpty) {
       return Center(
+        heightFactor: 1,
         child: Padding(
           padding: EdgeInsets.all(28.w),
           child: Column(
@@ -150,6 +152,7 @@ class _InboxBody extends StatelessWidget {
     }
     if (notifications.isEmpty) {
       return Center(
+        heightFactor: 1,
         child: Padding(
           padding: EdgeInsets.all(28.w),
           child: Column(
@@ -181,6 +184,7 @@ class _InboxBody extends StatelessWidget {
     }
 
     return ListView.separated(
+      shrinkWrap: true,
       padding: EdgeInsets.fromLTRB(20.w, 4.h, 20.w, 24.h),
       itemCount: notifications.length,
       separatorBuilder: (_, __) => SizedBox(height: 10.h),

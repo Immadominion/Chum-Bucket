@@ -80,17 +80,20 @@ class _RematchSheetState extends State<RematchSheet> {
     return ChumbucketWavySheet(
       title: 'Rematch ${offer.opponentDisplayName}',
       subtitle: offer.marketQuestion,
-      height: MediaQuery.sizeOf(context).height * 0.80,
       body: Consumer<CallsProvider>(
         builder: (context, provider, _) {
           if (!provider.isSignedIn) {
-            return const CallsSignedOutView(
-              message:
-                  'Sign in to send a rematch. It is free — no wallet, no '
-                  'stake, nothing to fund.',
+            return const SingleChildScrollView(
+              child: CallsSignedOutView(
+                message:
+                    'Sign in to send a rematch. It is free — no wallet, no '
+                    'stake, nothing to fund.',
+              ),
             );
           }
-          if (!offer.isAvailable) return _unavailable(offer);
+          if (!offer.isAvailable) {
+            return SingleChildScrollView(child: _unavailable(offer));
+          }
           return _form(provider, offer);
         },
       ),
@@ -119,9 +122,11 @@ class _RematchSheetState extends State<RematchSheet> {
 
   Widget _form(CallsProvider provider, RematchOffer offer) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Expanded(
+        Flexible(
           child: ListView(
+            shrinkWrap: true,
             padding: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 12.h),
             children: [
               _Opponent(offer: offer),
@@ -166,10 +171,7 @@ class _RematchSheetState extends State<RematchSheet> {
                   LengthLimitingTextInputFormatter(kThesisMaxLength),
                 ],
                 textCapitalization: TextCapitalization.sentences,
-                style: TextStyle(
-                  fontSize: 14.sp,
-                  color: AppColors.textPrimary,
-                ),
+                style: TextStyle(fontSize: 14.sp, color: AppColors.textPrimary),
                 decoration: InputDecoration(
                   hintText: 'What are you daring them to call? (optional)',
                   hintStyle: TextStyle(

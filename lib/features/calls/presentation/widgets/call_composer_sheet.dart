@@ -127,8 +127,9 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
     final market = widget.market;
     final open = market.status.acceptsNewCalls;
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Expanded(
+        Flexible(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
             child: Column(
@@ -279,20 +280,17 @@ class CallJourneySheet extends StatelessWidget {
   final String title;
   final Widget body;
   final bool busy;
-  final double heightFactor;
   const CallJourneySheet({
     super.key,
     required this.title,
     required this.body,
     this.busy = false,
-    this.heightFactor = .88,
   });
   @override
   Widget build(BuildContext context) {
     return ChumbucketWavySheet(
       title: title,
       canDismiss: !busy,
-      height: MediaQuery.sizeOf(context).height * heightFactor,
       body: DefaultTextStyle(style: callJourneyBody(), child: body),
     );
   }

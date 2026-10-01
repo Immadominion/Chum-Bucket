@@ -37,12 +37,13 @@ Future<void> mountSheetSystem(
   WidgetTester tester,
   Widget child, {
   double width = 390,
+  double height = 844,
   double scale = 1,
   double keyboard = 0,
   double topInset = 0,
 }) async {
   tester.view.devicePixelRatio = 1;
-  tester.view.physicalSize = Size(width, 844);
+  tester.view.physicalSize = Size(width, height);
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
   final wallet = ConnectedWallet();
@@ -202,7 +203,10 @@ void main() {
         ChumbucketWavySheet(
           title: 'A longer sheet heading',
           subtitle: 'Keep the existing account and history',
-          body: ListView(children: List.generate(20, (i) => Text('Row $i'))),
+          body: ListView(
+            shrinkWrap: true,
+            children: List.generate(20, (i) => Text('Row $i')),
+          ),
         ),
         width: width,
         scale: scale,
@@ -338,22 +342,28 @@ void main() {
   );
 
   for (final scene in sheetScenes().entries) {
-    for (final (width, scale) in [(390.0, 1.0), (320.0, 2.0)]) {
-      testWidgets('${scene.key} uses the shared shell at $width/$scale', (
-        tester,
-      ) async {
-        await mountSheetSystem(
-          tester,
-          scene.value(),
-          width: width,
-          scale: scale,
-        );
-        expect(tester.takeException(), isNull);
-        expect(find.byType(ChumbucketWavySheet), findsOneWidget);
-        expect(find.byType(ChumbucketSheetWave), findsOneWidget);
-        expect(find.byTooltip('Close'), findsOneWidget);
-        await tester.pumpWidget(const SizedBox());
-      });
+    for (final (width, scale, keyboard) in [
+      (390.0, 1.0, 0.0),
+      (320.0, 2.0, 0.0),
+      (320.0, 2.0, 300.0),
+    ]) {
+      testWidgets(
+        '${scene.key} uses the shared shell at $width/$scale/$keyboard',
+        (tester) async {
+          await mountSheetSystem(
+            tester,
+            scene.value(),
+            width: width,
+            scale: scale,
+            keyboard: keyboard,
+          );
+          expect(tester.takeException(), isNull);
+          expect(find.byType(ChumbucketWavySheet), findsOneWidget);
+          expect(find.byType(ChumbucketSheetWave), findsOneWidget);
+          expect(find.byTooltip('Close'), findsOneWidget);
+          await tester.pumpWidget(const SizedBox());
+        },
+      );
     }
   }
 }

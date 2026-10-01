@@ -500,8 +500,8 @@ class _MatchCallersSheet extends StatelessWidget {
           title: 'Match callers',
           subtitle: '${match.fixture.competition} · ${match.fixture.title}',
 
-          height: MediaQuery.sizeOf(context).height * .86,
           body: CustomScrollView(
+            shrinkWrap: true,
             slivers: [
               SliverPadding(
                 padding: EdgeInsets.fromLTRB(20.w, 0, 20.w, 28.h),

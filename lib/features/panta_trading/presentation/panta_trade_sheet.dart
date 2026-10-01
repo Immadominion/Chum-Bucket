@@ -85,10 +85,10 @@ class _PantaTradeSheetState extends State<PantaTradeSheet> {
     return ChumbucketWavySheet(
       title: phase == PantaTradePhase.order ? 'Order status' : 'Review trade',
       onClose: _close,
-      height: MediaQuery.sizeOf(context).height * 0.86,
       body: ListView(
+        shrinkWrap: true,
         controller: _scroll,
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,

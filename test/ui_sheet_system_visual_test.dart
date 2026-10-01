@@ -72,6 +72,20 @@ void main() {
           width: width,
           scale: scale,
         );
+        // Asset decoding is real asynchronous work. Settle alone can capture
+        // empty avatar tiles before the codec has delivered its first frame.
+        await tester.runAsync(() async {
+          final context = tester.element(
+            find.byKey(const ValueKey('sheet-capture')),
+          );
+          for (var i = 1; i <= 5; i++) {
+            await precacheImage(
+              AssetImage('assets/images/ai_gen/profile_images/$i.png'),
+              context,
+            );
+          }
+        });
+        await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         await expectLater(
           find.byKey(const ValueKey('sheet-capture')),

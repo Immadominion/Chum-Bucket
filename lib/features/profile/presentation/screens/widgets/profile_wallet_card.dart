@@ -69,7 +69,8 @@ class _PrivateWalletDetails extends StatelessWidget {
     final wallet = context.watch<MwaWalletProvider>();
     final styles = AppTextStyles.textTheme;
     return ListView(
-      padding: const EdgeInsets.all(20),
+      shrinkWrap: true,
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       children: [
         Text(
           'Private · only you can see this balance',

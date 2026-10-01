@@ -26,18 +26,19 @@ class MatchCallersSheet extends StatelessWidget {
     return ChumbucketWavySheet(
       title: match.fixture.title,
       subtitle: match.fixture.competition,
-      height: MediaQuery.sizeOf(context).height * 0.76,
       body: Consumer<ArenaProvider>(
         builder: (context, arena, _) {
           final callers = arena.matchCallersFor(matchId);
           final loading = arena.isLoadingMatchCallers(matchId);
           final hadError = arena.matchCallersHadError(matchId);
           return Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
+              Flexible(
                 child:
                     loading && callers.isEmpty
                         ? const Center(
+                          heightFactor: 2,
                           child: CircularProgressIndicator(
                             color: AppColors.primary,
                           ),
@@ -57,6 +58,7 @@ class MatchCallersSheet extends StatelessWidget {
                           title: 'Be the first to predict this match',
                         )
                         : ListView.separated(
+                          shrinkWrap: true,
                           padding: EdgeInsets.fromLTRB(20.w, 8.h, 20.w, 12.h),
                           itemCount: callers.length,
                           separatorBuilder:
@@ -160,6 +162,7 @@ class _CallersState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
+      heightFactor: 1,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

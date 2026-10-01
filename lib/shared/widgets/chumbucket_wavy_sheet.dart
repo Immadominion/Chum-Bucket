@@ -14,7 +14,7 @@ class ChumbucketWavySheet extends StatelessWidget {
     required this.title,
     required this.body,
     this.subtitle,
-    this.height,
+    this.maxHeight,
     this.headerLeading,
     this.footer,
     this.canDismiss = true,
@@ -24,7 +24,11 @@ class ChumbucketWavySheet extends StatelessWidget {
   final String title;
   final String? subtitle;
   final Widget body;
-  final double? height;
+
+  /// Optional ceiling, never a requested height. Bodies must shrink-wrap:
+  /// use a SingleChildScrollView, or shrinkWrap: true for list/grid viewports.
+  /// In a body Column use mainAxisSize.min + Flexible, not Expanded/Spacer.
+  final double? maxHeight;
   final Widget? headerLeading;
   final Widget? footer;
   final bool canDismiss;
@@ -44,10 +48,7 @@ class ChumbucketWavySheet extends StatelessWidget {
             0.0,
             math.min(constraints.maxHeight, media.size.height) - top - bottom,
           );
-          final sheetHeight = math.min(
-            height ?? media.size.height * .72,
-            available,
-          );
+          final heightLimit = math.min(maxHeight ?? available, available);
           return BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
             child: Stack(
@@ -75,7 +76,8 @@ class ChumbucketWavySheet extends StatelessWidget {
                   child: Align(
                     alignment: Alignment.bottomCenter,
                     child: Container(
-                      height: sheetHeight,
+                      key: const ValueKey('chumbucket-sheet-surface'),
+                      constraints: BoxConstraints(maxHeight: heightLimit),
                       width: double.infinity,
                       decoration: BoxDecoration(
                         color: AppColors.surface,
@@ -90,6 +92,7 @@ class ChumbucketWavySheet extends StatelessWidget {
                       ),
                       clipBehavior: Clip.antiAlias,
                       child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           // Titles wrap naturally. On very short keyboard/landscape
                           // viewports the header can scroll without starving the body.
@@ -102,7 +105,7 @@ class ChumbucketWavySheet extends StatelessWidget {
                                 canClose: canDismiss,
                                 onClose: onClose,
                               );
-                              final maxHeight = sheetHeight * .5;
+                              final maxHeight = heightLimit * .5;
                               return header.naturalHeight(
                                         context,
                                         headerConstraints.maxWidth,
@@ -115,7 +118,7 @@ class ChumbucketWavySheet extends StatelessWidget {
                                   );
                             },
                           ),
-                          Expanded(
+                          Flexible(
                             child: Material(
                               color: AppColors.surface,
                               child: DefaultTextStyle(
@@ -128,7 +131,7 @@ class ChumbucketWavySheet extends StatelessWidget {
                           if (footer != null)
                             ConstrainedBox(
                               constraints: BoxConstraints(
-                                maxHeight: sheetHeight * .3,
+                                maxHeight: heightLimit * .3,
                               ),
                               child: SingleChildScrollView(child: footer!),
                             ),

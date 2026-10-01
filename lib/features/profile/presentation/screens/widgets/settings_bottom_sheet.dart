@@ -23,15 +23,9 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
   @override
   Widget build(BuildContext context) => ChumbucketWavySheet(
     title: 'Settings & Support',
-    height: MediaQuery.sizeOf(context).height * .8,
     body: SingleChildScrollView(
       child: Padding(
-        padding: EdgeInsets.only(
-          left: 24.w,
-          right: 24.w,
-          top: 24.h,
-          bottom: 24.h,
-        ),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -87,8 +81,6 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
               icon: 'arrow-right-outline',
               gradientColors: [Colors.grey.shade600, Colors.grey.shade700],
             ),
-
-            SizedBox(height: 32.h),
           ],
         ),
       ),

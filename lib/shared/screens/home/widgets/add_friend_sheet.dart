@@ -178,9 +178,9 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
     final isHandle = _target?.kind == FriendIdentifierKind.xHandle;
     return CallJourneySheet(
       title: 'Add a friend',
-      heightFactor: .64,
       busy: _busy,
       body: ListView(
+        shrinkWrap: true,
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         children: [
           if (_outcome != null) ...[

@@ -69,45 +69,31 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
   Widget build(BuildContext context) => ChumbucketWavySheet(
     title: 'All Friends',
     subtitle: 'Select a friend to challenge',
-    height: MediaQuery.sizeOf(context).height * .7,
     body: Container(
       width: double.infinity,
-      padding: EdgeInsets.symmetric(horizontal: 16.w),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Scrollable friends list with iOS circular picker behavior
-          Expanded(
-            child: AnimatedBuilder(
-              animation: _scrollAnimation,
-              builder: (context, child) {
-                return NotificationListener<ScrollNotification>(
-                  onNotification: (notification) {
-                    // Add subtle feedback on scroll
-                    if (notification is ScrollUpdateNotification) {
-                      // Optional: Add haptic feedback or scroll indicators
-                    }
-                    return false;
-                  },
-                  child: Column(
-                    children: [
-                      // iOS Wheel Picker for friends
-                      Expanded(child: _buildFriendsGrid()),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+      child:
+          widget.friends.isEmpty
+              ? const Text('Your friends will appear here.')
+              : SizedBox(
+                // A wheel needs a bounded viewport. Size it to the actual rows
+                // (up to three), with room for the selected row's magnification.
+                height:
+                    (64 + MediaQuery.textScalerOf(context).scale(40)) *
+                    widget.friends.length.clamp(1, 3) *
+                    1.15,
+                child: AnimatedBuilder(
+                  animation: _scrollAnimation,
+                  builder: (context, child) => _buildFriendsGrid(),
+                ),
+              ),
     ),
   );
 
   Widget _buildFriendsGrid() {
     // iOS-style circular wheel picker for friends
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 14.w),
+      padding: EdgeInsets.zero,
       child: ListWheelScrollView.useDelegate(
         controller: _wheelController,
         itemExtent: 64 + MediaQuery.textScalerOf(context).scale(40),
@@ -137,7 +123,7 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
     return GestureDetector(
       onTap: () => _onFriendTap(friend['name'] ?? ''),
       child: Container(
-        margin: EdgeInsets.symmetric(horizontal: 20.w, vertical: 4.h),
+        margin: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
         padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 12.h),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20.r),
