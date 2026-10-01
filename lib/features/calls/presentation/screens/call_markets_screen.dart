@@ -26,7 +26,8 @@ class CallMarketsScreen extends StatefulWidget {
 
 class _CallMarketsScreenState extends State<CallMarketsScreen> {
   String _query = '';
-  MarketDiscoveryWindow _window = MarketDiscoveryWindow.endingSoon;
+  MarketDiscoveryWindow _window = MarketDiscoveryWindow.all;
+  bool _cryptoOnly = false;
   final _requestedPrices = <String>{};
   String? _priceViewer;
 
@@ -68,6 +69,7 @@ class _CallMarketsScreenState extends State<CallMarketsScreen> {
       provider.openMarkets,
       window: _window,
       query: _query,
+      category: _cryptoOnly ? 'crypto' : null,
     );
     final bottomPadding = widget.embedded ? 128.0 : 24.0;
     final content = RefreshIndicator(
@@ -95,7 +97,7 @@ class _CallMarketsScreenState extends State<CallMarketsScreen> {
                     style: AppTextStyles.textTheme.bodyMedium,
                     textInputAction: TextInputAction.search,
                     decoration: InputDecoration(
-                      hintText: 'Search crypto markets',
+                      hintText: 'Search predictions',
                       hintStyle: AppTextStyles.textTheme.bodyMedium,
                       prefixIcon: const Padding(
                         padding: EdgeInsets.all(14),
@@ -119,22 +121,13 @@ class _CallMarketsScreenState extends State<CallMarketsScreen> {
                     selected: _window,
                     onChanged: (value) => setState(() => _window = value),
                   ),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Make your next call',
-                    style: AppTextStyles.textTheme.titleLarge?.copyWith(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    _window == MarketDiscoveryWindow.endingSoon
-                        ? 'Crypto · closing in 4–48 hours'
-                        : 'Crypto · closing in 4 hours–7 days',
-                    style: AppTextStyles.textTheme.bodySmall?.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
+                  const SizedBox(height: 8),
+                  FilterChip(
+                    label: const Text('Crypto only'),
+                    selected: _cryptoOnly,
+                    onSelected: (value) => setState(() => _cryptoOnly = value),
+                    materialTapTargetSize: MaterialTapTargetSize.padded,
+                    visualDensity: VisualDensity.standard,
                   ),
                 ],
               ),
@@ -187,19 +180,20 @@ class _CallMarketsScreenState extends State<CallMarketsScreen> {
               child: CallsEmptyView(
                 title:
                     _query.trim().isEmpty
-                        ? 'Nothing open in this window'
+                        ? 'No open markets match these filters'
                         : 'No matching questions',
                 message:
-                    'Try another search or time filter. Only eligible crypto markets appear here.',
+                    'Try all categories and dates, or refresh the Panta catalog.',
                 actionLabel:
-                    _window == MarketDiscoveryWindow.endingSoon
-                        ? 'Show this week'
+                    _window != MarketDiscoveryWindow.all || _cryptoOnly
+                        ? 'Show all markets'
                         : 'Refresh',
                 onAction:
-                    _window == MarketDiscoveryWindow.endingSoon
-                        ? () => setState(
-                          () => _window = MarketDiscoveryWindow.thisWeek,
-                        )
+                    _window != MarketDiscoveryWindow.all || _cryptoOnly
+                        ? () => setState(() {
+                          _window = MarketDiscoveryWindow.all;
+                          _cryptoOnly = false;
+                        })
                         : _refresh,
               ),
             )

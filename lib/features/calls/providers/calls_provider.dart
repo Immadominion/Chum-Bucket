@@ -341,7 +341,12 @@ class CallsProvider extends ChangeNotifier {
     _openMarketsError = null;
     _notify();
     try {
-      final markets = await _repository.fetchOpenMarkets(category: 'crypto');
+      final repository = _repository;
+      final markets =
+          repository is CallsCatalogRepository
+              ? await (repository as CallsCatalogRepository)
+                  .fetchMarketCatalog()
+              : await repository.fetchOpenMarkets();
       if (!_isCurrent('catalog', request)) return;
       _openMarkets = markets;
       _isOffline = false;
@@ -559,7 +564,9 @@ class CallsProvider extends ChangeNotifier {
       throw const CallsRejectedException("You can't follow yourself.");
     }
     if (_followsInFlight.contains(personId)) {
-      throw const CallsRejectedException('That follow is already being updated.');
+      throw const CallsRejectedException(
+        'That follow is already being updated.',
+      );
     }
     final key = 'follow:$personId';
     final request = _beginRequest(key);
@@ -577,18 +584,25 @@ class CallsProvider extends ChangeNotifier {
         if (cached?.person.id != personId) continue;
         _personDetails[ref] = PersonDetail(
           person: cached!.person,
-          calls: confirmed
-              ? cached.calls
-              : cached.calls.where((entry) =>
-                  entry.call.visibility == CallVisibility.public).toList(),
+          calls:
+              confirmed
+                  ? cached.calls
+                  : cached.calls
+                      .where(
+                        (entry) =>
+                            entry.call.visibility == CallVisibility.public,
+                      )
+                      .toList(),
           viewerIsFollowing: confirmed,
           servedAt: cached.servedAt,
         );
       }
       if (!confirmed) {
-        _callDetails.removeWhere((_, cached) =>
-            cached.entry.author.id == personId &&
-            cached.entry.call.visibility == CallVisibility.followers);
+        _callDetails.removeWhere(
+          (_, cached) =>
+              cached.entry.author.id == personId &&
+              cached.entry.call.visibility == CallVisibility.followers,
+        );
       }
       // A follow changes BOTH Following membership and Global visibility of
       // followers-only calls. Invalidate old pages and in-flight pagination so

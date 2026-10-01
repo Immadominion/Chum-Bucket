@@ -50,7 +50,7 @@ import 'package:chumbucket/features/calls/data/calls_bff_payloads.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_transport.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 
-class BffCallsRepository implements CallsRepository {
+class BffCallsRepository implements CallsRepository, CallsCatalogRepository {
   /// [httpClient] is the test seam: inject one and no socket is ever opened.
   /// [authToken] supplies the session; returning null simply means signed out.
   BffCallsRepository({
@@ -70,9 +70,7 @@ class BffCallsRepository implements CallsRepository {
              timeout: timeout,
              verbose: verbose,
            ),
-       _linkHost = normalizeCallsBffBaseUrl(
-         linkHost ?? resolveCallsLinkHost(),
-       );
+       _linkHost = normalizeCallsBffBaseUrl(linkHost ?? resolveCallsLinkHost());
 
   final CallsBffTransport _transport;
   final String _linkHost;
@@ -113,9 +111,7 @@ class BffCallsRepository implements CallsRepository {
       if (cursor != null) 'cursor': cursor,
       'limit': limit,
     });
-    return callFeedPageFromJson(
-      requireJsonMap(data, '$feedProcedure result'),
-    );
+    return callFeedPageFromJson(requireJsonMap(data, '$feedProcedure result'));
   }
 
   @override
@@ -124,6 +120,46 @@ class BffCallsRepository implements CallsRepository {
       if (category != null) 'category': category,
     });
     return venueMarketsFromJson(data, '$openMarketsProcedure result');
+  }
+
+  @override
+  Future<List<VenueMarket>> fetchMarketCatalog() async {
+    final markets = <String, VenueMarket>{};
+    final seen = <String>{};
+    String? cursor;
+    // Bounded traversal of cheap, cached BFF pages; no client provider key.
+    for (var page = 0; page < 20; page++) {
+      final data = requireJsonMap(
+        await _transport.query('predictions.catalog', {
+          'limit': 100,
+          if (cursor != null) 'cursor': cursor,
+        }),
+        'predictions.catalog',
+      );
+      if (data['markets'] is! List) {
+        throw const CallVocabularyException(
+          'Catalog markets must be an array.',
+        );
+      }
+      for (final market in venueMarketsFromJson(
+        data['markets'],
+        'catalog.markets',
+      )) {
+        if (market.venue != MarketVenue.panta && !market.venue.isDemo) {
+          throw const CallVocabularyException('Unexpected live catalog venue.');
+        }
+        markets[market.id] = market;
+      }
+      final next = data['nextCursor'];
+      if (next == null) return markets.values.toList(growable: false);
+      if (next is! String || next.isEmpty || !seen.add(next)) {
+        throw const CallVocabularyException('Invalid catalog pagination.');
+      }
+      cursor = next;
+    }
+    throw const CallsFailure(
+      'The market catalog is too large to load right now. Please try again.',
+    );
   }
 
   @override
@@ -177,7 +213,9 @@ class BffCallsRepository implements CallsRepository {
     );
     final state = requireJsonMap(data, 'people follow result');
     if (state['personId'] != personId || state['following'] != following) {
-      throw const CallVocabularyException('people follow result disagrees with the request');
+      throw const CallVocabularyException(
+        'people follow result disagrees with the request',
+      );
     }
     return following;
   }
@@ -242,10 +280,7 @@ class BffCallsRepository implements CallsRepository {
     if (viewerUserId == null || viewerUserId.isEmpty) return const [];
 
     final data = await _transport.query(invitationsProcedure, const {});
-    return challengeInvitationsFromJson(
-      data,
-      '$invitationsProcedure result',
-    );
+    return challengeInvitationsFromJson(data, '$invitationsProcedure result');
   }
 
   static void _requireViewer(String? viewerUserId) {

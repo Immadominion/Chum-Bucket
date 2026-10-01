@@ -8,38 +8,48 @@ import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 /// Presentation windows only. Server eligibility still governs every write.
 enum MarketDiscoveryWindow {
+  all('All dates', null),
   endingSoon('Ending soon', Duration(hours: 48)),
   thisWeek('This week', Duration(days: 7));
 
   const MarketDiscoveryWindow(this.label, this.horizon);
   final String label;
-  final Duration horizon;
+  final Duration? horizon;
 }
 
 List<VenueMarket> discoveryMarkets(
   Iterable<VenueMarket> markets, {
   required MarketDiscoveryWindow window,
   String query = '',
+  String? category,
   DateTime? now,
 }) {
   final reference = (now ?? DateTime.now()).toUtc();
   final term = query.trim().toLowerCase();
   return markets.where((market) {
       final close = market.closesAtUtc;
-      if (close == null ||
-          !market.status.acceptsNewCalls ||
-          market.category.toLowerCase() != 'crypto' ||
+      if (!market.status.acceptsNewCalls ||
+          (category != null &&
+              market.category.toLowerCase() != category.toLowerCase()) ||
           (market.venue != MarketVenue.panta && !market.venue.isDemo) ||
           (market.opensAt != null &&
               market.opensAt! > reference.millisecondsSinceEpoch)) {
         return false;
       }
+      if (close == null) {
+        return window == MarketDiscoveryWindow.all &&
+            market.question.toLowerCase().contains(term);
+      }
       final remaining = close.difference(reference);
-      return remaining >= const Duration(hours: 4) &&
-          remaining <= window.horizon &&
+      return remaining > Duration.zero &&
+          (window.horizon == null || remaining <= window.horizon!) &&
           market.question.toLowerCase().contains(term);
     }).toList()
-    ..sort((a, b) => a.closesAt!.compareTo(b.closesAt!));
+    ..sort(
+      (a, b) => (a.closesAt ?? 9223372036854775807).compareTo(
+        b.closesAt ?? 9223372036854775807,
+      ),
+    );
 }
 
 class MarketWindowFilters extends StatelessWidget {
@@ -188,6 +198,76 @@ class MarketSharePrices extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!expanded) {
+      final fresh = snapshot?.isUsableAt(DateTime.now()) ?? false;
+      return LayoutBuilder(
+        builder:
+            (context, constraints) => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final side in Side.values)
+                      Container(
+                        constraints: BoxConstraints(
+                          maxWidth: constraints.maxWidth,
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color:
+                              side == Side.yes
+                                  ? AppColors.successContainer.withValues(
+                                    alpha: .4,
+                                  )
+                                  : AppColors.background,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(
+                              side.wire,
+                              style: AppTextStyles.textTheme.labelMedium
+                                  ?.copyWith(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                            ),
+                            Text(
+                              snapshot?.priceFor(side) ?? 'Price unavailable',
+                              style: AppTextStyles.textTheme.bodyMedium
+                                  ?.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${SharePriceSnapshot.attribution} · USDC per share',
+                  style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                if (snapshot != null && !fresh)
+                  Text(
+                    'Last updated ${CallsFormat.timestampShortUtc(snapshot!.observedAtUtc)} · stale or incomplete',
+                    style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                      color: AppColors.onWarningContainer,
+                    ),
+                  ),
+              ],
+            ),
+      );
+    }
     Widget price(Side side) {
       final value = snapshot?.priceFor(side);
       return Container(

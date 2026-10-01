@@ -391,6 +391,11 @@ class CallResponseResult {
 
 /// Reads never require a signed-in user. Writes always do — and "signed in"
 /// means a canonical `public.users.id`, never a wallet.
+/// Optional discovery capability, deliberately separate from callable markets.
+abstract interface class CallsCatalogRepository {
+  Future<List<VenueMarket>> fetchMarketCatalog();
+}
+
 abstract class CallsRepository {
   /// Feed of public calls. [viewerUserId] is optional; when null the
   /// [CallFeedMode.following] mode is unavailable and rows come back with

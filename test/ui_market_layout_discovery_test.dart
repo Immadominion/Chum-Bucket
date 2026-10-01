@@ -18,6 +18,7 @@ VenueMarket market(
   MarketVenue venue = MarketVenue.panta,
   MarketStatus status = MarketStatus.open,
   String? question,
+  String category = 'crypto',
 }) => VenueMarket(
   id: id,
   venue: venue,
@@ -26,7 +27,7 @@ VenueMarket market(
   question: question ?? 'Will $id close above the exact test threshold?',
   rulesText:
       'Exact test rules. Only the named closing observation counts.\n\nAn earlier price spike does not count.',
-  category: 'crypto',
+  category: category,
   outcomes: const [
     MarketOutcome(side: Side.yes, label: 'YES'),
     MarketOutcome(side: Side.no, label: 'NO'),
@@ -150,7 +151,7 @@ Future<void> reveal(WidgetTester tester, Finder finder) async {
 
 void main() {
   test(
-    'time windows exclude unsupported venues and do not relax eligibility',
+    'time filters are optional discovery filters, never call eligibility',
     () {
       final now = DateTime.now();
       final markets = [
@@ -171,7 +172,7 @@ void main() {
           window: MarketDiscoveryWindow.endingSoon,
           now: now,
         ).map((m) => m.id),
-        ['soon'],
+        ['too-fast', 'soon'],
       );
       expect(
         discoveryMarkets(
@@ -179,7 +180,31 @@ void main() {
           window: MarketDiscoveryWindow.thisWeek,
           now: now,
         ).map((m) => m.id),
-        ['soon', 'week'],
+        ['too-fast', 'soon', 'week'],
+      );
+      expect(
+        discoveryMarkets(
+          markets,
+          window: MarketDiscoveryWindow.all,
+          now: now,
+        ).map((m) => m.id),
+        ['too-fast', 'soon', 'week', 'too-long'],
+      );
+      final sports = market(
+        'sport',
+        const Duration(days: 30),
+        category: 'sports',
+      );
+      expect(discoveryMarkets([sports], window: MarketDiscoveryWindow.all), [
+        sports,
+      ]);
+      expect(
+        discoveryMarkets(
+          [sports],
+          window: MarketDiscoveryWindow.all,
+          category: 'crypto',
+        ),
+        isEmpty,
       );
     },
   );
@@ -241,6 +266,8 @@ void main() {
     addTearDown(provider.dispose);
     await mount(tester, provider, const CallMarketsScreen());
     expect(find.textContaining('Will BTC'), findsOneWidget);
+    await tester.tap(find.text('Ending soon'));
+    await tester.pumpAndSettle();
     expect(find.textContaining('Will ETH'), findsNothing);
     await tester.tap(find.text('This week'));
     await tester.pumpAndSettle();

@@ -32,7 +32,7 @@ class MarketPickerSheet extends StatefulWidget {
 class _MarketPickerSheetState extends State<MarketPickerSheet> {
   String _query = '';
   String? _picking;
-  MarketDiscoveryWindow _window = MarketDiscoveryWindow.endingSoon;
+  MarketDiscoveryWindow _window = MarketDiscoveryWindow.all;
 
   @override
   void initState() {
@@ -90,7 +90,7 @@ class _MarketPickerSheetState extends State<MarketPickerSheet> {
               onChanged: (value) => setState(() => _query = value),
               style: AppTextStyles.textTheme.bodyMedium,
               decoration: InputDecoration(
-                hintText: 'Search crypto markets',
+                hintText: 'Search predictions',
                 hintStyle: AppTextStyles.textTheme.bodyMedium,
                 filled: true,
                 fillColor: AppColors.background,
@@ -115,12 +115,11 @@ class _MarketPickerSheetState extends State<MarketPickerSheet> {
               onChanged: (value) => setState(() => _window = value),
             ),
             const SizedBox(height: 8),
-            Text(
-              _window == MarketDiscoveryWindow.endingSoon
-                  ? 'Closing in 4–48 hours'
-                  : 'Closing in 4 hours–7 days',
-              style: AppTextStyles.textTheme.bodySmall,
-            ),
+            Text(switch (_window) {
+              MarketDiscoveryWindow.all => 'All open Panta markets',
+              MarketDiscoveryWindow.endingSoon => 'Closing within 48 hours',
+              MarketDiscoveryWindow.thisWeek => 'Closing within 7 days',
+            }, style: AppTextStyles.textTheme.bodySmall),
             const SizedBox(height: 16),
             if (!provider.isSignedIn)
               const CallsSignedOutView()

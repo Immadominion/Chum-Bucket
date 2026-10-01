@@ -206,7 +206,7 @@ void main() {
     );
     var created = false;
     final server = bff.FakeBffServer((request) {
-      if (request.procedurePath == 'markets.open') {
+      if (request.procedurePath == 'predictions.catalog') {
         if (fail?.call() == true) {
           return bff.errorResponse(
             code: 'SERVICE_UNAVAILABLE',
@@ -214,7 +214,10 @@ void main() {
             message: 'Markets are temporarily unavailable.',
           );
         }
-        return bff.okResponse(empty ? [] : [market]);
+        return bff.okResponse({
+          'markets': empty ? [] : [market],
+          'nextCursor': null,
+        });
       }
       if (request.procedurePath == 'markets.detail') {
         return bff.okResponse({
@@ -390,7 +393,7 @@ void main() {
     expect(find.text("Today's matches"), findsNothing);
     expect(find.textContaining('Powered by Panta'), findsOneWidget);
     expect(find.byType(CallMarketCard), findsOneWidget);
-    expect(server.requestFor('markets.open').input, {'category': 'crypto'});
+    expect(server.requestFor('predictions.catalog').input, {'limit': 100});
     await tester.tap(find.byType(CallMarketCard));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
@@ -476,7 +479,7 @@ void main() {
       usePantaCatalog(empty: true);
       await mount(tester);
       await select(tester, 1);
-      expect(find.text('Nothing open in this window'), findsOneWidget);
+      expect(find.text('No open markets match these filters'), findsOneWidget);
       expect(find.byType(CallMarketCard), findsNothing);
       await select(tester, 0);
       await tester.pump(const Duration(milliseconds: 400));
