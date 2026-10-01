@@ -71,20 +71,40 @@ class ChumbucketBottomNavigation extends StatelessWidget {
                                       : AppColors.textSecondary,
                             ),
                             const SizedBox(height: 5),
-                            Text(
-                              item.$1,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 12,
-                                height: 1.2,
-                                fontWeight:
-                                    selected
-                                        ? FontWeight.w700
-                                        : FontWeight.w500,
-                                color:
-                                    selected
-                                        ? AppColors.textPrimary
-                                        : AppColors.textSecondary,
+                            // Grow with the user's text setting, fitting only
+                            // labels that exceed their quarter of the bar.
+                            // Equal line boxes keep the four icons aligned;
+                            // body text elsewhere is never scale-clamped.
+                            SizedBox(
+                              width: double.infinity,
+                              height:
+                                  MediaQuery.textScalerOf(context).scale(12) *
+                                  1.2,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                ),
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    item.$1,
+                                    maxLines: 1,
+                                    softWrap: false,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      height: 1.2,
+                                      fontWeight:
+                                          selected
+                                              ? FontWeight.w700
+                                              : FontWeight.w500,
+                                      color:
+                                          selected
+                                              ? AppColors.textPrimary
+                                              : AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
                           ],

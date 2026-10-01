@@ -11,6 +11,7 @@ import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/chumbucket_bottom_navigation.dart';
 import 'package:chumbucket/shared/screens/home/widgets/header.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -159,6 +160,28 @@ void main() {
       );
       for (final label in ['Home', 'Markets', 'Friends', 'Profile']) {
         expect(find.text(label), findsOneWidget);
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.descendant(
+            of: find.text(label),
+            matching: find.byType(RichText),
+          ),
+        );
+        expect(
+          paragraph.getBoxesForSelection(
+            TextSelection(baseOffset: 0, extentOffset: label.length),
+          ),
+          hasLength(1),
+          reason: '$label must stay on one complete line, even at 2x text size',
+        );
+        expect(paragraph.didExceedMaxLines, isFalse);
+        final target = tester.getRect(find.bySemanticsLabel(label));
+        final paintedLabel = Rect.fromPoints(
+          paragraph.localToGlobal(Offset.zero),
+          paragraph.localToGlobal(paragraph.size.bottomRight(Offset.zero)),
+        );
+        expect(target.inflate(0.1).contains(paintedLabel.topLeft), isTrue);
+        expect(target.inflate(0.1).contains(paintedLabel.bottomRight), isTrue);
+        expect(target.shortestSide, greaterThanOrEqualTo(48));
       }
       await tester.tap(find.bySemanticsLabel('Markets'));
       expect(selected, 1);
