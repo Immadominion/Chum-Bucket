@@ -330,6 +330,9 @@ BEGIN
       public.trust_delete_rows_v1('friends', 'user_id', v_ids)
       + public.trust_delete_rows_v1('friends', 'friend_id', v_ids),
     'fcm_tokens', public.trust_delete_rows_v1('fcm_tokens', 'wallet_address', v_wallets),
+    -- The account's own devices (20261002171000). The row is anonymised, not
+    -- deleted, so the table's ON DELETE CASCADE never fires: delete them here.
+    'push_tokens', public.trust_delete_rows_v1('push_tokens', 'user_id', v_ids),
     'pending_identity_targets', public.trust_delete_rows_v1('pending_identity_targets', 'created_by_wallet', v_wallets),
     'social_notifications', public.trust_delete_rows_v1('social_notifications', 'recipient_user_id', v_ids),
     'user_blocks',
@@ -390,4 +393,4 @@ $$;
 REVOKE ALL ON FUNCTION public.delete_account_v1(UUID, UUID) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.delete_account_v1(UUID, UUID) TO service_role;
 COMMENT ON FUNCTION public.delete_account_v1(UUID, UUID) IS
-  'Service-only, idempotent account deletion for a server-verified Supabase sign-in: anonymises public.users (calls stay as "Deleted account"), removes linked wallets/identities, follows, friends, blocks, mutes, push tokens and inbox.';
+  'Service-only, idempotent account deletion for a server-verified Supabase sign-in: anonymises public.users (calls stay as "Deleted account"), removes linked wallets/identities, follows, friends, blocks, mutes, push tokens (legacy fcm_tokens by wallet and push_tokens by person) and inbox.';
