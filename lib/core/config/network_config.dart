@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Centralized network configuration for devnet/mainnet separation
@@ -9,14 +10,28 @@ class NetworkConfig {
   static const String devnet = 'devnet';
   static const String mainnetBeta = 'mainnet-beta';
 
-  /// Get the current network from environment
-  /// Defaults to devnet for development safety
-  static String get currentNetwork {
-    final network = dotenv.env['SOLANA_NETWORK']?.toLowerCase();
+  /// The network for a `SOLANA_NETWORK` value.
+  ///
+  /// An explicit value always wins. With none, a **release** build is on
+  /// mainnet: that is where the product's money moves (Panta positions settle
+  /// in mainnet USDC), and a release that silently showed a devnet balance next
+  /// to a mainnet trade is exactly the B10 defect. Debug and profile builds
+  /// with no value stay on devnet, so a developer never touches mainnet by
+  /// accident. `scripts/build_release.sh` additionally refuses any release
+  /// whose configuration does not name mainnet.
+  static String resolve(String? raw, {bool releaseMode = kReleaseMode}) {
+    final network = raw?.trim().toLowerCase();
     if (network == 'mainnet-beta' || network == 'mainnet') {
       return mainnetBeta;
     }
-    return devnet; // Default to devnet for safety
+    if (network == devnet) return devnet;
+    return releaseMode ? mainnetBeta : devnet;
+  }
+
+  /// The current network, from `SOLANA_NETWORK` (see [resolve]).
+  static String get currentNetwork {
+    final raw = dotenv.isInitialized ? dotenv.env['SOLANA_NETWORK'] : null;
+    return resolve(raw);
   }
 
   /// Check if we're on mainnet

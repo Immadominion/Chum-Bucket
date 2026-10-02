@@ -70,6 +70,20 @@ class AppLogger {
     );
   }
 
+  /// Routes Flutter's global `debugPrint` through this logger's release rule.
+  ///
+  /// `debugPrint` is NOT stripped from release builds: every call reaches
+  /// logcat, where any app with log access, a bug report or a USB cable can
+  /// read it. Many call sites print wallet addresses and challenge data, so in
+  /// a release build the hook drops the line. Debug and profile builds are
+  /// unchanged. Call once, first thing in `main()`.
+  static void installReleaseLogPolicy({bool releaseMode = kReleaseMode}) {
+    if (!releaseMode) return;
+    debugPrint = _dropDebugPrint;
+  }
+
+  static void _dropDebugPrint(String? message, {int? wrapWidth}) {}
+
   /// Print-style logging that respects debug mode
   /// Use this instead of print() or debugPrint()
   static void print(String message, {String? tag}) {

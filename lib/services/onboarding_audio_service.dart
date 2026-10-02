@@ -1,5 +1,6 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
+import 'package:chumbucket/core/utils/app_logger.dart';
 
 class OnboardingAudioService {
   static final OnboardingAudioService _instance =
@@ -28,11 +29,11 @@ class OnboardingAudioService {
       _isInitialized = true;
 
       if (kDebugMode) {
-        print('OnboardingAudioService initialized successfully');
+        AppLogger.debug('OnboardingAudioService initialized successfully');
       }
     } catch (e) {
       if (kDebugMode) {
-        print('Error initializing OnboardingAudioService: $e');
+        AppLogger.debug('Error initializing OnboardingAudioService: $e');
       }
     }
   }
@@ -59,11 +60,11 @@ class OnboardingAudioService {
       });
 
       if (kDebugMode) {
-        print('Onboarding music started');
+        AppLogger.debug('Onboarding music started');
       }
     } catch (e) {
       if (kDebugMode) {
-        print('Error starting onboarding music: $e');
+        AppLogger.debug('Error starting onboarding music: $e');
       }
     }
   }
@@ -77,11 +78,11 @@ class OnboardingAudioService {
       _isPlaying = false;
 
       if (kDebugMode) {
-        print('Onboarding music stopped');
+        AppLogger.debug('Onboarding music stopped');
       }
     } catch (e) {
       if (kDebugMode) {
-        print('Error stopping onboarding music: $e');
+        AppLogger.debug('Error stopping onboarding music: $e');
       }
     }
   }
@@ -95,11 +96,11 @@ class OnboardingAudioService {
       _isPlaying = false;
 
       if (kDebugMode) {
-        print('Onboarding music paused');
+        AppLogger.debug('Onboarding music paused');
       }
     } catch (e) {
       if (kDebugMode) {
-        print('Error pausing onboarding music: $e');
+        AppLogger.debug('Error pausing onboarding music: $e');
       }
     }
   }
@@ -117,11 +118,11 @@ class OnboardingAudioService {
       _isPlaying = true;
 
       if (kDebugMode) {
-        print('Onboarding music resumed');
+        AppLogger.debug('Onboarding music resumed');
       }
     } catch (e) {
       if (kDebugMode) {
-        print('Error resuming onboarding music: $e');
+        AppLogger.debug('Error resuming onboarding music: $e');
       }
     }
   }
@@ -140,11 +141,11 @@ class OnboardingAudioService {
       _isInitialized = false;
 
       if (kDebugMode) {
-        print('OnboardingAudioService disposed');
+        AppLogger.debug('OnboardingAudioService disposed');
       }
     } catch (e) {
       if (kDebugMode) {
-        print('Error disposing OnboardingAudioService: $e');
+        AppLogger.debug('Error disposing OnboardingAudioService: $e');
       }
     }
   }

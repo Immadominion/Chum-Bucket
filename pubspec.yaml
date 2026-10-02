@@ -1,9 +1,9 @@
 name: chumbucket
-description: "A challenge app with friends to lock coins on Solana"
+description: "See what people call on real prediction markets, back or fade them, and keep the receipt."
 
 publish_to: "none"
 
-version: 1.0.2+2
+version: 1.0.34+34
 
 environment:
   sdk: ^3.7.0
@@ -39,6 +39,9 @@ dependencies:
   # Push Notifications
   firebase_core: ^3.12.0
   firebase_messaging: ^15.2.4
+  # Crash reports, opt-in only (lib/core/crash/crash_reporting.dart). Pinned to
+  # the line that matches the locked firebase_core 3.15.x.
+  firebase_crashlytics: ^4.3.10
   flutter_local_notifications: ^17.2.3 # Local notification display
 
   # Local Database for Development
