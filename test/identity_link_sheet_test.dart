@@ -3,6 +3,7 @@ import 'package:chumbucket/core/theme/app_theme.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/identity_link_sheet.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
+import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -87,16 +88,14 @@ void main() {
       (tester) async {
         r.capability['existingAccountClaimsEnabled'] = false;
         await openSheet(tester, scale: scale);
-        await tester.ensureVisible(find.text('Continue with Google'));
-        await tester.tap(find.text('Continue with Google'));
-        await tester.pumpAndSettle();
+        // Said on open, before any Google screen or wallet prompt; nothing
+        // that could only be refused is offered.
         await tester.ensureVisible(
-          find.byKey(const ValueKey('account-link-error')),
+          find.byKey(const ValueKey('account-link-closed')),
         );
-        expect(
-          find.textContaining('Google linking is not available'),
-          findsOneWidget,
-        );
+        expect(find.text(kExistingAccountLinkClosed), findsOneWidget);
+        expect(find.text('Continue with Google'), findsNothing);
+        expect(find.text('Got it'), findsOneWidget);
         expect(r.auth.startCount, 0);
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox());

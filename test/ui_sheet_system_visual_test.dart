@@ -34,6 +34,13 @@ void main() {
         ['assets/fonts/Montserrat/Montserrat-Regular.ttf'],
       ),
       ('Montserrat_medium', ['assets/fonts/Montserrat/Montserrat-Medium.ttf']),
+      // Sheet headers and actions are set in Inter; google_fonts registers
+      // each weight as `Inter_<variant>`.
+      ('Inter_regular', ['assets/fonts/Inter/Inter-Regular.ttf']),
+      ('Inter_500', ['assets/fonts/Inter/Inter-Medium.ttf']),
+      ('Inter_600', ['assets/fonts/Inter/Inter-SemiBold.ttf']),
+      ('Inter_700', ['assets/fonts/Inter/Inter-Bold.ttf']),
+      ('Inter_800', ['assets/fonts/Inter/Inter-ExtraBold.ttf']),
     ]) {
       final loader = FontLoader(family);
       for (final path in paths) {

@@ -1,3 +1,8 @@
+import 'dart:convert';
+
+import 'package:chumbucket/core/config/app_config.dart';
+import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
+import 'package:chumbucket/features/authentication/session/solana_sign_in.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/shared/screens/home/home.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
@@ -51,7 +56,16 @@ class _MwaConnectButtonState extends State<MwaConnectButton> {
 
       // Attempt to connect wallet via MWA
       debugPrint('🔌 CONNECT: Calling authProvider.authorize()');
-      final success = await authProvider.authorize();
+      // One visit to the wallet: connect, then sign the Chumbucket sign-in.
+      final success = await authProvider.authorize(
+        signInMessageFor:
+            AppConfig.callReceiptExperienceEnabled
+                ? (address) => solanaSignInMessage(
+                  address: address,
+                  issuedAt: DateTime.now(),
+                )
+                : null,
+      );
       debugPrint('🔌 CONNECT: authorize() returned: $success');
 
       if (!context.mounted) return;
@@ -59,6 +73,14 @@ class _MwaConnectButtonState extends State<MwaConnectButton> {
       if (success) {
         final walletAddress = authProvider.walletAddress;
         debugPrint('🔌 CONNECT: Wallet authorized');
+        // Finish the account sign-in in the background; Home shows its state.
+        final signed = authProvider.takeSignedSignIn();
+        if (signed != null) {
+          context.read<ChumbucketSession>().signInWithSignedMessage(
+            signed.message,
+            base64Url.encode(signed.signature),
+          );
+        }
 
         // Try to resolve any SNS domain (.sol, .skr, etc.) for this wallet
         String? domainName;

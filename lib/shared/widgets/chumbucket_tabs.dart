@@ -15,6 +15,11 @@ class ChumbucketTabs extends StatelessWidget {
     required this.onSelected,
   });
 
+  /// Codex's layout prototype: the strip starts flush with the content, the
+  /// labels sit ~20dp apart and the 3dp underline spans only the word. Each
+  /// tab's touch target still reaches 48dp across and down.
+  static const double _gap = 20;
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -26,26 +31,37 @@ class ChumbucketTabs extends StatelessWidget {
           selected: selected,
           child: InkWell(
             onTap: () => onSelected(index),
-            child: Container(
-              constraints: const BoxConstraints(minHeight: 48),
-              padding: const EdgeInsets.fromLTRB(12, 14, 12, 11),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: selected ? AppColors.primary : Colors.transparent,
-                    width: 3,
-                  ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: index == 0 ? 0 : _gap / 2,
+                  right: index == labels.length - 1 ? 0 : _gap / 2,
                 ),
-              ),
-              child: Text(
-                labels[index],
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                  color:
-                      selected
-                          ? AppColors.textPrimary
-                          : AppColors.textSecondary,
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 48),
+                  padding: const EdgeInsets.fromLTRB(1, 14, 1, 11),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: selected ? AppColors.primary : Colors.transparent,
+                        width: 3,
+                      ),
+                    ),
+                  ),
+                  child: Text(
+                    labels[index],
+                    style: TextStyle(
+                      fontFamily: 'PPNeueMachina',
+                      fontSize: 14,
+                      height: 1.3,
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w400,
+                      color:
+                          selected
+                              ? AppColors.textPrimary
+                              : const Color(0xFF606775),
+                    ),
+                  ),
                 ),
               ),
             ),

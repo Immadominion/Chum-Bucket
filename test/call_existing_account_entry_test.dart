@@ -78,31 +78,25 @@ void main() {
   }
 
   for (final entry in ['Call entry', 'Shell call entry']) {
-    testWidgets('$entry preserves the existing-wallet link flow before OAuth', (
+    testWidgets('$entry opens the one sign-in sheet, wallet first, starting nothing', (
       tester,
     ) async {
       rig.capability['existingAccountClaimsEnabled'] = false;
       await mount(tester);
       await tester.tap(find.text(entry));
       await tester.pumpAndSettle();
-      expect(find.byType(IdentityLinkSheet), findsOneWidget);
-      expect(find.byType(CallSessionPanel), findsNothing);
-      expect(find.text('Link Google'), findsOneWidget);
-      expect(
-        find.textContaining('No transaction, payment or new profile.'),
-        findsOneWidget,
-      );
-      await tester.ensureVisible(find.text('Continue with Google'));
-      await tester.tap(find.text('Continue with Google'));
-      await tester.pumpAndSettle();
-      expect(
-        find.textContaining('Google linking is not available'),
-        findsOneWidget,
-      );
+      expect(find.byType(ChumbucketSignInSheet), findsOneWidget);
+      expect(find.byType(IdentityLinkSheet), findsNothing);
+      expect(find.text('Continue with wallet'), findsOneWidget);
+      expect(find.text('Continue with Google'), findsOneWidget);
+      // Opening the sheet signs nothing, opens no browser and claims nothing.
       expect(rig.auth.startCount, 0);
       expect(rig.claimed, false);
-      expect(rig.requests.map((r) => r.procedurePath), ['auth.identityStatus']);
-      await tester.tap(find.byTooltip('Close'));
+      expect(rig.wallet.signed, isEmpty);
+      expect(rig.requests, isEmpty);
+      await tester.tap(
+        find.byKey(const ValueKey('chumbucket-sheet-close-target')),
+      );
       await tester.pumpAndSettle();
       expect(find.text('Original call destination'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -119,6 +113,8 @@ void main() {
       expect(find.byType(CallSessionPanel), findsOneWidget);
       expect(find.byType(IdentityLinkSheet), findsNothing);
       expect(find.text('Continue with Google'), findsOneWidget);
+      // No wallet in this app: no wallet option is offered.
+      expect(find.text('Continue with wallet'), findsNothing);
       expect(rig.auth.startCount, 0);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());

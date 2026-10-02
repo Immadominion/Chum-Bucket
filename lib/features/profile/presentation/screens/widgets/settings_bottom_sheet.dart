@@ -1,12 +1,12 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/features/authentication/session/app_sign_out.dart';
 // MWA Wallet Provider for Pinocchio program integration
 import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/menu_tile.dart';
-import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_buttons.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_settings_sheet.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/identity_link_sheet.dart';
 import 'package:chumbucket/core/services/chat_service.dart';
@@ -75,11 +75,10 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
             SizedBox(height: 16.h),
 
             // Sign Out Button (Disconnect Wallet for MWA)
-            GradientButton(
-              text: "Disconnect Wallet",
+            // The same call to action as Account & Support's Sign Out.
+            ChumbucketPrimaryButton(
+              label: 'Disconnect Wallet',
               onPressed: () => signOutOfChumbucket(context),
-              icon: 'arrow-right-outline',
-              gradientColors: [Colors.grey.shade600, Colors.grey.shade700],
             ),
           ],
         ),

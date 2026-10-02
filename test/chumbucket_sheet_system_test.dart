@@ -176,18 +176,43 @@ void main() {
   }
 
   for (final width in [296.0, 366.0, 406.0]) {
-    test(
-      'scallop has visible alternating crests and no left wedge at $width',
-      () {
-        final path = DetailedWaveClipper().getClip(Size(width, 24));
-        final segment = width / (width / 36).round().clamp(6, 16);
-        expect(path.contains(Offset(segment / 2, 11)), isTrue);
-        expect(path.contains(Offset(segment * 1.5, 20)), isFalse);
-        expect(path.contains(Offset(segment * 1.5, 23)), isTrue);
-        expect(path.contains(const Offset(.01, 1)), isFalse);
-        expect(path.computeMetrics().single.isClosed, isTrue);
-      },
-    );
+    test('scallop matches the comp: ~50dp arches, broad tops, sharp cusps '
+        'at $width', () {
+      // The comp's edge, traced column by column: arches ~50dp wide rising
+      // 7.3dp, meeting at sharp cusps. Probes come from the clipper's own
+      // constants, so retuning it cannot silently flatten or invert it.
+      const height = ChumbucketSheetWave.height;
+      final path = DetailedWaveClipper().getClip(Size(width, height));
+      final arches = DetailedWaveClipper.archesFor(width);
+      final span = width / arches;
+      const apex = DetailedWaveClipper.topInset;
+      const cusp = DetailedWaveClipper.cuspY;
+
+      // Arches are comp-sized: ~50dp, never a ripple, never a single bump.
+      expect(span, inInclusiveRange(44, 60));
+
+      // Apex: white reaches up to the top inset and no further.
+      expect(path.contains(Offset(span / 2, apex + 1)), isTrue);
+      expect(path.contains(Offset(span / 2, apex - .8)), isFalse);
+
+      // Cusp: the pink comes down to a point between two arches.
+      expect(path.contains(Offset(span, cusp - 1.5)), isFalse);
+      expect(path.contains(Offset(span, cusp + .8)), isTrue);
+
+      // Broad tops: a quarter of the way across, the edge is already 75% of
+      // the way up (a sine would be at 50%). This is what makes it a scallop.
+      const quarter = cusp - DetailedWaveClipper.archHeight * .75;
+      expect(path.contains(Offset(span / 4, quarter + 1)), isTrue);
+      expect(path.contains(Offset(span / 4, quarter - 1)), isFalse);
+
+      // Rise: 8.2dp, calibrated so the same pixel test reads this clipper and
+      // the comp alike (~7.9dp on both).
+      expect(cusp - apex, closeTo(8.2, .01));
+
+      // No wedge at the left edge; one closed outline.
+      expect(path.contains(const Offset(.01, 1)), isFalse);
+      expect(path.computeMetrics().single.isClosed, isTrue);
+    });
   }
 
   for (final (width, scale, keyboard) in [
@@ -195,38 +220,50 @@ void main() {
     (320.0, 2.0, 0.0),
     (320.0, 2.0, 300.0),
   ]) {
-    testWidgets('shell fits $width/$scale/keyboard=$keyboard with one close', (
-      tester,
-    ) async {
-      await mountSheetSystem(
-        tester,
-        ChumbucketWavySheet(
-          title: 'A longer sheet heading',
-          subtitle: 'Keep the existing account and history',
-          body: ListView(
-            shrinkWrap: true,
-            children: List.generate(20, (i) => Text('Row $i')),
+    testWidgets(
+      'shell fits $width/$scale/keyboard=$keyboard, no close button',
+      (tester) async {
+        await mountSheetSystem(
+          tester,
+          ChumbucketWavySheet(
+            title: 'A longer sheet heading',
+            subtitle: 'Keep the existing account and history',
+            body: ListView(
+              shrinkWrap: true,
+              children: List.generate(20, (i) => Text('Row $i')),
+            ),
           ),
-        ),
-        width: width,
-        scale: scale,
-        keyboard: keyboard,
-      );
-      expect(tester.takeException(), isNull);
-      expect(find.byType(ChumbucketSheetWave), findsOneWidget);
-      expect(find.byTooltip('Close'), findsOneWidget);
-      final title = tester.widget<Text>(find.text('A longer sheet heading'));
-      expect(title.style, AppTextStyles.sheetTitle);
-      expect(title.maxLines, isNull);
-      expect(title.overflow, isNull);
-      final body = tester.getRect(find.byType(ListView));
-      expect(body.height, greaterThan(0));
-      expect(body.bottom, lessThanOrEqualTo(844 - keyboard - 14));
-      expect(
-        tester.getSize(find.byTooltip('Close')).shortestSide,
-        greaterThanOrEqualTo(48),
-      );
-    });
+          width: width,
+          scale: scale,
+          keyboard: keyboard,
+        );
+        expect(tester.takeException(), isNull);
+        expect(find.byType(ChumbucketSheetWave), findsOneWidget);
+        expect(find.byTooltip('Close'), findsNothing);
+        final title = tester.widget<Text>(find.text('A longer sheet heading'));
+        // The header sits on the pink gradient, so its type is WHITE. This
+        // previously pinned the ink-coloured `sheetTitle`, which is what made
+        // the modularised sheet render dark text on #FF3355. Assert the colour
+        // outright so the regression cannot come back through a style rename.
+        expect(title.style, AppTextStyles.sheetTitleOnBrand);
+        expect(title.style?.color, const Color(0xFFFFFFFF));
+        expect(title.textAlign, TextAlign.center);
+        expect(title.maxLines, isNull);
+        expect(title.overflow, isNull);
+        final body = tester.getRect(find.byType(ListView));
+        expect(body.height, greaterThan(0));
+        expect(body.bottom, lessThanOrEqualTo(844 - keyboard - 14));
+        // The handle's touch target (and screen-reader Close) is 48dp+.
+        expect(
+          tester
+              .getSize(
+                find.byKey(const ValueKey('chumbucket-sheet-close-target')),
+              )
+              .shortestSide,
+          greaterThanOrEqualTo(48),
+        );
+      },
+    );
   }
 
   testWidgets(
@@ -266,8 +303,13 @@ void main() {
     },
   );
 
+  // The comp has no close button. A sheet closes by dragging its header down,
+  // tapping the handle, tapping the backdrop, or system Back — and a busy
+  // sheet refuses every one of them.
   for (final busy in [false, true]) {
-    testWidgets('shared route dismissal respects busy=$busy', (tester) async {
+    testWidgets('no close button; every dismissal path respects busy=$busy', (
+      tester,
+    ) async {
       await mountSheetSystem(
         tester,
         Builder(
@@ -280,44 +322,103 @@ void main() {
                           (_) => ChumbucketWavySheet(
                             title: 'Modal title',
                             canDismiss: !busy,
-                            body: const Text('Content'),
+                            body: const SizedBox(
+                              height: 240,
+                              child: Center(child: Text('Content')),
+                            ),
                           ),
                     ),
                 child: const Text('Open'),
               ),
         ),
       );
-      await tester.tap(find.text('Open'));
-      await tester.pumpAndSettle();
-      final close = tester.widget<IconButton>(
-        find.byWidgetPredicate((w) => w is IconButton && w.tooltip == 'Close'),
-      );
-      expect(close.onPressed == null, busy);
-      await tester.tap(find.text('Content'));
-      await tester.pumpAndSettle();
-      expect(find.text('Modal title'), findsOneWidget);
-      if (busy) {
-        await tester.binding.handlePopRoute();
-        await tester.pumpAndSettle();
-        expect(find.text('Modal title'), findsOneWidget);
-        await tester.tapAt(const Offset(195, 30));
-        await tester.pumpAndSettle();
-        expect(find.text('Modal title'), findsOneWidget);
-      } else {
-        await tester.tap(find.byTooltip('Close'));
-        await tester.pumpAndSettle();
-        expect(find.text('Modal title'), findsNothing);
+      Future<void> open() async {
         await tester.tap(find.text('Open'));
         await tester.pumpAndSettle();
-        await tester.tapAt(const Offset(195, 30));
-        await tester.pumpAndSettle();
-        expect(find.text('Modal title'), findsNothing);
+        expect(find.text('Modal title'), findsOneWidget);
       }
+
+      void expectOpen(bool open) => expect(
+        find.text('Modal title'),
+        open ? findsOneWidget : findsNothing,
+      );
+
+      await open();
+      // No visible close affordance anywhere in the header.
+      expect(find.byTooltip('Close'), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(ChumbucketSheetHeader),
+          matching: find.byType(IconButton),
+        ),
+        findsNothing,
+      );
+      // Tapping content never dismisses.
+      await tester.tap(find.text('Content'));
+      await tester.pumpAndSettle();
+      expectOpen(true);
+
+      // 1. Drag the header down.
+      final surface = find.byKey(const ValueKey('chumbucket-sheet-surface'));
+      final restingTop = tester.getTopLeft(surface).dy;
+      await tester.drag(
+        find.byKey(const ValueKey('chumbucket-sheet-drag-region')),
+        const Offset(0, 320),
+      );
+      await tester.pumpAndSettle();
+      expectOpen(busy);
+      if (busy) {
+        // Locked, not broken: it gave a little and settled back.
+        expect(tester.getTopLeft(surface).dy, closeTo(restingTop, .5));
+      } else {
+        await open();
+      }
+
+      // 2. Tap the handle.
+      await tester.tap(
+        find.byKey(const ValueKey('chumbucket-sheet-close-target')),
+      );
+      await tester.pumpAndSettle();
+      expectOpen(busy);
+      if (!busy) await open();
+
+      // 3. Tap the backdrop.
+      await tester.tapAt(const Offset(195, 30));
+      await tester.pumpAndSettle();
+      expectOpen(busy);
+      if (!busy) await open();
+
+      // 4. System Back.
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expectOpen(busy);
     });
   }
 
+  testWidgets('a short header drag springs back instead of closing', (
+    tester,
+  ) async {
+    await mountSheetSystem(
+      tester,
+      ChumbucketWavySheet(
+        title: 'Modal title',
+        body: const SizedBox(height: 240),
+      ),
+    );
+    final surface = find.byKey(const ValueKey('chumbucket-sheet-surface'));
+    final restingTop = tester.getTopLeft(surface).dy;
+    await tester.timedDrag(
+      find.byKey(const ValueKey('chumbucket-sheet-drag-region')),
+      const Offset(0, 30),
+      const Duration(milliseconds: 600),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Modal title'), findsOneWidget);
+    expect(tester.getTopLeft(surface).dy, closeTo(restingTop, .5));
+  });
+
   testWidgets(
-    'market and prediction questions share an exact typographic role',
+    'market rows and call cards set questions in their named roles',
     (tester) async {
       final entry = testEntry(
         id: 'style-fixture',
@@ -335,9 +436,10 @@ void main() {
       final questions =
           tester.widgetList<Text>(find.text(entry.market.question)).toList();
       expect(questions, hasLength(2));
-      for (final question in questions) {
-        expect(question.style, AppTextStyles.questionTitle);
-      }
+      // A catalog row is a list of many questions (the prototype's 16/800); a
+      // call card leads with one (18/800).
+      expect(questions[0].style, AppTextStyles.marketRowQuestion);
+      expect(questions[1].style, AppTextStyles.questionTitle);
     },
   );
 
@@ -360,7 +462,12 @@ void main() {
           expect(tester.takeException(), isNull);
           expect(find.byType(ChumbucketWavySheet), findsOneWidget);
           expect(find.byType(ChumbucketSheetWave), findsOneWidget);
-          expect(find.byTooltip('Close'), findsOneWidget);
+          // The comp has no close button; the handle target closes.
+          expect(find.byTooltip('Close'), findsNothing);
+          expect(
+            find.byKey(const ValueKey('chumbucket-sheet-close-target')),
+            findsOneWidget,
+          );
           await tester.pumpWidget(const SizedBox());
         },
       );

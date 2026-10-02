@@ -13,6 +13,51 @@ class CallsFormat {
   CallsFormat._();
   static String sharePrice(String? value) =>
       value == null ? 'Unavailable' : '$value USDC/share';
+
+  /// A venue share price for reading, at two decimals: `0.500096044` reads
+  /// `0.50`. Rounded half-up on the DECIMAL STRING, never through a double, so
+  /// a venue value is never altered by float conversion; `1.25` stays above
+  /// one; a positive price under a cent reads `<0.01`, never `0.00`.
+  ///
+  /// Display only. The exact venue string stays on the market's detail, and
+  /// anything executable (quotes, trade review) keeps its full precision.
+  /// A value this cannot parse is returned unchanged rather than guessed at.
+  static String displayPrice(String value) {
+    final match = RegExp(r'^(\d+)(?:\.(\d*))?$').firstMatch(value.trim());
+    if (match == null) return value;
+    final whole = match.group(1)!;
+    final fraction = (match.group(2) ?? '').padRight(3, '0');
+    var cents = BigInt.parse('$whole${fraction.substring(0, 2)}');
+    if (int.parse(fraction[2]) >= 5) cents += BigInt.one;
+    if (cents == BigInt.zero) {
+      final positive = RegExp(
+        r'[1-9]',
+      ).hasMatch('$whole${match.group(2) ?? ''}');
+      return positive ? '<0.01' : '0.00';
+    }
+    final digits = cents.toString().padLeft(3, '0');
+    return '${digits.substring(0, digits.length - 2)}.'
+        '${digits.substring(digits.length - 2)}';
+  }
+
+  /// True when [displayPrice] shows less than the venue supplied, so the exact
+  /// figure needs to be shown alongside it.
+  static bool priceWasRounded(String value) {
+    final shown = displayPrice(value);
+    // Unparseable values come back unchanged: nothing was rounded.
+    if (shown == value) return false;
+    String trimZeros(String v) {
+      final s = v.trim();
+      if (!s.contains('.')) return s;
+      return s
+          .replaceFirst(RegExp(r'0+$'), '')
+          .replaceFirst(RegExp(r'\.$'), '');
+    }
+
+    // `0.5` -> `0.50` and `1` -> `1.00` add zeros; they do not round.
+    return trimZeros(shown) != trimZeros(value);
+  }
+
   static String nativePrices(SharePriceSnapshot? value) =>
       value == null
           ? 'Panta prices unavailable. Refresh before calling.'

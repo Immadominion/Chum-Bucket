@@ -118,11 +118,8 @@ class _NotificationsInboxScreenState extends State<NotificationsInboxScreen> {
             builder: (context, provider, _) {
               if (provider.unreadCount == 0) return const SizedBox.shrink();
               return TextButton(
-                onPressed:
-                    provider.isMarkingRead ? null : provider.markAllRead,
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.primary,
-                ),
+                onPressed: provider.isMarkingRead ? null : provider.markAllRead,
+                style: TextButton.styleFrom(foregroundColor: AppColors.primary),
                 child:
                     provider.isMarkingRead
                         ? SizedBox(
@@ -276,10 +273,9 @@ class _FilterBar extends StatelessWidget {
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: ChumbucketTabs(
-                labels:
-                    NotificationFilter.values
-                        .map((f) => f.label)
-                        .toList(growable: false),
+                labels: NotificationFilter.values
+                    .map((f) => f.label)
+                    .toList(growable: false),
                 selectedIndex: NotificationFilter.values.indexOf(
                   provider.filter,
                 ),

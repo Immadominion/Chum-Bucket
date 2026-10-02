@@ -13,6 +13,7 @@ import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.
 import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/shared/widgets/app_components/app_avatar.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
@@ -280,17 +281,20 @@ class CallJourneySheet extends StatelessWidget {
   final String title;
   final Widget body;
   final bool busy;
+  final bool showHeader;
   const CallJourneySheet({
     super.key,
     required this.title,
     required this.body,
     this.busy = false,
+    this.showHeader = true,
   });
   @override
   Widget build(BuildContext context) {
     return ChumbucketWavySheet(
       title: title,
       canDismiss: !busy,
+      showHeader: showHeader,
       body: DefaultTextStyle(style: callJourneyBody(), child: body),
     );
   }
@@ -310,99 +314,124 @@ class CallJourneyButton extends StatelessWidget {
     this.primary = false,
     this.busy = false,
   });
+
   @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(16),
-      gradient:
-          primary
-              ? const LinearGradient(
-                colors: [AppColors.lightPrimary, AppColors.primary],
-              )
-              : null,
-      color: primary ? null : AppColors.surface,
-      border: primary ? null : Border.all(color: AppColors.outlineVariant),
-    ),
-    child: TextButton(
-      onPressed: busy ? null : onPressed,
-      style: TextButton.styleFrom(
-        minimumSize: const Size(48, 48),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        foregroundColor: AppColors.textPrimary,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (busy) ...[
-            const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: AppColors.textPrimary,
+  Widget build(BuildContext context) {
+    // The primary action is the reference comp's button, shared app-wide.
+    if (primary) {
+      return ChumbucketPrimaryButton(
+        label: label,
+        onPressed: onPressed,
+        busy: busy,
+        busyLabel: 'Please wait…',
+        leading:
+            icon == null
+                ? null
+                : BasilIcon(icon!, size: 20, color: AppColors.onPrimary),
+      );
+    }
+    // A secondary button is the same shape on white, so a pair of equal
+    // actions ("Share link" / "Share image") still reads as one family.
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        onPressed: busy ? null : onPressed,
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(48, ChumbucketPrimaryButton.height),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          foregroundColor: AppColors.textPrimary,
+          backgroundColor: AppColors.surface,
+          side: const BorderSide(color: AppColors.outlineVariant, width: 1.5),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(ChumbucketPrimaryButton.radius),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (busy) ...[
+              const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(width: 8),
+            ] else if (icon != null) ...[
+              BasilIcon(icon!, size: 20, color: AppColors.textPrimary),
+              const SizedBox(width: 8),
+            ],
+            Flexible(
+              child: Text(
+                busy ? 'Please wait…' : label,
+                textAlign: TextAlign.center,
+                style: AppTextStyles.sheetAction.copyWith(
+                  color: AppColors.textPrimary,
+                ),
               ),
             ),
-            const SizedBox(width: 8),
-          ] else if (icon != null) ...[
-            BasilIcon(icon!, size: 20, color: AppColors.textPrimary),
-            const SizedBox(width: 8),
           ],
-          Flexible(
-            child: Text(
-              busy ? 'Please wait…' : label,
-              textAlign: TextAlign.center,
-              style: callJourneyHeading(context, 14),
-            ),
-          ),
-        ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class CallJourneyNote extends StatelessWidget {
   final String text;
   final String icon;
   final bool error;
+
+  /// A standing rule rather than news (the prototype's grey lock note).
+  final bool quiet;
   const CallJourneyNote(
     this.text, {
     super.key,
     this.icon = 'info-circle-outline',
     this.error = false,
+    this.quiet = false,
   });
+
+  static const _quietFill = Color(0xFFECEFF2);
+  static const _quietInk = Color(0xFF525D6E);
+
   @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(bottom: 12),
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: error ? AppColors.errorContainer : AppColors.primaryContainer,
-      borderRadius: BorderRadius.circular(14),
-    ),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        BasilIcon(
-          icon,
-          size: 20,
-          color:
-              error ? AppColors.onErrorContainer : AppColors.onPrimaryContainer,
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: callJourneyBody(12).copyWith(
-              color:
-                  error
-                      ? AppColors.onErrorContainer
-                      : AppColors.onPrimaryContainer,
+  Widget build(BuildContext context) {
+    final ink =
+        error
+            ? AppColors.onErrorContainer
+            : quiet
+            ? _quietInk
+            : AppColors.onPrimaryContainer;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.all(quiet ? 13 : 12),
+      decoration: BoxDecoration(
+        color:
+            error
+                ? AppColors.errorContainer
+                : quiet
+                ? _quietFill
+                : AppColors.primaryContainer,
+        borderRadius: BorderRadius.circular(quiet ? 13 : 14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          BasilIcon(icon, size: quiet ? 17 : 20, color: ink),
+          SizedBox(width: quiet ? 9 : 8),
+          Expanded(
+            child: Text(
+              text,
+              style: callJourneyBody(12).copyWith(color: ink, height: 1.6),
             ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
 
 class CallJourneyFact extends StatelessWidget {
@@ -415,12 +444,19 @@ class CallJourneyFact extends StatelessWidget {
     child: LayoutBuilder(
       builder: (context, constraints) {
         final heading = Text(label, style: callJourneyBody(12));
+        final stacked =
+            constraints.maxWidth < 280 ||
+            MediaQuery.textScalerOf(context).scale(12) > 18;
+        // The prototype's evidence list: label left, value right in ink.
         final content = Text(
           value,
-          style: callJourneyBody(12).copyWith(color: AppColors.textPrimary),
+          textAlign: stacked ? TextAlign.start : TextAlign.end,
+          style: callJourneyBody(12).copyWith(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w500,
+          ),
         );
-        if (constraints.maxWidth < 280 ||
-            MediaQuery.textScalerOf(context).scale(12) > 18) {
+        if (stacked) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [heading, const SizedBox(height: 4), content],
@@ -443,14 +479,26 @@ class CallJourneyPerson extends StatelessWidget {
   final Person person;
   final String? subtitle;
   final VoidCallback? onTap;
+
+  /// Beside the name, outside its tap target (Follow on a call).
+  final Widget? trailing;
   const CallJourneyPerson({
     super.key,
     required this.person,
     this.subtitle,
     this.onTap,
+    this.trailing,
   });
   @override
-  Widget build(BuildContext context) => Semantics(
+  Widget build(BuildContext context) {
+    final identity = _identity(context);
+    if (trailing == null) return identity;
+    return Row(
+      children: [Expanded(child: identity), const SizedBox(width: 8), trailing!],
+    );
+  }
+
+  Widget _identity(BuildContext context) => Semantics(
     button: onTap != null,
     child: InkWell(
       onTap: onTap,
@@ -493,36 +541,67 @@ class CallJourneyChoice extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback? onTap;
+
+  /// When the choice is a side, it takes that side's colour once chosen —
+  /// the prototype's green YES and slate NO. Other choices select in ink;
+  /// brand pink stays for the call to action.
+  final Side? side;
   const CallJourneyChoice({
     super.key,
     required this.label,
     required this.selected,
     this.onTap,
+    this.side,
   });
+
+  static const _rule = Color(0xFFD6DCE1);
+
   @override
-  Widget build(BuildContext context) => Semantics(
-    selected: selected,
-    child: OutlinedButton(
-      onPressed: onTap,
-      style: OutlinedButton.styleFrom(
-        minimumSize: const Size(48, 48),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        backgroundColor:
-            selected ? AppColors.primaryContainer : AppColors.surface,
-        foregroundColor: AppColors.textPrimary,
-        side: BorderSide(
-          color: selected ? AppColors.primary : AppColors.outlineVariant,
-          width: selected ? 2 : 1,
+  Widget build(BuildContext context) {
+    final (ink, fill) = switch (side) {
+      Side.yes => (const Color(0xFF07644C), const Color(0xFFE6F6EF)),
+      Side.no => (const Color(0xFF334155), const Color(0xFFEEF0F4)),
+      null => (AppColors.textPrimary, const Color(0xFFF1F2F4)),
+    };
+    return Semantics(
+      selected: selected,
+      child: OutlinedButton(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          backgroundColor: selected ? fill : AppColors.surface,
+          foregroundColor: AppColors.textPrimary,
+          side: BorderSide(
+            color: selected ? ink : _rule,
+            width: selected ? 2 : 1,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                style: callJourneyHeading(
+                  context,
+                  14,
+                ).copyWith(color: selected ? ink : AppColors.textPrimary),
+              ),
+            ),
+            if (selected && side != null) ...[
+              const SizedBox(width: 6),
+              BasilIcon('check-outline', size: 16, color: ink),
+            ],
+          ],
+        ),
       ),
-      child: Text(
-        label,
-        textAlign: TextAlign.center,
-        style: callJourneyHeading(context, 14),
-      ),
-    ),
-  );
+    );
+  }
 }
 
 class CallJourneySides extends StatelessWidget {
@@ -545,6 +624,7 @@ class CallJourneySides extends StatelessWidget {
             Expanded(
               child: CallJourneyChoice(
                 label: option.wire,
+                side: option,
                 selected: side == option,
                 onTap: onChanged == null ? null : () => onChanged!(option),
               ),

@@ -4,6 +4,7 @@ import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_sheet_header.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/widgets/profile_picture_selection_modal.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -169,7 +170,9 @@ void main() {
       expect(service.handles, ['ada']);
       expect(find.text('Done').hitTestable(), findsOneWidget);
       expect(tester.getSize(surface).height, lessThan(initialHeight));
-      final action = tester.getRect(find.widgetWithText(TextButton, 'Done'));
+      final action = tester.getRect(
+        find.widgetWithText(ChumbucketPrimaryButton, 'Done'),
+      );
       expect(action.bottom, closeTo(tester.getRect(surface).bottom - 24, .01));
       expect(tester.takeException(), isNull);
     },

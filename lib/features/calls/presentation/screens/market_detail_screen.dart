@@ -2,6 +2,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:provider/provider.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
@@ -167,23 +168,61 @@ class _MarketDetailScreenState extends State<MarketDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
+                      // The prototype's head: the market's mark, its category,
+                      // and where it stands. The venue is named with its
+                      // prices below.
+                      Row(
                         children: [
-                          _tag(
-                            market.venue.isDemo
-                                ? 'Demo catalog'
-                                : market.venue.label,
+                          MarketGlyph(market: market),
+                          const SizedBox(width: 10),
+                          // Category left, state right; at large text or on
+                          // a narrow phone the pills drop below, never clip.
+                          Expanded(
+                            child: Wrap(
+                              alignment: WrapAlignment.spaceBetween,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              spacing: 8,
+                              runSpacing: 6,
+                              children: [
+                                Text(
+                                  market.category.toUpperCase(),
+                                  style: AppTextStyles.textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: AppColors.textSecondary,
+                                        letterSpacing: .6,
+                                      ),
+                                ),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: [
+                                    if (market.venue.isDemo)
+                                      _tag('Demo catalog'),
+                                    _statusPill(
+                                      status,
+                                      tone:
+                                          acceptsCalls
+                                              ? _StatusTone.open
+                                              : market.status ==
+                                                      MarketStatus.resolved ||
+                                                  market.status ==
+                                                      MarketStatus.cancelled
+                                              ? _StatusTone.settled
+                                              : _StatusTone.waiting,
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
-                          _tag(status),
                         ],
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
                       Text(
                         market.question,
                         style: AppTextStyles.textTheme.headlineSmall?.copyWith(
-                          height: 1.25,
+                          height: 1.24,
+                          letterSpacing: -.5,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -250,7 +289,7 @@ class _MarketDetailScreenState extends State<MarketDetailScreen> {
                 if (isOwnCall && detail.crowdSplit != null)
                   _CrowdBlock(split: detail.crowdSplit!, market: market)
                 else if (!isOwnCall)
-                  _notice(
+                  const _LockNote(
                     'Make your call first. The community split unlocks afterwards.',
                   ),
                 const SizedBox(height: 14),
@@ -345,34 +384,9 @@ class _MarketDetailScreenState extends State<MarketDetailScreen> {
     );
   }
 
+  // The shared call to action: white label on the vertical gradient.
   Widget _callAction({required String label, VoidCallback? onPressed}) =>
-      DecoratedBox(
-        decoration: BoxDecoration(
-          gradient:
-              onPressed == null
-                  ? null
-                  : const LinearGradient(
-                    colors: [AppColors.lightPrimary, AppColors.primary],
-                  ),
-          color: onPressed == null ? AppColors.background : null,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: TextButton(
-          onPressed: onPressed,
-          style: TextButton.styleFrom(
-            minimumSize: const Size(48, 48),
-            padding: const EdgeInsets.all(14),
-            foregroundColor: AppColors.textPrimary,
-            textStyle: AppTextStyles.textTheme.labelLarge?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-          child: Text(label),
-        ),
-      );
+      ChumbucketPrimaryButton(label: label, onPressed: onPressed);
 }
 
 Widget _surface({required Widget child}) => SizedBox(
@@ -399,6 +413,69 @@ Widget _tag(String label) => Container(
     ),
   ),
 );
+
+enum _StatusTone { open, waiting, settled }
+
+/// Open in the prototype's green; closed-awaiting or paused in amber; a
+/// resolved or cancelled market neutral. Only an open market is ever green.
+Widget _statusPill(String label, {required _StatusTone tone}) {
+  final (fill, ink) = switch (tone) {
+    _StatusTone.open => (const Color(0xFFE6F6EF), const Color(0xFF07644C)),
+    _StatusTone.waiting => (const Color(0xFFFFF3D8), const Color(0xFF78350F)),
+    _StatusTone.settled => (const Color(0xFFEEF0F4), const Color(0xFF334155)),
+  };
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+    decoration: BoxDecoration(
+      color: fill,
+      borderRadius: BorderRadius.circular(7),
+    ),
+    child: Text(
+      label,
+      style: TextStyle(
+        fontFamily: 'PPNeueMachina',
+        fontSize: 12,
+        fontWeight: FontWeight.w800,
+        height: 1.2,
+        color: ink,
+      ),
+    ),
+  );
+}
+
+/// A rule of the screen rather than an alert: the prototype's grey note.
+class _LockNote extends StatelessWidget {
+  const _LockNote(this.message);
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(13),
+    decoration: BoxDecoration(
+      color: const Color(0xFFECEFF2),
+      borderRadius: BorderRadius.circular(13),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 1),
+          child: BasilIcon('lock-outline', size: 17, color: Color(0xFF525D6E)),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Text(
+            message,
+            style: AppTextStyles.textTheme.bodySmall?.copyWith(
+              color: const Color(0xFF525D6E),
+              height: 1.6,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
 Widget _notice(String message) => Padding(
   padding: const EdgeInsets.only(bottom: 12),
@@ -430,7 +507,7 @@ class _RulesBlock extends StatelessWidget {
         Text(
           'What decides this?',
           style: AppTextStyles.textTheme.titleMedium?.copyWith(
-            fontSize: 18,
+            fontSize: 16,
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -465,11 +542,24 @@ class _RulesBlock extends StatelessWidget {
                   ),
                 ),
               ),
+              // The venue's own source reference, verbatim, beside its rules.
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Resolution source: ${market.resolutionSource ?? 'Not published'}',
+                  style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
             ],
           ),
         ),
         Text(
-          'Resolution source: ${market.resolutionSource ?? 'Not published'}',
+          market.venue.isDemo
+              ? 'Resolution: sample data, never a live result.'
+              : 'Resolution: ${market.venue.label}’s published result.',
           style: AppTextStyles.textTheme.bodySmall?.copyWith(
             color: AppColors.textSecondary,
           ),

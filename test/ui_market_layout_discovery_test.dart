@@ -7,6 +7,7 @@ import 'package:chumbucket/features/calls/presentation/screens/market_detail_scr
 import 'package:chumbucket/features/calls/presentation/widgets/call_market_card.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/market_picker_sheet.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -228,21 +229,23 @@ void main() {
           );
           expect(find.text('Markets'), findsOneWidget);
           expect(find.text('Saved'), findsNothing);
-          await tester.tap(find.byTooltip('Activity'));
-          expect(activity, 1);
-          await reveal(tester, find.text('0.620000000000000001'));
-          expect(find.text('0.430000000000000001'), findsOneWidget);
-          expect(repo.reads, 1);
-          expect(tester.takeException(), isNull);
-          final filters = tester.widgetList<OutlinedButton>(
-            find.byType(OutlinedButton),
-          );
-          for (final filter in filters) {
+          // Chips are drawn at 40 or 32dp; each still takes 48dp of touch.
+          final filters = find.byType(OutlinedButton);
+          expect(filters, findsWidgets);
+          for (final filter in filters.evaluate()) {
             expect(
-              filter.style!.minimumSize!.resolve({})!.height,
+              tester.getSize(find.byWidget(filter.widget)).height,
               greaterThanOrEqualTo(48),
             );
           }
+          await tester.tap(find.byTooltip('Activity'));
+          expect(activity, 1);
+          // Rows read at two decimals; the exact venue strings are on detail.
+          await reveal(tester, find.text('0.62'));
+          expect(find.text('0.43'), findsOneWidget);
+          expect(find.text('0.620000000000000001'), findsNothing);
+          expect(repo.reads, 1);
+          expect(tester.takeException(), isNull);
           final padding =
               tester
                       .widgetList<SliverPadding>(find.byType(SliverPadding))
@@ -342,7 +345,9 @@ void main() {
         ),
       );
       final rowSize = tester.getSize(find.byType(CallMarketCard));
-      expect(rowSize.height, lessThanOrEqualTo(120));
+      // A one-line question at the prototype's spacing (18dp padding, 14dp
+      // to the price cells) is 131dp.
+      expect(rowSize.height, lessThanOrEqualTo(140));
       expect(rowSize.height, greaterThanOrEqualTo(48));
       final question = tester.widget<Text>(find.text(m.question));
       expect(question.maxLines, isNull);
@@ -382,7 +387,7 @@ void main() {
     final question = tester.widget<Text>(find.text(m.question));
     expect(question.maxLines, isNull);
     expect(question.overflow, isNot(TextOverflow.ellipsis));
-    await reveal(tester, find.text('0.430000000000000001'));
+    await reveal(tester, find.text('0.43'));
     expect(tester.takeException(), isNull);
   });
 
@@ -431,6 +436,12 @@ void main() {
       scale: 2,
     );
     expect(find.text('Make a call'), findsOneWidget);
+    // Detail reads at two decimals and states the venue's exact figures.
+    expect(find.text('0.62'), findsOneWidget);
+    expect(
+      find.text('Exact: YES 0.620000000000000001 · NO 0.430000000000000001'),
+      findsOneWidget,
+    );
     final trade = tester.widget<OutlinedButton>(
       find.widgetWithText(OutlinedButton, 'Trade'),
     );
@@ -455,8 +466,8 @@ void main() {
       final provider = CallsProvider(repository: CatalogRepository([m]));
       addTearDown(provider.dispose);
       await mount(tester, provider, MarketDetailScreen(marketId: m.id));
-      final call = tester.widget<TextButton>(
-        find.widgetWithText(TextButton, 'Make a call'),
+      final call = tester.widget<ChumbucketPrimaryButton>(
+        find.widgetWithText(ChumbucketPrimaryButton, 'Make a call'),
       );
       expect(call.onPressed, isNull);
       expect(find.text('Closed · awaiting result'), findsWidgets);

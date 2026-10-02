@@ -1,0 +1,96 @@
+{
+  "result": {
+    "data": {
+      "json": {
+        "items": [
+          {
+            "id": "notif-004",
+            "kind": "RESOLVED",
+            "rematchReason": null,
+            "actor": null,
+            "subjectCallId": "call-001",
+            "rivalCallId": null,
+            "marketId": "mkt-a",
+            "marketQuestion": "[DEMO] Will mkt-a happen?",
+            "category": "crypto",
+            "side": "YES",
+            "outcome": "CORRECT",
+            "title": "Your call resolved",
+            "body": "The venue published its result, and you called it right.",
+            "createdAt": 1760000004000,
+            "readAt": null
+          },
+          {
+            "id": "notif-003",
+            "kind": "REMATCH",
+            "rematchReason": "challenge",
+            "actor": {
+              "userId": "u-bob",
+              "handle": "u-bob",
+              "displayName": "U-BOB",
+              "avatarUrl": null
+            },
+            "subjectCallId": "call-001",
+            "rivalCallId": null,
+            "marketId": "mkt-a",
+            "marketQuestion": "[DEMO] Will mkt-a happen?",
+            "category": "crypto",
+            "side": "YES",
+            "outcome": null,
+            "title": "U-BOB wants a rematch",
+            "body": "They have challenged you to go on record again.",
+            "createdAt": 1760000003000,
+            "readAt": null
+          },
+          {
+            "id": "notif-002",
+            "kind": "FADED",
+            "rematchReason": null,
+            "actor": {
+              "userId": "u-cid",
+              "handle": "u-cid",
+              "displayName": "U-CID",
+              "avatarUrl": null
+            },
+            "subjectCallId": "call-001",
+            "rivalCallId": null,
+            "marketId": "mkt-a",
+            "marketQuestion": "[DEMO] Will mkt-a happen?",
+            "category": "crypto",
+            "side": "YES",
+            "outcome": null,
+            "title": "U-CID faded your call",
+            "body": "They went on record on the other side.",
+            "createdAt": 1760000002000,
+            "readAt": null
+          },
+          {
+            "id": "notif-001",
+            "kind": "BACKED",
+            "rematchReason": null,
+            "actor": {
+              "userId": "u-bob",
+              "handle": "u-bob",
+              "displayName": "U-BOB",
+              "avatarUrl": null
+            },
+            "subjectCallId": "call-001",
+            "rivalCallId": null,
+            "marketId": "mkt-a",
+            "marketQuestion": "[DEMO] Will mkt-a happen?",
+            "category": "crypto",
+            "side": "YES",
+            "outcome": null,
+            "title": "U-BOB backed your call",
+            "body": "They went on record on the same side as you.",
+            "createdAt": 1760000001000,
+            "readAt": null
+          }
+        ],
+        "nextCursor": null,
+        "unread": 4,
+        "servedAt": 1760000004000
+      }
+    }
+  }
+}

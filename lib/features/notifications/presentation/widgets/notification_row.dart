@@ -58,8 +58,7 @@ class NotificationRow extends StatelessWidget {
             decoration: BoxDecoration(
               // Unread is carried by the border tint, the weight of the title
               // and an explicit dot — never by colour alone.
-              color:
-                  unread ? tone.withValues(alpha: 0.04) : Colors.transparent,
+              color: unread ? tone.withValues(alpha: 0.04) : Colors.transparent,
               borderRadius: BorderRadius.circular(18.r),
               border: Border.all(
                 color:
@@ -207,11 +206,7 @@ class _Leading extends StatelessWidget {
                 color: Colors.white,
                 shape: BoxShape.circle,
               ),
-              child: BasilIcon(
-                _iconFor(notification),
-                size: 12.w,
-                color: tone,
-              ),
+              child: BasilIcon(_iconFor(notification), size: 12.w, color: tone),
             ),
           ),
         ],

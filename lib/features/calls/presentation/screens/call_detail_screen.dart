@@ -19,6 +19,7 @@ import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_person_screen.dart';
 import 'package:chumbucket/features/calls/presentation/screens/market_detail_screen.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/call_badges.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_composer_sheet.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_response_sheet.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart';
@@ -226,7 +227,30 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
             color: AppColors.textPrimary,
           ),
         ),
-        title: Text('The call', style: callJourneyHeading(context, 18)),
+        title: Text(
+          'The call',
+          style: callJourneyHeading(
+            context,
+            17,
+          ).copyWith(fontWeight: FontWeight.w400),
+        ),
+        actions: [
+          Consumer<CallsProvider>(
+            builder: (context, provider, _) {
+              final entry = provider.callDetail(widget.callId)?.entry;
+              if (entry == null) return const SizedBox.shrink();
+              return IconButton(
+                tooltip: 'Share call',
+                constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                onPressed: () => _shareReceipt(entry),
+                icon: const BasilIcon(
+                  'share-outline',
+                  color: AppColors.textPrimary,
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: Consumer<CallsProvider>(
         builder: (context, provider, _) {
@@ -284,17 +308,7 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
                 const CallJourneyNote(
                   'DEMO DATA · Sample market, not a live call.',
                 ),
-              if (own) ...[
-                Text(
-                  'You’re on record',
-                  style: callJourneyHeading(context, 24),
-                ),
-                const SizedBox(height: 8),
-                CallJourneyNote(
-                  'Your ${entry.call.side.wire} call is locked. Your side, reason and timestamp can’t be edited.',
-                  icon: 'lock-outline',
-                ),
-              ],
+              if (own) _LockedBanner(lockedAt: entry.call.lockedAtUtc),
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
@@ -306,6 +320,8 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
                   children: [
                     CallJourneyPerson(
                       person: entry.author,
+                      subtitle:
+                          '@${entry.author.handle} · ${CallsFormat.timestampShortUtc(entry.call.createdAtUtc)}',
                       onTap:
                           () => Navigator.of(context).push(
                             MaterialPageRoute(
@@ -316,58 +332,51 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
                                   ),
                             ),
                           ),
+                      trailing:
+                          own
+                              ? null
+                              : TextButton(
+                                style: TextButton.styleFrom(
+                                  minimumSize: const Size(48, 48),
+                                  foregroundColor: _pinkInk,
+                                ),
+                                onPressed:
+                                    _followBusy ||
+                                            provider.isFollowBusy(
+                                              entry.author.id,
+                                            )
+                                        ? null
+                                        : () => _follow(entry),
+                                child: Text(
+                                  _followBusy ||
+                                          provider.isFollowBusy(entry.author.id)
+                                      ? 'Updating…'
+                                      : following == true
+                                      ? 'Following'
+                                      : 'Follow',
+                                  style: callJourneyBody(13).copyWith(
+                                    color: _pinkInk,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
                     ),
-                    if (!own)
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          style: TextButton.styleFrom(
-                            minimumSize: const Size(48, 48),
-                            foregroundColor: AppColors.onPrimaryContainer,
-                          ),
-                          onPressed:
-                              _followBusy ||
-                                      provider.isFollowBusy(entry.author.id)
-                                  ? null
-                                  : () => _follow(entry),
-                          child: Text(
-                            _followBusy ||
-                                    provider.isFollowBusy(entry.author.id)
-                                ? 'Updating…'
-                                : following == true
-                                ? 'Following'
-                                : 'Follow',
-                            style: callJourneyHeading(context, 14),
-                          ),
-                        ),
-                      ),
                     if (_followError != null)
                       Semantics(
                         liveRegion: true,
                         child: CallJourneyNote(_followError!, error: true),
                       ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     Wrap(
                       spacing: 8,
-                      runSpacing: 8,
+                      runSpacing: 6,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.primaryContainer,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            'CALLED ${entry.call.side.wire}',
-                            style: callJourneyHeading(context, 12),
-                          ),
-                        ),
+                        SidePill(side: entry.call.side),
                         Text(
-                          'Free call · ${entry.call.visibility.label}',
+                          entry.call.visibility == CallVisibility.followers
+                              ? 'Free call · locked · Followers only'
+                              : 'Free call · locked',
                           style: callJourneyBody(12),
                         ),
                       ],
@@ -377,7 +386,10 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
                       header: true,
                       child: Text(
                         entry.market.question,
-                        style: callJourneyHeading(context, 24),
+                        style: callJourneyHeading(
+                          context,
+                          24,
+                        ).copyWith(letterSpacing: -.5),
                       ),
                     ),
                     if (entry.market.labelFor(entry.call.side).toUpperCase() !=
@@ -394,13 +406,21 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
                           ? entry.call.thesis!
                           : 'No reason added.',
                       style: callJourneyBody(
-                        16,
-                      ).copyWith(color: AppColors.textPrimary, height: 1.7),
+                        14,
+                      ).copyWith(color: AppColors.textPrimary, height: 1.75),
                     ),
-                    const Divider(height: 32),
+                    const Padding(
+                      padding: EdgeInsets.only(top: 18, bottom: 14),
+                      child: Divider(
+                        height: 1,
+                        color: AppColors.outlineVariant,
+                      ),
+                    ),
+                    // Readable here; the receipt carries the exact ISO
+                    // timestamps and venue strings as its proof.
                     CallJourneyFact(
                       'Locked',
-                      entry.call.lockedAtUtc.toIso8601String(),
+                      CallsFormat.timestampUtc(entry.call.lockedAtUtc),
                     ),
                     if (entry.call.confidence != null)
                       CallJourneyFact(
@@ -410,9 +430,13 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
                     CallJourneyFact(
                       '${entry.call.side.wire} when called',
                       entry.call.entryPrice != null
-                          ? CallsFormat.sharePrice(
-                            entry.call.entryPrice!.priceFor(entry.call.side),
-                          )
+                          ? CallsFormat.sharePrice(switch (entry
+                              .call
+                              .entryPrice!
+                              .priceFor(entry.call.side)) {
+                            final price? => CallsFormat.displayPrice(price),
+                            null => null,
+                          })
                           : entry.market.venue == MarketVenue.panta ||
                               entry.call.entryProbability == null
                           ? 'Price not captured'
@@ -424,10 +448,14 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
                       'Source',
                       CallsFormat.venueAttribution(entry.market),
                     ),
+                    if (entry.call.entryPrice?.priceFor(entry.call.side)
+                        case final exact?
+                        when CallsFormat.priceWasRounded(exact))
+                      CallJourneyFact('Exact price', exact),
                     if (entry.call.entryPrice case final price?)
                       CallJourneyFact(
                         'Price observed',
-                        price.observedAtUtc.toIso8601String(),
+                        CallsFormat.timestampUtc(price.observedAtUtc),
                       ),
                     CallJourneyFact(
                       'Closes',
@@ -436,31 +464,50 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
                           : CallsFormat.timestampUtc(entry.market.closesAtUtc!),
                     ),
                     CallJourneyFact('Market status', entry.market.status.label),
-                    CallJourneyButton(
-                      label: 'View market & rules',
-                      icon: 'arrow-right-outline',
-                      onPressed: () => _openMarket(entry),
-                    ),
-                    const SizedBox(height: 16),
-                    CallJourneyNote(
+                    CallJourneyFact(
+                      'Result',
                       entry.outcome == CallOutcome.pending
-                          ? 'On record. Awaiting ${entry.market.venue.isDemo ? 'the demo venue’s' : '${entry.market.venue.label}’s'} result. Closing time alone does not settle this call.'
+                          ? 'Awaiting ${entry.market.venue.isDemo ? 'the demo venue' : entry.market.venue.label}'
                           : CallsFormat.outcomeSentence(entry.outcome),
-                      icon:
-                          entry.outcome == CallOutcome.pending
-                              ? 'clock-outline'
-                              : 'document-outline',
                     ),
-                    CallJourneyButton(
-                      label:
-                          entry.outcome.isSettled
-                              ? 'View & share receipt'
-                              : own
-                              ? 'Share my call'
-                              : 'Share call',
-                      icon: 'share-outline',
-                      onPressed: () => _shareReceipt(entry),
+                    if (entry.outcome == CallOutcome.pending)
+                      Text(
+                        'Closing time alone does not settle this call.',
+                        style: callJourneyBody(12),
+                      ),
+                    const SizedBox(height: 6),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        style: TextButton.styleFrom(
+                          minimumSize: const Size(48, 48),
+                          padding: EdgeInsets.zero,
+                          foregroundColor: _pinkInk,
+                        ),
+                        iconAlignment: IconAlignment.end,
+                        onPressed: () => _openMarket(entry),
+                        icon: const BasilIcon(
+                          'arrow-right-outline',
+                          size: 16,
+                          color: _pinkInk,
+                        ),
+                        label: Text(
+                          'View market & rules',
+                          style: callJourneyHeading(
+                            context,
+                            13,
+                          ).copyWith(color: _pinkInk),
+                        ),
+                      ),
                     ),
+                    if (entry.outcome.isSettled) ...[
+                      const SizedBox(height: 8),
+                      CallJourneyButton(
+                        label: 'View & share receipt',
+                        icon: 'share-outline',
+                        onPressed: () => _shareReceipt(entry),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -511,6 +558,7 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
                     ? 'Your call is locked. Eligible community opinion is available on the market.'
                     : 'Your opinion first. The community split appears after you lock a call.',
                 icon: 'lock-outline',
+                quiet: true,
               ),
               if (!provider.isSignedIn)
                 Text(
@@ -653,4 +701,48 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
       ],
     );
   }
+}
+
+/// The prototype's pink ink for text actions (#B8173B, 6.4:1 on white).
+const _pinkInk = Color(0xFFB8173B);
+
+/// Your own call, from the prototype: a green "on record" banner with the
+/// instant it locked.
+class _LockedBanner extends StatelessWidget {
+  const _LockedBanner({required this.lockedAt});
+  final DateTime lockedAt;
+
+  static const _ink = Color(0xFF07644C);
+
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.only(bottom: 14),
+    padding: const EdgeInsets.all(13),
+    decoration: BoxDecoration(
+      color: const Color(0xFFE6F6EF),
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Row(
+      children: [
+        const BasilIcon('lock-outline', size: 20, color: _ink),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'You’re on record',
+                style: callJourneyHeading(context, 14).copyWith(color: _ink),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${CallsFormat.timestampUtc(lockedAt)} · side, reason and time can’t be edited',
+                style: callJourneyBody(12).copyWith(color: _ink),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 }

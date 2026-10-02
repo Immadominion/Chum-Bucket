@@ -153,7 +153,7 @@ class _ArenaNotificationsScreenState extends State<ArenaNotificationsScreen> {
                         separatorBuilder: (_, __) => SizedBox(height: 10.h),
                         itemBuilder: (context, index) {
                           final notification = arena.notifications[index];
-                          return _NotificationRow(
+                          return ArenaNotificationRow(
                             notification: notification,
                             onTap: () => _open(notification),
                           );
@@ -170,11 +170,17 @@ class _ArenaNotificationsScreenState extends State<ArenaNotificationsScreen> {
   }
 }
 
-class _NotificationRow extends StatelessWidget {
+/// One wallet-keyed notice from the earlier challenge system (followed calls,
+/// claim-ready winnings). Shared with the unified Activity screen.
+class ArenaNotificationRow extends StatelessWidget {
   final ArenaNotification notification;
   final VoidCallback onTap;
 
-  const _NotificationRow({required this.notification, required this.onTap});
+  const ArenaNotificationRow({
+    super.key,
+    required this.notification,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {

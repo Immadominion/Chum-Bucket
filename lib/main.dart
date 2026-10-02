@@ -22,6 +22,9 @@ import 'package:chumbucket/features/authentication/session/app_sign_out.dart';
 import 'package:chumbucket/features/authentication/presentation/widgets/account_session_host.dart';
 import 'package:chumbucket/features/calls/data/calls_repository_factory.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
+import 'package:chumbucket/features/notifications/data/bff_notifications_repository.dart';
+import 'package:chumbucket/features/notifications/data/mock_notifications_repository.dart';
+import 'package:chumbucket/features/notifications/providers/notifications_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 // Firebase & Push notifications
 import 'package:firebase_core/firebase_core.dart';
@@ -148,6 +151,34 @@ void main() async {
                 // is still in flight; setViewer early-returns when unchanged.
                 update:
                     (_, session, calls) => calls!..setViewer(session.userId),
+              ),
+              // The calls inbox (`inbox.*` on the same BFF, same session token).
+              // The recipient is the session, never a wallet. The mock is only
+              // ever the explicit CALLS_BACKEND=mock build, as for calls.
+              ChangeNotifierProxyProvider<
+                ChumbucketSession,
+                NotificationsProvider
+              >(
+                create:
+                    (context) => NotificationsProvider(
+                      repository:
+                          resolveCallsBackend() == CallsBackend.mock
+                              ? MockNotificationsRepository()
+                              : BffNotificationsRepository(
+                                authToken:
+                                    context
+                                        .read<ChumbucketSession>()
+                                        .bffAuthToken,
+                              ),
+                    ),
+                update: (_, session, inbox) {
+                  final changed = inbox!.viewerUserId != session.userId;
+                  inbox.setViewer(session.userId);
+                  if (changed && session.userId != null) {
+                    inbox.refreshUnreadCount();
+                  }
+                  return inbox;
+                },
               ),
               ChangeNotifierProvider.value(
                 value: ChallengeStateProvider.instance,

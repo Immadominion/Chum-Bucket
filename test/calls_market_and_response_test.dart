@@ -6,6 +6,7 @@ import 'package:chumbucket/features/calls/presentation/widgets/call_composer_she
 import 'package:chumbucket/features/calls/presentation/widgets/call_response_sheet.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -151,9 +152,15 @@ void main() {
       expect(find.text('Price unavailable'), findsOneWidget);
       expect(find.text('Paused by venue'), findsWidgets);
       // Paused takes no new calls, so no composer entry point.
-      final action = find.widgetWithText(TextButton, 'Make a call');
+      final action = find.widgetWithText(
+        ChumbucketPrimaryButton,
+        'Make a call',
+      );
       if (action.evaluate().isNotEmpty) {
-        expect(tester.widget<TextButton>(action).onPressed, isNull);
+        expect(
+          tester.widget<ChumbucketPrimaryButton>(action).onPressed,
+          isNull,
+        );
       }
     });
 
@@ -217,9 +224,15 @@ void main() {
         findsOneWidget,
       );
       // Already on record, so the composer entry point is gone.
-      final action = find.widgetWithText(TextButton, 'Make a call');
+      final action = find.widgetWithText(
+        ChumbucketPrimaryButton,
+        'Make a call',
+      );
       if (action.evaluate().isNotEmpty) {
-        expect(tester.widget<TextButton>(action).onPressed, isNull);
+        expect(
+          tester.widget<ChumbucketPrimaryButton>(action).onPressed,
+          isNull,
+        );
       }
     });
   });

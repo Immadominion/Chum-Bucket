@@ -229,41 +229,54 @@ class _CallReceiptSheetState extends State<CallReceiptSheet> {
   @override
   Widget build(BuildContext context) {
     final receipt = widget.receipt;
+    // The receipt's own scalloped hero is the sheet's header: one brand
+    // header, and the shared image is exactly what is on screen.
     return CallJourneySheet(
       title: receipt.isSettled ? 'Your receipt' : 'On record',
       busy: _busy,
+      showHeader: false,
       body: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Flexible(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              padding: const EdgeInsets.only(bottom: 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Center(
-                    child: Screenshot(
-                      controller: _controller,
-                      child: CallReceiptCard(receipt: receipt, entry: _entry),
+                  Screenshot(
+                    controller: _controller,
+                    child: CallReceiptCard(
+                      receipt: receipt,
+                      entry: _entry,
+                      framed: false,
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  if (!receipt.isSettled)
-                    const CallJourneyNote(
-                      'This is your locked call, not a settled receipt. The venue has not published a result.',
-                      icon: 'clock-outline',
+                  const SizedBox(height: 4),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (!receipt.isSettled)
+                          const CallJourneyNote(
+                            'This is your locked call, not a settled receipt. The venue has not published a result.',
+                            icon: 'clock-outline',
+                          ),
+                        if (receipt.isVoid)
+                          const CallJourneyNote(
+                            'The market was cancelled, so this is void — it counts as neither a win nor a loss.',
+                          ),
+                        if (!_public)
+                          CallJourneyNote(
+                            _entry == null
+                                ? 'Share a link. Image export is unavailable until this call’s visibility can be verified.'
+                                : 'Followers-only call. Share a link to preserve access controls. Exporting an image discloses the content outside that audience.',
+                            icon: 'lock-outline',
+                          ),
+                      ],
                     ),
-                  if (receipt.isVoid)
-                    const CallJourneyNote(
-                      'The market was cancelled, so this is void — it counts as neither a win nor a loss.',
-                    ),
-                  if (!_public)
-                    CallJourneyNote(
-                      _entry == null
-                          ? 'Share a link. Image export is unavailable until this call’s visibility can be verified.'
-                          : 'Followers-only call. Share a link to preserve access controls. Exporting an image discloses the content outside that audience.',
-                      icon: 'lock-outline',
-                    ),
+                  ),
                 ],
               ),
             ),

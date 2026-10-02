@@ -47,6 +47,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:chumbucket/features/authentication/session/session_bff_client.dart';
 import 'package:chumbucket/features/authentication/session/session_state.dart';
+import 'package:chumbucket/features/authentication/session/solana_sign_in.dart';
 import 'package:chumbucket/features/authentication/session/supabase_auth_port.dart';
 import 'app_session_persistence.dart';
 import 'existing_account_proof.dart';
@@ -138,6 +139,18 @@ class ChumbucketSession extends ChangeNotifier {
   /// True when a person can make a call: a session **and** a canonical user.
   bool get isReady => _status == SessionStatus.ready && userId != null;
 
+  bool _needsProfile = false;
+
+  /// Whether the current session came from a wallet signature (as opposed to
+  /// Google or X).
+  bool get isWalletSession => _walletSession && _session != null;
+  bool _walletSession = false;
+
+  /// Signed in (wallet, Google or X), but no Chumbucket account yet: the
+  /// person claims a @username next. Survives a refused claim ("taken"), so
+  /// the form stays up with the reason beside it.
+  bool get needsUsername => _needsProfile && _session != null && !isReady;
+
   /// True while the OAuth round trip or `auth.whoami` is in flight — the two
   /// states a button should show a spinner for.
   bool get isBusy =>
@@ -205,7 +218,119 @@ class ChumbucketSession extends ChangeNotifier {
   ///
   /// Never throws. Every failure lands in [error] with [status] =
   /// [SessionStatus.failed].
-  Future<void> signInWithGoogle() async {
+  Future<void> signInWithGoogle() =>
+      _signInWithOAuth(() => _auth.startGoogleSignIn(redirectTo: _redirectTo));
+
+  /// The same flow with X's consent screen (Supabase's "Twitter (X)").
+  Future<void> signInWithX() =>
+      _signInWithOAuth(() => _auth.startXSignIn(redirectTo: _redirectTo));
+
+  /// Sign in with a Solana wallet: it signs one message (no transaction),
+  /// Supabase Auth verifies it and issues a session, and the canonical person
+  /// is resolved exactly as for Google. Never throws; failures land in [error].
+  Future<void> signInWithWallet(SolanaSignInWallet wallet) async {
+    if (_disposed ||
+        _linkingExistingAccount ||
+        _signingOut != null ||
+        _status == SessionStatus.signingIn) {
+      return;
+    }
+    _acceptAuthEvents = true;
+    _ensureSubscribed();
+    final pending = Completer<SupabaseSessionSnapshot?>();
+    _pendingSignIn = pending;
+    _status = SessionStatus.signingIn;
+    _error = null;
+    _notify();
+    try {
+      debugPrint('SolanaSignIn: connecting wallet');
+      final address = await wallet.connect();
+      debugPrint('SolanaSignIn: wallet connected, requesting signature');
+      if (_disposed || !identical(_pendingSignIn, pending)) return;
+      final message =
+          wallet is _PresignedWallet
+              ? wallet.signedMessage
+              : solanaSignInMessage(address: address, issuedAt: DateTime.now());
+      final signature = await wallet.sign(message);
+      debugPrint('SolanaSignIn: signed, exchanging with Supabase');
+      if (_disposed || !identical(_pendingSignIn, pending)) return;
+      final snapshot = await _auth.signInWithSolana(
+        message: message,
+        signature: signature,
+      );
+      if (_disposed || !identical(_pendingSignIn, pending)) return;
+      // The SDK also announces the new session on the auth stream; whichever
+      // arrives first completes the same pending sign-in.
+      _completePending(snapshot);
+      final adopted = await pending.future;
+      if (_disposed || adopted == null) return;
+      if (_session?.authUserId != adopted.authUserId) _sessionEpoch++;
+      _session = adopted;
+      _walletSession = true;
+      _identity = null;
+      await _resolveIdentity();
+    } on SessionException catch (e) {
+      debugPrint('SolanaSignIn: refused (${e.error.code})');
+      if (_disposed || !identical(_pendingSignIn, pending)) return;
+      _applyFailure(e.error);
+    } on SolanaSignInException catch (e) {
+      debugPrint('SolanaSignIn: Supabase step failed (${e.kind})');
+      if (_disposed || !identical(_pendingSignIn, pending)) return;
+      _applyFailure(switch (e.kind) {
+        SolanaSignInException.disabled => const SessionError.refused(
+          'Wallet sign-in isn’t switched on yet. Your wallet and profile are '
+          'unchanged.',
+          code: 'WALLET_SIGN_IN_DISABLED',
+        ),
+        SolanaSignInException.network => const SessionError.network(
+          'We couldn’t reach sign-in. Check your connection and try again.',
+        ),
+        _ => const SessionError.refused(
+          'That wallet signature wasn’t accepted. Try again.',
+          code: 'WALLET_SIGN_IN_REFUSED',
+        ),
+      });
+    } catch (error) {
+      debugPrint('SolanaSignIn: failed (${error.runtimeType})');
+      if (_disposed || !identical(_pendingSignIn, pending)) return;
+      _applyFailure(
+        const SessionError.network('We couldn’t finish signing in. Try again.'),
+      );
+    } finally {
+      if (identical(_pendingSignIn, pending)) _pendingSignIn = null;
+    }
+  }
+
+  /// Finishes a wallet sign-in whose message was already signed (during
+  /// Connect Wallet). Same exchange and resolution as [signInWithWallet].
+  Future<void> signInWithSignedMessage(String message, String signature) =>
+      signInWithWallet(_PresignedWallet(message, signature));
+
+  Set<String>? _providers;
+
+  /// The social sign-ins switched on for this project ("google",
+  /// "twitter"), read once from Supabase's public settings. Null until read.
+  Set<String>? get enabledProviders => _providers;
+
+  Future<void> loadEnabledProviders() async {
+    if (_providers != null) return;
+    final providers = await _auth.enabledProviders();
+    if (_disposed) return;
+    _providers = providers;
+    _notify();
+  }
+
+  /// Whether a @username can be claimed. Null when the check could not run.
+  Future<UsernameStatus?> usernameStatus(String handle) async {
+    try {
+      return await _bff.usernameStatus(handle);
+    } on SessionException {
+      return null;
+    }
+  }
+
+  Future<void> _signInWithOAuth(Future<bool> Function() start) async {
+    _walletSession = false;
     if (_disposed ||
         _linkingExistingAccount ||
         _signingOut != null ||
@@ -222,12 +347,12 @@ class ChumbucketSession extends ChangeNotifier {
     _notify();
 
     try {
-      final launched = await _auth.startGoogleSignIn(redirectTo: _redirectTo);
+      final launched = await start();
       if (_disposed || !identical(_pendingSignIn, pending)) return;
       if (!launched) {
         _applyFailure(
           const SessionError.refused(
-            "We couldn't open the Google sign-in page.",
+            "We couldn't open the sign-in page.",
             code: SessionErrorCode.oauthCancelled,
           ),
         );
@@ -286,7 +411,7 @@ class ChumbucketSession extends ChangeNotifier {
 
   /// Creates a new social profile only after the person explicitly chooses a
   /// public name. Existing wallet accounts are not claimed or merged here.
-  Future<void> completeProfile(String displayName) async {
+  Future<void> completeProfile(String displayName, {String? handle}) async {
     if (_linkingExistingAccount) return;
     final held = _session;
     if (held == null || isBusy || isReady) return;
@@ -303,7 +428,11 @@ class ChumbucketSession extends ChangeNotifier {
     try {
       final token = await bffAuthToken();
       if (token == null || epoch != _sessionEpoch || _disposed) return;
-      final identity = await _bff.completeProfile(token, displayName: name);
+      final identity = await _bff.completeProfile(
+        token,
+        displayName: name,
+        handle: handle,
+      );
       if (epoch != _sessionEpoch || _disposed) return;
       if (identity.authUserId != held.authUserId) {
         throw const SessionException(
@@ -314,12 +443,45 @@ class ChumbucketSession extends ChangeNotifier {
         );
       }
       _identity = identity;
+      _needsProfile = false;
       _status = SessionStatus.ready;
       _error = null;
       _notify();
     } on SessionException catch (e) {
       if (epoch == _sessionEpoch && !_disposed) _applyFailure(e.error);
     }
+  }
+
+  SessionIdentityStatus? _identityStatus;
+  Future<void>? _identityStatusLoad;
+
+  /// Whether an existing (wallet) profile can be linked to Google right now:
+  /// null until [loadIdentityStatus] has answered, false while the server's
+  /// existing-account claims are switched off. Lets an entry point say so
+  /// instead of offering a button that can only be refused.
+  bool? get existingAccountClaimsOpen =>
+      _identityStatus == null
+          ? null
+          : _identityStatus!.enabled &&
+              _identityStatus!.existingAccountClaimsEnabled;
+
+  /// Reads `auth.identityStatus` once (public, no credential) and keeps it.
+  /// Concurrent callers share one request; a failure leaves it unknown and the
+  /// next caller retries. The link flow still re-checks before it acts.
+  Future<void> loadIdentityStatus({bool force = false}) {
+    if (!force && _identityStatus != null) return Future.value();
+    return _identityStatusLoad ??= () async {
+      try {
+        final status = await _bff.identityStatus();
+        if (_disposed) return;
+        _identityStatus = status;
+        _notify();
+      } on SessionException {
+        // Unknown stays unknown; nothing is assumed either way.
+      } finally {
+        _identityStatusLoad = null;
+      }
+    }();
   }
 
   /// Whether identity is switched on for this deployment.
@@ -688,6 +850,7 @@ class ChumbucketSession extends ChangeNotifier {
           );
         }
         _identity = identity;
+        _needsProfile = false;
         _status = SessionStatus.ready;
         _error = null;
         _notify();
@@ -706,6 +869,7 @@ class ChumbucketSession extends ChangeNotifier {
 
     if (_disposed || epoch != _sessionEpoch) return;
     _identity = null;
+    _needsProfile = failure?.isUnlinked == true;
     _error = failure;
     _status = SessionStatus.failed;
     _notify();
@@ -731,6 +895,7 @@ class ChumbucketSession extends ChangeNotifier {
     _sessionEpoch++;
     _session = null;
     _identity = null;
+    _needsProfile = false;
     _status = SessionStatus.signedOut;
     _error = null;
     _notify();
@@ -747,4 +912,23 @@ class ChumbucketSession extends ChangeNotifier {
     if (_disposed) return;
     notifyListeners();
   }
+}
+
+/// A wallet whose one signature is already in hand.
+class _PresignedWallet implements SolanaSignInWallet {
+  _PresignedWallet(this._message, this._signature);
+  final String _message;
+  final String _signature;
+
+  @override
+  Future<String> connect() async {
+    final address = _message.split('\n').elementAtOrNull(1) ?? '';
+    return address;
+  }
+
+  @override
+  Future<String> sign(String message) async => _signature;
+
+  /// The message that was signed, used verbatim.
+  String get signedMessage => _message;
 }

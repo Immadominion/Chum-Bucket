@@ -134,6 +134,13 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
                     for (final kind in CallResponseKind.values)
                       CallJourneyChoice(
                         label: kind.label,
+                        // Back locks their side, Fade the other; a challenge
+                        // is an invitation and takes no side here.
+                        side: switch (kind) {
+                          CallResponseKind.back => entry.call.side,
+                          CallResponseKind.fade => entry.call.side.opposite,
+                          _ => null,
+                        },
                         selected: _kind == kind,
                         onTap:
                             busy || (closed && kind.createsOwnCall)

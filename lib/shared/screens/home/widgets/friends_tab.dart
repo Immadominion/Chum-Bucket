@@ -5,6 +5,7 @@ import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/friends_grid.dart';
 import 'package:chumbucket/shared/screens/home/widgets/view_more_friends_sheet.dart';
 import 'package:flutter/material.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
@@ -432,23 +433,15 @@ class _FriendsTabState extends State<FriendsTab>
             ),
             if (connected) ...[
               const SizedBox(height: 16),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [AppColors.lightPrimary, AppColors.primary],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: TextButton.icon(
-                  onPressed: widget.createNewChallenge,
-                  style: TextButton.styleFrom(
-                    minimumSize: const Size(48, 52),
-                    foregroundColor: AppColors.textPrimary,
-                    padding: const EdgeInsets.all(16),
-                    textStyle: styles.titleMedium,
-                  ),
-                  icon: const BasilIcon('plus-outline'),
-                  label: const Text('Add a friend'),
+              // The comp's call to action (img1's "Challenge a new friend"):
+              // white label on the vertical gradient, shared with the sheets.
+              ChumbucketPrimaryButton(
+                label: 'Add a friend',
+                onPressed: widget.createNewChallenge,
+                leading: const BasilIcon(
+                  'plus-outline',
+                  size: 20,
+                  color: AppColors.onPrimary,
                 ),
               ),
               const _PendingInvitesSection(),

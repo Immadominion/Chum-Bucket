@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
+import 'package:chumbucket/core/theme/app_text_styles.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:chumbucket/core/config/network_config.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
@@ -63,26 +64,23 @@ class ResolveSheetContent extends StatelessWidget {
     // Only witness can resolve - initiator sees waiting message
     final canResolve = isPending && isWitness;
 
+    // Spacing is back-solved from the comp's measured glyph positions:
+    // names -> statement 41.5dp, statement -> button 52dp, button -> secondary
+    // 22dp, secondary -> sheet edge 25dp. The button sits 15dp from the sheet's
+    // sides; the statement wraps inside a narrower 24dp column.
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+      padding: const EdgeInsets.fromLTRB(15, 31.5, 15, 10),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Challenge description
-          Center(
-            child: Container(
-              constraints: BoxConstraints(maxWidth: 350.w),
-              child: Text(
-                (challenge['description'] as String?) ??
-                    (challenge['title'] as String?) ??
-                    'Create challenge first',
-                style: TextStyle(
-                  fontSize: 20.sp,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black,
-                ),
-                textAlign: TextAlign.center,
-              ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 9),
+            child: Text(
+              (challenge['description'] as String?) ??
+                  (challenge['title'] as String?) ??
+                  'Create challenge first',
+              style: AppTextStyles.sheetStatement,
+              textAlign: TextAlign.center,
             ),
           ),
 
@@ -107,27 +105,18 @@ class ResolveSheetContent extends StatelessWidget {
             ),
           ],
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 50.5),
 
           // Action buttons - only shown to witness
           if (canResolve) ...[
-            // Challenge completed button
-            ChallengeButton(
-              createNewChallenge: () => onMarkCompleted(challenge, true),
+            ChumbucketPrimaryButton(
               label: 'Challenge Completed',
+              onPressed: () => onMarkCompleted(challenge, true),
             ),
-            SizedBox(height: 8.h),
-            // Failed to complete button
-            TextButton(
+            const SizedBox(height: 4),
+            ChumbucketTextAction(
+              label: 'Failed to complete',
               onPressed: () => onMarkCompleted(challenge, false),
-              child: Text(
-                'Failed to complete',
-                style: TextStyle(
-                  fontSize: 17.sp,
-                  color: const Color(0xFFFF5A76),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
             ),
           ] else if (isPending && !isWitness) ...[
             // Initiator sees waiting message

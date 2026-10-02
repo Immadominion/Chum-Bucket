@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:chumbucket/core/theme/app_theme.dart';
 import 'package:chumbucket/features/panta_trading/panta_trading.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -117,11 +118,16 @@ void main() {
         );
         expect(find.textContaining('Estimate not supplied'), findsOneWidget);
         await reveal(tester, find.text('Approve in wallet'));
-        final action = tester.widget<TextButton>(
-          find.widgetWithText(TextButton, 'Approve in wallet'),
-        );
+        // The rendered target, not a style hint: at least 48dp tall.
         expect(
-          action.style!.minimumSize!.resolve({})!.height,
+          tester
+              .getSize(
+                find.widgetWithText(
+                  ChumbucketPrimaryButton,
+                  'Approve in wallet',
+                ),
+              )
+              .height,
           greaterThanOrEqualTo(48),
         );
         expect(find.textContaining('chance'), findsNothing);
@@ -146,8 +152,8 @@ void main() {
       await tester.enterText(find.byKey(const ValueKey('panta-amount')), value);
       await tester.pump();
       await reveal(tester, find.text('Review order'));
-      final action = tester.widget<TextButton>(
-        find.widgetWithText(TextButton, 'Review order'),
+      final action = tester.widget<ChumbucketPrimaryButton>(
+        find.widgetWithText(ChumbucketPrimaryButton, 'Review order'),
       );
       expect(action.onPressed, isNull);
       expect(rig.procedure('prepare'), isEmpty);

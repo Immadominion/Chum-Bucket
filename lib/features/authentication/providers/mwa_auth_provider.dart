@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:developer';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -150,7 +151,22 @@ class MwaAuthProvider extends ChangeNotifier {
 
   /// Authorize with a mobile wallet using MWA protocol
   /// This replaces Privy's email-based auth with wallet-based auth
-  Future<bool> authorize() async {
+  /// The Sign-in-with-Solana message signed during the last [authorize], if
+  /// one was requested and the wallet signed it. Consumed once.
+  ({String message, Uint8List signature})? takeSignedSignIn() {
+    final signed = _signedSignIn;
+    _signedSignIn = null;
+    return signed;
+  }
+
+  ({String message, Uint8List signature})? _signedSignIn;
+
+  /// [signInMessageFor], when given, is signed in the SAME wallet session as
+  /// the connection (one visit to the wallet: approve, then sign). Declining
+  /// the signature does not fail the connection.
+  Future<bool> authorize({
+    String Function(String address)? signInMessageFor,
+  }) async {
     if (_disposed || _state == MwaAuthState.loading) return false;
     final epoch = ++_authEpoch;
     var step = MwaAuthorizationStep.walletDiscovery;
@@ -194,6 +210,38 @@ class MwaAuthProvider extends ChangeNotifier {
         identityName: _appName,
         cluster: _cluster,
       );
+
+      _signedSignIn = null;
+      if (result != null && signInMessageFor != null) {
+        try {
+          final message = signInMessageFor(base58encode(result.publicKey));
+          final bytes = Uint8List.fromList(utf8.encode(message));
+          final signed = await client.signMessages(
+            messages: [bytes],
+            addresses: [result.publicKey],
+          );
+          final one =
+              signed.signedMessages.length == 1
+                  ? signed.signedMessages.single
+                  : null;
+          if (one != null &&
+              listEquals(one.message, bytes) &&
+              one.signatures.length == 1 &&
+              one.signatures.single.length == 64) {
+            _signedSignIn = (
+              message: message,
+              signature: one.signatures.single,
+            );
+            debugPrint('MwaSigning: signed in during connect');
+          } else {
+            debugPrint('MwaSigning: sign-in not signed during connect');
+          }
+        } catch (e) {
+          debugPrint(
+            'MwaSigning: sign-in during connect failed (${e.runtimeType})',
+          );
+        }
+      }
 
       // Close the session
       step = MwaAuthorizationStep.sessionClose;
@@ -424,6 +472,10 @@ class MwaAuthProvider extends ChangeNotifier {
           !_isCurrent(epoch) ||
           base58encode(result.publicKey) != held!.walletAddress) {
         log('⚠️ Signing session: reauth failed', name: 'MwaAuthProvider');
+        debugPrint(
+          'MwaSigning: wallet did not resume the session '
+          '(${result == null ? 'no result' : 'different account'})',
+        );
         return null;
       }
 
@@ -447,6 +499,7 @@ class MwaAuthProvider extends ChangeNotifier {
       return MwaSigningSession(session: session, client: client);
     } catch (e) {
       log('❌ Error creating signing session', name: 'MwaAuthProvider');
+      debugPrint('MwaSigning: session failed (${e.runtimeType})');
       return null;
     } finally {
       if (!handedOff) {
@@ -455,6 +508,75 @@ class MwaAuthProvider extends ChangeNotifier {
         } catch (_) {
           /* No wallet error payload. */
         }
+      }
+    }
+  }
+
+  /// Signs one plain message for Sign in with Solana, in ONE wallet session.
+  ///
+  /// Resumes the saved authorization first; if the wallet no longer honours
+  /// it (a stale grant restored from storage), asks for a fresh one in the
+  /// same session instead of failing. The account must be the connected one.
+  /// Returns null when the wallet declines; never throws wallet payloads.
+  Future<SignMessagesResult?> signInMessage(Uint8List message) async {
+    final epoch = _authEpoch;
+    final held = _authResult;
+    if (held == null) return null;
+    LocalAssociationScenario? session;
+    try {
+      session = await LocalAssociationScenario.create();
+      session.startActivityForResult(null).ignore();
+      final client = await session.start();
+      var result = await client.reauthorize(
+        identityUri: Uri.parse(_identityUri),
+        iconUri: Uri.parse(_iconPath),
+        identityName: _appName,
+        authToken: held.authToken,
+      );
+      if (result == null) {
+        debugPrint('MwaSigning: saved authorization refused, asking again');
+        result = await client.authorize(
+          identityUri: Uri.parse(_identityUri),
+          iconUri: Uri.parse(_iconPath),
+          identityName: _appName,
+          cluster: _cluster,
+        );
+      }
+      if (result == null) {
+        debugPrint('MwaSigning: wallet did not authorize');
+        return null;
+      }
+      if (!_isCurrent(epoch) ||
+          base58encode(result.publicKey) != held.walletAddress) {
+        debugPrint('MwaSigning: wallet answered with a different account');
+        return null;
+      }
+      _authResult = MwaAuthResult(
+        walletAddress: held.walletAddress,
+        authToken: result.authToken,
+        publicKeyBytes: result.publicKey,
+        accountLabel: result.accountLabel,
+        walletUriBase: result.walletUriBase,
+        snsDomain: held.snsDomain,
+      );
+      await _persistAuthSession();
+      final signed = await client.signMessages(
+        messages: [message],
+        addresses: [result.publicKey],
+      );
+      if (signed.signedMessages.isEmpty) {
+        debugPrint('MwaSigning: wallet declined to sign');
+        return null;
+      }
+      return signed;
+    } catch (e) {
+      debugPrint('MwaSigning: sign-in session failed (${e.runtimeType})');
+      return null;
+    } finally {
+      try {
+        await session?.close();
+      } catch (_) {
+        /* No wallet error payload. */
       }
     }
   }

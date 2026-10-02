@@ -5,6 +5,7 @@ import 'package:chumbucket/core/theme/app_theme.dart';
 import 'package:chumbucket/features/panta_trading/panta_trading.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -105,7 +106,10 @@ void main() {
       expect(find.byType(ChumbucketWavySheet), findsOneWidget);
       expect(find.byType(BasilIcon), findsWidgets);
       await reveal(tester, find.text('Review order'));
-      expect(find.widgetWithText(TextButton, 'Review order'), findsOneWidget);
+      expect(
+        find.widgetWithText(ChumbucketPrimaryButton, 'Review order'),
+        findsOneWidget,
+      );
       await reveal(tester, find.textContaining('Up to 100 USDC'));
       expect(find.textContaining('Up to 100 USDC'), findsOneWidget);
       expect(r.wallet.signCount, 0);

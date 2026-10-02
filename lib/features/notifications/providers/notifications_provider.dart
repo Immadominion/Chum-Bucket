@@ -300,9 +300,7 @@ class NotificationsProvider extends ChangeNotifier {
   /// rather than throwing, because a badge is not a screen.
   Future<void> refreshUnreadCount() async {
     try {
-      _unreadCount = await _repository.unreadCount(
-        viewerUserId: _viewerUserId,
-      );
+      _unreadCount = await _repository.unreadCount(viewerUserId: _viewerUserId);
     } on NotificationsException catch (e) {
       developer.log('NotificationsProvider.refreshUnreadCount failed: $e');
       _unreadCount = 0;

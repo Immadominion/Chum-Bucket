@@ -305,36 +305,33 @@ class CallNotification {
     outcome: outcome,
   );
 
-  factory CallNotification.fromJson(Map<String, dynamic> json) =>
-      CallNotification(
-        id: _requireString(json['id'], 'CallNotification.id'),
-        recipientUserId: _requireString(
-          json['recipientUserId'],
-          'CallNotification.recipientUserId',
-        ),
-        kind: CallNotificationKind.fromWire(json['kind']),
-        actor:
-            json['actor'] == null
-                ? null
-                : NotificationActor.fromJson(
-                  json['actor'] as Map<String, dynamic>,
-                ),
-        title: _requireString(json['title'], 'CallNotification.title'),
-        body: _requireString(json['body'], 'CallNotification.body'),
-        createdAt: _requireTimestampMs(
-          json['createdAt'],
-          'CallNotification.createdAt',
-        ),
-        isUnread: json['isUnread'] as bool? ?? true,
-        target: CallNotificationTarget.fromJson(
-          json['target'] as Map<String, dynamic>,
-        ),
-        subjectCallId: json['subjectCallId'] as String?,
-        outcome:
-            json['outcome'] == null
-                ? null
-                : CallOutcome.fromWire(json['outcome']),
-      );
+  factory CallNotification.fromJson(
+    Map<String, dynamic> json,
+  ) => CallNotification(
+    id: _requireString(json['id'], 'CallNotification.id'),
+    recipientUserId: _requireString(
+      json['recipientUserId'],
+      'CallNotification.recipientUserId',
+    ),
+    kind: CallNotificationKind.fromWire(json['kind']),
+    actor:
+        json['actor'] == null
+            ? null
+            : NotificationActor.fromJson(json['actor'] as Map<String, dynamic>),
+    title: _requireString(json['title'], 'CallNotification.title'),
+    body: _requireString(json['body'], 'CallNotification.body'),
+    createdAt: _requireTimestampMs(
+      json['createdAt'],
+      'CallNotification.createdAt',
+    ),
+    isUnread: json['isUnread'] as bool? ?? true,
+    target: CallNotificationTarget.fromJson(
+      json['target'] as Map<String, dynamic>,
+    ),
+    subjectCallId: json['subjectCallId'] as String?,
+    outcome:
+        json['outcome'] == null ? null : CallOutcome.fromWire(json['outcome']),
+  );
 
   Map<String, dynamic> toJson() => {
     'id': id,

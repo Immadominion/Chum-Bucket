@@ -1,6 +1,7 @@
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
@@ -147,60 +148,19 @@ class _WalletExportWarningSheetState extends State<WalletExportWarningSheet> {
             const SizedBox(height: 24),
 
             // Action buttons
-            _isLoading
-                ? Container(
-                  width: double.infinity,
-                  height: 56.h,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFFF5A76), Color(0xFFFF3355)],
-                    ),
-                    borderRadius: BorderRadius.circular(28.r),
-                  ),
-                  child: Center(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        ),
-                        SizedBox(width: 12.w),
-                        Text(
-                          'Exporting...',
-                          style: TextStyle(
-                            fontSize: 17.sp,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-                : ChallengeButton(
-                  createNewChallenge: _attemptWalletExport,
-                  label: 'Export Wallet',
-                  hasGradient: true,
-                ),
+            ChumbucketPrimaryButton(
+              label: 'Export Wallet',
+              busy: _isLoading,
+              busyLabel: 'Exporting…',
+              onPressed: _attemptWalletExport,
+            ),
 
             SizedBox(height: 8.h),
 
             // Cancel button
-            TextButton(
+            ChumbucketTextAction(
+              label: 'Cancel',
               onPressed: () => Navigator.pop(context),
-              child: Text(
-                'Cancel',
-                style: TextStyle(
-                  fontSize: 17.sp,
-                  color: const Color(0xFFFF5A76),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
             ),
           ],
         ),
@@ -340,16 +300,9 @@ class WalletCopySheet extends StatelessWidget {
             SizedBox(height: 8.h),
 
             // Close button
-            TextButton(
+            ChumbucketTextAction(
+              label: 'Close',
               onPressed: () => Navigator.pop(context),
-              child: Text(
-                'Close',
-                style: TextStyle(
-                  fontSize: 17.sp,
-                  color: const Color(0xFFFF5A76),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
             ),
           ],
         ),

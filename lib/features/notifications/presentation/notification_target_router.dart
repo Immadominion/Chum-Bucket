@@ -37,7 +37,9 @@ Future<void> openNotificationTarget(
   switch (target) {
     case NotificationCallTarget(:final callId):
       await Navigator.of(context).push(
-        MaterialPageRoute<void>(builder: (_) => CallDetailScreen(callId: callId)),
+        MaterialPageRoute<void>(
+          builder: (_) => CallDetailScreen(callId: callId),
+        ),
       );
 
     case NotificationPersonTarget(:final personRef):

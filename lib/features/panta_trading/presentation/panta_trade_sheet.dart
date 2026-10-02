@@ -5,6 +5,7 @@ import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:flutter/material.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:flutter/services.dart';
 
 import '../data/panta_trading_models.dart';
@@ -460,52 +461,35 @@ class _PantaTradeSheetState extends State<PantaTradeSheet> {
       PantaTradePhase.amount => controller.validAmount,
       _ => false,
     };
-    // Same transition guards and controller methods as the existing sheet.
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.lightPrimary, AppColors.primary],
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: TextButton(
-        onPressed:
-            enabled && !controller.isBusy
-                ? () {
-                  switch (phase) {
-                    case PantaTradePhase.review:
-                      if (controller.quoteExpired) {
-                        controller.cancel();
-                      } else {
-                        unawaited(controller.approveReview());
-                      }
-                    case PantaTradePhase.signed:
-                      unawaited(controller.retrySignedSubmit());
-                    case PantaTradePhase.cancelled:
-                      _amount.clear();
-                      controller.editAmount('');
-                    case PantaTradePhase.order:
-                      _close();
-                    default:
-                      FocusScope.of(context).unfocus();
-                      unawaited(controller.prepare());
-                  }
+    // Same transition guards and controller methods as the existing sheet,
+    // drawn as the shared call to action. No spinner: the label already says
+    // what is in flight ("Awaiting wallet…"), and the trading flow keeps its
+    // exact busy contract — disabled, nothing swallowed silently.
+    return ChumbucketPrimaryButton(
+      label: label,
+      onPressed:
+          enabled && !controller.isBusy
+              ? () {
+                switch (phase) {
+                  case PantaTradePhase.review:
+                    if (controller.quoteExpired) {
+                      controller.cancel();
+                    } else {
+                      unawaited(controller.approveReview());
+                    }
+                  case PantaTradePhase.signed:
+                    unawaited(controller.retrySignedSubmit());
+                  case PantaTradePhase.cancelled:
+                    _amount.clear();
+                    controller.editAmount('');
+                  case PantaTradePhase.order:
+                    _close();
+                  default:
+                    FocusScope.of(context).unfocus();
+                    unawaited(controller.prepare());
                 }
-                : null,
-        style: TextButton.styleFrom(
-          minimumSize: const Size(48, 48),
-          padding: const EdgeInsets.all(16),
-          foregroundColor: AppColors.textPrimary,
-          disabledForegroundColor: AppColors.onPrimaryContainer,
-          textStyle: AppTextStyles.textTheme.labelLarge?.copyWith(
-            fontWeight: FontWeight.w800,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-        child: Text(label, textAlign: TextAlign.center),
-      ),
+              }
+              : null,
     );
   }
 }

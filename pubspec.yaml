@@ -84,6 +84,8 @@ flutter:
   assets:
     # Preserve existing body typography without a first-launch font download.
     - assets/fonts/Montserrat/
+    # Sheet typeface from the original app; see assets/fonts/Inter/README.md.
+    - assets/fonts/Inter/
     - assets/chumbucket_arena_idl.json
     - assets/images/
     - assets/images/states/

@@ -161,6 +161,7 @@ class SessionBffClient {
   Future<SessionIdentity> completeProfile(
     String accessToken, {
     required String displayName,
+    String? handle,
   }) async {
     final data = await _send(
       'auth.completeProfile',
@@ -168,10 +169,35 @@ class SessionBffClient {
       input: {
         'supabaseAccessToken': accessToken,
         'displayName': displayName.trim(),
+        if (handle != null) 'handle': handle.trim().toLowerCase(),
       },
       bearer: accessToken,
     );
     return _identityFrom(data);
+  }
+
+  /// Whether [handle] can be claimed. Public and credential-free: usernames
+  /// are public, and the answer carries no profile field.
+  Future<UsernameStatus> usernameStatus(String handle) async {
+    final data = await _send(
+      'auth.usernameStatus',
+      method: 'GET',
+      input: {'handle': handle.trim().toLowerCase()},
+    );
+    final status = data is Map ? data['status'] : null;
+    return switch (status) {
+      'available' => UsernameStatus.available,
+      'reserved' => UsernameStatus.reserved,
+      'taken' => UsernameStatus.taken,
+      'invalid' => UsernameStatus.invalid,
+      _ =>
+        throw const SessionException(
+          SessionError.network(
+            'We couldn’t check that username.',
+            code: SessionErrorCode.unreadable,
+          ),
+        ),
+    };
   }
 
   SessionIdentity _identityFrom(Object? data) {
@@ -209,6 +235,8 @@ class SessionBffClient {
       network: map['network'] is String ? map['network'] as String : 'unknown',
       proofVersion: (map['proofVersion'] as num?)?.toInt() ?? 0,
       existingAccountClaimsEnabled: map['existingAccountClaimsEnabled'] == true,
+      walletSignIn: map['walletSignIn'] == true,
+      walletProfileCarry: map['walletProfileCarry'] == true,
       allowedDomains: _strings(map['allowedDomains']),
       allowedUris: _strings(map['allowedUris']),
     );
@@ -235,7 +263,16 @@ class SessionBffClient {
     Map<String, dynamic>? input,
     String? bearer,
   }) async {
-    final uri = Uri.parse('$baseUrl/$procedurePath');
+    // A GET carries its input in the query string, so only public,
+    // credential-free input may ever be sent that way.
+    final uri =
+        method == 'GET' && input != null
+            ? Uri.parse('$baseUrl/$procedurePath').replace(
+              queryParameters: {
+                'input': jsonEncode({'json': input}),
+              },
+            )
+            : Uri.parse('$baseUrl/$procedurePath');
     final headers = <String, String>{'content-type': 'application/json'};
     if (bearer != null && bearer.isNotEmpty) {
       headers['authorization'] = 'Bearer $bearer';
@@ -391,9 +428,35 @@ SessionError sessionErrorForTrpcError({
   }
 
   switch (detail) {
+    case 'USERNAME_TAKEN':
+      return const SessionError.refused(
+        'That username is taken. Try another.',
+        code: 'USERNAME_TAKEN',
+      );
+    case 'USERNAME_RESERVED':
+      return const SessionError.refused(
+        'That username is reserved. Try another.',
+        code: 'USERNAME_RESERVED',
+      );
+    case 'USERNAME_INVALID':
+      return const SessionError.refused(
+        'Use 3–20 letters, numbers or underscores.',
+        code: 'USERNAME_INVALID',
+      );
+    case 'PROFILE_NAME_INVALID':
+      return const SessionError.refused(
+        'Use a name of 1–60 characters.',
+        code: 'PROFILE_NAME_INVALID',
+      );
+    case 'WALLET_HAS_PROFILE':
+      return const SessionError.refused(
+        'This wallet already has a Chumbucket profile. Bringing it over to '
+        'wallet sign-in is being switched on; your profile is unchanged.',
+        code: 'WALLET_HAS_PROFILE',
+      );
     case 'ACCOUNT_CLAIMS_DISABLED':
       return const SessionError.refused(
-        'Google linking is not available in this build yet. Your existing account is unchanged.',
+        'Linking Google to an existing profile isn’t open yet. Your existing account is unchanged.',
         code: 'ACCOUNT_CLAIMS_DISABLED',
       );
     case 'ACCOUNT_CLAIM_UNAVAILABLE':

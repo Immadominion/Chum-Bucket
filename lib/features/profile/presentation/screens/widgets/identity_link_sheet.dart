@@ -9,6 +9,8 @@ import 'package:chumbucket/features/authentication/session/existing_account_proo
 import 'package:chumbucket/features/authentication/session/mwa_existing_account_wallet.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
+import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
@@ -24,6 +26,15 @@ class IdentityLinkSheet extends StatefulWidget {
 
 class _IdentityLinkSheetState extends State<IdentityLinkSheet> {
   ChumbucketSession? _attemptSession;
+
+  @override
+  void initState() {
+    super.initState();
+    // Public and credential-free: learn up front whether a link can succeed.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<ChumbucketSession>().loadIdentityStatus();
+    });
+  }
 
   @override
   void dispose() {
@@ -63,41 +74,74 @@ class _IdentityLinkSheetState extends State<IdentityLinkSheet> {
               canDismiss: !session.isLinkingExistingAccount,
               body: SingleChildScrollView(
                 padding: EdgeInsets.fromLTRB(20.w, 10.h, 20.w, 24.h),
-                child: Column(
-                  children: [
-                    _IdentityProviderOption(
-                      label: 'Google',
-                      detail: 'Add Google sign-in to this existing account',
-                      mark: 'G',
-                      selected: true,
-                      onTap: null,
-                    ),
-                    SizedBox(height: 16.h),
-                    const Text(
-                      'After Google, your connected wallet will confirm ownership with a message. '
-                      'No transaction, payment or new profile.',
-                    ),
-                    if (session.existingLinkError case final error?) ...[
-                      SizedBox(height: 12.h),
-                      Text(
-                        error.message,
-                        key: const ValueKey('account-link-error'),
-                        style: TextStyle(color: AppColors.error),
-                      ),
-                    ],
-                    SizedBox(height: 18.h),
-                    ChallengeButton(
-                      label: 'Continue with Google',
-                      isLoading: session.isLinkingExistingAccount,
-                      createNewChallenge: _linkIdentity,
-                    ),
-                  ],
-                ),
+                child:
+                    session.existingAccountClaimsOpen == false &&
+                            !session.isLinkingExistingAccount
+                        ? _LinkClosed(
+                          onClose: () => Navigator.of(context).pop(),
+                        )
+                        : Column(
+                          children: [
+                            _IdentityProviderOption(
+                              label: 'Google',
+                              detail:
+                                  'Add Google sign-in to this existing account',
+                              mark: 'G',
+                              selected: true,
+                              onTap: null,
+                            ),
+                            SizedBox(height: 16.h),
+                            const Text(
+                              'After Google, your connected wallet will confirm ownership with a message. '
+                              'No transaction, payment or new profile.',
+                            ),
+                            if (session.existingLinkError
+                                case final error?) ...[
+                              SizedBox(height: 12.h),
+                              Text(
+                                error.message,
+                                key: const ValueKey('account-link-error'),
+                                style: TextStyle(color: AppColors.error),
+                              ),
+                            ],
+                            SizedBox(height: 18.h),
+                            ChallengeButton(
+                              label: 'Continue with Google',
+                              isLoading: session.isLinkingExistingAccount,
+                              createNewChallenge: _linkIdentity,
+                            ),
+                          ],
+                        ),
               ),
             ),
           ),
     );
   }
+}
+
+/// The server is not accepting existing-profile links yet: say so before any
+/// Google screen or wallet prompt, and offer nothing that would be refused.
+class _LinkClosed extends StatelessWidget {
+  const _LinkClosed({required this.onClose});
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    key: const ValueKey('account-link-closed'),
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const BasilIcon('lock-outline', color: AppColors.textPrimary),
+          SizedBox(width: 12.w),
+          const Expanded(child: Text(kExistingAccountLinkClosed)),
+        ],
+      ),
+      SizedBox(height: 22.h),
+      ChumbucketPrimaryButton(label: 'Got it', onPressed: onClose),
+    ],
+  );
 }
 
 class _IdentityProviderOption extends StatelessWidget {

@@ -108,28 +108,26 @@ class _ResolveChallengeSheetState extends State<ResolveChallengeSheet> {
     final amount = widget.challenge['amount'];
     final amountText = _formatAmount(amount);
 
+    // This is the reference sheet itself (irfan/img2.jpeg): a muted "Bet
+    // Amount" caption over the amount as the hero, and the two avatars
+    // straddling the wave rather than sitting below it in the body.
     return ChumbucketWavySheet(
       title: 'Bet Amount',
-      subtitle: '$amountText SOL',
+      value: '$amountText SOL',
+      headerLeading: FutureBuilder<String>(
+        future: AddressNameResolver.resolveDisplayName(friendRaw),
+        builder:
+            (context, snapshot) => OverlappingProfileAvatars(
+              userImagePath: 'assets/images/ai_gen/profile_images/1.png',
+              friendImagePath: 'assets/images/ai_gen/profile_images/2.png',
+              friendDisplayName:
+                  snapshot.data ?? _shortenAddress(friendRaw),
+            ),
+      ),
       body: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 8, bottom: 16),
-              child: FutureBuilder<String>(
-                future: AddressNameResolver.resolveDisplayName(friendRaw),
-                builder:
-                    (context, snapshot) => OverlappingProfileAvatars(
-                      userImagePath:
-                          'assets/images/ai_gen/profile_images/1.png',
-                      friendImagePath:
-                          'assets/images/ai_gen/profile_images/2.png',
-                      friendDisplayName:
-                          snapshot.data ?? _shortenAddress(friendRaw),
-                    ),
-              ),
-            ),
             ResolveSheetContent(
               challenge: widget.challenge,
               isPending: isResolvable,

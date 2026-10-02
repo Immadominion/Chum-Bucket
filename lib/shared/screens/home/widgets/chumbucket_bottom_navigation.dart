@@ -20,8 +20,12 @@ class ChumbucketBottomNavigation extends StatelessWidget {
   Widget build(BuildContext context) {
     final items = [
       ('Home', 'home-outline', 'home-solid'),
-      (showMarkets ? 'Markets' : 'Calls', 'hotspot-outline', 'hotspot-solid'),
-      ('Friends', 'contacts-outline', 'contacts-solid'),
+      // Prototype icons, same Basil set. Group has no solid cut, so Friends
+      // marks selection by colour and its pill alone.
+      showMarkets
+          ? ('Markets', 'chart-pie-alt-outline', 'chart-pie-alt-solid')
+          : ('Calls', 'hotspot-outline', 'hotspot-solid'),
+      ('Friends', 'group-151-outline', 'group-151-outline'),
       ('Profile', 'user-outline', 'user-solid'),
     ];
     return SafeArea(

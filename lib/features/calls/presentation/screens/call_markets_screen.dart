@@ -8,6 +8,7 @@ import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/header.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 /// Public discovery; the root shell owns navigation and the floating tab bar.
@@ -26,6 +27,12 @@ class CallMarketsScreen extends StatefulWidget {
 }
 
 class _CallMarketsScreenState extends State<CallMarketsScreen> {
+  // The prototype sets its search field at 12px; 13 keeps typed text legible.
+  static final _searchText = GoogleFonts.montserrat(
+    fontSize: 13,
+    color: AppColors.textPrimary,
+  );
+
   String _query = '';
   MarketDiscoveryWindow _window = MarketDiscoveryWindow.all;
   bool _cryptoOnly = false;
@@ -95,45 +102,83 @@ class _CallMarketsScreenState extends State<CallMarketsScreen> {
                     const SizedBox(height: 16),
                   TextField(
                     onChanged: (value) => setState(() => _query = value),
-                    style: AppTextStyles.textTheme.bodyMedium,
+                    style: _searchText,
                     textInputAction: TextInputAction.search,
                     decoration: InputDecoration(
                       hintText: 'Search predictions',
-                      hintStyle: AppTextStyles.textTheme.bodyMedium,
+                      hintStyle: _searchText.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
                       prefixIcon: const Padding(
-                        padding: EdgeInsets.all(14),
+                        padding: EdgeInsets.fromLTRB(14, 0, 9, 0),
                         child: BasilIcon(
                           'search-outline',
-                          size: 20,
-                          color: AppColors.textSecondary,
+                          size: 19,
+                          color: Color(0xFF7B8290),
                         ),
+                      ),
+                      prefixIconConstraints: const BoxConstraints(
+                        minWidth: 42,
+                        minHeight: 48,
                       ),
                       filled: true,
                       fillColor: AppColors.surface,
-                      contentPadding: const EdgeInsets.all(16),
+                      contentPadding: const EdgeInsets.fromLTRB(0, 15, 14, 15),
+                      // Borderless white field, as in the prototype. The
+                      // theme's enabledBorder would otherwise outline it; the
+                      // focus ring stays for keyboard and screen-reader users.
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(15),
                         borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: const BorderSide(
+                          color: AppColors.primary,
+                          width: 1.5,
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
                   MarketWindowFilters(
                     selected: _window,
                     onChanged: (value) => setState(() => _window = value),
                   ),
-                  const SizedBox(height: 8),
-                  FilterChip(
-                    label: const Text('Crypto only'),
-                    selected: _cryptoOnly,
-                    onSelected: (value) => setState(() => _cryptoOnly = value),
-                    materialTapTargetSize: MaterialTapTargetSize.padded,
-                    visualDensity: VisualDensity.standard,
+                  const SizedBox(height: 15),
+                  // The prototype's section header; the category toggle sits
+                  // where it puts "Crypto", keeping the date chips one row.
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Make your next call',
+                          style: AppTextStyles.questionTitle.copyWith(
+                            fontSize: 17,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ),
+                      Semantics(
+                        toggled: _cryptoOnly,
+                        child: MarketFilterChip(
+                          label: 'Crypto only',
+                          dense: true,
+                          selected: _cryptoOnly,
+                          onPressed:
+                              () => setState(() => _cryptoOnly = !_cryptoOnly),
+                        ),
+                      ),
+                    ],
                   ),
                   if (rows.any(
                     (market) => market.venue == MarketVenue.panta,
                   )) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 2),
                     const MarketCatalogLegend(),
                   ],
                 ],

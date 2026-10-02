@@ -160,17 +160,28 @@ class SessionIdentity {
 /// What `auth.identityStatus` answers with — public, credential-free, and
 /// useful for telling "this build has identity switched off" apart from "your
 /// account is not linked".
+/// Whether a @username can be claimed (case-insensitive, 3–20 of a-z 0-9 _).
+enum UsernameStatus { available, invalid, reserved, taken }
+
 class SessionIdentityStatus {
   const SessionIdentityStatus({
     required this.enabled,
     required this.network,
     required this.proofVersion,
     this.existingAccountClaimsEnabled = false,
+    this.walletSignIn = false,
+    this.walletProfileCarry = false,
     this.allowedDomains = const [],
     this.allowedUris = const [],
   });
 
   final bool enabled;
+
+  /// A wallet signature (Sign in with Solana) is a sign-in on this server.
+  final bool walletSignIn;
+
+  /// A wallet sign-in reaches the account that wallet already has.
+  final bool walletProfileCarry;
   final String network;
   final int proofVersion;
   final bool existingAccountClaimsEnabled;

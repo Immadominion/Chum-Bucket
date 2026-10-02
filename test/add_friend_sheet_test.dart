@@ -3,6 +3,7 @@ import 'package:chumbucket/core/theme/app_theme.dart';
 import 'package:chumbucket/features/arena/data/arena_models.dart';
 import 'package:chumbucket/shared/screens/home/widgets/add_friend_sheet.dart';
 import 'package:chumbucket/shared/services/friend_connection_service.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -95,7 +96,7 @@ Future<void> enter(WidgetTester tester, String value) async {
 }
 
 Future<void> submit(WidgetTester tester, [String label = 'Add friend']) async {
-  final button = find.widgetWithText(TextButton, label);
+  final button = find.widgetWithText(ChumbucketPrimaryButton, label);
   await tester.pumpAndSettle();
   await tester.scrollUntilVisible(
     button,

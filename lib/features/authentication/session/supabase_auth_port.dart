@@ -23,6 +23,11 @@ library;
 import 'dart:async';
 import 'package:chumbucket/features/authentication/session/app_session_persistence.dart';
 
+import 'dart:convert';
+
+import 'package:chumbucket/core/config/app_config.dart';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// The app's OAuth callback. Declared in
@@ -108,6 +113,27 @@ class SupabaseAuthEvent {
   String toString() => 'SupabaseAuthEvent(${kind.name}, session: $session)';
 }
 
+String _redactUrls(String text) =>
+    text.replaceAll(RegExp(r'https?://\S+'), '<url>');
+
+/// Supabase refused a wallet sign-in, or could not be reached.
+class SolanaSignInException implements Exception {
+  const SolanaSignInException(this.kind);
+  final String kind;
+
+  /// Wallet sign-in is not switched on for this project.
+  static const disabled = 'disabled';
+
+  /// The signature or message was not accepted.
+  static const refused = 'refused';
+
+  /// The request never completed.
+  static const network = 'network';
+
+  @override
+  String toString() => 'SolanaSignInException($kind)';
+}
+
 /// Everything `ChumbucketSession` is allowed to know about Supabase.
 abstract class SupabaseAuthPort {
   /// The session restored from storage at launch, or null.
@@ -123,6 +149,21 @@ abstract class SupabaseAuthPort {
   ///
   /// Returns false when the browser could not be opened at all.
   Future<bool> startGoogleSignIn({String redirectTo});
+
+  /// Opens X's consent screen, exactly like [startGoogleSignIn].
+  Future<bool> startXSignIn({String redirectTo});
+
+  /// Exchanges a wallet-signed Sign-in-with-Solana message for a session and
+  /// makes it the current one. Throws [SolanaSignInException] when Supabase
+  /// refuses it.
+  Future<SupabaseSessionSnapshot> signInWithSolana({
+    required String message,
+    required String signature,
+  });
+
+  /// The social providers switched on for this project, from Supabase's
+  /// public settings ("google", "twitter", …). Empty when unknown.
+  Future<Set<String>> enabledProviders();
 
   /// Exchanges the refresh token for a new access token. Returns null when
   /// there is nothing to refresh.
@@ -172,6 +213,134 @@ class SupabaseFlutterAuthPort implements SupabaseAuthPort {
       // OAuth, and this is what the arena link flow already does.
       authScreenLaunchMode: LaunchMode.externalApplication,
     );
+  }
+
+  @override
+  Future<bool> startXSignIn({String redirectTo = kChumbucketOAuthRedirect}) {
+    AppSessionPersistence.current?.beginInteractiveSignIn();
+    return _auth.signInWithOAuth(
+      // Supabase's "X / Twitter (OAuth 2.0)" provider is `x`. This SDK
+      // (gotrue 2.15) predates it, but it appends query parameters after
+      // `provider`, so this one overrides it while the PKCE verifier is still
+      // stored as for any provider. Use `OAuthProvider.x` once upgraded.
+      OAuthProvider.twitter,
+      redirectTo: redirectTo,
+      authScreenLaunchMode: LaunchMode.externalApplication,
+      queryParams: const {'provider': 'x'},
+    );
+  }
+
+  static String get _base =>
+      (AppConfig.values['SUPABASE_URL'] ?? '').replaceAll(RegExp(r'/+$'), '');
+  static String get _anonKey => AppConfig.values['SUPABASE_ANON_KEY'] ?? '';
+
+  @override
+  Future<SupabaseSessionSnapshot> signInWithSolana({
+    required String message,
+    required String signature,
+  }) async {
+    AppSessionPersistence.current?.beginInteractiveSignIn();
+    final http.Response response;
+    try {
+      response = await http
+          .post(
+            Uri.parse('$_base/auth/v1/token?grant_type=web3'),
+            headers: {'apikey': _anonKey, 'content-type': 'application/json'},
+            body: jsonEncode({
+              'chain': 'solana',
+              'message': message,
+              'signature': signature,
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+    } catch (error) {
+      // The type and a host-free description only: never the body or URL.
+      debugPrint(
+        'SolanaSignIn: token request failed (${error.runtimeType}): '
+        '${_redactUrls(error.toString())}',
+      );
+      throw const SolanaSignInException(SolanaSignInException.network);
+    }
+    debugPrint('SolanaSignIn: token request answered ${response.statusCode}');
+    if (response.statusCode != 200) {
+      // Only the machine-readable code is read; the body is not surfaced.
+      String? code;
+      try {
+        final body = jsonDecode(response.body);
+        if (body is Map) {
+          code = (body['error_code'] ?? body['code'])?.toString();
+        }
+      } catch (_) {}
+      throw SolanaSignInException(
+        code == 'provider_disabled' || code == 'web3_provider_disabled'
+            ? SolanaSignInException.disabled
+            : SolanaSignInException.refused,
+      );
+    }
+    final body = jsonDecode(response.body);
+    final refreshToken = body is Map ? body['refresh_token'] : null;
+    if (refreshToken is! String || refreshToken.isEmpty) {
+      throw const SolanaSignInException(SolanaSignInException.refused);
+    }
+    // Adopt it through the SDK so storage, refresh and the auth stream behave
+    // exactly as for any other sign-in.
+    final adopted = await _auth.setSession(refreshToken);
+    final snapshot = snapshotOf(adopted.session);
+    if (snapshot == null) {
+      throw const SolanaSignInException(SolanaSignInException.refused);
+    }
+    return snapshot;
+  }
+
+  @override
+  Future<Set<String>> enabledProviders() async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$_base/auth/v1/settings'),
+            headers: {'apikey': _anonKey},
+          )
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode != 200) return const {};
+      final body = jsonDecode(response.body);
+      final external = body is Map ? body['external'] : null;
+      if (external is! Map) return const {};
+      return {
+        for (final entry in external.entries)
+          if (entry.value == true) entry.key.toString(),
+        // This server's settings do not list X (OAuth 2.0); ask directly.
+        if (await _providerEnabled('x')) 'x',
+      };
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  /// An enabled provider answers `authorize` with a redirect to itself; a
+  /// disabled one with 400. Nothing is started and the redirect is not
+  /// followed.
+  static Future<bool> _providerEnabled(String provider) async {
+    final client = http.Client();
+    try {
+      final request =
+          http.Request(
+              'GET',
+              Uri.parse(
+                '$_base/auth/v1/authorize',
+              ).replace(queryParameters: {'provider': provider}),
+            )
+            ..followRedirects = false
+            ..headers['apikey'] = _anonKey;
+      final response = await client
+          .send(request)
+          .timeout(const Duration(seconds: 10));
+      await response.stream.drain<void>();
+      return response.statusCode >= 300 && response.statusCode < 400;
+    } catch (_) {
+      return false;
+    } finally {
+      client.close();
+    }
   }
 
   @override

@@ -18,16 +18,42 @@ class CallBadge extends StatelessWidget {
   final String? icon;
   final bool emphasised;
 
+  /// Icon and words in [color] with no box, for a badge that sits inside a
+  /// line of metadata (the call card's price stamp). Same copy, same colour.
+  final bool quiet;
+
   const CallBadge({
     super.key,
     required this.label,
     required this.color,
     this.icon,
     this.emphasised = false,
+    this.quiet = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (quiet) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            BasilIcon(icon!, size: 14, color: color),
+            const SizedBox(width: 5),
+          ],
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
       decoration: BoxDecoration(
@@ -71,8 +97,9 @@ class CallBadge extends StatelessWidget {
 /// read "Funded", and that copy lives on the enum.
 class FundingStateBadge extends StatelessWidget {
   final FundingState state;
+  final bool quiet;
 
-  const FundingStateBadge({super.key, required this.state});
+  const FundingStateBadge({super.key, required this.state, this.quiet = false});
 
   @override
   Widget build(BuildContext context) {
@@ -90,7 +117,12 @@ class FundingStateBadge extends StatelessWidget {
       FundingState.claimable => (AppColors.tertiary, 'award-outline'),
       FundingState.claimed => (AppColors.textSecondary, 'check-outline'),
     };
-    return CallBadge(label: state.label, color: color, icon: icon);
+    return CallBadge(
+      label: state.label,
+      color: color,
+      icon: icon,
+      quiet: quiet,
+    );
   }
 }
 
@@ -167,6 +199,44 @@ class DemoVenueBadge extends StatelessWidget {
       color: AppColors.onWarningContainer,
       icon: 'info-triangle-outline',
       emphasised: true,
+    );
+  }
+}
+
+/// The side a call took, as a flat label (the prototype's stance pill).
+/// Display only; [SideChip] is the selectable control.
+class SidePill extends StatelessWidget {
+  final Side side;
+  final String? label;
+
+  const SidePill({super.key, required this.side, this.label});
+
+  static const _yesInk = Color(0xFF07644C);
+  static const _yesFill = Color(0xFFE6F6EF);
+  static const _noInk = Color(0xFF334155);
+  static const _noFill = Color(0xFFEEF0F4);
+
+  @override
+  Widget build(BuildContext context) {
+    final yes = side == Side.yes;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: yes ? _yesFill : _noFill,
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: Text(
+        label ?? side.wire,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontFamily: 'PPNeueMachina',
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          height: 1.2,
+          color: yes ? _yesInk : _noInk,
+        ),
+      ),
     );
   }
 }

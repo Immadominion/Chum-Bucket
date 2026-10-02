@@ -67,6 +67,15 @@ class _SyntheticGoogle implements SupabaseAuthPort {
   }
 
   @override
+  Future<bool> startXSignIn({String? redirectTo}) async => false;
+  @override
+  Future<SupabaseSessionSnapshot> signInWithSolana({
+    required String message,
+    required String signature,
+  }) async => throw const SolanaSignInException(SolanaSignInException.disabled);
+  @override
+  Future<Set<String>> enabledProviders() async => const {'google'};
+  @override
   Future<SupabaseSessionSnapshot?> refreshSession() async => currentSession;
   @override
   Future<void> signOut() async => currentSession = null;

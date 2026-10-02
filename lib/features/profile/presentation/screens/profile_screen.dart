@@ -213,15 +213,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
-              Text(
-                'Public free calls shown here, including incorrect calls. '
-                'Separate from trading performance.',
-                style: styles.bodySmall?.copyWith(
-                  color: AppColors.textSecondary,
-                  height: 1.5,
+              // What the record counts, once there is a record to read.
+              if (detail != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Public free calls shown here, including incorrect calls. '
+                  'Separate from trading performance.',
+                  style: styles.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                    height: 1.5,
+                  ),
                 ),
-              ),
+              ],
               if (pending) ...[
                 const SizedBox(height: 16),
                 const LinearProgressIndicator(),
@@ -231,21 +234,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               if (_profileError != null && person == null) ...[
                 const SizedBox(height: 12),
                 Text(_profileError!, style: styles.bodyMedium),
-              ],
-              if (userId == null && !pending) ...[
-                const SizedBox(height: 16),
-                _ProfileActionRow(
-                  icon: 'user-outline',
-                  title:
-                      wallet != null
-                          ? 'Connect your existing account'
-                          : 'Sign in to your account',
-                  detail:
-                      session?.error?.message ??
-                      'Recover your profile to see your call record.',
-                  onTap:
-                      session == null ? null : () => requestCallSignIn(context),
-                ),
               ],
               if (challenges != null &&
                   challenges.pendingChallenges.isNotEmpty) ...[
@@ -267,7 +255,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              if (_selectedTab == 0)
+              // Only the call record needs the linked account, so its tab is
+              // where the account is connected — once, not above and inside.
+              // Only the call record needs a signed-in account, so its tab
+              // is where signing in is offered.
+              if (_selectedTab == 0 && userId == null && !pending)
+                _ProfileActionRow(
+                  icon: 'user-outline',
+                  title: 'Sign in',
+                  detail:
+                      session?.error?.message ??
+                      'Use your wallet, Google or X. Your call record '
+                          'appears here.',
+                  onTap:
+                      session == null ? null : () => requestCallSignIn(context),
+                )
+              else if (_selectedTab == 0 && userId != null)
                 ..._callRecord(calls, detail, userId, styles),
               if (_selectedTab == 1)
                 _ProfileActionRow(
@@ -319,11 +322,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _ProfileActionRow(
           icon: 'comment-outline',
           title: 'Your calls',
-          detail:
-              error ??
-              (userId == null
-                  ? 'Connect your existing account to load your calls.'
-                  : 'Your call record is not available yet.'),
+          detail: error ?? 'Your call record is not available yet.',
           onTap: userId == null ? null : _loadProfileData,
         ),
       ];

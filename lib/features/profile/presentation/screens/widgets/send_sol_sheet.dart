@@ -1,5 +1,6 @@
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 // MWA Wallet Provider for Pinocchio program integration
@@ -390,10 +391,9 @@ class _SendSolSheetState extends State<SendSolSheet> {
             ),
             SizedBox(height: 8.h),
             // Cancel button styled like "Failed to complete"
-            TertiaryActionButton(
-              text: 'Cancel',
+            ChumbucketTextAction(
+              label: 'Cancel',
               onPressed: _isTransferring ? null : () => Navigator.pop(context),
-              textColor: const Color(0xFFFF5A76),
             ),
             SizedBox(height: 20.h), // Extra padding at bottom
           ],

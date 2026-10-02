@@ -5,9 +5,10 @@ import 'package:provider/provider.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
-import 'package:chumbucket/features/arena/presentation/screens/arena_notifications_screen.dart';
 import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
+import 'package:chumbucket/features/notifications/presentation/screens/activity_screen.dart';
+import 'package:chumbucket/features/notifications/providers/notifications_provider.dart';
 import 'package:chumbucket/features/profile/presentation/screens/profile_screen.dart';
 import 'package:chumbucket/features/profile/providers/profile_provider.dart';
 import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
@@ -166,35 +167,55 @@ class _WalletButton extends StatelessWidget {
   }
 }
 
-class _NotificationBell extends StatelessWidget {
+/// The one bell: calls activity plus the earlier wallet notices, opening
+/// [ActivityScreen]. Its badge is the two unread counts added together.
+class _NotificationBell extends StatefulWidget {
   const _NotificationBell();
 
   @override
+  State<_NotificationBell> createState() => _NotificationBellState();
+}
+
+class _NotificationBellState extends State<_NotificationBell> {
+  @override
+  void initState() {
+    super.initState();
+    // Both counts on first sight, so the badge is right before the inbox is
+    // ever opened. A missing provider (a test, a preview) is simply skipped.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final wallet = context.read<MwaAuthProvider?>()?.walletAddress;
+      final arena = context.read<ArenaProvider?>();
+      if (wallet != null && arena != null) {
+        arena.loadNotifications(walletAddress: wallet);
+      }
+      context.read<NotificationsProvider?>()?.refreshUnreadCount();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Consumer<ArenaProvider>(
-      builder: (context, arena, child) {
-        final count = arena.unreadNotificationCount;
-        return IconButton(
-          tooltip: count == 0 ? 'Inbox' : '$count unread notifications',
-          onPressed: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const ArenaNotificationsScreen(),
-              ),
-            );
-          },
-          icon: Badge(
-            isLabelVisible: count > 0,
-            label: Text(count > 9 ? '9+' : '$count'),
-            backgroundColor: AppColors.primary,
-            child: BasilIcon(
-              'notification-outline',
-              size: 20.w,
-              color: AppColors.textPrimary,
-            ),
-          ),
-        );
+    final legacy =
+        context.watch<ArenaProvider?>()?.unreadNotificationCount ?? 0;
+    final calls = context.watch<NotificationsProvider?>()?.unreadCount ?? 0;
+    final count = legacy + calls;
+    return IconButton(
+      tooltip: count == 0 ? 'Activity' : '$count unread',
+      onPressed: () {
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const ActivityScreen()));
       },
+      icon: Badge(
+        isLabelVisible: count > 0,
+        label: Text(count > 9 ? '9+' : '$count'),
+        backgroundColor: AppColors.primary,
+        child: BasilIcon(
+          'notification-outline',
+          size: 20.w,
+          color: AppColors.textPrimary,
+        ),
+      ),
     );
   }
 }

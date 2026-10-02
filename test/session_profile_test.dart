@@ -26,6 +26,7 @@ class DelayedProfileClient extends SessionBffClient {
   Future<SessionIdentity> completeProfile(
     String accessToken, {
     required String displayName,
+    String? handle,
   }) => pending.future;
 }
 
@@ -61,21 +62,25 @@ void main() {
   );
 
   testWidgets(
-    'unlinked Google account cannot accidentally create a second profile',
+    'an unlinked sign-in creates nothing until a username is explicitly claimed',
     (tester) async {
       final auth = FakeSupabaseAuthPort(restored: snapshot());
       final server = FakeBffServer(
-        (r) =>
-            r.procedurePath == 'auth.completeProfile'
-                ? okResponse({
-                  'userId': kCanonicalUserId,
-                  'authUserId': kAuthUserId,
-                })
-                : errorResponse(
-                  code: 'FORBIDDEN',
-                  httpStatus: 403,
-                  message: 'AUTH_USER_UNLINKED',
-                ),
+        (r) => switch (r.procedurePath) {
+          'auth.completeProfile' => okResponse({
+            'userId': kCanonicalUserId,
+            'authUserId': kAuthUserId,
+          }),
+          'auth.usernameStatus' => okResponse({
+            'handle': 'ada_99',
+            'status': 'available',
+          }),
+          _ => errorResponse(
+            code: 'FORBIDDEN',
+            httpStatus: 403,
+            message: 'AUTH_USER_UNLINKED',
+          ),
+        },
       );
       final session = ChumbucketSession(
         auth: auth,
@@ -96,18 +101,41 @@ void main() {
           ),
         ),
       );
-      expect(
-        find.textContaining('Account linking is not available'),
-        findsOneWidget,
+      await tester.pump();
+      // Signing in made nothing: only "who am I" was asked.
+      expect(session.needsUsername, isTrue);
+      expect(server.received.map((r) => r.procedurePath), ['auth.whoami']);
+      expect(find.byKey(const ValueKey('claim-username')), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const ValueKey('claim-username')),
+        'Ada_99',
       );
-      expect(find.text('Public name'), findsNothing);
-      expect(find.text('Create my profile'), findsNothing);
-      expect(find.byType(TextFormField), findsNothing);
-      expect(find.text('Retry account setup'), findsNothing);
-      expect(server.received, hasLength(1));
-      expect(server.received.single.procedurePath, 'auth.whoami');
-      expect(session.isReady, isFalse);
-      expect(session.userId, isNull);
+      await tester.enterText(find.byKey(const ValueKey('claim-name')), 'Ada');
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump();
+      expect(find.text('@ada_99 is yours to claim'), findsOneWidget);
+      expect(
+        server.received.where((r) => r.procedurePath == 'auth.completeProfile'),
+        isEmpty,
+      );
+
+      await tester.tap(find.text('Claim @ada_99'));
+      await tester.pump();
+      await tester.pump();
+      final claim = server.received.singleWhere(
+        (r) => r.procedurePath == 'auth.completeProfile',
+      );
+      expect(claim.method, 'POST');
+      // The username and name only: no user id, wallet or identity hint.
+      expect(claim.input.keys.toSet(), {
+        'supabaseAccessToken',
+        'displayName',
+        'handle',
+      });
+      expect(claim.input['handle'], 'ada_99');
+      expect(session.isReady, isTrue);
+      expect(session.userId, kCanonicalUserId);
       expect(auth.startCount, 0);
       expect(tester.takeException(), isNull);
     },

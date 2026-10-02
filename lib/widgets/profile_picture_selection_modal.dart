@@ -1,5 +1,6 @@
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:flutter/material.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:provider/provider.dart';
@@ -241,89 +242,18 @@ class _ProfilePictureSelectionModalState
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Primary action button - Save (following ChallengeButton pattern)
-          GestureDetector(
-            onTap:
-                (_isLoading || _selectedImageId == null)
-                    ? null
-                    : _saveProfilePicture,
-            child: Container(
-              constraints: const BoxConstraints(minHeight: 56),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-              decoration: BoxDecoration(
-                gradient:
-                    (_selectedImageId != null && !_isLoading)
-                        ? const LinearGradient(
-                          colors: [Color(0xFFFF5A76), Color(0xFFFF3355)],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                        )
-                        : null,
-                color:
-                    (_selectedImageId == null || _isLoading)
-                        ? Colors.grey[300]
-                        : null,
-                borderRadius: BorderRadius.circular(28.r),
-                boxShadow:
-                    (_selectedImageId != null && !_isLoading)
-                        ? [
-                          BoxShadow(
-                            color: const Color(
-                              0xFFFF5A76,
-                            ).withValues(alpha: 0.3),
-                            offset: const Offset(0, 4),
-                            blurRadius: 12,
-                          ),
-                        ]
-                        : null,
-              ),
-              child: Center(
-                child:
-                    _isLoading
-                        ? SizedBox(
-                          width: 24.r,
-                          height: 24.r,
-                          child: const CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
-                            ),
-                            strokeWidth: 2.5,
-                          ),
-                        )
-                        : Text(
-                          'Save Profile Picture',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 18.sp,
-                            fontWeight: FontWeight.w700,
-                            color:
-                                (_selectedImageId != null && !_isLoading)
-                                    ? Colors.white
-                                    : Colors.grey[600],
-                          ),
-                        ),
-              ),
-            ),
+          // The sheet's call to action and its text-only secondary, shared
+          // with every other sheet. Real buttons, so screen readers announce
+          // them (the hand-rolled GestureDetectors here were silent).
+          ChumbucketPrimaryButton(
+            label: 'Save Profile Picture',
+            busy: _isLoading,
+            onPressed: _selectedImageId == null ? null : _saveProfilePicture,
           ),
-          SizedBox(height: 12.h),
-          // Secondary action - Cancel (following TertiaryActionButton pattern)
-          GestureDetector(
-            onTap: _isLoading ? null : _cancelSelection,
-            child: Container(
-              constraints: const BoxConstraints(minHeight: 48),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Center(
-                child: Text(
-                  'Cancel',
-                  style: TextStyle(
-                    fontSize: 16.sp,
-                    fontWeight: FontWeight.w600,
-                    color:
-                        _isLoading ? Colors.grey[400] : const Color(0xFFFF5A76),
-                  ),
-                ),
-              ),
-            ),
+          const SizedBox(height: 4),
+          ChumbucketTextAction(
+            label: 'Cancel',
+            onPressed: _isLoading ? null : _cancelSelection,
           ),
         ],
       ),

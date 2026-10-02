@@ -5,19 +5,31 @@ import 'package:flutter/material.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/call_badges.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_composer_sheet.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart';
 import 'package:chumbucket/features/receipts/data/call_receipt.dart';
 import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
 import 'package:chumbucket/shared/widgets/app_components/app_avatar.dart';
-import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class CallReceiptCard extends StatelessWidget {
   final CallReceipt receipt;
 
   /// Optional original context supplies thesis and avatar without extending models.
   final CallFeedEntry? entry;
-  const CallReceiptCard({super.key, required this.receipt, this.entry});
+
+  /// Rounded and outlined as a standalone card. A sheet that uses this card
+  /// as its own top passes false so the hero meets the sheet's corners.
+  final bool framed;
+  const CallReceiptCard({
+    super.key,
+    required this.receipt,
+    this.entry,
+    this.framed = true,
+  });
+
+  static const _eyebrow = Color(0xFF6B1931);
+  static const _muted = Color(0xFF606775);
 
   @override
   Widget build(BuildContext context) {
@@ -32,21 +44,19 @@ class CallReceiptCard extends StatelessWidget {
         receipt.outcome == CallOutcome.pending
             ? 'Awaiting result'
             : CallsFormat.outcomeSentence(receipt.outcome);
-    final icon = switch (receipt.outcome) {
-      CallOutcome.correct => 'check-outline',
-      CallOutcome.incorrect => 'cross-outline',
-      CallOutcome.voided => 'info-circle-outline',
-      CallOutcome.pending => 'clock-outline',
-    };
     final name = receipt.personDisplayName.trim();
+    final proofStyle = callJourneyBody(12).copyWith(color: _muted);
+    // Codex's layout prototype (frame 06): a centred hero on the brand
+    // gradient, then the person, the side, the question and the reason, the
+    // facts a reader needs, and below a rule the exact proof.
     return Container(
-      constraints: const BoxConstraints(maxWidth: 420),
+      constraints: BoxConstraints(maxWidth: framed ? 420 : double.infinity),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.outlineVariant),
+        borderRadius: framed ? BorderRadius.circular(24) : null,
+        border: framed ? Border.all(color: AppColors.outlineVariant) : null,
       ),
-      clipBehavior: Clip.antiAlias,
+      clipBehavior: framed ? Clip.antiAlias : Clip.none,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -63,42 +73,44 @@ class CallReceiptCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+                  // Unframed, the sheet's handle sits in the first 30dp.
+                  padding: EdgeInsets.fromLTRB(18, framed ? 20 : 30, 18, 6),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (receipt.venueIsDemo) ...[
                         Text(
                           'DEMO DATA · NOT A LIVE RESULT',
+                          textAlign: TextAlign.center,
                           style: callJourneyHeading(context, 12),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 10),
                       ],
                       Text(
                         'CHUMBUCKET · ON THE RECORD',
-                        style: callJourneyBody(
-                          12,
-                        ).copyWith(color: AppColors.onPrimaryContainer),
+                        textAlign: TextAlign.center,
+                        style: callJourneyBody(12).copyWith(
+                          color: _eyebrow,
+                          letterSpacing: 2,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
-                      const SizedBox(height: 20),
-                      Text(headline, style: callJourneyHeading(context, 32)),
-                      const SizedBox(height: 12),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          BasilIcon(
-                            icon,
-                            size: 20,
-                            color: AppColors.textPrimary,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              label,
-                              style: callJourneyHeading(context, 12),
-                            ),
-                          ),
-                        ],
+                      const SizedBox(height: 14),
+                      Text(
+                        headline,
+                        textAlign: TextAlign.center,
+                        style: callJourneyHeading(
+                          context,
+                          38,
+                        ).copyWith(letterSpacing: -1.4, height: 1.1),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        label,
+                        textAlign: TextAlign.center,
+                        style: callJourneyBody(12).copyWith(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ],
                   ),
@@ -111,7 +123,7 @@ class CallReceiptCard extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            padding: const EdgeInsets.fromLTRB(22, 12, 22, 22),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -126,69 +138,54 @@ class CallReceiptCard extends StatelessWidget {
                       backgroundColor: AppColors.primaryContainer,
                       textColor: AppColors.onPrimaryContainer,
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             receipt.personDisplayName,
-                            style: callJourneyHeading(context, 18),
+                            style: callJourneyHeading(context, 16),
                           ),
-                          Text(
-                            '@${receipt.personHandle}',
-                            style: callJourneyBody(12),
-                          ),
+                          Text('@${receipt.personHandle}', style: proofStyle),
                         ],
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 14),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryContainer,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      'CALLED ${receipt.side.wire}',
-                      style: callJourneyHeading(context, 12),
-                    ),
+                  child: SidePill(
+                    side: receipt.side,
+                    label: 'CALLED ${receipt.side.wire}',
                   ),
                 ),
                 const SizedBox(height: 12),
                 Text(
                   receipt.marketQuestion,
-                  style: callJourneyHeading(context, 22),
+                  style: callJourneyHeading(
+                    context,
+                    22,
+                  ).copyWith(letterSpacing: -.6, height: 1.32),
                 ),
                 if (receipt.sideLabel.toUpperCase() != receipt.side.wire) ...[
                   const SizedBox(height: 8),
                   Text(receipt.sideLabel, style: callJourneyBody()),
                 ],
                 if (original?.call.thesis?.isNotEmpty == true) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   Text(
                     original!.call.thesis!,
-                    style: callJourneyBody().copyWith(
-                      color: AppColors.textPrimary,
-                      height: 1.7,
-                    ),
+                    style: callJourneyBody(
+                      15,
+                    ).copyWith(color: AppColors.textPrimary, height: 1.6),
                   ),
                 ],
-                const Divider(height: 32),
+                const _DashedRule(),
                 CallJourneyFact(
                   'Locked',
                   CallsFormat.timestampUtc(receipt.lockedAt),
-                ),
-                CallJourneyFact(
-                  'Exact timestamp',
-                  receipt.lockedAt.toUtc().toIso8601String(),
                 ),
                 if (receipt.entryPrice == null)
                   CallJourneyFact(
@@ -210,6 +207,34 @@ class CallReceiptCard extends StatelessWidget {
                     'NO at call',
                     CallsFormat.sharePrice(price.noPrice),
                   ),
+                ],
+                CallJourneyFact(
+                  'Venue outcome',
+                  receipt.resolution == null
+                      ? 'Awaiting result'
+                      : receipt.resolution == Resolution.voided
+                      ? 'VOID — cancelled'
+                      : receipt.resolution!.wire,
+                ),
+                CallJourneyFact('Source', receipt.venueLabel),
+                if (receipt.resolvedAt != null)
+                  CallJourneyFact(
+                    'Resolved',
+                    CallsFormat.timestampUtc(receipt.resolvedAt!),
+                  ),
+                Text(
+                  'Free call. No stake, no position, no money.',
+                  style: proofStyle,
+                ),
+                const _DashedRule(),
+                // The exact record behind the facts above, for anyone checking.
+                Text('Proof', style: callJourneyHeading(context, 13)),
+                const SizedBox(height: 10),
+                CallJourneyFact(
+                  'Exact timestamp',
+                  receipt.lockedAt.toUtc().toIso8601String(),
+                ),
+                if (receipt.entryPrice case final price?) ...[
                   CallJourneyFact(
                     'Price observed',
                     price.observedAtUtc.toIso8601String(),
@@ -224,20 +249,6 @@ class CallReceiptCard extends StatelessWidget {
                     'Indicative, not a trade quote',
                   ),
                 ],
-                CallJourneyFact(
-                  'Venue outcome',
-                  receipt.resolution == null
-                      ? 'Awaiting result'
-                      : receipt.resolution == Resolution.voided
-                      ? 'VOID — cancelled'
-                      : receipt.resolution!.wire,
-                ),
-                CallJourneyFact('Source', receipt.venueLabel),
-                if (receipt.resolvedAt != null)
-                  CallJourneyFact(
-                    'Resolved',
-                    receipt.resolvedAt!.toUtc().toIso8601String(),
-                  ),
                 if (receipt.resolutionSource != null)
                   CallJourneyFact('Resolved by', receipt.resolutionSource!),
                 CallJourneyFact(
@@ -247,20 +258,20 @@ class CallReceiptCard extends StatelessWidget {
                 ),
                 if (original != null)
                   CallJourneyFact('Visibility', original.call.visibility.label),
-                const Divider(height: 24),
-                Text(
-                  'Free call. No stake, no position, no money.',
-                  style: callJourneyBody(12),
+                Text('Call ${receipt.callId}', style: proofStyle),
+                const SizedBox(height: 18),
+                // Wordmark left, tagline right; the tagline drops below at
+                // large text rather than squeezing either.
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.end,
+                  spacing: 12,
+                  runSpacing: 4,
+                  children: [
+                    Text('chumbucket.', style: callJourneyHeading(context, 18)),
+                    Text('A call. A timestamp. A receipt.', style: proofStyle),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                Text('chumbucket.', style: callJourneyHeading(context, 22)),
-                const SizedBox(height: 4),
-                Text(
-                  'A call. A timestamp. A receipt.',
-                  style: callJourneyBody(12),
-                ),
-                const SizedBox(height: 8),
-                Text('Call ${receipt.callId}', style: callJourneyBody(12)),
                 if (receipt.venueIsDemo) ...[
                   const SizedBox(height: 16),
                   const CallJourneyNote(
@@ -274,4 +285,37 @@ class CallReceiptCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The prototype's dashed rule between the receipt's sections.
+class _DashedRule extends StatelessWidget {
+  const _DashedRule();
+
+  @override
+  Widget build(BuildContext context) => const Padding(
+    padding: EdgeInsets.symmetric(vertical: 17),
+    child: SizedBox(
+      height: 1,
+      width: double.infinity,
+      child: CustomPaint(painter: _DashPainter()),
+    ),
+  );
+}
+
+class _DashPainter extends CustomPainter {
+  const _DashPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint =
+        Paint()
+          ..color = const Color(0xFFCCD0D5)
+          ..strokeWidth = 1;
+    for (var x = 0.0; x < size.width; x += 7) {
+      canvas.drawLine(Offset(x, .5), Offset(x + 4, .5), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashPainter oldDelegate) => false;
 }

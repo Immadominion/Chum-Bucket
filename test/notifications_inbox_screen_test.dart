@@ -409,7 +409,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(CallReceiptSheet), findsOneWidget);
-      expect(find.text('Your receipt'), findsOneWidget);
+      // The receipt's own hero is the sheet's top; its title is the sheet's
+      // accessible heading rather than a second header.
+      expect(find.bySemanticsLabel('Your receipt'), findsOneWidget);
     });
 
     testWidgets('an actor avatar opens that person', (tester) async {

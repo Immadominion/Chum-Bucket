@@ -126,6 +126,43 @@ class FakeSupabaseAuthPort implements SupabaseAuthPort {
     return true;
   }
 
+  /// Which provider the last OAuth start was for ("google" or "x").
+  String? lastProvider;
+
+  @override
+  Future<bool> startXSignIn({
+    String redirectTo = kChumbucketOAuthRedirect,
+  }) async {
+    lastProvider = 'x';
+    return startGoogleSignIn(redirectTo: redirectTo).whenComplete(() {
+      lastProvider = 'x';
+    });
+  }
+
+  /// What a wallet sign-in becomes. Null models Supabase refusing it with
+  /// [solanaRefusal].
+  SupabaseSessionSnapshot? solanaSession;
+  String solanaRefusal = SolanaSignInException.refused;
+  final List<({String message, String signature})> solanaSignIns = [];
+
+  @override
+  Future<SupabaseSessionSnapshot> signInWithSolana({
+    required String message,
+    required String signature,
+  }) async {
+    solanaSignIns.add((message: message, signature: signature));
+    final session = solanaSession;
+    if (session == null) throw SolanaSignInException(solanaRefusal);
+    // The SDK announces the adopted session as a refresh.
+    scheduleMicrotask(() => emit(SupabaseAuthEventKind.tokenRefreshed, session));
+    return session;
+  }
+
+  Set<String> providers = const {'google', 'x'};
+
+  @override
+  Future<Set<String>> enabledProviders() async => providers;
+
   @override
   Future<SupabaseSessionSnapshot?> refreshSession() async {
     refreshCount++;
