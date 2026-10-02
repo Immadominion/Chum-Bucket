@@ -10,7 +10,11 @@
 
 import 'dart:io';
 
+import 'package:chumbucket/core/services/fcm_token_service.dart';
 import 'package:chumbucket/core/services/push_registration.dart';
+import 'package:chumbucket/features/notifications/data/mock_notifications_repository.dart';
+import 'package:chumbucket/features/notifications/providers/notifications_provider.dart';
+import 'package:chumbucket/shared/screens/home/widgets/header.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_payloads.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_transport.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
@@ -99,6 +103,13 @@ class _FakePush implements PushPlatform {
   Future<void> register(AccountApi api, {required String accountKey}) async {
     registered.add(accountKey);
   }
+}
+
+class _CountingInbox extends NotificationsProvider {
+  _CountingInbox() : super(repository: MockNotificationsRepository());
+  int refreshes = 0;
+  @override
+  Future<void> refreshUnreadCount() async => refreshes++;
 }
 
 class _Profiles extends ChangeNotifier implements ProfileProvider {
@@ -378,6 +389,50 @@ void main() {
       expect(push.registered, ['local']);
       await PushRegistration.syncIfPermitted(ctx);
       expect(push.registered, ['local', 'local']);
+    });
+  });
+
+  group('the unread badge is refreshed, not only on first build (M3)', () {
+    setUp(() => PushRegistration.platform = _FakePush()..permitted = false);
+    tearDown(() {
+      PushRegistration.platform = const FcmPushPlatform();
+      FcmTokenService.onCallNotification = null;
+    });
+
+    testWidgets('on app resume and on a call push while open', (tester) async {
+      final inbox = _CountingInbox();
+      await tester.pumpWidget(
+        ChangeNotifierProvider<NotificationsProvider>.value(
+          value: inbox,
+          child: ScreenUtilInit(
+            designSize: const Size(390, 844),
+            builder:
+                (_, __) => MaterialApp(
+                  home: Scaffold(
+                    body: ChumbucketAppHeader(
+                      showAccountActions: false,
+                      onActivityTap: () {},
+                    ),
+                  ),
+                ),
+          ),
+        ),
+      );
+      await tester.pump();
+      final before = inbox.refreshes;
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(inbox.refreshes, before + 1);
+
+      FcmTokenService.onCallNotification?.call();
+      await tester.pump();
+      expect(inbox.refreshes, before + 2);
+
+      // Gone with the header: a later push touches nothing.
+      await tester.pumpWidget(const SizedBox());
+      expect(FcmTokenService.onCallNotification, isNull);
     });
   });
 

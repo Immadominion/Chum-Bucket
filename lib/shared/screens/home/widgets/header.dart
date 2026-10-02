@@ -108,13 +108,10 @@ class _InboxResumeRefreshState extends State<_InboxResumeRefresh>
     PushRegistration.syncIfPermitted(context);
   }
 
+  /// The calls inbox count: the one the server derives and pushes for. The
+  /// legacy Arena notices are not refreshed here (they leave the bell, M13).
   void _refreshBadge() {
     if (!mounted) return;
-    final wallet = context.read<MwaAuthProvider?>()?.walletAddress;
-    final arena = context.read<ArenaProvider?>();
-    if (wallet != null && arena != null) {
-      arena.loadNotifications(walletAddress: wallet);
-    }
     context.read<NotificationsProvider?>()?.refreshUnreadCount();
   }
 
