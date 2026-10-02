@@ -1,8 +1,11 @@
 /// Back and Fade review the viewer's own free call. Challenge sends an invitation.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:chumbucket/core/services/push_registration.dart';
 import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
@@ -63,7 +66,10 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
           visibility: _visibility,
         ),
       );
-      if (mounted) Navigator.of(context).pop(result);
+      if (!mounted) return;
+      final root = Navigator.of(context, rootNavigator: true).context;
+      Navigator.of(context).pop(result);
+      if (root.mounted) unawaited(PushRegistration.afterSocialAction(root));
     } on CallsException catch (e) {
       if (mounted) setState(() => _error = e.message);
     }

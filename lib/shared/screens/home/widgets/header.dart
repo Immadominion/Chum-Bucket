@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
+import 'package:chumbucket/core/services/fcm_token_service.dart';
+import 'package:chumbucket/core/services/push_registration.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/features/arena/providers/arena_provider.dart';
@@ -45,6 +47,7 @@ class ChumbucketAppHeader extends StatelessWidget {
       padding: EdgeInsets.symmetric(vertical: 12.h),
       child: Row(
         children: [
+          const _InboxResumeRefresh(),
           if (showAccountActions) _ProfileAvatar(onTap: onProfileTap),
           if (title != null) ...[
             if (showAccountActions) SizedBox(width: 12.w),
@@ -77,6 +80,57 @@ class ChumbucketAppHeader extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Keeps the unread badge honest: refreshed when the app comes back to the
+/// foreground and when a call notification arrives while it is open, not only
+/// when the header first builds (prod readiness M3). Also makes sure this
+/// device is registered for the signed-in account's pushes when the person
+/// has already allowed notifications — it never prompts.
+class _InboxResumeRefresh extends StatefulWidget {
+  const _InboxResumeRefresh();
+
+  @override
+  State<_InboxResumeRefresh> createState() => _InboxResumeRefreshState();
+}
+
+class _InboxResumeRefreshState extends State<_InboxResumeRefresh>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    FcmTokenService.onCallNotification = _refreshBadge;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) PushRegistration.syncIfPermitted(context);
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    if (FcmTokenService.onCallNotification == _refreshBadge) {
+      FcmTokenService.onCallNotification = null;
+    }
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !mounted) return;
+    _refreshBadge();
+    PushRegistration.syncIfPermitted(context);
+  }
+
+  /// The calls inbox count: the one the server derives and pushes for. The
+  /// legacy Arena notices are not refreshed here (they leave the bell, M13).
+  void _refreshBadge() {
+    if (!mounted) return;
+    context.read<NotificationsProvider?>()?.refreshUnreadCount();
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }
 
 class _ProfileAvatar extends StatelessWidget {

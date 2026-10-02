@@ -21,6 +21,7 @@
 ///   rather than a convention.
 library;
 
+import 'package:chumbucket/features/profile/data/avatar_catalog.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
 
 /// Thrown when a wire value is not a member of one of this file's enums.
@@ -222,7 +223,10 @@ class NotificationActor {
           json['displayName'],
           'NotificationActor.displayName',
         ),
-        avatarUrl: json['avatarUrl'] as String?,
+        avatarUrl: avatarImageFor(
+          avatarUrl: json['avatarUrl'] as String?,
+          avatarId: json['avatarId'],
+        ),
       );
 
   Map<String, dynamic> toJson() => {

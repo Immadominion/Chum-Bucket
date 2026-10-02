@@ -1,11 +1,18 @@
+import 'dart:async';
+
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:provider/provider.dart';
-import 'package:chumbucket/features/profile/providers/profile_provider.dart';
+import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
+import 'package:chumbucket/features/calls/data/calls_repository.dart';
+import 'package:chumbucket/features/calls/providers/calls_provider.dart';
+import 'package:chumbucket/features/profile/data/account_api.dart';
+import 'package:chumbucket/features/profile/data/avatar_catalog.dart';
+import 'package:chumbucket/features/profile/providers/profile_provider.dart';
 
 class ProfilePictureSelectionModal extends StatefulWidget {
   final String? currentProfilePicture;
@@ -35,27 +42,13 @@ class _ProfilePictureSelectionModalState
   bool _isLoading = false;
   int? _selectedImageId;
 
-  // Available profile images (1-5)
-  static const List<String> _availableImages = [
-    'assets/images/ai_gen/profile_images/1.png',
-    'assets/images/ai_gen/profile_images/2.png',
-    'assets/images/ai_gen/profile_images/3.png',
-    'assets/images/ai_gen/profile_images/4.png',
-    'assets/images/ai_gen/profile_images/5.png',
-  ];
+  // The app's fixed avatar set (ids 1-5).
+  static const List<String> _availableImages = kAvatarAssets;
 
   @override
   void initState() {
     super.initState();
-    // Set current selection based on current profile picture
-    if (widget.currentProfilePicture != null) {
-      final currentIndex = _availableImages.indexOf(
-        widget.currentProfilePicture!,
-      );
-      if (currentIndex != -1) {
-        _selectedImageId = currentIndex + 1;
-      }
-    }
+    _selectedImageId = avatarIdForAsset(widget.currentProfilePicture);
   }
 
   void _selectProfilePicture(int imageId) {
@@ -64,76 +57,64 @@ class _ProfilePictureSelectionModalState
     });
   }
 
+  /// Saves the choice to the signed-in person's own account through the BFF
+  /// (`account.updateProfile`). Works the same for a wallet sign-in and a
+  /// Google/X sign-in, and can only ever change the caller's own picture.
   Future<void> _saveProfilePicture() async {
-    if (_selectedImageId == null) return;
+    final avatarId = _selectedImageId;
+    if (avatarId == null || _isLoading) return;
+    final api = accountApiOf(context);
+    if (api == null) {
+      // Nothing to save to until there is a Chumbucket account.
+      requestCallSignIn(context);
+      return;
+    }
+    final profileProvider = context.read<ProfileProvider?>();
+    final calls = context.read<CallsProvider?>();
+    final wallet = context.read<MwaAuthProvider?>()?.walletAddress;
+    final messenger = ScaffoldMessenger.of(context);
 
     setState(() => _isLoading = true);
-
     try {
-      final authProvider = Provider.of<MwaAuthProvider>(context, listen: false);
-      final profileProvider = Provider.of<ProfileProvider>(
-        context,
-        listen: false,
+      final saved = await api.updateProfile(avatarId: avatarId);
+      final asset = saved.avatarAsset;
+      // Keep this device's legacy surfaces (header, wallet profile) in step.
+      await profileProvider?.setUserPfp(wallet ?? saved.userId, asset);
+      // And the calls directory, so the feed shows the new picture at once.
+      unawaited(calls?.loadPerson(saved.userId, force: true));
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Profile picture updated'),
+          duration: Duration(seconds: 2),
+        ),
       );
-      final walletAddress = authProvider.walletAddress;
-
-      if (walletAddress != null) {
-        final imagePath = _availableImages[_selectedImageId! - 1];
-        final success = await profileProvider.setUserPfp(
-          walletAddress,
-          imagePath,
-        );
-
-        if (success && mounted) {
-          // Force deep state refresh by re-fetching user profile with new PFP
-          // This will cause all dependent widgets to rebuild with new profile picture
-          await profileProvider.fetchUserProfileWithPfp(walletAddress);
-          if (!mounted) return;
-
-          // Show success feedback
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Profile picture updated successfully!'),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-
-          // Close modal and return to trigger any parent refreshes
-          Navigator.pop(context, _selectedImageId);
-
-          // Navigate back to home to ensure full app refresh
-          // This ensures all profile images across the app update immediately
-          if (Navigator.canPop(context)) {
-            Navigator.popUntil(context, (route) => route.isFirst);
-          }
-        } else if (mounted) {
-          // Show error feedback
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Failed to update profile picture. Please try again.',
-              ),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 3),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
+      Navigator.pop(context, avatarId);
+    } on CallsSignedOutException {
+      if (!mounted) return;
+      requestCallSignIn(context);
+    } on CallsException catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            e is CallsOfflineException
+                ? 'You\'re offline. Your picture wasn\'t changed.'
+                : e.message,
           ),
-        );
-      }
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Your picture wasn\'t changed. Please try again.'),
+          duration: Duration(seconds: 3),
+        ),
+      );
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

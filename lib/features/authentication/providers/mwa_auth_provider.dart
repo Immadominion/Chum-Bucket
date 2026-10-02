@@ -8,7 +8,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:chumbucket/shared/services/efficient_sync_service.dart';
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
 import 'package:chumbucket/features/profile/providers/profile_provider.dart';
-import 'package:chumbucket/core/services/fcm_token_service.dart';
 import 'package:chumbucket/core/services/analytics_service.dart';
 import 'package:chumbucket/core/config/network_config.dart';
 import '../session/mwa_auth_result.dart';
@@ -317,13 +316,9 @@ class MwaAuthProvider extends ChangeNotifier {
       }
       if (!_isCurrent(epoch)) return false;
 
-      // Register FCM token for push notifications (fire-and-forget)
-      FcmTokenService.registerToken(
-        walletAddress: walletAddress,
-        displayName: snsDomain ?? result.accountLabel,
-      ).catchError((e) {
-        log('⚠️ Failed to register notifications', name: 'MwaAuthProvider');
-      });
+      // Push registration is per Chumbucket account, through the BFF, once a
+      // session exists and the person has said yes in context — not keyed by
+      // this wallet through the anon client (prod readiness B3/M3).
 
       // Assign profile picture
       step = MwaAuthorizationStep.profileLoad;
@@ -695,51 +690,13 @@ class MwaAuthProvider extends ChangeNotifier {
 
       return true;
     } on PostgrestException {
+      // No client fallback that writes users rows: they are server-only now
+      // (20261002171000). The account is created or carried over by the BFF
+      // at sign-in.
       log('⚠️ Supabase sync refused', name: 'MwaAuthProvider');
-      // User might not exist yet - that's okay for first-time users
-      // Try to create them
-      return await _createUserInSupabase(walletAddress, snsDomain: snsDomain);
+      return false;
     } catch (_) {
       log('❌ Error syncing user', name: 'MwaAuthProvider');
-      return false;
-    }
-  }
-
-  /// Create a new user in Supabase if sync fails
-  Future<bool> _createUserInSupabase(
-    String walletAddress, {
-    String? snsDomain,
-  }) async {
-    try {
-      final userData = {
-        'wallet_address': walletAddress,
-        'created_at': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-      };
-
-      // Add SNS domain if available
-      if (snsDomain != null) {
-        userData['sns_domain'] = snsDomain;
-      }
-
-      await _supabase!
-          .from('users')
-          .upsert(userData, onConflict: 'wallet_address');
-
-      log('✅ User synced in Supabase', name: 'MwaAuthProvider');
-
-      // Track new user signup (fire-and-forget)
-      AnalyticsService.trackUserAuth(
-        walletAddress: walletAddress,
-        displayName: snsDomain,
-        isNewUser: true,
-      ).catchError((_) {
-        log('⚠️ Analytics tracking failed', name: 'MwaAuthProvider');
-      });
-
-      return true;
-    } catch (_) {
-      log('❌ Error creating user', name: 'MwaAuthProvider');
       return false;
     }
   }
@@ -760,25 +717,6 @@ class MwaAuthProvider extends ChangeNotifier {
     } catch (_) {
       log('Error fetching user profile', name: 'MwaAuthProvider');
       return null;
-    }
-  }
-
-  /// Update user profile in Supabase
-  Future<bool> updateUserProfile(Map<String, dynamic> updates) async {
-    if (_authResult == null || _supabase == null) return false;
-
-    try {
-      updates['updated_at'] = DateTime.now().toIso8601String();
-
-      await _supabase!
-          .from('users')
-          .update(updates)
-          .eq('wallet_address', _authResult!.walletAddress);
-
-      return true;
-    } catch (_) {
-      log('Error updating user profile', name: 'MwaAuthProvider');
-      return false;
     }
   }
 

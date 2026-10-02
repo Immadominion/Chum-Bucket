@@ -15,18 +15,19 @@ class ProfileProvider extends BaseChangeNotifier {
     return await PersistentProfilePictureService.getUserProfilePicture(privyId);
   }
 
-  /// Set user's profile picture and save to all storage backends
-  Future<bool> setUserPfp(String privyId, String pfpPath) async {
+  /// Remember a picture the person just saved to their account (through
+  /// `AccountApi.updateProfile`) on this device, and tell listeners. This does
+  /// not write the account — the BFF already did.
+  Future<bool> setUserPfp(String key, String pfpPath) async {
     final success = await PersistentProfilePictureService.setUserProfilePicture(
-      privyId,
+      key,
       pfpPath,
     );
 
     if (success) {
-      // Notify listeners so UI updates reactively
       notifyListeners();
       AppLogger.info(
-        'Profile picture updated and listeners notified',
+        'Profile picture remembered and listeners notified',
         tag: 'ProfileProvider',
       );
     }
@@ -94,50 +95,11 @@ class ProfileProvider extends BaseChangeNotifier {
     }
   }
 
-  Future<bool> updateUserProfile(
-    String privyId,
-    Map<String, dynamic> updates,
-  ) async {
-    if (!await hasInternetConnection()) {
-      setError(
-        "No internet connection. Please check your network and try again.",
-      );
-      return false;
-    }
-
-    try {
-      setLoading();
-
-      // Extract fields from updates
-      final fullName = updates['full_name'] ?? '';
-      final bio = updates['bio'] ?? '';
-
-      // Call the stored procedure
-      await _supabase.rpc(
-        'update_user_profile',
-        params: {'p_privy_id': privyId, 'p_full_name': fullName, 'p_bio': bio},
-      );
-
-      AppLogger.debug(
-        'User profile updated successfully for privy_id: $privyId',
-        tag: 'ProfileProvider',
-      );
-      setSuccess();
-      return true;
-    } catch (e) {
-      AppLogger.debug(
-        'Error updating user profile: $e',
-        tag: 'ProfileProvider',
-      );
-      if (e is PostgrestException) {
-        AppLogger.debug(
-          'Postgrest details: code=${e.code}, message=${e.message}, details=${e.details}',
-        );
-      }
-      setError('Failed to update user profile: $e');
-      return false;
-    }
-  }
+  // Profile WRITES no longer live here. Name, bio and avatar are edited through
+  // the BFF (`AccountApi.updateProfile`), keyed by the signed-in session: the
+  // old `update_user_profile*` RPCs took any wallet string, so anyone could
+  // rewrite anyone's profile (prod readiness B1), and they are revoked by
+  // supabase/migrations/20261002171000_lockdown_profiles_push_privacy.sql.
 
   Future<void> saveUserProfileLocally(Map<String, dynamic> profile) async {
     try {
@@ -172,57 +134,6 @@ class ProfileProvider extends BaseChangeNotifier {
     } catch (e) {
       AppLogger.error('Failed to load profile locally: $e');
       return null;
-    }
-  }
-
-  // Optional: Update profile with PFP in database
-  Future<bool> updateUserProfileWithPfp(
-    String privyId,
-    Map<String, dynamic> updates,
-    String pfpPath,
-  ) async {
-    if (!await hasInternetConnection()) {
-      setError(
-        "No internet connection. Please check your network and try again.",
-      );
-      return false;
-    }
-
-    try {
-      setLoading();
-
-      // Extract fields from updates
-      final fullName = updates['full_name'] ?? '';
-      final bio = updates['bio'] ?? '';
-
-      // Call the stored procedure with PFP
-      await _supabase.rpc(
-        'update_user_profile_with_pfp',
-        params: {
-          'p_privy_id': privyId,
-          'p_full_name': fullName,
-          'p_bio': bio,
-          'p_pfp_path': pfpPath,
-        },
-      );
-
-      AppLogger.debug(
-        'User profile updated successfully with PFP for privy_id: $privyId',
-      );
-      setSuccess();
-      return true;
-    } catch (e) {
-      AppLogger.debug(
-        'Error updating user profile with PFP: $e',
-        tag: 'ProfileProvider',
-      );
-      if (e is PostgrestException) {
-        AppLogger.debug(
-          'Postgrest details: code=${e.code}, message=${e.message}, details=${e.details}',
-        );
-      }
-      setError('Failed to update user profile with PFP: $e');
-      return false;
     }
   }
 

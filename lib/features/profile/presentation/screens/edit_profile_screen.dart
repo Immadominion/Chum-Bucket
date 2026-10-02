@@ -1,15 +1,25 @@
+import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
+import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
+import 'package:chumbucket/features/calls/data/calls_repository.dart';
+import 'package:chumbucket/features/calls/providers/calls_provider.dart';
+import 'package:chumbucket/features/profile/data/account_api.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/shared/screens/home/home.dart';
 import 'package:chumbucket/features/authentication/providers/onboarding_provider.dart';
-import 'package:chumbucket/features/profile/providers/profile_provider.dart';
-// MWA Auth Provider for wallet-based authentication
-import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 
+/// Edit your own name and bio.
+///
+/// Reads and writes go through the BFF (`account.me`, `account.updateProfile`)
+/// with the signed-in Supabase session, so this works for a wallet sign-in and
+/// a Google/X sign-in alike, and can only ever change the caller's own
+/// profile. With no Chumbucket account yet, it says so and offers sign-in
+/// instead of failing on save.
 class EditProfileScreen extends StatefulWidget {
   /// Whether to show the cancel/skip button
   /// Should be false for first-time users who MUST set up their profile
@@ -35,51 +45,69 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _bioController = TextEditingController();
   bool _isLoading = false;
   bool _profileLoading = true;
+  bool _needsSignIn = false;
   String? _profileLoadError;
-  String? _loadedWallet;
+
+  /// The account the loaded values belong to. A save is refused if the
+  /// session has moved to another account since.
+  String? _loadedFor;
+  ChumbucketSession? _session;
+  int _request = 0;
 
   @override
   void initState() {
     super.initState();
     // Defer profile loading until after the build phase
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _loadUserProfile();
+      if (!mounted) return;
+      _session = context.read<ChumbucketSession?>();
+      _session?.addListener(_onSessionChanged);
+      _loadUserProfile();
     });
   }
 
   @override
   void dispose() {
+    _session?.removeListener(_onSessionChanged);
     _nameController.dispose();
     _bioController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadUserProfile() async {
-    setState(() {
-      _profileLoading = true;
-      _profileLoadError = null;
-      _loadedWallet = null;
-    });
-    final authProvider = Provider.of<MwaAuthProvider>(context, listen: false);
-    final profileProvider = Provider.of<ProfileProvider>(
-      context,
-      listen: false,
-    );
+  /// The account this screen acts for: the session's canonical id. A tree
+  /// with no session at all (a preview) acts for whatever API it was given.
+  String? _currentAccount() {
+    final session = context.read<ChumbucketSession?>();
+    if (session == null) return accountApiOf(context) == null ? null : 'local';
+    return session.isReady ? session.userId : null;
+  }
 
-    final wallet = authProvider.walletAddress;
-    if (!authProvider.isAuthenticated || wallet == null) {
-      setState(() {
-        _profileLoading = false;
-        _profileLoadError = 'Connect your wallet to load your profile.';
-      });
-      return;
+  void _onSessionChanged() {
+    if (!mounted) return;
+    final account = _currentAccount();
+    if (_needsSignIn && account != null) {
+      _loadUserProfile();
+    } else if (_loadedFor != null && account != _loadedFor) {
+      setState(() {});
     }
+  }
+
+  Future<void> _loadUserProfile() async {
+    final request = ++_request;
+    final api = accountApiOf(context);
+    final account = _currentAccount();
+    setState(() {
+      _profileLoading = api != null && account != null;
+      _profileLoadError = null;
+      _needsSignIn = api == null || account == null;
+      _loadedFor = null;
+    });
+    if (api == null || account == null) return;
 
     try {
-      final profile = await profileProvider.fetchUserProfile(wallet);
-      if (!mounted) return;
-      if (!authProvider.isAuthenticated ||
-          authProvider.walletAddress != wallet) {
+      final profile = await api.me();
+      if (!mounted || request != _request) return;
+      if (_currentAccount() != account) {
         setState(
           () =>
               _profileLoadError =
@@ -88,17 +116,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         return;
       }
       setState(() {
-        if (profile == null) {
-          _profileLoadError =
-              'Your profile could not be loaded. Retry before making changes.';
-          return;
-        }
-        _loadedWallet = wallet;
-        _nameController.text = profile['full_name']?.toString() ?? '';
-        _bioController.text = profile['bio']?.toString() ?? '';
+        _loadedFor = account;
+        _nameController.text = profile.displayName ?? '';
+        _bioController.text = profile.bio ?? '';
       });
+    } on CallsSignedOutException {
+      if (mounted && request == _request) setState(() => _needsSignIn = true);
     } catch (_) {
-      if (mounted) {
+      if (mounted && request == _request) {
         setState(
           () =>
               _profileLoadError =
@@ -106,21 +131,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _profileLoading = false);
+      if (mounted && request == _request) {
+        setState(() => _profileLoading = false);
+      }
     }
   }
 
   Future<void> _saveProfile() async {
     if (_isLoading ||
         _profileLoading ||
-        _loadedWallet == null ||
+        _loadedFor == null ||
         _profileLoadError != null ||
         !(_formKey.currentState?.validate() ?? false)) {
       return;
     }
-    final authProvider = context.read<MwaAuthProvider>();
-    final wallet = _loadedWallet!;
-    if (!authProvider.isAuthenticated || authProvider.walletAddress != wallet) {
+    final account = _loadedFor!;
+    final api = accountApiOf(context);
+    if (api == null || _currentAccount() != account) {
       SnackBarUtils.showError(
         context,
         title: 'Account changed',
@@ -128,47 +155,46 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       );
       return;
     }
-    final profileProvider = context.read<ProfileProvider>();
-    final updates = {
-      'full_name': _nameController.text.trim(),
-      'bio': _bioController.text.trim(),
-    };
+    final calls = context.read<CallsProvider?>();
+    final onboarding = context.read<OnboardingProvider?>();
     setState(() => _isLoading = true);
 
     try {
-      final success = await profileProvider.updateUserProfile(wallet, updates);
-      if (!mounted) return;
-      if (!authProvider.isAuthenticated ||
-          authProvider.walletAddress != wallet) {
-        return;
-      }
-      if (success) {
-        SnackBarUtils.showSuccess(
-          context,
-          title: 'Success',
-          subtitle: 'Profile updated successfully',
-        );
+      final saved = await api.updateProfile(
+        displayName: _nameController.text.trim(),
+        bio: _bioController.text.trim(),
+      );
+      if (!mounted || _currentAccount() != account) return;
+      // The feed and people pages show the new name without a restart.
+      calls?.loadPerson(saved.userId, force: true);
+      SnackBarUtils.showSuccess(
+        context,
+        title: 'Saved',
+        subtitle: 'Your profile is updated.',
+      );
 
-        if (widget.isRequired) {
-          await context.read<OnboardingProvider>().completeOnboarding();
-          if (!mounted) return;
-          if (!authProvider.isAuthenticated ||
-              authProvider.walletAddress != wallet) {
-            return;
-          }
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
-          );
-        } else {
-          // Return to the same Profile tab. Editing is not onboarding and
-          // must not construct a second Home shell or change its selected tab.
-          Navigator.of(context).pop(true);
-        }
+      if (widget.isRequired) {
+        await onboarding?.completeOnboarding();
+        if (!mounted || _currentAccount() != account) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
       } else {
+        // Return to the same Profile tab. Editing is not onboarding and
+        // must not construct a second Home shell or change its selected tab.
+        Navigator.of(context).pop(true);
+      }
+    } on CallsSignedOutException {
+      if (mounted) setState(() => _needsSignIn = true);
+    } on CallsException catch (e) {
+      if (mounted) {
         SnackBarUtils.showError(
           context,
-          title: 'Error',
-          subtitle: profileProvider.errorMessage ?? 'Failed to update profile',
+          title: 'Unable to save',
+          subtitle:
+              e is CallsOfflineException
+                  ? 'You\'re offline. Your changes are still here.'
+                  : e.message,
         );
       }
     } catch (_) {
@@ -250,6 +276,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   const Text('Loading your profile…'),
                   const SizedBox(height: 20),
                 ],
+                if (_needsSignIn) ...[
+                  Text(
+                    'Sign in to edit your profile. Your name, bio and picture '
+                    'belong to your Chumbucket account, whether you use a '
+                    'wallet, Google or X.',
+                    style: TextStyle(
+                      fontSize: 15.sp,
+                      height: 1.4,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () => requestCallSignIn(context),
+                    child: const Text('Sign in'),
+                  ),
+                  const SizedBox(height: 20),
+                ],
                 if (_profileLoadError != null) ...[
                   Text(_profileLoadError!),
                   TextButton(
@@ -274,8 +318,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     SizedBox(height: 8.h),
                     TextFormField(
                       controller: _nameController,
+                      inputFormatters: [LengthLimitingTextInputFormatter(60)],
                       enabled:
                           !_profileLoading &&
+                          !_needsSignIn &&
                           _profileLoadError == null &&
                           !_isLoading,
                       decoration: InputDecoration(
@@ -339,8 +385,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     SizedBox(height: 8.h),
                     TextFormField(
                       controller: _bioController,
+                      inputFormatters: [LengthLimitingTextInputFormatter(280)],
                       enabled:
                           !_profileLoading &&
+                          !_needsSignIn &&
                           _profileLoadError == null &&
                           !_isLoading,
                       decoration: InputDecoration(
@@ -387,6 +435,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ChallengeButton(
                   enabled:
                       !_profileLoading &&
+                      !_needsSignIn &&
                       _profileLoadError == null &&
                       !_isLoading,
                   isLoading: _isLoading,
