@@ -25,7 +25,8 @@
 -- author as "Deleted account". Everything that identifies the person is
 -- removed or blanked: name, bio, email, wallet, handle, avatar, linked
 -- wallets, linked Google/X identities, follows, friends, blocks, mutes,
--- push tokens, inbox and wallet nonces.
+-- push tokens, inbox and wallet nonces. A reviewed existing-account anchor
+-- for the person is revoked, so the same wallet cannot re-claim the row.
 
 DO $$
 BEGIN
@@ -260,6 +261,7 @@ DECLARE
   v_ids      TEXT[];
   v_summary  JSONB := '{}'::jsonb;
   v_n        INTEGER;
+  v_handle   TEXT;
 BEGIN
   IF p_auth_user_id IS NULL THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'missing_auth_user');
@@ -283,6 +285,13 @@ BEGIN
     FROM public.users WHERE id = p_user_id FOR UPDATE;
   IF NOT FOUND THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'unknown_user');
+  END IF;
+  -- A concurrent request for the same sign-in may have finished while this
+  -- one waited on the row lock: that is "already deleted", not a mismatch.
+  SELECT * INTO v_existing FROM public.account_deletions WHERE auth_user_id = p_auth_user_id;
+  IF FOUND AND v_existing.anonymised_at IS NOT NULL THEN
+    RETURN jsonb_build_object('ok', true, 'outcome', 'already_deleted',
+      'user_id', v_existing.user_id, 'auth_user_id', p_auth_user_id);
   END IF;
   IF v_owner IS DISTINCT FROM p_auth_user_id THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'session_mismatch');
@@ -331,6 +340,27 @@ BEGIN
       + public.trust_delete_rows_v1('user_mutes', 'muted_user_id', v_ids)
   );
 
+  -- A reviewed existing-account anchor would otherwise let the same wallet
+  -- claim this anonymised row again (claim_existing_account_v1 binds any
+  -- unowned anchored person). Anchors are append-only history, so they are
+  -- revoked, which is the one change their guard allows.
+  IF to_regclass('public.existing_account_anchors') IS NOT NULL THEN
+    EXECUTE 'UPDATE public.existing_account_anchors SET revoked_at = NOW()
+              WHERE user_id = $1 AND revoked_at IS NULL' USING p_user_id;
+    GET DIAGNOSTICS v_n = ROW_COUNT;
+    v_summary := v_summary || jsonb_build_object('existing_account_anchors_revoked', v_n);
+  END IF;
+
+  -- deleted_<12 hex>, unless someone already holds it (handles were
+  -- client-writable before the profile lockdown): then the full id, then none.
+  v_handle := 'deleted_' || substr(replace(p_user_id::TEXT, '-', ''), 1, 12);
+  IF EXISTS (SELECT 1 FROM public.users WHERE lower(handle) = v_handle AND id <> p_user_id) THEN
+    v_handle := 'deleted_' || replace(p_user_id::TEXT, '-', '');
+    IF EXISTS (SELECT 1 FROM public.users WHERE lower(handle) = v_handle AND id <> p_user_id) THEN
+      v_handle := NULL;
+    END IF;
+  END IF;
+
   -- The row stays (calls reference it) and says nothing about the person.
   UPDATE public.users SET
     full_name        = 'Deleted account',
@@ -339,7 +369,7 @@ BEGIN
     privy_id         = NULL,
     wallet_address   = NULL,
     sns_domain       = NULL,
-    handle           = 'deleted_' || substr(replace(p_user_id::TEXT, '-', ''), 1, 12),
+    handle           = v_handle,
     profile_picture  = NULL,
     profile_image_id = NULL,
     last_seen_at     = NULL,

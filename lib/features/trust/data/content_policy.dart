@@ -43,9 +43,14 @@ const _tlds = [
 final _linkPatterns = [
   RegExp(r'\bhttps?://', caseSensitive: false),
   RegExp(r'\bwww\.', caseSensitive: false),
+  // Same rule as the server: the suffix is lowercase ("pump.fun",
+  // "OpenAI.com"), or all capitals after an all-capitals name ("SCAM.COM").
+  // A missed space before a capitalised word ("win.So easy") is a typo.
   RegExp(
-    '(?:^|[^a-z0-9-])[a-z0-9][a-z0-9-]{0,62}\\.(?:${_tlds.join('|')})(?![a-z0-9])',
-    caseSensitive: false,
+    '(?:^|[^A-Za-z0-9-])[A-Za-z0-9][A-Za-z0-9-]{0,62}\\.(?:${_tlds.join('|')})(?![A-Za-z0-9])',
+  ),
+  RegExp(
+    '(?:^|[^A-Za-z0-9-])[A-Z0-9][A-Z0-9-]{1,62}\\.(?:${_tlds.join('|').toUpperCase()})(?![A-Za-z0-9])',
   ),
 ];
 

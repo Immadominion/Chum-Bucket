@@ -373,10 +373,8 @@ void main() {
         override: '',
         isAndroid: true,
       ).map((u) => u.toString()),
-      [
-        'market://details?id=dev.cleva.chumbucket',
-        'https://play.google.com/store/apps/details?id=dev.cleva.chumbucket',
-      ],
+      // The dApp Store listing; the app is not on Google Play.
+      ['solanadappstore://details?id=dev.cleva.chumbucket'],
     );
     expect(storeListingCandidates(override: '', isAndroid: false), isEmpty);
     expect(

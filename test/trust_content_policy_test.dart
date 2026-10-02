@@ -12,6 +12,8 @@ void main() {
       'dm me t.me/rug',
       'bit.ly/abc',
       'free.money here',
+      'OpenAI.com style hype',
+      'go to SCAM.COM now',
     ]) {
       expect(
         contentPolicyProblem(t, ContentField.thesis),
@@ -53,6 +55,10 @@ void main() {
       'toly.sol called this first',
       'U.S. CPI comes in at 2.9, e.g. below consensus',
       'Scunthorpe United win; the therapist agrees',
+      // A missed space before a capitalised word is a typo, not a link.
+      'Arsenal win.So easy',
+      'Going up.To the moon',
+      'Messi to score.Co-favourites',
       '',
       null,
     ]) {

@@ -79,8 +79,12 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
       if (mounted) {
         setState(
           () =>
+              // A timeout lands here too, and the server may have finished,
+              // so don't claim nothing happened. A retry is always safe.
               _error =
-                  'You\'re offline. Nothing was deleted. Try again when you\'re connected.',
+                  'We couldn\'t reach Chumbucket, so we can\'t confirm your '
+                  'account was deleted. Try again when you\'re connected; '
+                  'it\'s safe to retry.',
         );
       }
     } on CallsException catch (e) {

@@ -20,7 +20,8 @@ const String kLegalSiteUrl = String.fromEnvironment(
 /// Android application id (android/app/build.gradle.kts).
 const String kAndroidPackageId = 'dev.cleva.chumbucket';
 
-/// Overrides the store listing, e.g. the Solana dApp Store or App Store URL.
+/// Overrides the store listing, e.g. a Google Play or App Store URL once the
+/// app is published there.
 const String kStoreListingUrl = String.fromEnvironment('STORE_LISTING_URL');
 
 class LegalLinks {
@@ -80,12 +81,12 @@ List<Uri> storeListingCandidates({
   if (override.trim().isNotEmpty) return [Uri.parse(override.trim())];
   final android = isAndroid ?? (!kIsWeb && Platform.isAndroid);
   if (!android) return const [];
-  return [
-    Uri.parse('market://details?id=$kAndroidPackageId'),
-    Uri.parse(
-      'https://play.google.com/store/apps/details?id=$kAndroidPackageId',
-    ),
-  ];
+  // Chumbucket is published on the Solana dApp Store (publishing/config.yaml),
+  // not Google Play: the Play listing for this id does not exist (404), so it
+  // is not offered. This is the dApp Store's documented listing deep link
+  // (docs.solanamobile.com/dapp-store/link-to-dapp-listing-page). Where the
+  // dApp Store is not installed, the person is told the store can't open.
+  return [Uri.parse('solanadappstore://details?id=$kAndroidPackageId')];
 }
 
 /// Opens Chumbucket's store listing so the person can rate it.

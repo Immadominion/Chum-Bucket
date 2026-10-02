@@ -461,12 +461,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   /// Tapping a friend used to start a SOL escrow challenge. Escrow is retired
   /// (read-only in Settings → History); the call-level Dare replaces it.
+  ///
+  /// A dare is a response on the OTHER person's call (the BFF refuses one on
+  /// your own call), so the copy points at their calls rather than promising
+  /// a dare from a call of your own.
   void onFriendSelected(String name, String walletAddress) {
     showChumbucketWavySheet<void>(
       context: context,
       builder:
           (sheetContext) => ChumbucketWavySheet(
-            title: 'Dare $name on a call',
+            title: 'Go on record with $name',
             subtitle: 'Escrow challenges have been retired.',
             body: Padding(
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
@@ -475,9 +479,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Make a call on a market, then dare $name to call it too. '
-                    'It\'s free: no money is locked up. Your earlier escrow '
-                    'challenges are in Settings → History.',
+                    'Make a free call on a market and share it with $name, or '
+                    'open one of their calls and dare them to go again. No '
+                    'money is locked up. Your earlier escrow challenges are in '
+                    'Settings → History.',
                     style: AppTextStyles.textTheme.bodyMedium?.copyWith(
                       height: 1.5,
                     ),
