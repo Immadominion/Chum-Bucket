@@ -173,7 +173,21 @@ class _AddFundsSheetState extends State<AddFundsSheet> {
     FocusScope.of(context).unfocus();
     final ok = await c.startCheckout();
     if (!ok || !mounted) return;
+    // Crossmint can ask the receiving wallet to sign before anyone pays. The
+    // sheet collects that signature first; the checkout opens after it.
+    if (c.stage == AddFundsStage.walletProof) return;
     await _showCheckout();
+  }
+
+  Future<void> _sign() async {
+    final signed = await c.signOwnershipProof();
+    if (!signed || !mounted) return;
+    // Signed and accepted: carry straight on to paying when the order allows.
+    if (c.stage != AddFundsStage.walletProof &&
+        c.canReturnToCheckout &&
+        !c.isCheckoutOpen) {
+      await _showCheckout();
+    }
   }
 
   Future<void> _showCheckout() async {
@@ -368,6 +382,16 @@ class _AddFundsSheetState extends State<AddFundsSheet> {
           icon: 'info-circle-outline',
         ),
       _balance(),
+      if (c.needsSol) ...[
+        const SizedBox(height: 12),
+        const CallJourneyNote(
+          'This wallet has no SOL, and every trade needs a little for network '
+          'fees. A card here buys USDC only, so send some SOL from another '
+          'wallet or an exchange. Your address is at the bottom.',
+          key: ValueKey('deposit-needs-sol'),
+          icon: 'info-circle-outline',
+        ),
+      ],
       if (need != null && gap != null && gap > BigInt.zero) ...[
         const SizedBox(height: 12),
         CallJourneyNote(
@@ -518,7 +542,12 @@ class _AddFundsSheetState extends State<AddFundsSheet> {
       ),
       if (c.destination != null) ...[
         const SizedBox(height: 16),
-        DepositReceivePanel(address: c.destination!),
+        DepositReceivePanel(
+          // Re-mounts open once the balance shows the wallet has no SOL.
+          key: ValueKey('deposit-receive-${c.needsSol}'),
+          address: c.destination!,
+          initiallyOpen: c.needsSol,
+        ),
       ],
     ];
   }
@@ -607,7 +636,6 @@ class _AddFundsSheetState extends State<AddFundsSheet> {
   List<Widget> _progress() {
     final order = c.order;
     if (order == null) return _loading();
-    final copy = depositStateCopy(order);
     final proof = c.stage == AddFundsStage.walletProof;
     final canStartOver = switch (order.state) {
       DepositOrderState.awaitingPayment ||
@@ -616,6 +644,20 @@ class _AddFundsSheetState extends State<AddFundsSheet> {
       DepositOrderState.awaitingWalletProof => true,
       _ => false,
     };
+    // A payment picked up from an earlier visit has no checkout link (its
+    // client secret is never kept). Once it is payable again, e.g. after an
+    // identity review, the honest next step is a fresh payment.
+    final checkoutGone = canStartOver && !proof && !c.canReturnToCheckout;
+    final copy =
+        checkoutGone
+            ? const DepositStateCopy(
+              'Start a new payment to finish',
+              'This payment\'s checkout closed before you paid, so nothing '
+                  'was charged. A new payment picks up from here.',
+              'card-outline',
+              tone: DepositTone.waiting,
+            )
+            : depositStateCopy(order);
     return [
       DepositSteps(state: order.state),
       const SizedBox(height: 16),
@@ -628,7 +670,7 @@ class _AddFundsSheetState extends State<AddFundsSheet> {
             label: 'Sign with your wallet',
             busy: c.busy,
             busyLabel: 'Waiting for your wallet…',
-            onPressed: c.signOwnershipProof,
+            onPressed: _sign,
           )
         else
           CallJourneyNote(
@@ -643,9 +685,18 @@ class _AddFundsSheetState extends State<AddFundsSheet> {
           label:
               order.state == DepositOrderState.paymentFailed
                   ? 'Try another payment method'
-                  : 'Return to checkout',
+                  : c.checkoutSeen
+                  ? 'Return to checkout'
+                  : 'Continue to payment',
           leading: const BasilIcon('lock-solid', size: 18),
           onPressed: _showCheckout,
+        ),
+      ] else if (checkoutGone) ...[
+        const SizedBox(height: 16),
+        ChumbucketPrimaryButton(
+          key: const ValueKey('deposit-start-new'),
+          label: 'Start a new payment',
+          onPressed: c.startOver,
         ),
       ],
       if (c.pollGaveUp) ...[
@@ -703,7 +754,7 @@ class _AddFundsSheetState extends State<AddFundsSheet> {
         textAlign: TextAlign.center,
         style: callJourneyBody(12).copyWith(color: AppColors.textTertiary),
       ),
-      if (canStartOver && !c.busy) ...[
+      if (canStartOver && !checkoutGone && !c.busy) ...[
         const SizedBox(height: 4),
         ChumbucketTextAction(
           label: 'Start a new payment',
@@ -734,15 +785,29 @@ class _AddFundsSheetState extends State<AddFundsSheet> {
         ),
       ),
       const SizedBox(height: 4),
+      // "Ready" only when it's true: a trade also pays a SOL network fee,
+      // and a card payment never adds SOL.
       Text(
-        _forTrade
+        c.needsSol
+            ? 'One more step before you trade: add a little SOL for network fees.'
+            : _forTrade
             ? 'You\'re ready to place your trade.'
             : 'You\'re ready to back your calls.',
+        key: const ValueKey('deposit-delivered-next'),
         textAlign: TextAlign.center,
         style: callJourneyBody(),
       ),
       const SizedBox(height: 16),
       _balance(),
+      if (c.needsSol && c.destination != null) ...[
+        const SizedBox(height: 12),
+        DepositReceivePanel(
+          address: c.destination!,
+          initiallyOpen: true,
+          title: 'Add SOL for network fees',
+          subtitle: 'Send a little SOL from another wallet or an exchange.',
+        ),
+      ],
       if (order?.isDevnet ?? false) ...[
         const SizedBox(height: 12),
         const CallJourneyNote(

@@ -112,7 +112,7 @@ class _TradeFundsCheckState extends State<TradeFundsCheck> {
         amount != null && amount > b.usdcBaseUnits
             ? amount - b.usdcBaseUnits
             : null;
-    final noSol = b.lamports == BigInt.zero;
+    final noSol = b.hasNoSol;
     final warn = short != null || noSol;
     final ink = warn ? AppColors.onWarningContainer : AppColors.textSecondary;
     return Padding(
@@ -181,7 +181,9 @@ class _TradeFundsCheckState extends State<TradeFundsCheck> {
                       size: 18,
                       color: Colors.white,
                     ),
-                    label: const Text('Add funds'),
+                    // A card buys USDC only. With USDC covered and SOL
+                    // missing, the sheet leads with this wallet's address.
+                    label: Text(short != null ? 'Add funds' : 'Add SOL'),
                   ),
                 ),
               ],

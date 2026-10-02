@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:chumbucket/core/theme/app_theme.dart';
 import 'package:chumbucket/features/deposits/add_funds_controller.dart';
 import 'package:chumbucket/features/deposits/data/deposit_order_memory.dart';
+import 'package:chumbucket/features/deposits/domain/deposit_wallet_source.dart';
 import 'package:chumbucket/features/deposits/presentation/add_funds_sheet.dart';
 import 'package:chumbucket/features/deposits/presentation/deposits_dependencies.dart';
 import 'package:chumbucket/features/deposits/presentation/trade_funds_check.dart';
@@ -17,11 +18,12 @@ import 'panta_trading_controller_test.dart'
 
 /// Opens Add funds from a button, the way Profile and the trade review do.
 class SheetRig {
-  SheetRig() {
+  SheetRig({DepositWalletSource? walletSource}) {
     deps = DepositsDependencies(
       createClient: bff.newClient,
       accountId: 'user-1',
       memory: memory,
+      walletSource: walletSource,
       openCheckout: (context, controller) async {
         opened.add(controller);
         await (checkoutClosed = Completer<void>()).future;
@@ -246,6 +248,113 @@ void main() {
     });
   }
 
+  testWidgets(
+    'a wallet signature Crossmint asks for comes before the checkout',
+    (tester) async {
+      final source = FakeWalletSource(walletA);
+      final rig = SheetRig(walletSource: source);
+      final needsProof = orderJson(
+        state: 'awaiting_wallet_proof',
+        proof: 'Verify ownership',
+      );
+      rig.bff.handlers['deposits.create'] =
+          (_) => trpcOk({'order': needsProof, 'checkoutUrl': checkoutUrl()});
+      rig.bff.orderStates = [needsProof];
+      await rig.mount(tester);
+      await reveal(tester, find.byKey(const ValueKey('deposit-continue')));
+      await tester.tap(find.byKey(const ValueKey('deposit-continue')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      // No checkout yet: it can't take a payment until the wallet signs.
+      expect(rig.opened, isEmpty);
+      expect(find.text('Confirm this wallet is yours'), findsOneWidget);
+
+      rig.bff.orderStates = [orderJson()];
+      await reveal(tester, find.byKey(const ValueKey('deposit-sign-proof')));
+      await tester.tap(find.byKey(const ValueKey('deposit-sign-proof')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(source.signed, hasLength(1));
+      expect(rig.bff.inputs('verifyWallet'), hasLength(1));
+      // Signed and accepted: straight on to paying, in the same order.
+      expect(rig.opened, hasLength(1));
+      expect(rig.bff.inputs('create'), hasLength(1));
+    },
+  );
+
+  testWidgets(
+    'a wallet with no SOL is told it can\'t trade yet, and how to fix it',
+    (tester) async {
+      final rig = SheetRig();
+      rig.bff.balance = balanceJson(lamports: '0');
+      await rig.mount(tester);
+      expect(find.byKey(const ValueKey('deposit-needs-sol')), findsOneWidget);
+      // The address to send SOL to is already open.
+      await reveal(
+        tester,
+        find.byKey(const ValueKey('deposit-receive-address')),
+      );
+      expect(
+        find.byKey(const ValueKey('deposit-receive-details')),
+        findsOneWidget,
+      );
+
+      await reveal(tester, find.byKey(const ValueKey('deposit-continue')));
+      await tester.tap(find.byKey(const ValueKey('deposit-continue')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      rig.bff.orderStates = [
+        orderJson(
+          state: 'delivered',
+          txId: syntheticTx,
+          receive: const {'min': '24.21', 'max': '24.21'},
+        ),
+      ];
+      rig.checkoutClosed.complete();
+      for (var i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(find.text('24.21 USDC landed in your wallet.'), findsOneWidget);
+      // Never "you're ready" while a trade couldn't pay its network fee.
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('deposit-delivered-next')))
+            .data,
+        'One more step before you trade: add a little SOL for network fees.',
+      );
+      expect(find.text('Add SOL for network fees'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 5));
+    },
+  );
+
+  testWidgets(
+    'a resumed payment that can no longer be paid offers a fresh one',
+    (tester) async {
+      final rig = SheetRig();
+      await rig.memory.remember('user-1', orderOne);
+      // Identity review finished while the sheet was closed.
+      rig.bff.orderStates = [
+        orderJson(state: 'identity_review'),
+        orderJson(state: 'awaiting_payment'),
+      ];
+      await rig.mount(tester);
+      expect(find.text('Crossmint is reviewing your details'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text('Start a new payment to finish'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('deposit-return-checkout')),
+        findsNothing,
+      );
+      await reveal(tester, find.byKey(const ValueKey('deposit-start-new')));
+      await tester.tap(find.byKey(const ValueKey('deposit-start-new')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byKey(const ValueKey('deposit-continue')), findsOneWidget);
+      expect(await rig.memory.pending('user-1'), isNull);
+    },
+  );
+
   group('trade review funds check', () {
     late SyntheticPantaRig panta;
     setUp(() => panta = SyntheticPantaRig());
@@ -306,6 +415,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.byKey(const ValueKey('trade-add-funds')), findsOneWidget);
+      expect(find.text('Add funds'), findsOneWidget);
     });
 
     testWidgets('no SOL for fees is called out even when USDC covers it', (
@@ -315,6 +425,9 @@ void main() {
       panta.controller.editAmount('5');
       await tester.pump();
       expect(find.byKey(const ValueKey('trade-funds-no-sol')), findsOneWidget);
+      // A card can't buy SOL, so the action says what's actually missing.
+      expect(find.text('Add SOL'), findsOneWidget);
+      expect(find.text('Add funds'), findsNothing);
     });
 
     testWidgets('says nothing when the balance cannot be read', (tester) async {

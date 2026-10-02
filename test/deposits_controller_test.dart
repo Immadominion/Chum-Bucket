@@ -237,6 +237,32 @@ void main() {
     expect(await memory.pending('user-1'), isNull);
   });
 
+  test(
+    'an old order waiting for a signature is dropped, not resumed',
+    () async {
+      await memory.remember('user-1', orderOne);
+      bff.orderStates = [
+        orderJson(state: 'awaiting_wallet_proof', proof: 'sign me'),
+      ];
+      final c = make(walletSource: FakeWalletSource(walletA));
+      await c.load();
+      expect(c.stage, AddFundsStage.choose);
+      expect(c.order, isNull);
+      expect(await memory.pending('user-1'), isNull);
+    },
+  );
+
+  test('a wallet with no SOL is flagged; one with SOL is not', () async {
+    bff.balance = balanceJson(lamports: '0');
+    final c = make();
+    await c.load();
+    await until(() => c.balance != null);
+    expect(c.needsSol, isTrue);
+    bff.balance = balanceJson(lamports: '1');
+    await c.refreshBalance();
+    expect(c.needsSol, isFalse);
+  });
+
   test('a delivery that finished while away is still news', () async {
     await memory.remember('user-1', orderOne);
     bff.orderStates = [orderJson(state: 'delivered', txId: syntheticTx)];

@@ -132,15 +132,16 @@ void main() {
       expect(done.state.isTerminal, isTrue);
     });
 
-    test('only in-flight, reviewed or proof-waiting orders are resumed', () {
+    test('only in-flight or reviewed orders are resumed', () {
       final resumable = DepositOrderState.values.where(
         (s) => s.isWorthResuming,
       );
+      // Not a proof-waiting order: its checkout link is gone, so once signed
+      // it still couldn't be paid. A fresh order asks for the signature.
       expect(resumable, {
         DepositOrderState.paymentProcessing,
         DepositOrderState.delivering,
         DepositOrderState.identityReview,
-        DepositOrderState.awaitingWalletProof,
       });
     });
   });

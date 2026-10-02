@@ -409,10 +409,14 @@ class DepositReceivePanel extends StatefulWidget {
     super.key,
     required this.address,
     this.initiallyOpen = false,
+    this.title = 'Already have crypto?',
+    this.subtitle = 'Send USDC or SOL from another wallet or an exchange.',
   });
 
   final String address;
   final bool initiallyOpen;
+  final String title;
+  final String subtitle;
 
   @override
   State<DepositReceivePanel> createState() => _DepositReceivePanelState();
@@ -473,13 +477,10 @@ class _DepositReceivePanelState extends State<DepositReceivePanel> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Already have crypto?',
+                              widget.title,
                               style: callJourneyHeading(context, 14),
                             ),
-                            Text(
-                              'Send USDC or SOL from another wallet or an exchange.',
-                              style: callJourneyBody(12),
-                            ),
+                            Text(widget.subtitle, style: callJourneyBody(12)),
                           ],
                         ),
                       ),

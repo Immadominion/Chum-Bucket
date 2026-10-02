@@ -60,9 +60,13 @@ void main() {
 
   Future<SheetRig> started(
     WidgetTester tester,
-    List<Map<String, Object?>> states,
-  ) async {
-    final rig = SheetRig()..bff.orderStates = [orderJson()];
+    List<Map<String, Object?>> states, {
+    String lamports = '250000000',
+  }) async {
+    final rig =
+        SheetRig()
+          ..bff.orderStates = [orderJson()]
+          ..bff.balance = balanceJson(lamports: lamports);
     await rig.mount(tester, height: 1500);
     await reveal(tester, find.byKey(const ValueKey('deposit-continue')));
     await tester.tap(find.byKey(const ValueKey('deposit-continue')));
@@ -125,6 +129,19 @@ void main() {
           receive: const {'min': '24.21', 'max': '24.21'},
         ),
       ]);
+    },
+    'choose-no-sol': (tester) async {
+      final rig = SheetRig()..bff.balance = balanceJson(lamports: '0');
+      await rig.mount(tester, height: 2000);
+    },
+    'delivered-no-sol': (tester) async {
+      await started(tester, [
+        orderJson(
+          state: 'delivered',
+          txId: syntheticTx,
+          receive: const {'min': '24.21', 'max': '24.21'},
+        ),
+      ], lamports: '0');
     },
     'delivery-failed': (tester) async {
       await started(tester, [

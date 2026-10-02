@@ -111,7 +111,7 @@ FilledButton.icon(
 ## 5. Tests
 
 `test/deposits_models_client_test.dart` (14), `test/deposits_controller_test.dart`
-(21), `test/deposits_sheet_test.dart` (12), `test/deposits_wiring_test.dart` (7),
+(23), `test/deposits_sheet_test.dart` (15), `test/deposits_wiring_test.dart` (7),
 plus the opt-in captures in `test/deposits_visual_capture_test.dart`.
 `test/ui_people_layout_continuity_test.dart` was updated: the receive modal now
 opens from "Receive from another wallet" instead of "Add SOL".

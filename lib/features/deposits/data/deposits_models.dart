@@ -307,6 +307,10 @@ class WalletBalance {
   String get solLabel =>
       formatBaseUnits(lamports, 9, maxDecimals: 4, minDecimals: 2);
 
+  /// No SOL at all. A Panta buy is paid for by its owner, so this wallet
+  /// can't trade yet, and a card here only ever buys USDC.
+  bool get hasNoSol => lamports == BigInt.zero;
+
   factory WalletBalance.fromJson(Map<String, dynamic> json) {
     if (json['network'] != 'solana-mainnet') _bad();
     final lamports = _as<String>(json['lamports']);
@@ -385,10 +389,11 @@ enum DepositOrderState {
   bool get isInFlight => this == paymentProcessing || this == delivering;
 
   /// Worth picking up on a later visit without its checkout page: money is
-  /// moving, Crossmint is reviewing, or only a wallet signature (which the
-  /// sheet itself can collect) stands in the way.
-  bool get isWorthResuming =>
-      isInFlight || this == identityReview || this == awaitingWalletProof;
+  /// moving, or Crossmint is reviewing and its answer is news. An order
+  /// waiting for a wallet signature is not: nothing was charged, and once
+  /// signed it could not be paid anyway, because its checkout link (the
+  /// client secret) is never stored. A fresh order asks for the signature.
+  bool get isWorthResuming => isInFlight || this == identityReview;
 }
 
 class DepositOrder {

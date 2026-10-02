@@ -96,6 +96,7 @@ class AddFundsController extends ChangeNotifier {
   String? _idempotencyKey;
   bool _busy = false;
   bool _checkoutOpen = false;
+  bool _checkoutSeen = false;
   bool _pollGaveUp = false;
   bool _disposed = false;
   Timer? _pollTimer;
@@ -123,6 +124,13 @@ class AddFundsController extends ChangeNotifier {
   bool get busy => _busy;
   bool get pollGaveUp => _pollGaveUp;
   bool get isCheckoutOpen => _checkoutOpen;
+
+  /// The person has had this order's checkout on screen at least once.
+  bool get checkoutSeen => _checkoutSeen;
+
+  /// The wallet being funded has no SOL, so it can't pay a trade's network
+  /// fee yet. Card payments only buy USDC; SOL has to be sent in.
+  bool get needsSol => _balance?.hasNoSol ?? false;
 
   List<UsdAmount> get presets => _status?.presets ?? const [];
   UsdAmount? get minAmount => _status?.minUsd;
@@ -465,6 +473,7 @@ class AddFundsController extends ChangeNotifier {
 
   void checkoutOpened() {
     _checkoutOpen = true;
+    _checkoutSeen = true;
     if (_order != null && !_order!.state.isTerminal) {
       _stage =
           _order!.state == DepositOrderState.awaitingWalletProof
@@ -622,10 +631,12 @@ class AddFundsController extends ChangeNotifier {
         source.address == order!.recipient;
   }
 
-  Future<void> signOwnershipProof() async {
+  /// True once Crossmint has the verified signature; the order then carries on
+  /// to payment (the sheet reopens the checkout when it can).
+  Future<bool> signOwnershipProof() async {
     final order = _order, source = walletSource;
     final message = order?.walletProofMessage;
-    if (_busy || order == null || message == null) return;
+    if (_busy || order == null || message == null) return false;
     if (source == null ||
         !source.isCurrent ||
         source.address != order.recipient) {
@@ -634,7 +645,7 @@ class AddFundsController extends ChangeNotifier {
         'Open Chumbucket with the wallet ending ${shortAddress(order.recipient).split('…').last} connected, then sign.',
       );
       _publish();
-      return;
+      return false;
     }
     _busy = true;
     _error = null;
@@ -648,17 +659,20 @@ class AddFundsController extends ChangeNotifier {
         orderId: order.orderId,
         signatureBase64: base64Encode(signature),
       );
-      if (_disposed) return;
+      if (_disposed) return false;
       _applyOrder(next);
+      return true;
     } on DepositWalletDeclined {
-      if (_disposed) return;
+      if (_disposed) return false;
       _error = const DepositsException(
         DepositsErrorKind.forbidden,
         'No signature was made. Your payment is waiting — sign when you\'re ready.',
       );
+      return false;
     } on DepositsException catch (e) {
-      if (_disposed) return;
+      if (_disposed) return false;
       _error = e;
+      return false;
     } finally {
       if (!_disposed) {
         _busy = false;
@@ -678,6 +692,7 @@ class AddFundsController extends ChangeNotifier {
     _error = null;
     _pollGaveUp = false;
     _checkoutOpen = false;
+    _checkoutSeen = false;
     if (accountId != null) unawaited(_memory.forget(accountId!));
     _stage =
         (_status?.available ?? false)
