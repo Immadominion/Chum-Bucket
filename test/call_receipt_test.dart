@@ -58,7 +58,7 @@ void main() {
         expect(receipt.venueLabel, 'Demo catalog');
         expect(receipt.venueIsDemo, isTrue);
         expect(receipt.marketResolutionId, 'res_fomc_sep_2026');
-        expect(receipt.shareUrl, 'https://chumbucket.app/c/call_you_fed');
+        expect(receipt.shareUrl, 'https://chumbucket.fun/c/call_you_fed');
       });
 
       test('an incorrect call still shows the same five facts', () async {

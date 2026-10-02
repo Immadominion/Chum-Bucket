@@ -12,9 +12,9 @@ void main() {
   group('parsing — links we own', () {
     test('https call links', () {
       for (final url in [
-        'https://chumbucket.app/c/call_ada_btc',
-        'https://www.chumbucket.app/c/call_ada_btc',
-        'https://link.chumbucket.app/call/call_ada_btc',
+        'https://chumbucket.fun/c/call_ada_btc',
+        'https://www.chumbucket.fun/c/call_ada_btc',
+        'https://chumbucket.fun/call/call_ada_btc',
       ]) {
         final link = parse(url);
         expect(link, isA<CallLinkTarget>(), reason: url);
@@ -23,20 +23,20 @@ void main() {
     });
 
     test('https person links, with and without the @', () {
-      expect((parse('https://chumbucket.app/u/ada')! as PersonLinkTarget).personRef, 'ada');
+      expect((parse('https://chumbucket.fun/u/ada')! as PersonLinkTarget).personRef, 'ada');
       expect(
-        (parse('https://chumbucket.app/u/%40ada')! as PersonLinkTarget).personRef,
+        (parse('https://chumbucket.fun/u/%40ada')! as PersonLinkTarget).personRef,
         'ada',
       );
       expect(
-        (parse('https://chumbucket.app/person/user_ada')! as PersonLinkTarget)
+        (parse('https://chumbucket.fun/person/user_ada')! as PersonLinkTarget)
             .personRef,
         'user_ada',
       );
     });
 
     test('https market links', () {
-      final link = parse('https://chumbucket.app/m/market_btc_150k');
+      final link = parse('https://chumbucket.fun/m/market_btc_150k');
       expect((link! as MarketLinkTarget).marketId, 'market_btc_150k');
     });
 
@@ -57,14 +57,14 @@ void main() {
     });
 
     test('the ?ref= attribution is carried through, never authorising', () {
-      final link = parse('https://chumbucket.app/c/call_1?ref=@kemi');
+      final link = parse('https://chumbucket.fun/c/call_1?ref=@kemi');
       expect(link!.sharedByHandle, 'kemi');
       expect((link as CallLinkTarget).callId, 'call_1');
     });
 
     test('the kind segment is case-insensitive', () {
-      expect(parse('https://chumbucket.app/C/call_1'), isA<CallLinkTarget>());
-      expect(parse('HTTPS://CHUMBUCKET.APP/u/ada'), isA<PersonLinkTarget>());
+      expect(parse('https://chumbucket.fun/C/call_1'), isA<CallLinkTarget>());
+      expect(parse('HTTPS://CHUMBUCKET.FUN/u/ada'), isA<PersonLinkTarget>());
     });
   });
 
@@ -84,17 +84,31 @@ void main() {
 
     test('another host\'s https link is not ours', () {
       expect(parse('https://example.com/c/call_1'), isNull);
-      expect(parse('https://chumbucket.app.evil.com/c/call_1'), isNull);
+      expect(parse('https://chumbucket.fun.evil.com/c/call_1'), isNull);
+    });
+
+    test('the unregistered chumbucket.app domain is not ours', () {
+      // It never resolved (NXDOMAIN): no working link was ever built on it, and
+      // whoever registers it must not be able to drive the app.
+      expect(parse('https://chumbucket.app/c/call_1'), isNull);
+      expect(parse('https://www.chumbucket.app/u/ada'), isNull);
+      expect(parse('https://link.chumbucket.app/call/call_1'), isNull);
+    });
+
+    test('links are built on the live site by default', () {
+      final repo = MockCallsRepository();
+      expect(repo.shareLinkForCall('call_1'), 'https://chumbucket.fun/c/call_1');
+      expect(repo.shareLinkForPerson('ada'), 'https://chumbucket.fun/u/ada');
     });
 
     test('an unknown kind segment is not ours', () {
-      expect(parse('https://chumbucket.app/settings/theme'), isNull);
+      expect(parse('https://chumbucket.fun/settings/theme'), isNull);
       expect(parse('chumbucket://wallet/connect'), isNull);
     });
 
     test('a missing or empty identifier is refused', () {
-      expect(parse('https://chumbucket.app/c'), isNull);
-      expect(parse('https://chumbucket.app/c/'), isNull);
+      expect(parse('https://chumbucket.fun/c'), isNull);
+      expect(parse('https://chumbucket.fun/c/'), isNull);
       expect(parse('chumbucket://call'), isNull);
     });
   });
@@ -116,7 +130,7 @@ void main() {
 
     test('CallDeepLinkRouter.owns agrees with the parser', () {
       expect(
-        CallDeepLinkRouter.owns(Uri.parse('https://chumbucket.app/c/call_1')),
+        CallDeepLinkRouter.owns(Uri.parse('https://chumbucket.fun/c/call_1')),
         isTrue,
       );
       expect(
@@ -139,7 +153,7 @@ void main() {
 
     test('a call link resolves to that call', () async {
       final result = await resolver.resolve(
-        Uri.parse('https://chumbucket.app/c/call_ada_btc'),
+        Uri.parse('https://chumbucket.fun/c/call_ada_btc'),
         viewerUserId: viewer,
       );
       expect(result, isA<ResolvedCallLink>());
@@ -151,7 +165,7 @@ void main() {
 
     test('a person link resolves by handle to the canonical user id', () async {
       final result = await resolver.resolve(
-        Uri.parse('https://chumbucket.app/u/ada?ref=kemi'),
+        Uri.parse('https://chumbucket.fun/u/ada?ref=kemi'),
       );
       expect(result, isA<ResolvedPersonLink>());
       final resolved = result as ResolvedPersonLink;
@@ -172,7 +186,7 @@ void main() {
 
     test('resolving works signed out — reading needs no account', () async {
       final result = await resolver.resolve(
-        Uri.parse('https://chumbucket.app/c/call_ada_btc'),
+        Uri.parse('https://chumbucket.fun/c/call_ada_btc'),
       );
       expect(result, isA<ResolvedCallLink>());
     });
@@ -190,7 +204,7 @@ void main() {
 
     test('a missing target reports notFound', () async {
       final result = await resolver.resolve(
-        Uri.parse('https://chumbucket.app/c/call_does_not_exist'),
+        Uri.parse('https://chumbucket.fun/c/call_does_not_exist'),
       );
       expect(
         (result as UnresolvedLink).reason,
@@ -200,7 +214,7 @@ void main() {
 
     test('a followers-only call is notFound for a stranger', () async {
       final result = await resolver.resolve(
-        Uri.parse('https://chumbucket.app/c/call_zed_sol'),
+        Uri.parse('https://chumbucket.fun/c/call_zed_sol'),
       );
       expect(
         (result as UnresolvedLink).reason,
@@ -211,7 +225,7 @@ void main() {
     test('offline is reported as offline, not as notFound', () async {
       repo.simulateOffline = true;
       final result = await resolver.resolve(
-        Uri.parse('https://chumbucket.app/c/call_ada_btc'),
+        Uri.parse('https://chumbucket.fun/c/call_ada_btc'),
       );
       expect(
         (result as UnresolvedLink).reason,
@@ -222,7 +236,7 @@ void main() {
     test('a generic failure is reported as failed', () async {
       repo.simulateFailure = true;
       final result = await resolver.resolve(
-        Uri.parse('https://chumbucket.app/u/ada'),
+        Uri.parse('https://chumbucket.fun/u/ada'),
       );
       expect((result as UnresolvedLink).reason, CallDeepLinkFailure.failed);
     });

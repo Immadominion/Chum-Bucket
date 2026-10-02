@@ -154,7 +154,7 @@ void main() {
       );
       final receipt = CallReceipt.fromEntry(
         entry,
-        shareUrl: 'https://chumbucket.app/c/test',
+        shareUrl: 'https://chumbucket.fun/c/test',
       );
       await tester.pumpWidget(app(CallReceiptCard(receipt: receipt)));
       await tester.pumpAndSettle();

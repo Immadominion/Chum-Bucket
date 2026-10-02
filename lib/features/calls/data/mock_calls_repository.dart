@@ -20,7 +20,7 @@ class MockCallsRepository implements CallsRepository {
   MockCallsRepository({
     DateTime Function()? clock,
     this.latency = Duration.zero,
-    String linkHost = 'https://chumbucket.app',
+    String linkHost = 'https://chumbucket.fun',
   }) : _clock = clock ?? DateTime.now,
        _linkHost = linkHost {
     _seed();

@@ -64,8 +64,14 @@ const String kCallsBffDefaultUrl =
 /// Configuration key for the host shareable links are built against.
 const String kCallsLinkHostKey = 'CALLS_LINK_HOST';
 
-/// Matches `kCallDeepLinkHosts` in `call_deep_link.dart` and the mock's default.
-const String kCallsLinkHostDefault = 'https://chumbucket.app';
+/// The owner's live site. `chumbucket.fun` serves the `/c`, `/u` and `/m`
+/// landing pages (with an install/open-in-app fallback) and the
+/// `/.well-known/assetlinks.json` that lets Android hand these links straight
+/// to the app. Matches `kCallDeepLinkHosts` in `call_deep_link.dart`.
+///
+/// `chumbucket.app` was the old default; that domain does not resolve
+/// (NXDOMAIN), so every link built against it was dead for the recipient.
+const String kCallsLinkHostDefault = 'https://chumbucket.fun';
 
 /// Reads a configuration value without assuming `dotenv` has been loaded.
 ///

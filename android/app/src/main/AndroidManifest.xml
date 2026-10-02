@@ -5,11 +5,12 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Vibrate permission for notification vibration -->
     <uses-permission android:name="android.permission.VIBRATE" />
-    <!-- Receive boot completed for scheduled notifications -->
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    
+    <!-- The boot-completed permission was removed: the app schedules no notifications
+         (no zonedSchedule / periodicallyShow) and declares no boot receiver, so
+         the permission granted nothing and only widened the review surface. -->
+
     <application
-        android:label="chumbucket"
+        android:label="Chumbucket"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon"
         android:fullBackupContent="@xml/backup_rules"
@@ -43,19 +44,33 @@
                 <data android:scheme="dev.cleva.chumbucket" android:host="login-callback" />
             </intent-filter>
 
-            <!-- Shared call / person / market links.
-                 Custom schemes only: the app owns these by registration, with no
-                 domain to verify. The https App Links filter for chumbucket.app
-                 is deliberately NOT here — android:autoVerify needs
-                 /.well-known/assetlinks.json hosted on that domain first, and
-                 claiming https links without it only ever reaches the chooser.
-                 Add it in the same place once the domain and assetlinks.json
-                 are confirmed.
+            <!-- Shared call / person / market links: https App Links.
+                 https://chumbucket.fun/c/<callId>, /u/<handle>, /m/<marketId>
+                 open straight in the app once Android has verified
+                 https://chumbucket.fun/.well-known/assetlinks.json (served by
+                 the site in the API repo, web/app/.well-known). Until that file
+                 carries the release certificate's SHA-256, verification fails
+                 and the same links simply open the website, which has its own
+                 open-in-app / install fallback. Nothing breaks either way.
 
-                 The OAuth filter above is untouched: it is pinned to
-                 android:host="login-callback", and these declare hosts c/u/m,
-                 so dev.cleva.chumbucket://login-callback still reaches the auth
-                 handler exactly as before. -->
+                 Only these three path prefixes are claimed, so every other page
+                 on the site keeps opening in the browser. The hosts are exactly
+                 kCallDeepLinkHosts in lib/features/calls/deeplink/call_deep_link.dart;
+                 the OAuth filter above is untouched. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="chumbucket.fun" />
+                <data android:host="www.chumbucket.fun" />
+                <data android:pathPrefix="/c/" />
+                <data android:pathPrefix="/u/" />
+                <data android:pathPrefix="/m/" />
+            </intent-filter>
+            <!-- The same links on the app's own schemes. The app owns these by
+                 registration, with no domain to verify; the website's
+                 "Open in app" button uses them. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -76,10 +91,20 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-        <!-- FCM default notification channel (must match the channel_id in edge function) -->
+        <!-- FCM default notification channel. Must equal
+             NotificationChannels.activity in
+             lib/core/services/notification_service.dart. A push that names a
+             channel this app no longer creates (the legacy edge function still
+             sends "challenge_channel") falls back to this one. -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="challenge_channel" />
+            android:value="activity_channel" />
+        <!-- Crash reports are opt-in. Nothing is collected until the person
+             turns "Share crash reports" on in Settings, which calls
+             setCrashlyticsCollectionEnabled(true) (lib/core/crash/crash_reporting.dart). -->
+        <meta-data
+            android:name="firebase_crashlytics_collection_enabled"
+            android:value="false" />
         <!-- FCM default notification icon -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
