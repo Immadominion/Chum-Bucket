@@ -19,6 +19,7 @@ import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_person_screen.dart';
 import 'package:chumbucket/features/market_creation/presentation/widgets/market_entry_widgets.dart';
+import 'package:chumbucket/features/panta_trading/presentation/panta_market_link.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class MarketDetailScreen extends StatefulWidget {
@@ -133,9 +134,14 @@ class _MarketDetailScreenState extends State<MarketDetailScreen> {
     final now = DateTime.now().toUtc();
     final closedByTime =
         market.closesAtUtc != null && !market.closesAtUtc!.isAfter(now);
+    // M14: the server closes calls a window before the market closes.
+    final callsCloseAt = detail.callsCloseAtUtc;
+    final insideCutoff =
+        !closedByTime && callsCloseAt != null && !callsCloseAt.isAfter(now);
     final acceptsCalls =
         market.status.acceptsNewCalls &&
         !closedByTime &&
+        !insideCutoff &&
         (market.opensAt == null ||
             market.opensAt! <= now.millisecondsSinceEpoch);
     final ownCall = detail.viewerCall;
@@ -236,6 +242,23 @@ class _MarketDetailScreenState extends State<MarketDetailScreen> {
                           color: AppColors.textSecondary,
                         ),
                       ),
+                      if (_callWindowLine(detail, now) case final line?) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          line,
+                          key: const ValueKey('market-call-window'),
+                          style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                            color:
+                                insideCutoff
+                                    ? AppColors.onWarningContainer
+                                    : AppColors.textSecondary,
+                            fontWeight:
+                                insideCutoff
+                                    ? FontWeight.w700
+                                    : FontWeight.w400,
+                          ),
+                        ),
+                      ],
                       // People-first: a market someone proposed here says who.
                       if (market.venue == MarketVenue.panta)
                         MarketProposerLine(
@@ -388,7 +411,11 @@ class _MarketDetailScreenState extends State<MarketDetailScreen> {
                 ),
                 if (!acceptsCalls && !isOwnCall)
                   Text(
-                    status,
+                    insideCutoff
+                        ? 'Calls are closed: they close '
+                            '${((detail.callCutoffMs ?? 0) / 60000).round()} min '
+                            'before the market does.'
+                        : status,
                     textAlign: TextAlign.center,
                     style: AppTextStyles.textTheme.bodySmall?.copyWith(
                       color: AppColors.onWarningContainer,
@@ -405,6 +432,20 @@ class _MarketDetailScreenState extends State<MarketDetailScreen> {
   // The shared call to action: white label on the vertical gradient.
   Widget _callAction({required String label, VoidCallback? onPressed}) =>
       ChumbucketPrimaryButton(label: label, onPressed: onPressed);
+}
+
+/// "Calls close 14:30 UTC · 30 min before the market closes" (M14), or null
+/// when the server did not publish a window.
+String? _callWindowLine(MarketDetail detail, DateTime now) {
+  final closeAt = detail.callsCloseAtUtc;
+  final cutoff = detail.callCutoffMs;
+  if (closeAt == null || cutoff == null || cutoff <= 0) return null;
+  final minutes = (cutoff / 60000).round();
+  if (!closeAt.isAfter(now)) {
+    return 'Calls closed $minutes min before the market closes.';
+  }
+  return 'Calls close ${CallsFormat.timestampUtc(closeAt)} · '
+      '$minutes min before the market closes';
 }
 
 Widget _surface({required Widget child}) => SizedBox(
@@ -560,16 +601,33 @@ class _RulesBlock extends StatelessWidget {
                   ),
                 ),
               ),
-              // The venue's own source reference, verbatim, beside its rules.
+              // Panta's public market page; never its authenticated API URL.
               const SizedBox(height: 10),
               Align(
                 alignment: Alignment.centerLeft,
-                child: Text(
-                  'Resolution source: ${market.resolutionSource ?? 'Not published'}',
-                  style: AppTextStyles.textTheme.bodySmall?.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
+                child:
+                    market.venue == MarketVenue.panta &&
+                            market.venueMarketId.isNotEmpty
+                        ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Resolved by ',
+                              style: AppTextStyles.textTheme.bodySmall
+                                  ?.copyWith(color: AppColors.textSecondary),
+                            ),
+                            PantaMarketLink(
+                              venueMarketId: market.venueMarketId,
+                              style: AppTextStyles.textTheme.bodySmall,
+                            ),
+                          ],
+                        )
+                        : Text(
+                          'Resolution source: ${market.resolutionSource ?? 'Not published'}',
+                          style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
               ),
             ],
           ),
@@ -633,7 +691,38 @@ class _FactsBlock extends StatelessWidget {
                 ),
           ),
           fact('Last synced', CallsFormat.timestampUtc(market.lastSyncedAtUtc)),
-          fact('Venue market ID', market.venueMarketId),
+          if (market.venue == MarketVenue.panta &&
+              market.venueMarketId.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            PantaMarketLink(
+              venueMarketId: market.venueMarketId,
+              label: 'Open this market on Panta',
+              style: AppTextStyles.textTheme.bodySmall,
+            ),
+          ],
+          // Raw identifiers, for anyone checking, behind a disclosure.
+          Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              key: const ValueKey('market-record-ids'),
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: const EdgeInsets.only(bottom: 8),
+              trailing: const BasilIcon(
+                'caret-down-outline',
+                color: AppColors.textPrimary,
+              ),
+              title: Text(
+                'Market IDs',
+                style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              children: [
+                fact('Venue market ID', market.venueMarketId),
+                fact('Chumbucket market ID', market.id),
+              ],
+            ),
+          ),
         ],
       ),
     );

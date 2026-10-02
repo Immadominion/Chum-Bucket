@@ -24,6 +24,7 @@ import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_tabs.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:chumbucket/widgets/profile_picture_selection_modal.dart';
+import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_positions_tab.dart';
 
 class ProfileScreen extends StatefulWidget {
   final bool embedded;
@@ -315,15 +316,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 )
               else if (_selectedTab == 0 && userId != null)
                 ..._callRecord(calls, detail, userId, styles),
-              if (_selectedTab == 1)
-                _ProfileActionRow(
-                  icon: 'lock-outline',
-                  title: 'Private positions',
-                  detail:
-                      'Your Panta positions are not available here yet. '
-                      'Free calls are not positions, and submitted orders are not confirmed fills.',
-                  onTap: null,
-                ),
+              // Real funded Panta positions, private to this account.
+              if (_selectedTab == 1) const ProfilePositionsTab(),
               if (_selectedTab == 2) ...[
                 _ProfileActionRow(
                   icon: 'contacts-outline',

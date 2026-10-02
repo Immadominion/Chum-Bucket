@@ -537,7 +537,15 @@ void main() {
         expect(find.text(entry.call.thesis!), findsOneWidget);
       }
       if (receipt.marketResolutionId != null) {
-        expect(find.text(receipt.marketResolutionId!), findsOneWidget);
+        // Raw evidence IDs sit behind the "Record IDs" disclosure (M21).
+        expect(find.textContaining(receipt.marketResolutionId!), findsNothing);
+        await tester.ensureVisible(find.text('Record IDs'));
+        await tester.tap(find.text('Record IDs'));
+        await tester.pumpAndSettle();
+        expect(
+          find.textContaining(receipt.marketResolutionId!),
+          findsOneWidget,
+        );
       }
       expect(tester.takeException(), isNull);
     }

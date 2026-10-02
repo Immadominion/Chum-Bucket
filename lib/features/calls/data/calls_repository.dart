@@ -132,6 +132,11 @@ class CallFeedEntry {
   /// True when the viewer already has their own call on [market].
   final bool viewerHasCalled;
 
+  /// Set only when the author backed this call with a Panta position whose
+  /// fill was confirmed. Carries no amount. [Call.fundingState] stays the
+  /// call's own free/funded provenance.
+  final CallFunding? funding;
+
   const CallFeedEntry({
     required this.call,
     required this.author,
@@ -140,7 +145,11 @@ class CallFeedEntry {
     this.backCount = 0,
     this.fadeCount = 0,
     this.viewerHasCalled = false,
+    this.funding,
   });
+
+  /// The author put money behind this call, and Panta confirmed the fill.
+  bool get isFunded => funding != null;
 
   CallOutcome get outcome =>
       result?.outcome ??
@@ -162,7 +171,26 @@ class CallFeedEntry {
     backCount: backCount ?? this.backCount,
     fadeCount: fadeCount ?? this.fadeCount,
     viewerHasCalled: viewerHasCalled ?? this.viewerHasCalled,
+    funding: funding,
   );
+}
+
+/// A confirmed Panta fill behind a call — conviction, never an amount.
+class CallFunding {
+  /// Unix ms the fill was confirmed.
+  final int fundedAt;
+  const CallFunding({required this.fundedAt});
+
+  /// Only `{state: FILLED, venue: panta}` is a funded call; anything else is
+  /// not shown as funded.
+  static CallFunding? fromJson(Object? value) {
+    if (value is! Map<String, dynamic>) return null;
+    final at = value['fundedAt'];
+    if (value['state'] != 'FILLED' || value['venue'] != 'panta' || at is! int) {
+      return null;
+    }
+    return CallFunding(fundedAt: at);
+  }
 }
 
 /// A page of feed rows plus the freshness metadata every state depends on.
@@ -223,6 +251,13 @@ class MarketDetail {
   final int servedAt;
   final bool fromCache;
 
+  /// When the market stops taking new calls (its close minus the server's
+  /// cut-off). Null when the server did not say, or the market has no close.
+  final int? callsCloseAt;
+
+  /// The server's call cut-off before market close, in ms. Null when unknown.
+  final int? callCutoffMs;
+
   const MarketDetail({
     this.sharePrice,
     required this.market,
@@ -231,7 +266,14 @@ class MarketDetail {
     this.viewerCall,
     this.crowdSplit,
     this.fromCache = false,
+    this.callsCloseAt,
+    this.callCutoffMs,
   });
+
+  DateTime? get callsCloseAtUtc =>
+      callsCloseAt == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(callsCloseAt!, isUtc: true);
 
   bool get viewerHasCalled => viewerCall != null;
 }

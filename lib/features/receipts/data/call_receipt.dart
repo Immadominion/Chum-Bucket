@@ -51,6 +51,13 @@ class CallReceipt {
   /// The venue evidence the result was derived from.
   final String? marketResolutionId;
 
+  /// The venue's own market address, for a public "Resolved by" link.
+  final String? venueMarketId;
+
+  /// True when the author backed this call with a confirmed Panta fill.
+  /// A yes/no fact only: the receipt never carries an amount.
+  final bool fundedOnPanta;
+
   final String shareUrl;
 
   const CallReceipt({
@@ -71,7 +78,12 @@ class CallReceipt {
     required this.resolutionSource,
     required this.marketResolutionId,
     required this.shareUrl,
+    this.venueMarketId,
+    this.fundedOnPanta = false,
   });
+
+  /// Panta's public market page, never the authenticated API URL.
+  bool get resolvedByPanta => venueLabel == 'Panta' && venueMarketId != null;
 
   /// A receipt is only honest once the venue has actually settled the call.
   /// A pending call gets a "pending" card, not a receipt.
@@ -104,6 +116,8 @@ class CallReceipt {
       resolutionSource: market.resolutionSource,
       marketResolutionId: entry.result?.marketResolutionId,
       shareUrl: shareUrl,
+      venueMarketId: market.venueMarketId.isEmpty ? null : market.venueMarketId,
+      fundedOnPanta: entry.isFunded,
     );
   }
 

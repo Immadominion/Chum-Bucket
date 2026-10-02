@@ -23,7 +23,11 @@ const { loadConfig } = await fromBff("src/config.ts");
 const { primeAuthIdentityRuntime, resolveAuthIdentityPolicy } = await fromBff("src/auth/AuthIdentityRuntime.ts");
 const { PantaExecution } = await fromBff("src/prediction/PantaExecution.ts");
 const { PantaTradingService } = await fromBff("src/prediction/PantaTradingService.ts");
-const { setPantaTradingRuntime, PANTA_MAINNET_PROGRAM_ID } = await fromBff("src/prediction/PantaTradingRuntime.ts");
+const { setPantaTradingRuntime, setPantaLifecycle, PANTA_MAINNET_PROGRAM_ID } = await fromBff("src/prediction/PantaTradingRuntime.ts");
+const { PantaClaimExecution } = await fromBff("src/prediction/PantaClaims.ts");
+const { PantaClaimService } = await fromBff("src/prediction/PantaClaimService.ts");
+const { PantaPositionsService } = await fromBff("src/prediction/PantaPositions.ts");
+const { PantaFundingIndex } = await fromBff("src/prediction/PantaFunding.ts");
 
 // Public, deterministic fixture seed. This is not a user's key or MWA approval.
 const owner = Keypair.fromSeed(new Uint8Array(32).fill(9));
@@ -38,6 +42,9 @@ let now = 1790686800000;
 let confirms = false;
 let quoteCount = 0;
 let broadcastCount = 0;
+let resolved = false;
+let paid = false;
+let claimBuilds = 0;
 
 const memoProgram = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
 const tokenProgram = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
@@ -121,7 +128,51 @@ const ledger = {
     rows.set(id, next);
     return next;
   },
+  async listForUser(user: string) {
+    return [...rows.values()].filter(row => row.user_id === user && row.signature &&
+      ["SUBMITTED", "FILLED", "FAILED"].includes(row.state));
+  },
+  async latestForCall(user: string, id: string) {
+    return [...rows.values()].filter(row => row.user_id === user && row.call_id === id && row.signature)
+      .at(-1) ?? null;
+  },
 };
+// Synthetic win-claim ledger mirroring panta_claim_sessions' rules in memory.
+const claimRows = new Map<string, any>();
+const claimStore = {
+  async find(user: string, key: string) { return [...claimRows.values()].find(r => r.user_id === user && r.idempotency_key === key) ?? null; },
+  async byId(user: string, id: string) { const r = claimRows.get(id); return r && r.user_id === user ? r : null; },
+  async activeFor(user: string, w: string, m: string) {
+    return [...claimRows.values()].find(r => r.user_id === user && r.wallet_address === w && r.venue_market_id === m &&
+      ["SUBMITTED", "CONFIRMED"].includes(r.state)) ?? null;
+  },
+  async listForUser(user: string) { return [...claimRows.values()].filter(r => r.user_id === user && r.state !== "PREPARING" && r.state !== "BUILT"); },
+  async submitted() { return [...claimRows.values()].filter(r => r.state === "SUBMITTED"); },
+  async reserve(input: any) {
+    if (await this.find(input.user_id, input.idempotency_key)) return null;
+    const row = { ...input, state: "PREPARING", prepared: null, signed_transaction: null, signature: null,
+      confirm_evidence: null, created_at: new Date(now).toISOString(), updated_at: new Date(now).toISOString() };
+    claimRows.set(row.id, row); return row;
+  },
+  async update(id: string, state: string, patch: any) {
+    const row = claimRows.get(id);
+    if (!row || row.state !== state) return null;
+    const next = { ...row, ...patch, updated_at: new Date(now).toISOString() };
+    claimRows.set(id, next); return next;
+  },
+};
+// Synthetic bytes following the BFF's doc-derived claim profile. Not live evidence.
+function syntheticClaimBuild(body: any) {
+  claimBuilds++;
+  const data = createHash("sha256").update("global:claim_win_usdc").digest().subarray(0, 8);
+  return { wallet: body.wallet, marketId: body.marketId, outcome: "YES", winningShares: "0.792",
+    instructions: [{ programId: program, data: Buffer.from(data).toString("base64"), accounts: [
+      account(wallet, true, true), account(market, true), account(addressByte(11), true), account(addressByte(12), true),
+      account(addressByte(13)), account(addressByte(14), true), account(ata, true), account(usdcMint), account(tokenProgram),
+    ] }],
+    derived: { winClaim: addressByte(11), positionPda: addressByte(12), vaultAuthority: addressByte(13) },
+    recentBlockhash: blockhash, lastValidBlockHeight: 456 };
+}
 const execution = new PantaExecution({ programId: program, providerUserId: "usr_synthetic_partner", clock: { now: () => now },
   verifyTransaction: async () => confirms,
   request: async (path: string, body: any) => {
@@ -146,6 +197,7 @@ const execution = new PantaExecution({ programId: program, providerUserId: "usr_
     };
     if (path === "/trades/") return { signature: body.signature, status: "processed",
       wallet, marketId: market, side: "yes", kind: "buy" };
+    if (path === "/claim/build/") return syntheticClaimBuild(body);
     throw new Error("Unexpected synthetic venue operation");
   },
 });
@@ -155,13 +207,37 @@ const service = new PantaTradingService({ store: ledger, execution,
   chain: { async broadcast() { broadcastCount++; } }, // Counter, no RPC/broadcast.
 });
 setPantaTradingRuntime(config, service);
+if (setPantaLifecycle) {
+  const claims = new PantaClaimService({ claims: claimStore, trades: ledger, now: () => now,
+    execution: new PantaClaimExecution({ programId: program, clock: { now: () => now },
+      request: async (path: string, body: any) => {
+        if (path !== "/claim/build/") throw new Error("Unexpected synthetic claim operation");
+        return syntheticClaimBuild(body);
+      } }),
+    chain: { async broadcast() { broadcastCount++; }, async failed() { return false; }, async neverLanded() { return false; },
+      async verifyClaim() { return paid ? { payoutBaseUnits: "792000", slot: 1 } : null; } } });
+  const positions = new PantaPositionsService({ ledger, claims: claimStore, now: () => now,
+    markets: {
+      getMarket: (id: string) => id === marketId ? { id, question: "Synthetic contract question?", status: "OPEN", closesAt: now + 3600000 } : undefined,
+      latestSharePrice: () => ({ yesPrice: "0.75", noPrice: "0.3", observedAt: now }),
+      getResolution: () => resolved ? { resolution: "YES" } : undefined,
+    },
+    holdings: { async holdings() {
+      return resolved ? [{ venueMarketId: market, side: "YES", shares: "0.792", phase: "resolved",
+        claimable: !paid, claimed: paid, outcome: "YES" }] : [];
+    } } });
+  setPantaLifecycle(config, { trading: service, claims, positions, holdings: null, ledger: null, claimStore,
+    funding: new PantaFundingIndex(null) });
+}
 const actualRouter = router({ pantaTrading: pantaTradingRouter });
 
 async function dispatch(input: any) {
   if (input.op === "meta") return { wallet, venueMarketId: market, callId, marketId, now };
   if (input.op === "advance") { now += input.millis; return { now }; }
   if (input.op === "confirm") { confirms = true; return {}; }
-  if (input.op === "metrics") return { quoteCount, broadcastCount };
+  if (input.op === "metrics") return { quoteCount, broadcastCount, claimBuilds };
+  if (input.op === "resolve") { resolved = true; return {}; }
+  if (input.op === "pay") { paid = true; return {}; }
   if (input.op === "sign") {
     const tx = VersionedTransaction.deserialize(Buffer.from(input.payload, "base64"));
     tx.sign([owner]);

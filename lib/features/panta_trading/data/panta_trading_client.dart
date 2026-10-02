@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../domain/panta_wallet_port.dart';
+import 'panta_lifecycle_models.dart';
 import 'panta_trading_models.dart';
 
 /// The supplied URI is the existing BFF's tRPC base, including its path.
@@ -93,10 +94,92 @@ class PantaTradingClient {
     ).order;
   }
 
+  /// The person's newest signed order on their own call, any wallet. A ledger
+  /// read on the server: it never asks Panta, so it is safe to poll.
+  Future<PantaVenueOrder?> callOrder({
+    required String callId,
+    required String accountId,
+  }) async {
+    _validateUuid(callId);
+    return PantaCallOrder.fromJson(
+      await _post(
+        'pantaTrading.callOrder',
+        {'callId': callId},
+        accountId: accountId,
+        forbiddenIsUnavailable: true,
+      ),
+    ).order;
+  }
+
+  /// The signed-in person's funded positions. Session-keyed; no identity input.
+  Future<PantaPositionsPage> positions({required String accountId}) async =>
+      PantaPositionsPage.fromJson(
+        await _post(
+          'pantaTrading.positions',
+          const {},
+          accountId: accountId,
+          forbiddenIsUnavailable: true,
+          // Up to 200 rows; still bounded.
+          maxBytes: 524288,
+        ),
+      );
+
+  /// Reviews a win claim for one of the person's own confirmed positions.
+  Future<PantaClaimPrepared> claimPrepare({
+    required String orderId,
+    required String idempotencyKey,
+    required String accountId,
+  }) async {
+    _validateOrderId(orderId);
+    _validateUuid(idempotencyKey);
+    return PantaClaimPrepared.fromJson(
+      await _post(
+        'pantaTrading.claimPrepare',
+        {'orderId': orderId, 'idempotencyKey': idempotencyKey},
+        accountId: accountId,
+        forbiddenIsUnavailable: true,
+      ),
+    );
+  }
+
+  Future<PantaClaimView> claimSubmit({
+    required String claimId,
+    required String signedTransaction,
+    required String accountId,
+  }) async {
+    _validateUuid(claimId);
+    decodePantaTransaction(signedTransaction);
+    return PantaClaimView.fromJson(
+      await _post(
+        'pantaTrading.claimSubmit',
+        {'claimId': claimId, 'signedTransaction': signedTransaction},
+        accountId: accountId,
+        forbiddenIsUnavailable: true,
+      ),
+    );
+  }
+
+  Future<PantaClaimView> claim({
+    required String claimId,
+    required String accountId,
+  }) async {
+    _validateUuid(claimId);
+    return PantaClaimView.fromJson(
+      await _post(
+        'pantaTrading.claim',
+        {'claimId': claimId},
+        accountId: accountId,
+        forbiddenIsUnavailable: true,
+      ),
+    );
+  }
+
   Future<Object?> _post(
     String procedure,
     Map<String, Object?> input, {
     String? accountId,
+    bool forbiddenIsUnavailable = false,
+    int maxBytes = 65536,
   }) async {
     if (_closed) throw const PantaException(PantaErrorCode.connection);
     final request =
@@ -133,7 +216,7 @@ class PantaTradingClient {
         final streamed = await _client.send(request);
         final bytes = <int>[];
         await for (final chunk in streamed.stream) {
-          if (bytes.length + chunk.length > 65536) {
+          if (bytes.length + chunk.length > maxBytes) {
             throw const PantaException(PantaErrorCode.invalidResponse);
           }
           bytes.addAll(chunk);
@@ -165,7 +248,9 @@ class PantaTradingClient {
         if (code == 'UNAUTHORIZED') {
           throw const PantaException(PantaErrorCode.signedOut);
         }
-        if (code == 'PRECONDITION_FAILED' || code == 'NOT_IMPLEMENTED') {
+        if (code == 'PRECONDITION_FAILED' ||
+            code == 'NOT_IMPLEMENTED' ||
+            (forbiddenIsUnavailable && code == 'FORBIDDEN')) {
           throw const PantaException(PantaErrorCode.unavailable);
         }
         throw const PantaException(PantaErrorCode.rejected);
@@ -208,6 +293,14 @@ class PantaTradingClient {
       path = path.substring(0, path.length - 1);
     }
     return uri.replace(path: path);
+  }
+
+  void _validateUuid(String value) {
+    if (!RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+    ).hasMatch(value)) {
+      throw const PantaException(PantaErrorCode.invalidResponse);
+    }
   }
 
   void _validateOrderId(String orderId) {

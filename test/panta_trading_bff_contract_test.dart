@@ -341,4 +341,78 @@ void main() {
       },
     );
   }
+
+  test(
+    'the real router serves the call order, positions and a proven win claim',
+    () async {
+      controller.editAmount('1');
+      await controller.prepare();
+      await controller.approveReview();
+      final callId = meta['callId'] as String;
+      final pending = await client.callOrder(
+        callId: callId,
+        accountId: 'canonical-synthetic-account',
+      );
+      expect(pending!.fundingState, PantaFundingState.submitted);
+      var page = await client.positions(
+        accountId: 'canonical-synthetic-account',
+      );
+      expect(page.positions.single.status, PantaPositionStatus.pending);
+      expect(page.positions.single.valueBaseUnits, isNull);
+
+      await pipe.request({'op': 'confirm'});
+      await controller.refreshOrder();
+      expect(
+        (await client.callOrder(
+          callId: callId,
+          accountId: 'canonical-synthetic-account',
+        ))!.fundingState,
+        PantaFundingState.filled,
+      );
+      page = await client.positions(accountId: 'canonical-synthetic-account');
+      final open = page.positions.single;
+      expect(open.status, PantaPositionStatus.open);
+      expect(open.costBaseUnits, BigInt.from(1000000));
+      expect(open.shares, '0.792');
+      expect(open.currentPrice, '0.75');
+      expect(open.valueBaseUnits, BigInt.from(594000));
+      expect(open.pnlBaseUnits, BigInt.from(-406000));
+      expect(open.pantaUrl.host, 'panta.market');
+
+      await pipe.request({'op': 'resolve'});
+      final positions = PantaPositionsController(
+        client: client,
+        signerFor: (address, intent) {
+          expect(address, meta['wallet']);
+          expect(intent, isA<PantaClaimSigningIntent>());
+          return wallet;
+        },
+        now: () => now,
+      );
+      addTearDown(positions.dispose);
+      await positions.load();
+      final won = positions.page!.positions.single;
+      expect(won.status, PantaPositionStatus.wonClaimable);
+      await positions.claim(won);
+      expect(positions.claimProgress(won.orderId).message, isNull);
+      expect(wallet.count, 2);
+      expect(positions.page!.positions.single.status, PantaPositionStatus.claiming);
+      expect((await pipe.request({'op': 'metrics'}))['claimBuilds'], 1);
+
+      await pipe.request({'op': 'pay'});
+      // The server reconciler's transition, triggered here by the status read:
+      // CONFIRMED only once the (synthetic) chain proof of a payout exists.
+      final claimId = positions.page!.positions.single.claim!.claimId;
+      final view = await client.claim(
+        claimId: claimId,
+        accountId: 'canonical-synthetic-account',
+      );
+      expect(view.state, PantaClaimState.confirmed);
+      expect(view.payoutBaseUnits, BigInt.from(792000));
+      await positions.load();
+      final claimed = positions.page!.positions.single;
+      expect(claimed.status, PantaPositionStatus.claimed);
+      expect(claimed.claim!.payoutBaseUnits, BigInt.from(792000));
+    },
+  );
 }

@@ -93,7 +93,14 @@ class CallCard extends StatelessWidget {
                       CallsFormat.untilClose(market.closesAtUtc),
                       style: _meta,
                     ),
-                  FundingStateBadge(state: call.fundingState, quiet: true),
+                  // A confirmed Panta fill reads "Funded"; nothing else does.
+                  FundingStateBadge(
+                    state:
+                        entry.isFunded
+                            ? FundingState.filled
+                            : call.fundingState,
+                    quiet: true,
+                  ),
                   DemoVenueBadge(venue: market.venue),
                   if (call.visibility == CallVisibility.followers)
                     const CallBadge(

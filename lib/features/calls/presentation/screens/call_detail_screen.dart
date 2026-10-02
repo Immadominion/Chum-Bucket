@@ -59,10 +59,35 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
   PantaTradeController? _trade;
   PantaTradingClient? _tradingClient;
 
+  PantaTradingClient? _statusClient;
+
+  /// A read-only client for the owner's order row. Null when signed out or
+  /// when this build has no secure calls server.
+  PantaTradingClient? _orderStatusClient() {
+    if (_statusClient != null) return _statusClient;
+    final account = context.read<ChumbucketSession?>();
+    if (account == null || !account.isReady) return null;
+    try {
+      return _statusClient = PantaTradingClient(
+        baseUri: Uri.parse(resolveCallsBffBaseUrl()),
+        session: () async {
+          final token = await account.bffAuthToken();
+          final id = account.userId;
+          return token != null && id != null && account.isReady
+              ? PantaSession(accountId: id, accessToken: token)
+              : null;
+        },
+      );
+    } on ArgumentError {
+      return null;
+    }
+  }
+
   @override
   void dispose() {
     _trade?.dispose();
     _tradingClient?.close();
+    _statusClient?.close();
     super.dispose();
   }
 
@@ -416,9 +441,8 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
                       children: [
                         SidePill(side: entry.call.side),
                         Text(
-                          entry.call.visibility == CallVisibility.followers
-                              ? 'Free call · locked · Followers only'
-                              : 'Free call · locked',
+                          '${entry.funding != null ? 'Funded on Panta' : 'Free call'} · locked'
+                          '${entry.call.visibility == CallVisibility.followers ? ' · Followers only' : ''}',
                           style: callJourneyBody(12),
                         ),
                       ],
@@ -656,6 +680,19 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
                         'Your call is already made. A trade is optional, private, and needs a separate wallet approval.',
                         style: callJourneyBody(),
                       ),
+                      // The latest order on this call, refreshing itself
+                      // until Panta and Solana confirm or fail it.
+                      if (_orderStatusClient() case final client?) ...[
+                        const SizedBox(height: 12),
+                        PantaOrderStatusRow(
+                          // A new order from the sheet re-reads the row.
+                          key: ValueKey(
+                            'order-status-${_trade?.order?.orderId}-${_trade?.order?.fundingState.wire}',
+                          ),
+                          callId: entry.call.id,
+                          client: client,
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       CallJourneyButton(
                         label:
