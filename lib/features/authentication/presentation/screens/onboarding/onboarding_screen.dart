@@ -1,3 +1,4 @@
+import 'package:chumbucket/core/config/app_config.dart';
 import 'package:chumbucket/core/utils/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,7 +9,50 @@ import 'package:chumbucket/features/authentication/presentation/screens/onboardi
 import 'package:chumbucket/services/onboarding_audio_service.dart';
 
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({super.key});
+  const OnboardingScreen({
+    super.key,
+    this.peopleFirst = AppConfig.callReceiptExperienceEnabled,
+  });
+
+  /// The people-first calls product (the calls experience build). The legacy
+  /// challenge build keeps its own three pages.
+  final bool peopleFirst;
+
+  /// What the product is, truthfully: calls are free and on real prediction
+  /// markets; trades are optional, real USDC on Panta, signed by the person.
+  static const peopleFirstPages = [
+    OnboardingPage(
+      title: "See who called it",
+      description:
+          "Follow people and see their calls on real prediction markets — "
+          "what they said, which side, and when they said it.",
+      illustration: "assets/animations/whisk_ai_generate/onb_animation_1.gif",
+      isAnimated: true,
+      fallback:
+          "assets/images/ai_gen/whisk_animation_fallback/animation_image_1.jpg",
+    ),
+    OnboardingPage(
+      title: "Back them, fade them, or call it",
+      description:
+          "Making a call is free. Back a call you agree with, fade one you "
+          "don't, or challenge a friend to put their name on it.",
+      illustration: "assets/animations/whisk_ai_generate/onb_animation_2.gif",
+      fallback:
+          "assets/images/ai_gen/whisk_animation_fallback/animation_image_2.jpg",
+      isAnimated: true,
+    ),
+    OnboardingPage(
+      title: "The market settles it",
+      description:
+          "When the market resolves, every call gets a receipt you can share. "
+          "Want a position too? Trade the same market with real USDC on Panta "
+          "— you sign every trade, and you can lose what you put in.",
+      illustration: "assets/animations/whisk_ai_generate/onb_animation_3.gif",
+      fallback:
+          "assets/images/ai_gen/whisk_animation_fallback/animation_image_3.jpg",
+      isAnimated: true,
+    ),
+  ];
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -163,6 +207,12 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
   // Method to get the current page widget based on index
   Widget _getCurrentPage(int currentPage) {
+    if (widget.peopleFirst) {
+      return KeyedSubtree(
+        key: ValueKey(currentPage),
+        child: OnboardingScreen.peopleFirstPages[currentPage],
+      );
+    }
     const pages = [
       OnboardingPage(
         title: "Put money on the match",
