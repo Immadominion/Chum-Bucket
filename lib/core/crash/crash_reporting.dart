@@ -1,9 +1,11 @@
 /// Opt-in crash reporting (Firebase Crashlytics).
 ///
-/// Nothing is collected until the person turns "Share crash reports" on in
+/// Nothing is sent until the person turns "Share crash reports" on in
 /// Settings. The manifest sets `firebase_crashlytics_collection_enabled` to
-/// false, so the native SDK stays silent from the very first launch, and this
-/// class only ever flips it on after reading a stored, explicit yes.
+/// false, so the native SDK uploads nothing from the very first launch, and
+/// this class only ever flips it on after reading a stored, explicit yes. A
+/// crash the SDK cached on the device before that yes is deleted, not sent
+/// ([CrashReporting.setOptedIn]).
 ///
 /// What a report carries: the error, its stack trace and Crashlytics' device
 /// metadata. What it never carries: a user id, a wallet address, a handle or a
@@ -143,12 +145,20 @@ class CrashReporting extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Records the person's answer and applies it immediately. Turning it off
-  /// also drops any report captured but not yet uploaded.
+  /// Records the person's answer and applies it immediately.
+  ///
+  /// While collection is off, the native SDK still writes a crash to disk
+  /// (unsent), and enabling collection would upload that backlog. So both
+  /// directions drop unsent reports: turning it on first, so only crashes
+  /// after the person said yes are ever sent; turning it off after, so
+  /// nothing captured under the old answer leaves the device.
   Future<void> setOptedIn(bool value) async {
     _optedIn = value;
     notifyListeners();
     await _store.write(value);
+    if (value && _sink.isAvailable) {
+      await _sink.deleteUnsentReports();
+    }
     await _apply();
     if (!value && _sink.isAvailable) {
       await _sink.deleteUnsentReports();

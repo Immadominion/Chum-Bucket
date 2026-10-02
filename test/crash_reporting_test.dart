@@ -15,15 +15,23 @@ class _Sink implements CrashSink {
   bool isAvailable;
   final List<bool> collection = [];
   int deletes = 0;
+
+  /// Every sink call in order, to pin what happens before what.
+  final List<String> log = [];
   final List<Object> errors = [];
   final List<FlutterErrorDetails> flutterErrors = [];
 
   @override
-  Future<void> setCollectionEnabled(bool enabled) async =>
-      collection.add(enabled);
+  Future<void> setCollectionEnabled(bool enabled) async {
+    collection.add(enabled);
+    log.add('collection:$enabled');
+  }
 
   @override
-  Future<void> deleteUnsentReports() async => deletes++;
+  Future<void> deleteUnsentReports() async {
+    deletes++;
+    log.add('delete');
+  }
 
   @override
   Future<void> recordFlutterError(FlutterErrorDetails details) async =>
@@ -95,6 +103,12 @@ void main() {
       await r.setOptedIn(true);
       expect(store.value, isTrue);
       expect(sink.collection.last, isTrue);
+      // A crash cached on the device before the yes is dropped, not uploaded
+      // by turning collection on.
+      expect(sink.log.sublist(sink.log.length - 2), [
+        'delete',
+        'collection:true',
+      ]);
       FlutterError.onError!(FlutterErrorDetails(exception: StateError('a')));
       await Future<void>.delayed(Duration.zero);
       expect(sink.flutterErrors, hasLength(1));
@@ -104,7 +118,8 @@ void main() {
       await r.setOptedIn(false);
       expect(store.value, isFalse);
       expect(sink.collection.last, isFalse);
-      expect(sink.deletes, 1);
+      expect(sink.deletes, 2);
+      expect(sink.log.last, 'delete');
       FlutterError.onError!(FlutterErrorDetails(exception: StateError('b')));
       await r.recordCaught(StateError('later'), null);
       expect(sink.flutterErrors, hasLength(1));

@@ -20,6 +20,14 @@ Status: **draft, not submitted.** `config.yaml` already carries this copy for th
    share a receipt link (opens in the app once `assetlinks.json` is live), push,
    and Settings > Share crash reports.
 5. `media/banner.png` ("Chumbucket mobile app") and `media/icon.png` can stay.
+6. **Decide the legacy friend challenges before submitting.** A release build is on
+   mainnet, and People > Friends > (a friend) still opens the old SOL-staked
+   challenge, which locks real SOL in the escrow program
+   `D6mjMGW1fX8oH3UcwZDh3teWcHEWvghUqaR2aeWD9sF1`. That program is deployed on
+   mainnet (checked read-only on 2 Oct 2026), so those stakes are real money,
+   resolved by a witness rather than a venue. The copy below does not describe
+   that flow. Either archive it into read-only history (prod-readiness audit
+   M13) or add it to the copy and the Terms.
 
 ## Catalog copy (en-US)
 
