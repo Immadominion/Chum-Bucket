@@ -35,13 +35,26 @@ production; no transaction was signed or sent.
    (`auth.requestWalletNonce` / `auth.linkWallet`, purpose `link_wallet`,
    labelled `embedded`). A wallet account back after a reinstall is offered
    "Reconnect my wallet" rather than a second wallet.
+   - A new wallet is made only after the phone **and** its backup have been
+     read successfully and hold none for the account. A failed read (locked
+     phone, Block Store not answering) is an error, never "no wallet", so a
+     new key is never written over an existing one; Create then finds the
+     existing wallet once it can be read ("Nothing was replaced").
+   - An imported phrase is linked by the server **before** it is stored. A
+     refused phrase (e.g. another Chumbucket account's wallet) is not kept, so
+     the account is never stuck with a wallet it can never link.
+   - The backup never replaces a different key already backed up for the
+     account; that wallet's sheet then says its phrase is its only backup.
 7. **Trading with it.** "Fund my call" signs with a connected wallet app if
    there is one, else the linked on-phone wallet (`choosePantaSigner`). The
    sheet says there is no second screen ("Sign and buy"). The phone refuses to
    sign anything but the reviewed buy: one v0 transaction, this wallet the only
    signer and fee payer, only ComputeBudget (BFF ceilings) → own USDC ATA →
-   one Panta buy for the reviewed market/side/amount → the attribution memo.
-   Same rule as the BFF's `PantaExecution.validateInstructions`.
+   one Panta buy for the reviewed market/side/amount → the attribution memo,
+   with the USDC mint, the wallet's canonical USDC account and the Token /
+   ATA / System programs pinned where the BFF's
+   `PantaExecution.validateInstructions` pins them. Tested on unsigned buys
+   produced by the BFF's own `buildBuy` and serialized by web3.js.
 8. **Staying signed in after deleting the app (Android).** See below.
 
 ## Staying signed in: Android Block Store
