@@ -75,7 +75,7 @@ void main() {
   setUpAll(() => GoogleFonts.config.allowRuntimeFetching = false);
 
   testWidgets(
-    'connected private wallet preserves balance refresh and existing Add SOL modal',
+    'connected private wallet preserves balance refresh and existing receive modal',
     (tester) async {
       final wallet = ConnectedWallet();
       addTearDown(wallet.dispose);
@@ -108,7 +108,9 @@ void main() {
       await tester.tap(find.text('Refresh balance'));
       await tester.pumpAndSettle();
       expect(wallet.refreshes, 1);
-      await tester.tap(find.text('Add SOL'));
+      // Add funds (Crossmint) leads; the QR receive modal stays one tap away.
+      expect(find.text('Add funds'), findsOneWidget);
+      await tester.tap(find.text('Receive from another wallet'));
       await tester.pumpAndSettle();
       expect(find.byType(WalletModal), findsOneWidget);
       final modalContext = tester.element(find.byType(WalletModal));
