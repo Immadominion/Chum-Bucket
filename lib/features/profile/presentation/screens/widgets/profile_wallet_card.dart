@@ -6,6 +6,7 @@ import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/embedded_wallet/embedded_wallet_controller.dart';
 import 'package:chumbucket/features/embedded_wallet/presentation/embedded_wallet_sheet.dart';
+import 'package:chumbucket/features/deposits/presentation/add_funds_sheet.dart';
 import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/wallet_modal.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_settings_sheet.dart';
@@ -173,7 +174,8 @@ class _PrivateWalletDetails extends StatelessWidget {
           ),
         ],
         const SizedBox(height: 16),
-        FilledButton(
+        FilledButton.icon(
+          key: const ValueKey('profile-add-funds'),
           style: FilledButton.styleFrom(
             minimumSize: const Size(48, 48),
             backgroundColor: AppColors.primary,
@@ -184,10 +186,26 @@ class _PrivateWalletDetails extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
             ),
           ),
-          onPressed: () => showWalletModal(context),
-          child: const Text('Add SOL'),
+          // Card, Apple Pay or Google Pay → USDC in this account's wallet,
+          // with the wallet's real USDC and SOL shown before paying.
+          onPressed: () async {
+            final added = await showAddFundsSheet(context);
+            if (added) await wallet.refreshWalletBalance();
+          },
+          icon: const BasilIcon('add-outline', color: AppColors.textPrimary),
+          label: const Text('Add funds'),
         ),
-        const SizedBox(height: 12),
+        TextButton.icon(
+          key: const ValueKey('profile-receive'),
+          style: TextButton.styleFrom(
+            minimumSize: const Size(48, 48),
+            foregroundColor: AppColors.textPrimary,
+          ),
+          onPressed: () => showWalletModal(context),
+          icon: const BasilIcon('arrow-down-outline'),
+          label: const Text('Receive from another wallet'),
+        ),
+        const SizedBox(height: 4),
         Text(
           'Managed by your external wallet app. Free calls do not use this balance.',
           style: styles.bodySmall?.copyWith(color: AppColors.textSecondary),

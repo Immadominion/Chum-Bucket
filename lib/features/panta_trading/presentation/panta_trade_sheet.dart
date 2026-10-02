@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
+import 'package:chumbucket/features/deposits/presentation/trade_funds_check.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:flutter/material.dart';
@@ -183,6 +184,8 @@ class _PantaTradeSheetState extends State<PantaTradeSheet> {
                 style: AppTextStyles.textTheme.bodyMedium,
               ),
           ],
+          // The trading wallet's real USDC + SOL, and Add funds when short.
+          TradeFundsCheck(controller: controller),
           const SizedBox(height: 16),
           _walletContext(),
           const SizedBox(height: 16),
