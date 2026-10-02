@@ -20,6 +20,7 @@ library;
 
 import 'dart:developer' as developer;
 
+import 'package:chumbucket/features/profile/data/avatar_catalog.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_transport.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
@@ -166,7 +167,10 @@ CallNotification? notificationFromInboxView(
                 id: actor['userId'] as String,
                 handle: actor['handle'] as String,
                 displayName: actor['displayName'] as String,
-                avatarUrl: actor['avatarUrl'] as String?,
+                avatarUrl: avatarImageFor(
+                  avatarUrl: actor['avatarUrl'] as String?,
+                  avatarId: actor['avatarId'],
+                ),
               )
               : null,
       title: raw['title'] as String,

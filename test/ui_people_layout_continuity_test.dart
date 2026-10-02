@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:chumbucket/features/profile/data/account_api.dart';
 import 'package:chumbucket/core/utils/base_change_notifier.dart'
     show LoadingState;
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
@@ -126,6 +127,7 @@ void main() {
       final wallet = ConnectedWallet();
       final calls = CallsProvider(repository: PeopleRepository([]))
         ..setViewer('user_ada');
+      final account = _OwnAccount();
       addTearDown(profile.dispose);
       addTearDown(auth.dispose);
       addTearDown(wallet.dispose);
@@ -142,6 +144,8 @@ void main() {
                 ChangeNotifierProvider<MwaAuthProvider>.value(value: auth),
                 ChangeNotifierProvider<MwaWalletProvider>.value(value: wallet),
                 ChangeNotifierProvider<CallsProvider>.value(value: calls),
+                // The editor reads and writes the account through the BFF.
+                Provider<AccountApi>.value(value: account),
               ],
               child: child,
             ),
@@ -158,7 +162,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(EditProfileScreen), findsOneWidget);
       expect(find.text('Ada Okafor'), findsOneWidget);
-      expect(profile.lookups, [walletFixture, walletFixture]);
+      // The editor loaded the account (account.me), not the wallet's row.
+      expect(account.lookups, greaterThanOrEqualTo(1));
       expect(find.text('Create my profile'), findsNothing);
       expect(find.text('Complete Your Profile'), findsNothing);
       expect(find.text('Edit Profile'), findsOneWidget);
@@ -170,4 +175,22 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+}
+
+/// The signed-in person's own account, as `account.me` returns it.
+class _OwnAccount implements AccountApi {
+  int lookups = 0;
+  @override
+  Future<AccountProfile> me() async {
+    lookups++;
+    return const AccountProfile(
+      userId: 'user_ada',
+      displayName: 'Ada Okafor',
+      bio: 'My existing bio.',
+      avatarId: 1,
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

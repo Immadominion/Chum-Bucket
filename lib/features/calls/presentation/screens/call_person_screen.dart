@@ -2,10 +2,13 @@
 /// and the public record counts only visible public free calls.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
+import 'package:chumbucket/core/services/push_registration.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
@@ -87,6 +90,7 @@ class _CallPersonScreenState extends State<CallPersonScreen> {
     try {
       await provider.setFollowing(detail, following);
       if (!mounted) return;
+      if (following) unawaited(PushRegistration.afterSocialAction(context));
       SnackBarUtils.showSuccess(
         context,
         title: following ? 'Following' : 'Unfollowed',

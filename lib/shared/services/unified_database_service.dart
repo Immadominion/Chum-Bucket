@@ -354,134 +354,11 @@ class UnifiedDatabaseService {
   }
 
   // Friends operations
-  /// Add a friend by their wallet address
-  /// Note: userPrivyId can be either a privy_id or wallet_address (for MWA auth)
-  static Future<bool> addFriend({
-    required String userPrivyId,
-    required String friendName,
-    required String friendWalletAddress,
-  }) async {
-    try {
-      dev.log(
-        'Adding friend: $friendName ($friendWalletAddress) for user: $userPrivyId',
-      );
-
-      // Get the user's database ID - check both privy_id and wallet_address
-      var userResponse =
-          await _client
-              .from('users')
-              .select('id')
-              .eq('privy_id', userPrivyId)
-              .maybeSingle();
-
-      // If not found by privy_id, try wallet_address (MWA auth)
-      userResponse ??=
-          await _client
-              .from('users')
-              .select('id')
-              .eq('wallet_address', userPrivyId)
-              .maybeSingle();
-
-      if (userResponse == null) {
-        throw Exception(
-          'User not found with privy_id or wallet_address: $userPrivyId',
-        );
-      }
-
-      final userId = userResponse['id'] as String;
-
-      // Check if friend exists by wallet address, if not create them
-      final existingFriendResponse =
-          await _client
-              .from('users')
-              .select('id')
-              .eq('wallet_address', friendWalletAddress)
-              .maybeSingle();
-
-      String friendId;
-
-      if (existingFriendResponse == null) {
-        // Friend doesn't exist, create a new user record with minimal info
-        final newFriendResponse =
-            await _client
-                .from('users')
-                .insert({
-                  'privy_id':
-                      'wallet_${friendWalletAddress.substring(0, 8)}', // Temporary privy_id
-                  'email':
-                      'wallet_${friendWalletAddress.substring(0, 8)}@temp.com', // Temporary email
-                  'full_name': friendName,
-                  'wallet_address': friendWalletAddress,
-                  'created_at': DateTime.now().toIso8601String(),
-                })
-                .select('id')
-                .single();
-
-        friendId = newFriendResponse['id'] as String;
-        dev.log('Created new user for friend with ID: $friendId');
-      } else {
-        friendId = existingFriendResponse['id'] as String;
-
-        // Update the existing user's name if it's not set
-        final currentUser =
-            await _client
-                .from('users')
-                .select('full_name')
-                .eq('id', friendId)
-                .single();
-
-        if (currentUser['full_name'] == null) {
-          await _client
-              .from('users')
-              .update({'full_name': friendName})
-              .eq('id', friendId);
-        }
-
-        dev.log('Found existing user for friend with ID: $friendId');
-      }
-
-      // Check if friendship already exists (bidirectional)
-      final existingFriendship =
-          await _client
-              .from('friends')
-              .select()
-              .or(
-                'and(user_id.eq.$userId,friend_id.eq.$friendId),and(user_id.eq.$friendId,friend_id.eq.$userId)',
-              )
-              .maybeSingle();
-
-      if (existingFriendship != null) {
-        dev.log(
-          'Friendship already exists between users $userId and $friendId',
-        );
-        return true; // Already friends
-      }
-
-      // Create bidirectional friendship
-      await _client.from('friends').insert([
-        {
-          'user_id': userId,
-          'friend_id': friendId,
-          'status': 'accepted',
-          'created_at': DateTime.now().toIso8601String(),
-        },
-        {
-          'user_id': friendId,
-          'friend_id': userId,
-          'status': 'accepted',
-          'created_at': DateTime.now().toIso8601String(),
-        },
-      ]);
-
-      dev.log(
-        'Successfully added friendship between users $userId and $friendId',
-      );
-      return true;
-    } catch (e) {
-      dev.log('Error adding friend: $e');
-      return false;
-    }
-  }
+  //
+  // Adding a friend by wallet is NOT done here any more: it created a users
+  // row for someone else's wallet, named by the adder, through the anon
+  // client (prod readiness M1). It goes through the BFF
+  // (`AccountApi.addWalletFriend`) — see friend_connection_service.dart.
 
   /// Get all friends for a user
   /// Note: userPrivyId can be either a privy_id or wallet_address (for MWA auth)
@@ -517,10 +394,13 @@ class UnifiedDatabaseService {
       final userId = userResponse['id'];
 
       // Get friends with their details
-      final friendsResponse = await _client
+      // `nickname` arrives with 20261002170000; until that migration is
+      // applied the column does not exist, so ask again without it rather
+      // than show an empty friends list.
+      Future<List<Map<String, dynamic>>> friendsWith(String extra) => _client
           .from('friends')
           .select('''
-            friend_id,
+            friend_id,$extra
             users!friends_friend_id_fkey(
               full_name,
               profile_image_id,
@@ -529,6 +409,13 @@ class UnifiedDatabaseService {
           ''')
           .eq('user_id', userId)
           .eq('status', 'accepted');
+      List<Map<String, dynamic>> friendsResponse;
+      try {
+        friendsResponse = await friendsWith(' nickname,');
+      } on PostgrestException catch (e) {
+        if (e.code != '42703' && e.code != 'PGRST204') rethrow;
+        friendsResponse = await friendsWith('');
+      }
 
       dev.log(
         'Retrieved ${friendsResponse.length} friends for user $userPrivyId',
@@ -540,8 +427,12 @@ class UnifiedDatabaseService {
         final friendDetails = friendData['users'] as Map<String, dynamic>;
 
         final walletAddress = friendDetails['wallet_address'] as String? ?? '';
+        // Your own label for them first (friends.nickname), then their name.
+        final nickname = (friendData['nickname'] as String?)?.trim();
         final friendName =
-            friendDetails['full_name'] as String? ?? 'Unknown Friend';
+            (nickname != null && nickname.isNotEmpty)
+                ? nickname
+                : friendDetails['full_name'] as String? ?? 'Unknown Friend';
 
         // Only add friends that have wallet addresses
         if (walletAddress.isNotEmpty) {

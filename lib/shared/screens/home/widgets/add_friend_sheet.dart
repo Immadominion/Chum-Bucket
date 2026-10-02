@@ -4,7 +4,10 @@ import 'package:provider/provider.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
+import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
+import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_composer_sheet.dart';
+import 'package:chumbucket/features/profile/data/account_api.dart';
 import 'package:chumbucket/shared/models/friend_identifier.dart';
 import 'package:chumbucket/shared/services/friend_connection_service.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
@@ -38,6 +41,7 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
       ExistingFriendConnectionService(
         context.read<MwaAuthProvider>(),
         () => context.read<ArenaProvider>(),
+        account: () => accountApiOf(context),
       );
 
   @override
@@ -160,6 +164,17 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
                   'Could not add this friend. Your details are still here; try again.',
         );
       }
+    } on CallsSignedOutException {
+      if (mounted) {
+        setState(
+          () =>
+              _error =
+                  'Sign in to your Chumbucket account to add friends. Your details are still here.',
+        );
+        requestCallSignIn(context);
+      }
+    } on CallsRejectedException catch (e) {
+      if (mounted) setState(() => _error = e.message);
     } catch (_) {
       if (mounted) {
         setState(

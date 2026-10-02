@@ -6,7 +6,6 @@ import 'package:chumbucket/shared/services/pinocchio_escrow_service.dart';
 import 'package:chumbucket/shared/services/realtime_service.dart';
 import 'package:chumbucket/shared/services/unified_database_service.dart';
 import 'package:chumbucket/shared/models/models.dart';
-import 'package:chumbucket/core/services/fcm_token_service.dart';
 import 'package:chumbucket/core/config/network_config.dart';
 
 /// MWA-compatible Challenge Service
@@ -236,16 +235,10 @@ class MwaChallengeService {
     required String challengeTitle,
     required double amountSol,
   }) {
-    // Fire-and-forget: don't await, don't block challenge creation
-    FcmTokenService.notifyChallengeCreated(
-      challengeId: challengeId,
-      witnessWallet: witnessWallet,
-      initiatorName: initiatorName,
-      challengeTitle: challengeTitle,
-      amountSol: amountSol,
-    ).catchError((e) {
-      log('⚠️ Failed to send challenge notification: $e');
-    });
+    // No client-sent push to a named wallet any more (prod readiness B3): the
+    // `send-challenge-notification` edge function let any caller push to any
+    // wallet. Legacy escrow challenges surface in the challenge list instead.
+    log('Challenge $challengeId created; no client push is sent');
   }
 
   /// Get challenges for a user by wallet address

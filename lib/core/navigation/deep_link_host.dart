@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:app_links/app_links.dart';
+import 'package:chumbucket/core/services/fcm_token_service.dart';
 import 'package:chumbucket/features/calls/deeplink/call_deep_link_router.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:flutter/foundation.dart';
@@ -52,6 +53,12 @@ class _DeepLinkHostState extends State<DeepLinkHost> {
   }
 
   Future<void> _start() async {
+    // A tapped call notification opens its call through the same router as a
+    // shared link (chumbucket://call/<id>), so it lands on the same screen.
+    FcmTokenService.onOpenCall =
+        (callId) =>
+            _handle(Uri(scheme: 'chumbucket', host: 'call', path: '/$callId'));
+
     final AppLinks? links =
         (widget.linkStream == null || widget.initialLink == null)
             ? AppLinks()
@@ -109,6 +116,7 @@ class _DeepLinkHostState extends State<DeepLinkHost> {
   @override
   void dispose() {
     _subscription?.cancel();
+    FcmTokenService.onOpenCall = null;
     super.dispose();
   }
 

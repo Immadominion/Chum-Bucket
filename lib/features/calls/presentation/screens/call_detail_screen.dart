@@ -4,10 +4,13 @@
 /// an account. Only answering does.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:provider/provider.dart';
+import 'package:chumbucket/core/services/push_registration.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/authentication/session/panta_mwa_wallet.dart';
@@ -190,7 +193,11 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
         );
         return;
       }
-      await provider.setFollowing(person, !person.viewerIsFollowing);
+      final following = !person.viewerIsFollowing;
+      await provider.setFollowing(person, following);
+      if (following && mounted) {
+        unawaited(PushRegistration.afterSocialAction(context));
+      }
     } on CallsException catch (error) {
       if (mounted) setState(() => _followError = error.message);
     } finally {

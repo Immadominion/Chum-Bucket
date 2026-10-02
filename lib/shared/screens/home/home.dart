@@ -21,7 +21,6 @@ import 'package:chumbucket/shared/screens/home/widgets/predictions_home_tab.dart
 import 'package:chumbucket/shared/screens/home/utils/home_utils.dart';
 import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
-import 'package:chumbucket/core/services/fcm_token_service.dart';
 import 'package:chumbucket/core/services/app_lifecycle_service.dart';
 import 'package:chumbucket/core/services/realtime_service.dart';
 import 'package:chumbucket/core/services/analytics_service.dart';
@@ -435,18 +434,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           feeSol: feeSol,
         ).catchError((e) => debugPrint('Analytics tracking failed: $e'));
 
-        // Send push notification to initiator about result (fire-and-forget)
-        final initiatorWallet =
-            challenge['member1_address'] ?? challenge['creator_wallet_address'];
-        if (initiatorWallet != null) {
-          FcmTokenService.notifyChallengeResolved(
-            challengeId: challenge['id'],
-            initiatorWallet: initiatorWallet,
-            initiatorWon: userWon,
-            winnerAmountSol:
-                challenge['winner_amount_sol'] ?? challenge['winner_amount'],
-          ).catchError((e) => debugPrint('Notification failed: $e'));
-        }
+        // No client-sent push to a named wallet (prod readiness B3); the
+        // initiator sees the result in their challenge list.
 
         // Force refresh both tabs since challenge status changed
         if (mounted) {

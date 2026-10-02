@@ -18,6 +18,7 @@
 /// FROZEN §3 shapes verbatim.
 library;
 
+import 'package:chumbucket/features/profile/data/avatar_catalog.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 
@@ -86,7 +87,12 @@ Person personFromJson(Map<String, dynamic> json) => Person(
   id: requireWireString(json['id'], 'Person.id'),
   handle: requireWireString(json['handle'], 'Person.handle'),
   displayName: requireWireString(json['displayName'], 'Person.displayName'),
-  avatarUrl: json['avatarUrl'] as String?,
+  // The person's own https picture, else their chosen avatar (1..5), so other
+  // people's avatars render too.
+  avatarUrl: avatarImageFor(
+    avatarUrl: json['avatarUrl'] as String?,
+    avatarId: json['avatarId'],
+  ),
   walletAddress: json['walletAddress'] as String?,
   settledCalls: requireWireCount(json['settledCalls'], 'Person.settledCalls'),
   correctCalls: requireWireCount(json['correctCalls'], 'Person.correctCalls'),

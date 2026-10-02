@@ -1,9 +1,12 @@
 /// Free-call review. The provider remains responsible for locking it.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:chumbucket/core/services/push_registration.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
@@ -101,7 +104,11 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
           parentCallId: widget.parentCallId,
         ),
       );
-      if (mounted) Navigator.of(context).pop(entry);
+      if (!mounted) return;
+      // Outlives this sheet: the in-context notification ask comes after it.
+      final root = Navigator.of(context, rootNavigator: true).context;
+      Navigator.of(context).pop(entry);
+      if (root.mounted) unawaited(PushRegistration.afterSocialAction(root));
     } on CallsException catch (e) {
       if (mounted) setState(() => _error = e.message);
     }

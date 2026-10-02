@@ -11,6 +11,8 @@ import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_detail_screen.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_card.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart';
+import 'package:chumbucket/features/profile/data/account_api.dart';
+import 'package:chumbucket/features/profile/data/avatar_catalog.dart';
 import 'package:chumbucket/features/profile/providers/profile_provider.dart';
 import 'package:chumbucket/features/profile/presentation/screens/edit_profile_screen.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_header.dart';
@@ -37,6 +39,9 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _existingProfile;
+  /// The signed-in account's own profile (`account.me`): name, bio and
+  /// avatar for wallet AND Google/X sign-ins.
+  AccountProfile? _ownProfile;
   String? _profileWallet;
   String? _requestedIdentity;
   bool _loadingProfile = false;
@@ -59,6 +64,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // derived from a wallet. The wallet lookup remains the old profile flow.
     final personRead =
         userId == null ? null : calls?.loadPerson(userId, force: true);
+    final api = userId == null ? null : accountApiOf(context);
+    final ownRead = api?.me().then<AccountProfile?>((p) => p).catchError(
+      (Object _) => null,
+    );
     try {
       final profile =
           wallet == null || profileProvider == null
@@ -87,8 +96,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } finally {
       await personRead;
+      final own = await ownRead;
       if (mounted && request == _request) {
-        setState(() => _loadingProfile = false);
+        setState(() {
+          _ownProfile = own != null && own.userId == userId ? own : null;
+          _loadingProfile = false;
+        });
       }
     }
   }
@@ -135,14 +148,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     person.walletAddress == wallet)
             ? _existingProfile
             : null;
+    final own = _ownProfile?.userId == userId ? _ownProfile : null;
     final name =
+        own?.displayName ??
         person?.displayName ??
         existing?['full_name']?.toString() ??
         existing?['name']?.toString() ??
         'Your profile';
-    final image = person?.avatarUrl ?? existing?['pfp_path']?.toString();
+    final image =
+        (own?.avatarId != null ? own!.avatarAsset : null) ??
+        person?.avatarUrl ??
+        existing?['pfp_path']?.toString();
     final styles = AppTextStyles.textTheme;
-    final canEdit = auth?.isAuthenticated == true && existing != null;
+    // Your own Chumbucket account — wallet, Google or X — is what you edit
+    // (account.updateProfile), not a wallet's legacy row. A wallet that has
+    // not signed in to an account yet still gets the button: the editor then
+    // offers sign-in rather than a save that would go nowhere.
+    final canEdit =
+        (session?.isReady == true && userId != null) ||
+        auth?.isAuthenticated == true;
     final pending = session?.isBusy == true || _loadingProfile;
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -198,13 +222,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ProfileHeader(
                         username: name,
                         handle: person?.handle,
-                        bio: existing?['bio']?.toString() ?? '',
+                        bio: own?.bio ?? existing?['bio']?.toString() ?? '',
                         profileImagePath: image,
                         canEdit: canEdit,
                         onEditProfile: _onEditProfile,
                         onEditAvatar:
-                            canEdit && image != null
-                                ? () => _onEditAvatar(image)
+                            canEdit
+                                ? () => _onEditAvatar(
+                                  image ?? avatarAssetFor(kDefaultAvatarId)!,
+                                )
                                 : null,
                         footer: const ProfileWalletCard(),
                       ),
