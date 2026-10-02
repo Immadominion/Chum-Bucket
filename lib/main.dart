@@ -16,6 +16,8 @@ import 'package:chumbucket/shared/screens/splash/mwa_splash_screen.dart';
 import 'package:chumbucket/shared/services/unified_database_service.dart';
 import 'package:chumbucket/core/config/app_config.dart';
 import 'package:chumbucket/core/navigation/deep_link_host.dart';
+import 'package:chumbucket/features/authentication/continuity/session_continuity.dart';
+import 'package:chumbucket/features/authentication/continuity/supabase_session_adopter.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/authentication/session/app_session_persistence.dart';
 import 'package:chumbucket/features/authentication/session/app_sign_out.dart';
@@ -41,6 +43,17 @@ void main() async {
   // every local secret inside the APK. See lib/core/config/app_config.dart.
   AppConfig.initialize();
 
+  // Staying signed in across reinstall (Android Block Store). Process-wide,
+  // like Supabase: it outlives the account tree that sign-out rebuilds.
+  final continuity = SessionContinuity(
+    adopt: adoptBackedUpSession,
+    localSession: () async {
+      final persistence = AppSessionPersistence.current;
+      if (persistence == null || persistence.isLocked) return null;
+      return persistence.accessToken();
+    },
+  );
+
   // Initialize Supabase
   try {
     final config = AppConfig.values;
@@ -59,6 +72,10 @@ void main() async {
 
     final persistence = AppSessionPersistence.forProject(supabaseUrl);
     AppSessionPersistence.current = persistence;
+    // Before initialize: every session the SDK saves, from the first, is
+    // mirrored into Block Store, and every removal clears it there.
+    persistence.onPersisted = continuity.sessionPersisted;
+    persistence.onRemoved = continuity.sessionRemoved;
     await Supabase.initialize(
       url: supabaseUrl,
       anonKey: supabaseAnonKey,
@@ -113,6 +130,7 @@ void main() async {
           (_) => MultiProvider(
             providers: [
               Provider(create: (_) => AppSignOutEffects()),
+              Provider<SessionContinuity>.value(value: continuity),
               // MWA Wallet Provider for Pinocchio escrow transactions
               ChangeNotifierProvider(create: (_) => MwaWalletProvider()),
               ChangeNotifierProvider(create: (_) => OnboardingProvider()),

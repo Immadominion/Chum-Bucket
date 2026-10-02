@@ -1,6 +1,7 @@
 import 'package:chumbucket/core/services/app_lifecycle_service.dart';
 import 'package:chumbucket/core/services/fcm_token_service.dart';
 import 'package:chumbucket/core/services/realtime_service.dart';
+import 'package:chumbucket/features/authentication/continuity/session_continuity.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/authentication/session/app_session_persistence.dart';
 import 'package:chumbucket/features/authentication/session/app_sign_out_controller.dart';
@@ -42,6 +43,10 @@ Future<void> signOutOfChumbucket(BuildContext context) {
   final wallet = context.read<MwaAuthProvider>();
   final effects = context.read<AppSignOutEffects>();
   final persistence = AppSessionPersistence.current;
+  // The Block Store copy of the session goes too: an explicit sign-out must
+  // not come back signed in after a reinstall. (On-phone wallet keys stay —
+  // deleting the only copy of a key can destroy its funds.)
+  final continuity = context.read<SessionContinuity?>();
   return account.signOut([
     () async {
       effects.clearSharedState();
@@ -50,6 +55,9 @@ Future<void> signOutOfChumbucket(BuildContext context) {
     wallet.forgetSession,
     () async {
       await persistence?.clearForSignOut();
+    },
+    () async {
+      await continuity?.clearSession();
     },
     effects.detachRealtime,
     effects.forgetNotifications,

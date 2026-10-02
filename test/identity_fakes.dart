@@ -1,0 +1,68 @@
+/// Fakes for the identity package tests (front door, usernames, continuity,
+/// the on-phone wallet). No socket, no platform channel, no Supabase.
+library;
+
+import 'dart:typed_data';
+
+import 'package:chumbucket/features/authentication/continuity/block_store.dart';
+
+/// Block Store in memory: scriptable availability, encryption and failures.
+class MemoryBlockStore implements BlockStorePort {
+  MemoryBlockStore({this.available = true, this.endToEndEncrypted = true});
+
+  bool available;
+  bool endToEndEncrypted;
+  bool failWrites = false;
+  bool failDeletes = false;
+  final Map<String, Uint8List> entries = {};
+
+  /// Whether each key's last write asked for cloud backup.
+  final Map<String, bool> cloudBackup = {};
+  int writes = 0;
+  int deletes = 0;
+
+  @override
+  Future<BlockStoreAvailability> availability() async => BlockStoreAvailability(
+    available: available,
+    endToEndEncrypted: available && endToEndEncrypted,
+  );
+
+  @override
+  Future<Uint8List?> read(String key) async {
+    if (!available) throw const BlockStoreUnavailable();
+    return entries[key];
+  }
+
+  @override
+  Future<void> write(
+    String key,
+    Uint8List bytes, {
+    required bool backupToCloud,
+  }) async {
+    if (!available) throw const BlockStoreUnavailable();
+    if (failWrites) throw const BlockStoreFailure();
+    writes++;
+    entries[key] = Uint8List.fromList(bytes);
+    cloudBackup[key] = backupToCloud;
+  }
+
+  @override
+  Future<void> delete(String key) async {
+    if (!available) throw const BlockStoreUnavailable();
+    if (failDeletes) throw const BlockStoreFailure();
+    deletes++;
+    entries.remove(key);
+    cloudBackup.remove(key);
+  }
+}
+
+/// The standard BIP-39 test phrase (all "abandon" + "about"). Public test
+/// data — never a real wallet.
+const kTestPhrase =
+    'abandon abandon abandon abandon abandon abandon abandon abandon abandon '
+    'abandon abandon about';
+
+/// A second valid public test phrase.
+const kOtherTestPhrase =
+    'legal winner thank year wave sausage worth useful legal winner thank '
+    'yellow';
