@@ -24,6 +24,10 @@ const { primeAuthIdentityRuntime, resolveAuthIdentityPolicy } = await fromBff("s
 const { PantaExecution } = await fromBff("src/prediction/PantaExecution.ts");
 const { PantaTradingService } = await fromBff("src/prediction/PantaTradingService.ts");
 const { setPantaTradingRuntime, PANTA_MAINNET_PROGRAM_ID } = await fromBff("src/prediction/PantaTradingRuntime.ts");
+// The BFF refuses a funded prepare until the 18+ / jurisdiction / venue-terms
+// attestation is on record (src/trust). Older API checkouts have no such gate.
+const trustModule = await fromBff("src/trust/runtime.ts").catch(() => null);
+const trustStoreModule = await fromBff("src/trust/store.ts").catch(() => null);
 
 // Public, deterministic fixture seed. This is not a user's key or MWA approval.
 const owner = Keypair.fromSeed(new Uint8Array(32).fill(9));
@@ -155,6 +159,14 @@ const service = new PantaTradingService({ store: ledger, execution,
   chain: { async broadcast() { broadcastCount++; } }, // Counter, no RPC/broadcast.
 });
 setPantaTradingRuntime(config, service);
+if (trustModule && trustStoreModule) {
+  const trust = trustModule.buildTrustRuntime(config, {
+    store: new trustStoreModule.InMemoryTrustStore(),
+    authAdmin: new trustStoreModule.RecordingAuthUserAdmin(),
+  });
+  trustModule.setTrustRuntime(config, trust);
+  await trust.service.acceptFundedTrading(userId, trust.config.termsVersion);
+}
 const actualRouter = router({ pantaTrading: pantaTradingRouter });
 
 async function dispatch(input: any) {

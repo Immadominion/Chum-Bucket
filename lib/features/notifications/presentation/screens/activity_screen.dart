@@ -1,18 +1,11 @@
-/// What the bell opens: one screen for everything that came back.
+/// What the bell opens: the calls inbox (`inbox.*` on the calls BFF) — who
+/// backed or faded your call, when the venue settled one, who dared you to go
+/// on record. Session-scoped; with no session it says so in one row and
+/// offers to connect, rather than blocking the screen.
 ///
-/// Two sources, two sections, nothing dropped:
-///
-///  * **Your calls** — the calls inbox (`inbox.*` on the calls BFF): who
-///    backed or faded your call, when the venue settled one, who wants a
-///    rematch. Session-scoped; with no session it says so in one row and
-///    offers to connect, rather than blocking the screen.
-///  * **Earlier challenges** — the wallet-keyed notices from the original
-///    challenge system, including claim-ready winnings. A claim still opens
-///    My Pots, exactly as before; marking these read still asks the wallet to
-///    sign, exactly as before. Shown only when there is something in it.
-///
-/// Neither section is re-labelled as the other, and their unread counts are
-/// kept apart until the bell adds them up.
+/// The wallet-keyed notices from the original challenge and Arena system now
+/// live in Settings → History (`LegacyHistoryScreen`), read-only, and are not
+/// counted on the bell.
 library;
 
 import 'package:flutter/material.dart';
@@ -20,17 +13,11 @@ import 'package:provider/provider.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
-import 'package:chumbucket/features/arena/data/arena_models.dart';
-import 'package:chumbucket/features/arena/presentation/screens/arena_notifications_screen.dart';
-import 'package:chumbucket/features/arena/presentation/screens/my_pots_screen.dart';
-import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
-import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/notifications/data/notification_models.dart';
 import 'package:chumbucket/features/notifications/presentation/notification_target_router.dart';
 import 'package:chumbucket/features/notifications/presentation/widgets/notification_row.dart';
 import 'package:chumbucket/features/notifications/providers/notifications_provider.dart';
-import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class ActivityScreen extends StatefulWidget {
@@ -44,8 +31,6 @@ class ActivityScreen extends StatefulWidget {
 }
 
 class _ActivityScreenState extends State<ActivityScreen> {
-  bool _markingLegacy = false;
-
   @override
   void initState() {
     super.initState();
@@ -54,15 +39,8 @@ class _ActivityScreenState extends State<ActivityScreen> {
     });
   }
 
-  Future<void> _refresh() async {
-    final wallet = context.read<MwaAuthProvider?>()?.walletAddress;
-    final arena = context.read<ArenaProvider?>();
-    await Future.wait([
-      context.read<NotificationsProvider>().load(force: true),
-      if (wallet != null && arena != null)
-        arena.loadNotifications(walletAddress: wallet),
-    ]);
-  }
+  Future<void> _refresh() =>
+      context.read<NotificationsProvider>().load(force: true);
 
   Future<void> _open(CallNotification notification) async {
     final opener = widget.openTarget ?? openNotificationTarget;
@@ -78,43 +56,9 @@ class _ActivityScreenState extends State<ActivityScreen> {
     await (widget.openTarget ?? openNotificationTarget)(context, target);
   }
 
-  void _openLegacy(ArenaNotification notification) {
-    if (notification.type == 'CLAIM_AVAILABLE') {
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => const MyPotsScreen()));
-    }
-  }
-
-  Future<void> _markLegacyRead() async {
-    setState(() => _markingLegacy = true);
-    try {
-      await context.read<ArenaProvider>().markNotificationsRead(
-        authProvider: context.read<MwaAuthProvider>(),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      SnackBarUtils.showError(
-        context,
-        title: 'Could not mark these read',
-        subtitle: error.toString(),
-      );
-    } finally {
-      if (mounted) setState(() => _markingLegacy = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final calls = context.watch<NotificationsProvider>();
-    final arena = context.watch<ArenaProvider?>();
-    final hasWallet = context.watch<MwaAuthProvider?>()?.walletAddress != null;
-    final legacy = arena?.notifications ?? const <ArenaNotification>[];
-    final showLegacy =
-        hasWallet &&
-        (legacy.isNotEmpty ||
-            (arena?.notificationsError != null &&
-                !(arena?.isLoadingNotifications ?? false)));
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -162,46 +106,6 @@ class _ActivityScreenState extends State<ActivityScreen> {
                       : null,
             ),
             ..._callsSection(calls),
-            if (showLegacy) ...[
-              const SizedBox(height: 22),
-              _SectionHeader(
-                title: 'Earlier challenges',
-                action:
-                    (arena?.unreadNotificationCount ?? 0) > 0
-                        ? TextButton(
-                          onPressed: _markingLegacy ? null : _markLegacyRead,
-                          style: TextButton.styleFrom(
-                            minimumSize: const Size(48, 48),
-                            foregroundColor: _pinkInk,
-                          ),
-                          child: Text(
-                            _markingLegacy
-                                ? 'Waiting for wallet…'
-                                : 'Mark read',
-                          ),
-                        )
-                        : null,
-              ),
-              Text(
-                'From the original challenge system, by wallet. Winnings '
-                'ready to claim open My Pots.',
-                style: _meta,
-              ),
-              const SizedBox(height: 10),
-              if (legacy.isEmpty)
-                _Row(
-                  icon: 'cloud-off-outline',
-                  text: 'Couldn’t load these. Pull down to try again.',
-                )
-              else
-                for (final notice in legacy) ...[
-                  ArenaNotificationRow(
-                    notification: notice,
-                    onTap: () => _openLegacy(notice),
-                  ),
-                  const SizedBox(height: 10),
-                ],
-            ],
           ],
         ),
       ),

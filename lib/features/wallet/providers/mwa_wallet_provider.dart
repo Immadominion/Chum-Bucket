@@ -13,7 +13,6 @@ import 'package:chumbucket/shared/services/address_name_resolver.dart';
 import 'package:chumbucket/shared/models/models.dart';
 import 'package:chumbucket/core/utils/base_change_notifier.dart'
     show LoadingState;
-import 'package:chumbucket/core/services/analytics_service.dart';
 import 'package:chumbucket/core/config/network_config.dart';
 
 /// Pinocchio program instruction discriminators
@@ -634,22 +633,6 @@ class MwaWalletProvider extends ChangeNotifier {
 
       // Update challenge state provider
       challengeStateProvider.addChallenge(createdChallenge);
-
-      // Track analytics for challenge creation (fire-and-forget)
-      // Calculate fee: 5% of amount
-      final feeSol = amount * 0.05;
-      AnalyticsService.trackChallengeCreated(
-        challengeId: createdChallenge.id,
-        creatorWallet: walletAddress,
-        creatorName:
-            authProvider.snsDomain ?? authProvider.authResult?.accountLabel,
-        witnessWallet: witnessAddress,
-        witnessName: witnessDisplayName,
-        amountSol: amount,
-        feeSol: feeSol,
-      ).catchError((e) {
-        log('⚠️ Analytics tracking failed: $e', name: 'MwaWalletProvider');
-      });
 
       await refreshBalance(walletAddress);
       return createdChallenge;

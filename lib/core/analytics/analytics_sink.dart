@@ -5,28 +5,20 @@
 /// file exists so that decision is a one-class change rather than a rewrite of
 /// every call site.
 ///
-/// ## Why this is not routed through `lib/core/services/analytics_service.dart`
+/// ## The Telegram pings are gone
 ///
-/// That service is read-only to this packet and stays as it is, but it is the
-/// wrong pipe for this experiment on four independent counts:
+/// An earlier `lib/core/services/analytics_service.dart` posted wallet
+/// addresses and display names to a Supabase Edge Function
+/// (`analytics-telegram`) on every sign-in and escrow challenge, with no
+/// consent and no disclosure. It has been removed, along with every call to
+/// it; nothing in the app invokes `analytics-telegram` any more.
 ///
-/// 1. It posts to a Supabase Edge Function (`analytics-telegram`) on every
-///    call. The brief for this work is explicit: send analytics nowhere.
-/// 2. Its payloads carry exactly what Packet I's acceptance forbids —
-///    `wallet_address`, `creator_wallet`, `witness_wallet`, `winner_wallet`,
-///    `amount_sol`, `fee_sol`, `winner_amount_sol`. Routing through it would
-///    mean shipping a guard that the transport underneath is already violating.
-/// 3. Its four methods are a fixed, Arena-era vocabulary (`user_signup`,
-///    `challenge_created`, `challenge_resolved`, `error`) with no overlap with
-///    the roadmap's sixteen names, and each takes free-form `String` arguments
-///    — the opposite of "a typo cannot silently create a new event".
-/// 4. It has no notion of deduplication or of an experiment arm, so the one
-///    comparison the founder's decision rests on could not be made from its
-///    output.
-///
-/// So this package ships its own sink behind [AnalyticsSink]. If the two are
-/// ever unified, the direction is to put the guard in front of the service, not
-/// to put this experiment behind it.
+/// What remains is this pipe: events pass the [AnalyticsPrivacyGuard] in the
+/// recorder, are recorded only when the person has switched analytics on
+/// (`AnalyticsConsent`, Settings → Privacy & data), and today never leave the
+/// device. A destination is a separate, separately-approved decision, must sit
+/// behind the same consent switch, and must be named in the Privacy Policy
+/// first.
 library;
 
 import 'package:chumbucket/core/analytics/analytics_event.dart';

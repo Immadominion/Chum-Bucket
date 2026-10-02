@@ -5,6 +5,7 @@ import 'package:lottie/lottie.dart';
 import 'package:chumbucket/features/authentication/presentation/screens/widgets/mwa_connect_button.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
+import 'package:chumbucket/features/trust/data/legal_links.dart';
 
 /// MWA-based login screen for Solana Mobile compatibility
 /// Replaces the email-based Privy login with wallet connection
@@ -122,9 +123,11 @@ class MwaLoginScreen extends StatelessWidget {
                                           ),
                                           recognizer:
                                               TapGestureRecognizer()
-                                                ..onTap = () {
-                                                  // Handle terms of use tap
-                                                },
+                                                ..onTap =
+                                                    () => openExternalLink(
+                                                      context,
+                                                      LegalLinks.terms,
+                                                    ),
                                         ),
                                         const TextSpan(
                                           text:
@@ -141,9 +144,11 @@ class MwaLoginScreen extends StatelessWidget {
                                           ),
                                           recognizer:
                                               TapGestureRecognizer()
-                                                ..onTap = () {
-                                                  // Handle privacy policy tap
-                                                },
+                                                ..onTap =
+                                                    () => openExternalLink(
+                                                      context,
+                                                      LegalLinks.privacy,
+                                                    ),
                                         ),
                                       ],
                                     ),

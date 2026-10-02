@@ -1,3 +1,4 @@
+import 'package:chumbucket/features/trust/presentation/legacy_history_screen.dart';
 import 'package:chumbucket/core/config/app_config.dart';
 import 'package:chumbucket/core/navigation/deep_link_host.dart';
 import 'package:chumbucket/core/services/app_lifecycle_service.dart';
@@ -571,43 +572,34 @@ void main() {
     expect(find.byType(ProfileScreen), findsOneWidget);
   });
 
-  testWidgets('both existing history routes remain reachable from profile', (
+  testWidgets('both earlier history routes remain reachable from Settings → History', (
     tester,
   ) async {
     await mount(tester);
     await select(tester, 3);
-    // The app's floating navigation overlays the bottom edge. Scroll the
-    // activity rows above it, just as a person does, before tapping them.
-    await tester.drag(
-      find.byKey(const PageStorageKey('profile-root')),
-      const Offset(0, -400),
-    );
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.ensureVisible(find.text('Challenges'));
-    await tester.tap(find.text('Challenges'));
+    // Escrow challenges and Arena predictions left the profile tabs; they
+    // live, read-only, in Settings → History.
+    expect(find.text('Challenges'), findsNothing);
+    await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Prediction history'));
-    await tester.drag(
-      find.byKey(const PageStorageKey('profile-root')),
-      const Offset(0, -240),
-    );
+    await tester.ensureVisible(find.text('History'));
+    await tester.tap(find.text('History'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Prediction history'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(LegacyHistoryScreen), findsOneWidget);
+
+    await tester.tap(find.text('Arena predictions'));
+    await tester.pumpAndSettle();
     expect(find.byType(MyPotsScreen), findsOneWidget);
     Navigator.of(tester.element(find.byType(MyPotsScreen))).pop();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.ensureVisible(find.text('Challenge history'));
-    await tester.tap(find.text('Challenge history'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Escrow challenges'));
+    await tester.pumpAndSettle();
     expect(find.byType(ChallengeHistoryScreen), findsOneWidget);
     Navigator.of(tester.element(find.byType(ChallengeHistoryScreen))).pop();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    Navigator.of(tester.element(find.byType(LegacyHistoryScreen))).pop();
+    await tester.pumpAndSettle();
     expect(
       tester
           .widget<ChumbucketBottomNavigation>(

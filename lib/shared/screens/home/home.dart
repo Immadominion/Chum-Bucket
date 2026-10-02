@@ -1,10 +1,12 @@
 import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/core/theme/app_text_styles.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/core/config/app_config.dart';
 import 'package:chumbucket/features/arena/presentation/screens/calls_screen.dart';
 import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_feed_screen.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_markets_screen.dart';
-import 'package:chumbucket/features/challenges/presentation/screens/challenge_details_screen/challenge_details_screen.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/challenge_history_screen.dart';
 import 'package:chumbucket/features/profile/presentation/screens/profile_screen.dart';
 import 'package:flutter/material.dart';
@@ -13,7 +15,6 @@ import 'package:provider/provider.dart';
 import 'package:chumbucket/core/utils/app_logger.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
-import 'package:chumbucket/features/challenges/presentation/screens/create_challenge_screen/create_challenge_screens.dart';
 import 'package:chumbucket/shared/screens/home/widgets/add_friend_sheet.dart';
 import 'package:chumbucket/shared/screens/home/widgets/chumbucket_bottom_navigation.dart';
 import 'package:chumbucket/shared/screens/home/widgets/friends_hub_tab.dart';
@@ -24,7 +25,6 @@ import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:chumbucket/core/services/fcm_token_service.dart';
 import 'package:chumbucket/core/services/app_lifecycle_service.dart';
 import 'package:chumbucket/core/services/realtime_service.dart';
-import 'package:chumbucket/core/services/analytics_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -414,27 +414,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           'winnerId': userWon ? walletAddress : null,
         });
 
-        // Track resolution analytics (YOUR FEE MONEY!) - fire-and-forget
-        final winnerAmount =
-            (challenge['winner_amount_sol'] ?? challenge['winner_amount'] ?? 0)
-                .toDouble();
-        final feeSol =
-            (challenge['platform_fee_sol'] ?? challenge['platform_fee'] ?? 0)
-                .toDouble();
-        AnalyticsService.trackChallengeResolved(
-          challengeId: challenge['id'],
-          winnerWallet:
-              userWon
-                  ? walletAddress
-                  : (challenge['member1_address'] ??
-                      challenge['creator_wallet_address'] ??
-                      ''),
-          winnerName: userWon ? null : challenge['friendName'],
-          initiatorWon: userWon,
-          winnerAmountSol: winnerAmount,
-          feeSol: feeSol,
-        ).catchError((e) => debugPrint('Analytics tracking failed: $e'));
-
         // Send push notification to initiator about result (fire-and-forget)
         final initiatorWallet =
             challenge['member1_address'] ?? challenge['creator_wallet_address'];
@@ -480,45 +459,50 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  void onFriendSelected(String name, String walletAddress) async {
-    // Determine avatar color based on name
-    String avatarColor = HomeUtils.getAvatarColorForFriend(name);
-
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder:
-            (context) => CreateChallengeScreen(
-              friendName: name,
-              friendAddress: walletAddress,
-              friendAvatarColor: avatarColor,
-            ),
-      ),
-    );
-
-    if (result != null && mounted) {
-      // Force refresh both tabs since new challenge was created
-      setState(() {
-        _friendsRefreshKey++;
-        _challengesRefreshKey++;
-      });
-      _lastDataRefresh = DateTime.now();
-
-      // If the challenge was created, open the challenge details screen
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder:
-              (context) => ChallengeDetailsScreen(
-                friendName: result['friendName'],
-                friendAvatarColor: avatarColor,
-                userAvatarColor: '#FFBE55', // Default for now
-                description: result['description'],
-                amount: result['amount'],
+  /// Tapping a friend used to start a SOL escrow challenge. Escrow is retired
+  /// (read-only in Settings → History); the call-level Dare replaces it.
+  void onFriendSelected(String name, String walletAddress) {
+    showChumbucketWavySheet<void>(
+      context: context,
+      builder:
+          (sheetContext) => ChumbucketWavySheet(
+            title: 'Dare $name on a call',
+            subtitle: 'Escrow challenges have been retired.',
+            body: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Make a call on a market, then dare $name to call it too. '
+                    'It\'s free: no money is locked up. Your earlier escrow '
+                    'challenges are in Settings → History.',
+                    style: AppTextStyles.textTheme.bodyMedium?.copyWith(
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ChumbucketPrimaryButton(
+                    label: 'Make a call',
+                    onPressed: () {
+                      Navigator.of(sheetContext).pop();
+                      _openCallMarkets();
+                    },
+                  ),
+                  const SizedBox(height: 4),
+                  ChumbucketTextAction(
+                    label: 'See earlier challenges',
+                    onPressed: () {
+                      Navigator.of(sheetContext).pop();
+                      _openChallengeHistory();
+                    },
+                  ),
+                ],
               ),
-        ),
-      );
-    }
+            ),
+          ),
+    );
   }
 
   void createNewChallenge() {

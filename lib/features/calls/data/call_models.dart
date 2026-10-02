@@ -236,7 +236,9 @@ enum CallVisibility {
 enum CallResponseKind {
   back('back', 'Back'),
   fade('fade', 'Fade'),
-  challenge('challenge', 'Challenge');
+  // Shown as "Dare": "challenge" also named the retired SOL escrow
+  // feature. The wire value is frozen and stays 'challenge'.
+  challenge('challenge', 'Dare');
 
   const CallResponseKind(this.wire, this.label);
   final String wire;

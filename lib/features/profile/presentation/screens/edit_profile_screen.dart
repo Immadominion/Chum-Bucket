@@ -1,3 +1,4 @@
+import 'package:chumbucket/features/trust/data/content_policy.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
@@ -126,6 +127,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         title: 'Account changed',
         subtitle: 'Reload your profile before saving changes.',
       );
+      return;
+    }
+    // Names and bios are public: no links, slurs or strong profanity.
+    final problem =
+        contentPolicyProblem(_nameController.text, ContentField.name) ??
+        contentPolicyProblem(_bioController.text, ContentField.bio);
+    if (problem != null) {
+      SnackBarUtils.showError(context, title: 'Can\'t save that', subtitle: problem);
       return;
     }
     final profileProvider = context.read<ProfileProvider>();

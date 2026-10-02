@@ -27,6 +27,8 @@ import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/features/receipts/data/call_receipt.dart';
 import 'package:chumbucket/features/receipts/presentation/call_receipt_sheet.dart';
+import 'package:chumbucket/features/trust/presentation/funded_trading_attestation_sheet.dart';
+import 'package:chumbucket/features/trust/presentation/safety_actions_sheet.dart';
 
 class CallDetailScreen extends StatefulWidget {
   final String callId;
@@ -73,6 +75,10 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
       );
       return;
     }
+    // 18+, eligibility and venue terms, recorded server-side before the first
+    // funded trade. The BFF refuses a prepare without it regardless.
+    if (!await ensureFundedTradingAttestation(context)) return;
+    if (!mounted) return;
     if (_trade == null || _trade!.phase == PantaTradePhase.cancelled) {
       _trade?.dispose();
       _tradingClient?.close();
@@ -239,14 +245,47 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
             builder: (context, provider, _) {
               final entry = provider.callDetail(widget.callId)?.entry;
               if (entry == null) return const SizedBox.shrink();
-              return IconButton(
-                tooltip: 'Share call',
-                constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-                onPressed: () => _shareReceipt(entry),
-                icon: const BasilIcon(
-                  'share-outline',
-                  color: AppColors.textPrimary,
-                ),
+              final own = entry.author.id == provider.viewerUserId;
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: 'Share call',
+                    constraints: const BoxConstraints(
+                      minWidth: 48,
+                      minHeight: 48,
+                    ),
+                    onPressed: () => _shareReceipt(entry),
+                    icon: const BasilIcon(
+                      'share-outline',
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  // Report, mute or block — never on your own call.
+                  if (!own)
+                    IconButton(
+                      tooltip: 'More',
+                      constraints: const BoxConstraints(
+                        minWidth: 48,
+                        minHeight: 48,
+                      ),
+                      onPressed:
+                          () => showSafetyActions(
+                            context,
+                            SafetyTarget(
+                              personId: entry.author.id,
+                              handle: entry.author.handle,
+                              displayName: entry.author.displayName,
+                              callId: entry.call.id,
+                              hasThesis: entry.call.thesis?.isNotEmpty == true,
+                            ),
+                          ),
+                      icon: const BasilIcon(
+                        'other-1-outline',
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                ],
               );
             },
           ),
@@ -573,7 +612,7 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
                 ),
                 const SizedBox(height: 12),
                 CallJourneyButton(
-                  label: 'Invite a challenge',
+                  label: 'Dare them to call it',
                   icon: 'arrow-right-outline',
                   onPressed: () => _respond(entry, CallResponseKind.challenge),
                 ),

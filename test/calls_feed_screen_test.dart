@@ -255,7 +255,7 @@ void main() {
     expect(find.text('Sign in'), findsOneWidget);
   });
 
-  testWidgets('an open challenge invitation is surfaced without money words', (
+  testWidgets('an open dare invitation is surfaced without money words', (
     tester,
   ) async {
     usePhoneSurface(tester);
@@ -263,7 +263,7 @@ void main() {
     await tester.pumpWidget(harness(provider));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('open challenge'), findsOneWidget);
+    expect(find.textContaining('open dare'), findsOneWidget);
     expect(find.textContaining('No money involved'), findsOneWidget);
   });
 }

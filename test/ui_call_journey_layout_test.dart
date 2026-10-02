@@ -410,7 +410,7 @@ void main() {
     );
     await tester.tap(find.text('Open invitation'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Send the challenge'));
+    await tester.tap(find.text('Send the dare'));
     await tester.pumpAndSettle();
     expect(result!.invitation, isNotNull);
     expect(result!.resultingCall, isNull);

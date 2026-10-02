@@ -357,8 +357,8 @@ void main() {
       expect(find.text('Lock my YES call'), findsOneWidget);
 
       // The third option is below the fold on a small phone.
-      await scrollTo(tester, find.text('Challenge'));
-      expect(find.text('Challenge'), findsOneWidget);
+      await scrollTo(tester, find.text('Dare'));
+      expect(find.text('Dare'), findsOneWidget);
     });
 
     testWidgets('Fade puts the responder on the opposite side', (tester) async {
@@ -394,11 +394,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await scrollTo(tester, find.text('Challenge'));
-      await tester.tap(find.text('Challenge'));
+      await scrollTo(tester, find.text('Dare'));
+      await tester.tap(find.text('Dare'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Send the challenge'), findsOneWidget);
+      expect(find.text('Send the dare'), findsOneWidget);
       await scrollTo(
         tester,
         find.textContaining('No escrow. Nothing is locked up'),
