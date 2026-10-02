@@ -167,6 +167,24 @@ void main() {
       },
     );
 
+    test(
+      'claimed on another phone: learns the stored one and stops asking',
+      () async {
+        final bff = UsernameBff(refuseWith: 'HANDLE_ALREADY_SET');
+        final (session, auth) = await signedIn(bff);
+        expect(session.needsHandleClaim, isTrue);
+        // Meanwhile, another phone claimed one.
+        bff.handle = 'ada_elsewhere';
+        final error = await session.claimUsername('ada_1');
+        expect(error?.code, 'HANDLE_ALREADY_SET');
+        expect(error?.message, contains('@ada_elsewhere'));
+        expect(session.needsHandleClaim, isFalse);
+        expect(session.handle, 'ada_elsewhere');
+        session.dispose();
+        await auth.close();
+      },
+    );
+
     test('signed out: nothing is sent', () async {
       final bff = UsernameBff();
       final session = ChumbucketSession(

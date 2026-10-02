@@ -393,8 +393,9 @@ class ChumbucketSession extends ChangeNotifier {
     final epoch = _sessionEpoch;
     _claimingHandle = true;
     _notify();
+    String? token;
     try {
-      final token = await bffAuthToken();
+      token = await bffAuthToken();
       if (token == null || epoch != _sessionEpoch || _disposed) {
         return const SessionError.refused(
           'Sign in to claim a username.',
@@ -417,10 +418,44 @@ class ChumbucketSession extends ChangeNotifier {
       _identity = held.withHandle(claimed.handle!);
       return null;
     } on SessionException catch (e) {
+      if (e.error.code == 'HANDLE_ALREADY_SET' && token != null) {
+        // Claimed since this session read it (another phone): learn the
+        // stored one, so the prompt and Profile's row stop asking.
+        final stored = await _storedHandle(token, held, epoch);
+        if (stored != null) {
+          return SessionError.refused(
+            'Your account already has a username: @$stored.',
+            code: 'HANDLE_ALREADY_SET',
+          );
+        }
+      }
       return e.error;
     } finally {
       _claimingHandle = false;
       _notify();
+    }
+  }
+
+  /// Re-reads the account's stored @username and adopts it. Null when it
+  /// could not be read, or the account changed meanwhile.
+  Future<String?> _storedHandle(
+    String token,
+    SessionIdentity held,
+    int epoch,
+  ) async {
+    try {
+      final fresh = await _bff.whoami(token);
+      final handle = fresh.handle;
+      if (_disposed ||
+          epoch != _sessionEpoch ||
+          fresh.userId != held.userId ||
+          handle == null) {
+        return null;
+      }
+      _identity = held.withHandle(handle);
+      return handle;
+    } catch (_) {
+      return null;
     }
   }
 
