@@ -139,12 +139,17 @@ class PantaPositionsController extends ChangeNotifier {
     try {
       final session = await _client.currentSession();
       if (session == null) throw const PantaException(PantaErrorCode.signedOut);
-      final key = _claimKeys[orderId] ??= _newKey();
-      final prepared = await _client.claimPrepare(
-        orderId: orderId,
-        idempotencyKey: key,
-        accountId: session.accountId,
-      );
+      var prepared = await _prepareClaim(orderId, session.accountId);
+      if (prepared.claim.state == PantaClaimState.failed) {
+        // That attempt already ended on the server (Panta refused the build,
+        // or it expired); its key can only replay the failure. Start afresh.
+        _claimKeys.remove(orderId);
+        prepared = await _prepareClaim(orderId, session.accountId);
+        if (prepared.claim.state == PantaClaimState.failed) {
+          _claimKeys.remove(orderId);
+          throw const PantaException(PantaErrorCode.rejected);
+        }
+      }
       final tx = prepared.transaction;
       final review = prepared.review;
       if (tx == null || review == null) {
@@ -214,7 +219,8 @@ class PantaPositionsController extends ChangeNotifier {
         ),
       );
     } on PantaException catch (e) {
-      _set(orderId, PantaClaimProgress(message: _claimCopy(e)));
+      // Nothing was sent: _submit handles every error after the approval.
+      _set(orderId, PantaClaimProgress(message: _claimCopy(e, sent: false)));
     } catch (_) {
       _set(
         orderId,
@@ -235,8 +241,52 @@ class PantaPositionsController extends ChangeNotifier {
     } on PantaException catch (e) {
       _set(
         orderId,
-        PantaClaimProgress(message: _claimCopy(e), canRetrySubmit: true),
+        PantaClaimProgress(
+          message: _claimCopy(e, sent: true),
+          canRetrySubmit: true,
+        ),
       );
+    }
+  }
+
+  /// Reviews a claim for [orderId] under its current key. Only a lost reply
+  /// may have left a usable reviewed claim behind that key; any answer from
+  /// the server ended the attempt there, so the next try starts afresh.
+  Future<PantaClaimPrepared> _prepareClaim(
+    String orderId,
+    String accountId,
+  ) async {
+    final key = _claimKeys[orderId] ??= _newKey();
+    try {
+      return await _client.claimPrepare(
+        orderId: orderId,
+        idempotencyKey: key,
+        accountId: accountId,
+      );
+    } on PantaException catch (e) {
+      if (e.code != PantaErrorCode.connection) _claimKeys.remove(orderId);
+      rethrow;
+    }
+  }
+
+  /// True when the server says this signed claim can never be sent: it
+  /// failed, or its approval expired before the server stored it. Unknown is
+  /// never "dead": the identical bytes stay ready for a retry.
+  Future<bool> _approvalIsDead(
+    ({String claimId, String signed, String accountId}) signed,
+  ) async {
+    try {
+      final view = await _client.claim(
+        claimId: signed.claimId,
+        accountId: signed.accountId,
+      );
+      final expiresAt = view.expiresAt;
+      return view.state == PantaClaimState.failed ||
+          (view.state == PantaClaimState.built &&
+              expiresAt != null &&
+              _now().millisecondsSinceEpoch >= expiresAt);
+    } catch (_) {
+      return false;
     }
   }
 
@@ -260,23 +310,54 @@ class PantaPositionsController extends ChangeNotifier {
       );
       await load(silent: true);
     } on PantaException catch (e) {
+      // A refusal for an approval the server can never send (it expired
+      // before it was stored, or the claim failed) must not trap the person
+      // in "Retry same claim": drop those bytes and offer a fresh claim.
+      if (e.code == PantaErrorCode.rejected && await _approvalIsDead(signed)) {
+        _signedClaims.remove(orderId);
+        _claimKeys.remove(orderId);
+        _set(
+          orderId,
+          const PantaClaimProgress(
+            message:
+                'That signed claim can no longer be sent, so nothing was '
+                'paid out by it. Try again for a fresh claim.',
+          ),
+        );
+        return;
+      }
       // The bytes may have reached the network. Keep them for an exact retry.
       _set(
         orderId,
-        PantaClaimProgress(message: _claimCopy(e), canRetrySubmit: true),
+        PantaClaimProgress(
+          message: _claimCopy(e, sent: true),
+          canRetrySubmit: true,
+        ),
       );
     }
   }
 
-  String _claimCopy(PantaException e) => switch (e.code) {
+  /// Fixed copy for a claim error. [sent] is true once the signed claim has
+  /// been handed to the server, so a retry must resend the identical bytes.
+  String _claimCopy(PantaException e, {required bool sent}) => switch (e.code) {
     PantaErrorCode.unavailable =>
       'Claiming in the app is not available yet. Claim on Panta instead.',
     PantaErrorCode.expired =>
       'That claim approval expired before it was sent. Try again for a fresh one.',
+    PantaErrorCode.rejected when sent =>
+      'The server could not accept the signed claim yet. Retry sends the same '
+          'signed claim; nothing new is signed.',
     PantaErrorCode.rejected =>
       'Panta did not offer a claim for this position yet. Check again later or claim on Panta.',
-    PantaErrorCode.connection =>
+    PantaErrorCode.connection when sent =>
       'The reply did not arrive. Retry sends the same signed claim.',
+    PantaErrorCode.connection =>
+      'The server did not answer. Nothing was signed; try the claim again.',
+    PantaErrorCode.invalidResponse when sent =>
+      'The reply could not be read. Retry sends the same signed claim.',
+    PantaErrorCode.invalidResponse =>
+      'The claim could not be checked, so nothing was sent. Try again or '
+          'claim on Panta.',
     _ => e.message,
   };
 

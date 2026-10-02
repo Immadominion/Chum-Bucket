@@ -180,7 +180,9 @@ void main() {
       await tester.pumpWidget(app(CallReceiptCard(receipt: receipt)));
       await tester.pumpAndSettle();
       expect(
-        find.text('Backed with a Panta position. The amount stays private.'),
+        find.text(
+          'Backed with a confirmed Panta position. Chumbucket doesn’t show the amount.',
+        ),
         findsOneWidget,
       );
       // Share prices read "USDC/share"; no amount of USDC appears anywhere.

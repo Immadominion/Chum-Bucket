@@ -75,17 +75,23 @@ The test harness is not exported by the feature.
 - Claims: `claimPrepare` → local v0 checks → the signer from
   `PantaSignerResolver` (`domain/panta_signer.dart`) → re-check of the signed
   message → `claimSubmit`; a lost reply retries the identical signed bytes and
-  never re-signs. The server confirms only on chain proof of a USDC payout.
+  never re-signs. A key the server already answered for (refused, or a FAILED
+  replay) is retired so the next tap reviews a fresh claim, and signed bytes
+  the server can never send (failed, or expired before they were stored) are
+  dropped instead of offering "Retry same claim" forever. The server confirms
+  only on chain proof of a USDC payout.
   The resolver is the plug-in point for wallets: the profile tab maps a
   connected MWA wallet to `PantaMwaWallet`; an on-phone wallet should return
   its own `PantaWalletPort` for its address and check the
   `PantaClaimSigningIntent` it is given before signing.
-- Selling: Panta's public API has no sell/close. The app links to
+- Selling: Panta's public API has no sell/close, so the app never offers one
+  and does not promise that panta.market does ("Manage on Panta"). It links to
   `https://panta.market/market/<venueMarketId>` (`pantaMarketUri`,
   `PantaMarketLink`), which is also how receipts and market detail show
   "Resolved by Panta" instead of the authenticated API URL.
 - Feed entries carry `funding` only for a confirmed fill; cards read "Funded"
-  and receipts say "Backed with a Panta position" — never an amount.
+  and receipts say "Backed with a confirmed Panta position" — never an amount
+  (the trade itself is public on Solana; the app just does not show it).
 
 ## Files
 

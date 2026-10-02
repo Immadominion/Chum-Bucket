@@ -477,6 +477,151 @@ void main() {
       },
     );
 
+    test(
+      'a refused or already-failed attempt never traps the next tap on a dead key',
+      () async {
+        final rig = _Rig();
+        addTearDown(rig.dispose);
+        var n = 0;
+        final controller = PantaPositionsController(
+          client: rig.client,
+          signerFor: (wallet, intent) => rig.wallet_,
+          now: () => DateTime.fromMillisecondsSinceEpoch(syntheticTime),
+          newIdempotencyKey: () => '55555555-5555-4555-8555-55555555555${n++}',
+        );
+        addTearDown(controller.dispose);
+        rig.pages.add(
+          pageJson([
+            positionJson(
+              status: 'won_claimable',
+              current: '1',
+              value: '4000000',
+              pnl: '2000000',
+            ),
+          ]),
+        );
+        await controller.load();
+        final position = controller.page!.positions.single;
+        // 1. The server answers and refuses: that key is spent.
+        rig.replies['pantaTrading.claimPrepare'] =
+            (_) => trpcError('BAD_REQUEST', 400);
+        await controller.claim(position);
+        expect(rig.wallet_.signs, 0);
+        expect(
+          controller.claimProgress(position.orderId).message,
+          contains('did not offer a claim'),
+        );
+        // 2. The old key would only replay that failure; a FAILED replay is
+        //    retired at once and a fresh key reviews a real claim.
+        var calls = 0;
+        rig.replies['pantaTrading.claimPrepare'] = (_) {
+          calls++;
+          return calls == 1
+              ? syntheticWire({
+                'claim': claimViewJson(state: 'FAILED'),
+                'transaction': null,
+                'review': null,
+              })
+              : syntheticWire(claimPreparedJson());
+        };
+        await controller.claim(position);
+        final keys = [
+          for (final input in rig.inputs('claimPrepare'))
+            input['idempotencyKey'],
+        ];
+        expect(keys, hasLength(3));
+        expect(keys.toSet(), hasLength(3), reason: 'never reuse a dead key');
+        expect(rig.wallet_.signs, 1);
+        expect(rig.inputs('claimSubmit'), hasLength(1));
+      },
+    );
+
+    test(
+      'a lost prepare reply keeps its key; the copy says nothing was signed',
+      () async {
+        final rig = _Rig();
+        addTearDown(rig.dispose);
+        rig.pages.add(
+          pageJson([
+            positionJson(
+              status: 'won_claimable',
+              current: '1',
+              value: '4000000',
+              pnl: '2000000',
+            ),
+          ]),
+        );
+        await rig.controller.load();
+        final position = rig.controller.page!.positions.single;
+        var drop = true;
+        rig.replies['pantaTrading.claimPrepare'] = (_) {
+          if (drop) throw http.ClientException('synthetic drop');
+          return syntheticWire(claimPreparedJson());
+        };
+        await rig.controller.claim(position);
+        expect(
+          rig.controller.claimProgress(position.orderId).message,
+          contains('Nothing was signed'),
+        );
+        drop = false;
+        await rig.controller.claim(position);
+        final keys = [
+          for (final input in rig.inputs('claimPrepare'))
+            input['idempotencyKey'],
+        ];
+        expect(keys, hasLength(2));
+        expect(keys.first, keys.last, reason: 'same intent after a lost reply');
+      },
+    );
+
+    test(
+      'a signed claim the server can never send is dropped, not retried forever',
+      () async {
+        final rig = _Rig();
+        addTearDown(rig.dispose);
+        var first = true;
+        rig.replies['pantaTrading.claimSubmit'] = (_) {
+          if (first) {
+            first = false;
+            throw http.ClientException('synthetic drop');
+          }
+          return trpcError('BAD_REQUEST', 400);
+        };
+        // The approval was never stored and has expired on the server.
+        rig.replies['pantaTrading.claim'] =
+            (_) => syntheticWire({
+              ...claimViewJson(state: 'BUILT'),
+              'expiresAt': syntheticTime - 1,
+            });
+        rig.pages.add(
+          pageJson([
+            positionJson(
+              status: 'won_claimable',
+              current: '1',
+              value: '4000000',
+              pnl: '2000000',
+            ),
+          ]),
+        );
+        await rig.controller.load();
+        final position = rig.controller.page!.positions.single;
+        await rig.controller.claim(position);
+        expect(
+          rig.controller.claimProgress(position.orderId).canRetrySubmit,
+          isTrue,
+        );
+        await rig.controller.retryClaimSubmit(position.orderId);
+        final progress = rig.controller.claimProgress(position.orderId);
+        expect(progress.canRetrySubmit, isFalse);
+        expect(progress.message, contains('can no longer be sent'));
+        // The next tap reviews a fresh claim instead of resending dead bytes.
+        rig.replies.remove('pantaTrading.claimSubmit');
+        await rig.controller.claim(position);
+        expect(rig.inputs('claimPrepare'), hasLength(2));
+        expect(rig.wallet_.signs, 2);
+      },
+    );
+
     test('a cancelled wallet approval submits nothing', () async {
       final rig = _Rig();
       rig.wallet_.throwOnSign = const PantaWalletCancelled();
@@ -549,7 +694,8 @@ void main() {
           find.byKey(const ValueKey('panta-claim-ord_won')),
           findsOneWidget,
         );
-        expect(find.text('Sell on Panta'), findsOneWidget);
+        expect(find.text('Manage on Panta'), findsOneWidget);
+        expect(find.textContaining('Sell on Panta'), findsNothing);
         expect(find.text('Order pending'), findsOneWidget);
         expect(find.textContaining('live-api'), findsNothing);
         await tester.ensureVisible(

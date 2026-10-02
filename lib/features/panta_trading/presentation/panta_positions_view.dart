@@ -85,7 +85,8 @@ class _PantaPositionsViewState extends State<PantaPositionsView> {
         const SizedBox(height: 10),
         _Notice(
           icon: 'info-circle-outline',
-          text: '${error.message} Showing the last positions we loaded.',
+          text:
+              '${positionsLoadCopy(error)} Showing the last positions we loaded.',
         ),
       ],
       if (page.holdings == PantaHoldingsState.unavailable) ...[
@@ -115,6 +116,7 @@ class _PantaPositionsViewState extends State<PantaPositionsView> {
                     ? null
                     : () => widget.onOpenCall!(p.callId),
             opener: widget.opener,
+            claimStatusKnown: page.holdings == PantaHoldingsState.live,
           ),
         ]);
       }
@@ -122,7 +124,8 @@ class _PantaPositionsViewState extends State<PantaPositionsView> {
     children.addAll([
       const SizedBox(height: 14),
       Text(
-        'Selling happens on panta.market — Panta’s API has no in-app sell. '
+        'Chumbucket can’t sell a position: Panta’s API has no sell order. '
+        'See panta.market for what Panta offers on each market. '
         'Values are marked to Panta’s latest price and are not a quote. '
         '$pantaAttribution.',
         style: AppTextStyles.textTheme.bodySmall?.copyWith(
@@ -269,6 +272,7 @@ class _PositionCard extends StatelessWidget {
     required this.onRetrySubmit,
     required this.onOpenCall,
     required this.opener,
+    this.claimStatusKnown = true,
   });
   final PantaPosition position;
   final PantaClaimProgress progress;
@@ -276,6 +280,9 @@ class _PositionCard extends StatelessWidget {
   final VoidCallback onRetrySubmit;
   final VoidCallback? onOpenCall;
   final PantaUrlOpener opener;
+
+  /// False when Panta did not report claim eligibility on this load.
+  final bool claimStatusKnown;
 
   @override
   Widget build(BuildContext context) {
@@ -371,7 +378,10 @@ class _PositionCard extends StatelessWidget {
       PantaPositionStatus.wonClaimable =>
         '${shares ?? 'Winning shares'} · Panta pays about 1 USDC per winning share.',
       PantaPositionStatus.won =>
-        'You won. Panta has not opened the claim for this wallet yet.',
+        claimStatusKnown
+            ? 'You won. Panta has not opened the claim for this wallet yet.'
+            : 'You won. Panta’s claim status is unavailable right now; it '
+                'refreshes shortly.',
       PantaPositionStatus.claiming =>
         'Claim sent · confirming the payout on Solana.',
       PantaPositionStatus.claimed =>
@@ -418,8 +428,9 @@ class _PositionCard extends StatelessWidget {
       );
     }
     final pantaLabel = switch (p.status) {
-      PantaPositionStatus.open ||
-      PantaPositionStatus.awaitingResult => 'Sell on Panta',
+      // Panta's API has no sell; whether its site offers an exit for this
+      // market is Panta's to say, so the link does not promise one.
+      PantaPositionStatus.open => 'Manage on Panta',
       PantaPositionStatus.won ||
       PantaPositionStatus.wonClaimable => 'Claim on Panta',
       _ => 'View on Panta',
@@ -685,7 +696,7 @@ class _ErrorCard extends StatelessWidget {
             unavailable
                 ? 'Funded positions are not switched on for this server yet. '
                     'Your calls are unaffected.'
-                : error.message,
+                : positionsLoadCopy(error),
             style: AppTextStyles.textTheme.bodySmall?.copyWith(
               color: AppColors.textSecondary,
               height: 1.5,
@@ -700,3 +711,15 @@ class _ErrorCard extends StatelessWidget {
     );
   }
 }
+
+/// Fixed copy for a positions read that failed. The trade flow's own messages
+/// talk about checking an order, which is not what happened here.
+String positionsLoadCopy(PantaException error) => switch (error.code) {
+  PantaErrorCode.signedOut => error.message,
+  PantaErrorCode.unavailable =>
+    'Funded positions are not switched on for this server yet.',
+  PantaErrorCode.connection =>
+    'The server did not answer. Check your connection and try again.',
+  PantaErrorCode.sessionChanged => error.message,
+  _ => 'The server could not send your positions just now. Try again shortly.',
+};

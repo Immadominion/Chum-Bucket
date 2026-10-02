@@ -226,7 +226,7 @@ class CallReceiptCard extends StatelessWidget {
                   ),
                 Text(
                   receipt.fundedOnPanta
-                      ? 'Backed with a Panta position. The amount stays private.'
+                      ? 'Backed with a confirmed Panta position. Chumbucket doesn’t show the amount.'
                       : 'Free call. No stake, no position, no money.',
                   style: proofStyle,
                 ),
