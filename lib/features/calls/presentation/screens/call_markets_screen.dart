@@ -5,6 +5,8 @@ import 'package:chumbucket/features/calls/presentation/screens/market_detail_scr
 import 'package:chumbucket/features/calls/presentation/widgets/call_market_card.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
+import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
+import 'package:chumbucket/features/market_creation/market_creation.dart';
 import 'package:chumbucket/shared/screens/home/widgets/header.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:flutter/material.dart';
@@ -53,6 +55,15 @@ class _CallMarketsScreenState extends State<CallMarketsScreen> {
   Future<void> _refresh() async {
     _requestedPrices.clear();
     await context.read<CallsProvider>().loadOpenMarkets(force: true);
+  }
+
+  /// Proposing needs an account; reading the catalog never does.
+  void _openMarketCreation({required bool create}) {
+    if (!context.read<CallsProvider>().isSignedIn) {
+      requestCallSignIn(context);
+      return;
+    }
+    openMarketCreation(context, create: create);
   }
 
   void _requestPrice(String marketId) {
@@ -240,6 +251,11 @@ class _CallMarketsScreenState extends State<CallMarketsScreen> {
                     const SizedBox(height: 2),
                     const MarketCatalogLegend(),
                   ],
+                  // Shown only while the server takes proposals.
+                  CreateMarketEntry(
+                    onCreate: () => _openMarketCreation(create: true),
+                    onOpenMine: () => _openMarketCreation(create: false),
+                  ),
                 ],
               ),
             ),

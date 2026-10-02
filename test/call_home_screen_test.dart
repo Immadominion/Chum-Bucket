@@ -499,7 +499,16 @@ void main() {
     await mount(tester, scale: 2);
     await select(tester, 1);
     final question = find.text(bff.marketJson()['question'] as String);
-    await tester.ensureVisible(question);
+    // At 2x text the row starts below the fold, and a sliver list builds
+    // offscreen rows lazily: scroll until it exists, then into view.
+    await tester.scrollUntilVisible(
+      question,
+      120,
+      // The catalog's vertical list, not the search field's own scrollable.
+      scrollable: find.byWidgetPredicate(
+        (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.tap(question);
     await tester.pump();
