@@ -17,6 +17,8 @@ import 'package:chumbucket/features/calls/presentation/widgets/call_market_card.
 import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
+import 'package:chumbucket/features/calls/presentation/screens/call_person_screen.dart';
+import 'package:chumbucket/features/market_creation/presentation/widgets/market_entry_widgets.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class MarketDetailScreen extends StatefulWidget {
@@ -234,6 +236,22 @@ class _MarketDetailScreenState extends State<MarketDetailScreen> {
                           color: AppColors.textSecondary,
                         ),
                       ),
+                      // People-first: a market someone proposed here says who.
+                      if (market.venue == MarketVenue.panta)
+                        MarketProposerLine(
+                          venueMarketId: market.venueMarketId,
+                          onOpenPerson:
+                              (proposer) => Navigator.of(context).push<void>(
+                                MaterialPageRoute(
+                                  builder:
+                                      (_) => CallPersonScreen(
+                                        personRef: proposer.id,
+                                        onSignInRequested:
+                                            widget.onSignInRequested,
+                                      ),
+                                ),
+                              ),
+                        ),
                       const SizedBox(height: 16),
                       if (market.venue == MarketVenue.panta)
                         MarketSharePrices(
