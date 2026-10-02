@@ -7,6 +7,8 @@
 /// overflow.
 library;
 
+import 'dart:async';
+
 import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
@@ -240,6 +242,29 @@ void main() {
         await provider.loadTopCalls();
         expect(provider.leaderboard(LeaderboardWindow.all), isNull);
         expect(provider.topCalls, isNull);
+      },
+    );
+
+    test(
+      'a follow change discards a Following read already in flight',
+      () async {
+        final repo = _SlowFollowingFake();
+        final provider = await signedIn(repo);
+        final pending = provider.loadFollowing();
+        expect(provider.isLoadingFollowing, isTrue);
+
+        final target =
+            (await repo.fetchFeed(
+              mode: CallFeedMode.global,
+            )).entries.firstWhere((e) => e.author.id != _viewer).author;
+        await provider.loadPerson(target.id);
+        await provider.setFollowing(provider.personDetail(target.id)!, true);
+
+        // The read that started before the follow answers with the old list.
+        repo.gate.complete(const []);
+        await pending;
+        expect(provider.following, isNull, reason: 'stale membership kept');
+        expect(provider.isLoadingFollowing, isFalse);
       },
     );
   });
@@ -573,6 +598,55 @@ void main() {
       expect(find.text('Thesis updates'), findsNothing);
       expect(tester.takeException(), isNull);
     });
+
+    test('an update after the venue result says so', () {
+      final locked = DateTime.utc(2026, 10, 1, 12);
+      final resolved = DateTime.utc(2026, 10, 3, 12);
+      expect(
+        ThesisThread.caption(locked, null, DateTime.utc(2026, 10, 1, 14)),
+        '2h after locking',
+      );
+      expect(
+        ThesisThread.caption(locked, resolved, DateTime.utc(2026, 10, 2, 12)),
+        '24h after locking',
+      );
+      expect(
+        ThesisThread.caption(locked, resolved, DateTime.utc(2026, 10, 5, 12)),
+        '4d after locking · after the result',
+      );
+    });
+
+    testWidgets('an unreadable reply keeps the draft and warns, not retries', (
+      tester,
+    ) async {
+      final repo = _UnreadableUpdateFake();
+      final provider = await signedIn(repo);
+      await mountPeople(
+        tester,
+        const CallDetailScreen(callId: 'call_you_fed'),
+        wrap: (app) => withCalls(provider, app),
+        width: 390,
+        scale: 1,
+      );
+      await revealPeopleText(tester, 'Add an update');
+      await tester.tap(find.text('Add an update'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Dot plot moved my way.');
+      await tester.pump();
+      await tester.tap(find.text('Post update'));
+      await tester.pumpAndSettle();
+
+      // The sheet stays, the draft stays, and the reason says the server may
+      // already have it — never a silent no-op that invites a duplicate.
+      expect(find.byType(ThesisUpdateSheet), findsOneWidget);
+      expect(find.text('Dot plot moved my way.'), findsWidgets);
+      expect(
+        find.textContaining('couldn’t confirm that update'),
+        findsOneWidget,
+      );
+      expect(provider.isSubmitting, isFalse);
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('search', () {
@@ -638,4 +712,27 @@ class _EmptyFollowingFake extends PeopleFake {
       limit: limit,
     );
   }
+}
+
+/// The server accepts the update but answers with something the app cannot
+/// read (here, the client's own vocabulary guard).
+class _UnreadableUpdateFake extends PeopleFake {
+  @override
+  Future<ThesisUpdate> appendThesisUpdate({
+    required String callId,
+    required String body,
+  }) async {
+    await super.appendThesisUpdate(callId: callId, body: body);
+    throw const CallVocabularyException(
+      'The update was recorded against a different call.',
+    );
+  }
+}
+
+/// A Following read that answers only when the test says so.
+class _SlowFollowingFake extends PeopleFake {
+  final gate = Completer<List<PersonCard>>();
+
+  @override
+  Future<List<PersonCard>> fetchFollowing() => gate.future;
 }

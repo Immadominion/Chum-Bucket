@@ -599,6 +599,11 @@ class CallsProvider extends ChangeNotifier {
         );
       }
       // The follow list changed; read it again rather than editing it here.
+      // A read already in flight predates this change, so it is discarded
+      // rather than allowed to refill the list with the old membership.
+      _requests.remove('following');
+      _isLoadingFollowing = false;
+      _followingError = null;
       _following = null;
       if (!confirmed) {
         _callDetails.removeWhere(

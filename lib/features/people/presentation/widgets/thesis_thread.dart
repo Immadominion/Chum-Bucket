@@ -7,6 +7,8 @@
 /// so a reader always knows what was said before and after the facts moved.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -45,10 +47,21 @@ class ThesisThread extends StatelessWidget {
     return '${delta.inDays}d after locking';
   }
 
+  /// [sinceLock], plus "after the result" for an update posted once the venue
+  /// had resolved the market, so hindsight never reads as part of the call.
+  static String caption(DateTime lockedAt, DateTime? resolvedAt, DateTime at) {
+    final since = sinceLock(lockedAt, at);
+    if (resolvedAt != null && !at.isBefore(resolvedAt)) {
+      return '$since · after the result';
+    }
+    return since;
+  }
+
   @override
   Widget build(BuildContext context) {
     final updates = detail.updates;
     final lockedAt = detail.entry.call.lockedAtUtc;
+    final resolvedAt = detail.entry.result?.resolvedAtUtc;
     final canAdd =
         isAuthor &&
         onAddUpdate != null &&
@@ -80,7 +93,7 @@ class ThesisThread extends StatelessWidget {
         for (final update in updates)
           _UpdateTile(
             update: update,
-            caption: sinceLock(lockedAt, update.createdAtUtc),
+            caption: caption(lockedAt, resolvedAt, update.createdAtUtc),
           ),
         if (canAdd)
           Align(
@@ -208,6 +221,24 @@ class _ThesisUpdateSheetState extends State<ThesisUpdateSheet> {
     } on CallsException catch (e) {
       // The draft stays in the field; only the reason is added.
       if (mounted) setState(() => _error = e.message);
+    } catch (_) {
+      // An answer the app could not read (e.g. a malformed reply). The
+      // server may already hold the update, so say so instead of inviting a
+      // duplicate, and re-read the call so the thread shows what is true.
+      if (!mounted) return;
+      setState(
+        () =>
+            _error =
+                'We couldn’t confirm that update. Check the thread before '
+                'posting it again.',
+      );
+      unawaited(
+        provider.loadCall(
+          widget.detail.entry.call.id,
+          force: true,
+          reportOpen: false,
+        ),
+      );
     }
   }
 
