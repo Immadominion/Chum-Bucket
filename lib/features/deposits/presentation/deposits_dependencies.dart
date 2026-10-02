@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_transport.dart';
+import 'package:chumbucket/features/embedded_wallet/embedded_wallet_controller.dart';
 
 import '../add_funds_controller.dart';
 import '../data/deposit_order_memory.dart';
@@ -72,16 +73,32 @@ class DepositsDependencies {
 
 /// The wallet this device trades from, as Add funds sees it.
 ///
-/// A connected wallet app (Mobile Wallet Adapter) first. A wallet that lives
-/// on this phone plugs in here once fleet/identity's `EmbeddedWalletController`
-/// is in the tree — see [DeviceDepositWalletSource] for the four lines. With
-/// neither, Add funds still works: the server funds the account's own
-/// verified wallet and only an ownership signature (above Crossmint's
-/// threshold) needs the device to hold the key.
+/// A connected wallet app (Mobile Wallet Adapter) first, else the account's
+/// wallet that lives on this phone once the server has linked it — the same
+/// order as `choosePantaSigner`, so Add funds tops up the wallet a trade
+/// spends from. With neither, Add funds still works: the server funds the
+/// account's own verified wallet, and only an ownership signature (above
+/// Crossmint's threshold) needs the device to hold the key.
 DepositWalletSource? depositWalletSourceOf(BuildContext context) {
   final auth = context.read<MwaAuthProvider?>();
   if (auth != null && auth.isAuthenticated && auth.walletAddress != null) {
     return MwaDepositWalletSource(auth);
+  }
+  final onPhone = context.read<EmbeddedWalletController?>();
+  final key = onPhone?.signer;
+  if (onPhone != null && key != null) {
+    return DeviceDepositWalletSource(
+      address: key.address,
+      currentAddress: () => onPhone.signer?.address,
+      sign: (message) async {
+        // Re-read: signed out, another account or another wallet since.
+        final signer = onPhone.signer;
+        if (signer == null || signer.address != key.address) {
+          throw const DepositWalletDeclined();
+        }
+        return signer.sign(message);
+      },
+    );
   }
   return null;
 }

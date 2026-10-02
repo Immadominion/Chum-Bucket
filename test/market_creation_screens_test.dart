@@ -306,7 +306,7 @@ void main() {
       expect(find.textContaining('Publish before'), findsOneWidget);
       await _tapText(tester, 'Publish on Panta');
       expect(
-        find.textContaining('Connect a Solana wallet with USDC to publish'),
+        find.textContaining('Publishing needs a Solana wallet with USDC'),
         findsOneWidget,
       );
       expect(bff.paths(), isNot(contains('marketCreation.preparePublish')));

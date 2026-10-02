@@ -19,17 +19,26 @@ import '../market_creation_controller.dart';
 import 'widgets/proposal_widgets.dart';
 
 /// Returns the latest proposal after a submit, or null when nothing was sent.
+///
+/// [onPhone]: the wallet that lives on this phone signs, so this sheet's
+/// button is the only approval (no wallet app opens) and the copy says so.
 Future<MarketProposal?> showPublishMarketSheet({
   required BuildContext context,
   required PublishMarketController controller,
+  bool onPhone = false,
 }) => showChumbucketWavySheet<MarketProposal>(
   context: context,
-  builder: (_) => PublishMarketSheet(controller: controller),
+  builder: (_) => PublishMarketSheet(controller: controller, onPhone: onPhone),
 );
 
 class PublishMarketSheet extends StatefulWidget {
-  const PublishMarketSheet({super.key, required this.controller});
+  const PublishMarketSheet({
+    super.key,
+    required this.controller,
+    this.onPhone = false,
+  });
   final PublishMarketController controller;
+  final bool onPhone;
 
   @override
   State<PublishMarketSheet> createState() => _PublishMarketSheetState();
@@ -160,8 +169,17 @@ class _PublishMarketSheetState extends State<PublishMarketSheet> {
             'The fee is not refundable. The market goes into Panta’s public catalog and the paying wallet is its on-chain creator. '
             'It closes ${localTime(c.proposal.closesAt)}.',
           ),
+          if (widget.onPhone && c.phase == PublishPhase.review)
+            _statement(
+              'Signing with the wallet on this phone sends this exact '
+              'create — there is no second screen.',
+            ),
           if (c.phase == PublishPhase.signing)
-            _statement('Approve in your wallet…')
+            _statement(
+              widget.onPhone
+                  ? 'Signing with the wallet on this phone…'
+                  : 'Approve in your wallet…',
+            )
           else if (c.phase == PublishPhase.submitting)
             _statement('Publishing on Panta…'),
         ];
@@ -188,7 +206,12 @@ class _PublishMarketSheetState extends State<PublishMarketSheet> {
       case PublishPhase.review:
         return [
           ChumbucketPrimaryButton(
-            label: c.reviewExpired ? 'Get a fresh fee' : 'Approve in wallet',
+            label:
+                c.reviewExpired
+                    ? 'Get a fresh fee'
+                    : widget.onPhone
+                    ? 'Sign and publish'
+                    : 'Approve in wallet',
             onPressed: c.reviewExpired ? c.prepare : c.approveAndSubmit,
           ),
           close,
@@ -197,11 +220,13 @@ class _PublishMarketSheetState extends State<PublishMarketSheet> {
       case PublishPhase.submitting:
         return [
           ChumbucketPrimaryButton(
-            label: 'Approve in wallet',
+            label: widget.onPhone ? 'Sign and publish' : 'Approve in wallet',
             busy: true,
             busyLabel:
                 c.phase == PublishPhase.signing
-                    ? 'Waiting for wallet…'
+                    ? widget.onPhone
+                        ? 'Signing…'
+                        : 'Waiting for wallet…'
                     : 'Publishing…',
             onPressed: null,
           ),

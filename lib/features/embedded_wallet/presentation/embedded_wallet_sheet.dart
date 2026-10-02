@@ -12,6 +12,11 @@ import 'package:chumbucket/features/authentication/continuity/session_continuity
 import 'package:chumbucket/features/authentication/presentation/screens/widgets/mwa_connect_button.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
+import 'package:chumbucket/features/deposits/presentation/add_funds_sheet.dart';
+import 'package:chumbucket/features/deposits/presentation/add_funds_widgets.dart'
+    show DepositBalanceCard;
+import 'package:chumbucket/features/deposits/presentation/mainnet_balance.dart';
+import 'package:chumbucket/features/sol_topup/presentation/sol_topup_prompt.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
@@ -322,6 +327,10 @@ class _WalletDetailsState extends State<_WalletDetails> {
         ),
         const SizedBox(height: 4),
         _StatusLine(wallet: wallet),
+        if (wallet.linked) ...[
+          const SizedBox(height: 12),
+          _Funds(address: address),
+        ],
         const SizedBox(height: 16),
         const _Point(
           'mobile-phone-outline',
@@ -330,8 +339,9 @@ class _WalletDetailsState extends State<_WalletDetails> {
         ),
         const _Point(
           'wallet-outline',
-          'To trade, send USDC and a little SOL (for network fees) on Solana '
-              'to the address above — from an exchange or another wallet.',
+          'Trades spend USDC and pay their network fee in SOL. Add funds with '
+              'a card, or send USDC on Solana to the address above from an '
+              'exchange or another wallet — a little of it can become SOL.',
         ),
         _BackupLine(wallet: wallet),
         const SizedBox(height: 8),
@@ -469,6 +479,62 @@ class _WalletDetailsState extends State<_WalletDetails> {
         ];
     }
   }
+}
+
+/// The wallet's real mainnet USDC and SOL, Add funds, and SOL for fees.
+class _Funds extends StatelessWidget {
+  const _Funds({required this.address});
+  final String address;
+
+  @override
+  Widget build(BuildContext context) => MainnetWalletBalance(
+    wallet: address,
+    builder:
+        (context, view) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            DepositBalanceCard(
+              address: null,
+              balance: view.balance,
+              loading: view.loading,
+              error: view.error,
+              available: view.available,
+              onRefresh: view.refresh,
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              key: const ValueKey('embedded-add-funds'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(48, 48),
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.textPrimary,
+                textStyle: AppTextStyles.textTheme.titleMedium,
+                padding: const EdgeInsets.all(14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              onPressed: () async {
+                final added = await showAddFundsSheet(
+                  context,
+                  fundWallet: address,
+                );
+                if (added) await view.refresh();
+              },
+              icon: const BasilIcon(
+                'add-outline',
+                color: AppColors.textPrimary,
+              ),
+              label: const Text('Add funds'),
+            ),
+            SolTopUpPrompt(
+              wallet: address,
+              alwaysShow: true,
+              onToppedUp: view.refresh,
+            ),
+          ],
+        ),
+  );
 }
 
 class _StatusLine extends StatelessWidget {

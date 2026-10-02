@@ -73,9 +73,10 @@ void main() {
       for (var i = 0; i < 6; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }
+      // The wallet sheet's own mainnet balance, and Add funds' above it.
       expect(
         find.byKey(const ValueKey('deposit-balance-card')),
-        findsOneWidget,
+        findsNWidgets(2),
       );
       expect(bff.inputs('status'), hasLength(1));
       expect(tester.takeException(), isNull);

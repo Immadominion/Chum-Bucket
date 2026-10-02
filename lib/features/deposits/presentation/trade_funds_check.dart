@@ -7,6 +7,7 @@ import 'package:chumbucket/features/calls/presentation/widgets/call_composer_she
     show callJourneyBody, callJourneyHeading;
 import 'package:chumbucket/features/panta_trading/data/panta_trading_models.dart';
 import 'package:chumbucket/features/panta_trading/panta_trade_controller.dart';
+import 'package:chumbucket/features/sol_topup/presentation/sol_topup_prompt.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 import '../data/deposits_client.dart';
@@ -15,8 +16,10 @@ import 'add_funds_sheet.dart';
 import 'deposits_dependencies.dart';
 
 /// Below the amount in the Panta trade review: the trading wallet's real
-/// USDC and SOL, read by the server from mainnet, and — when the buy is
-/// bigger than the USDC there — a way to add funds without leaving the trade.
+/// USDC and SOL, read by the server from mainnet; when the buy is bigger than
+/// the USDC there, a way to add funds without leaving the trade; and when the
+/// wallet's SOL can't pay for the trade, "Get SOL for fees" (a gasless swap
+/// of a little of its own USDC), or — where swaps are off — how to send SOL.
 ///
 /// Says nothing at all when it can't read a balance: a guessed "you have
 /// enough" is worse than silence. Never blocks the trade; the venue's own
@@ -113,9 +116,9 @@ class _TradeFundsCheckState extends State<TradeFundsCheck> {
             ? amount - b.usdcBaseUnits
             : null;
     final noSol = b.hasNoSol;
-    final warn = short != null || noSol;
+    final warn = short != null;
     final ink = warn ? AppColors.onWarningContainer : AppColors.textSecondary;
-    return Padding(
+    final balance = Padding(
       padding: const EdgeInsets.only(top: 12),
       child: Semantics(
         container: true,
@@ -152,39 +155,12 @@ class _TradeFundsCheckState extends State<TradeFundsCheck> {
                   style: callJourneyHeading(context, 14).copyWith(color: ink),
                 ),
               ],
-              if (noSol) ...[
-                const SizedBox(height: 6),
-                Text(
-                  'Network fees are paid in SOL, and this wallet has none. '
-                  'Send a little SOL to it before you trade.',
-                  key: const ValueKey('trade-funds-no-sol'),
-                  style: callJourneyBody(12).copyWith(color: ink),
-                ),
-              ],
               if (warn) ...[
                 const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: FilledButton.icon(
-                    key: const ValueKey('trade-add-funds'),
-                    onPressed: () => _addFunds(amount),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(48, 44),
-                      backgroundColor: AppColors.textPrimary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    icon: const BasilIcon(
-                      'add-outline',
-                      size: 18,
-                      color: Colors.white,
-                    ),
-                    // A card buys USDC only. With USDC covered and SOL
-                    // missing, the sheet leads with this wallet's address.
-                    label: Text(short != null ? 'Add funds' : 'Add SOL'),
-                  ),
+                _button(
+                  'trade-add-funds',
+                  'Add funds',
+                  () => _addFunds(amount),
                 ),
               ],
             ],
@@ -192,5 +168,60 @@ class _TradeFundsCheckState extends State<TradeFundsCheck> {
         ),
       ),
     );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        balance,
+        // The server's own count of what this wallet's SOL pays for. With
+        // swaps switched off, the old honest path: send SOL in.
+        SolTopUpPrompt(
+          key: ValueKey('trade-sol-topup-${trade.wallet}'),
+          wallet: trade.wallet,
+          onToppedUp: _read,
+          fallback: noSol ? _noSol() : null,
+        ),
+      ],
+    );
   }
+
+  Widget _noSol() => Container(
+    key: const ValueKey('trade-funds-no-sol'),
+    margin: const EdgeInsets.only(top: 12),
+    padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+    decoration: BoxDecoration(
+      color: AppColors.warningContainer,
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Network fees are paid in SOL, and this wallet has none. '
+          'Send a little SOL to it before you trade.',
+          style: callJourneyBody(
+            12,
+          ).copyWith(color: AppColors.onWarningContainer),
+        ),
+        const SizedBox(height: 8),
+        // A card buys USDC only: the sheet leads with this wallet's address.
+        _button('trade-add-sol', 'Add SOL', () => _addFunds(_amount)),
+      ],
+    ),
+  );
+
+  Widget _button(String key, String label, VoidCallback onPressed) => Align(
+    alignment: Alignment.centerLeft,
+    child: FilledButton.icon(
+      key: ValueKey(key),
+      onPressed: onPressed,
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(48, 44),
+        backgroundColor: AppColors.textPrimary,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+      icon: const BasilIcon('add-outline', size: 18, color: Colors.white),
+      label: Text(label),
+    ),
+  );
 }

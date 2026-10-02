@@ -36,7 +36,7 @@ class MyMarketsScreen extends StatefulWidget {
     super.key,
     this.controller,
     this.startWithCreate = false,
-    this.wallet = connectedMwaWallet,
+    this.wallet = publishWalletOf,
   });
 
   /// Injected by tests; otherwise built on the session's BFF token.

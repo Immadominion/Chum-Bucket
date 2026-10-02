@@ -180,7 +180,7 @@ class _PantaTradeSheetState extends State<PantaTradeSheet> {
               _review(controller.prepared!)
             else if (controller.order != null)
               Text(
-                'Recovered from your existing account. Use Check order status for updates.',
+                'Your earlier order for this call. Use Check order status for updates.',
                 style: AppTextStyles.textTheme.bodyMedium,
               ),
           ],

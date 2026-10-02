@@ -30,7 +30,8 @@ class PantaException implements Exception {
     PantaErrorCode.invalidAmount =>
       'Enter more than 0 and at most 100 USDC, with up to 6 decimal places.',
     PantaErrorCode.unavailable => 'Panta funding is unavailable right now.',
-    PantaErrorCode.signedOut => 'Sign in to your existing account to continue.',
+    PantaErrorCode.signedOut =>
+      'Sign in to trade. Trades belong to your Chumbucket account.',
     PantaErrorCode.sessionChanged =>
       'Your account changed. Return to the original account to continue.',
     PantaErrorCode.walletChanged =>
