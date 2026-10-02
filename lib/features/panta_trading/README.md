@@ -41,7 +41,11 @@ order is checked against the exact wallet, Panta market and side and enters the
 order phase. It allows manual order-ID reconciliation without a prepared quote;
 it never opens the wallet or starts another buy. Failed/foreign recovery blocks
 prepare. The server scopes the lookup to the canonical person/call/wallet.
-No automatic polling exists: `refreshOrder` and “Check order status” are manual.
+The trade sheet itself still checks manually (`refreshOrder`, “Check order
+status”). After it closes, the BFF's reconciler re-verifies every SUBMITTED
+order on its own, and the call shows `PantaOrderStatusRow`, which re-reads the
+ledger (`pantaTrading.callOrder`, never Panta) every 8 s while the order is
+pending (30 s after five minutes) and stops once it is FILLED or FAILED.
 Only server `FILLED` with complete fill evidence displays “Funded”.
 
 Before submit, dismissal cancels the local intent and invalidates late wallet
@@ -60,6 +64,29 @@ and injects synthetic identity, ledger, venue, and chain boundaries. Its public
 deterministic fixture signing does not represent MWA approval or live fills.
 The test harness is not exported by the feature.
 
+## After the buy: positions, claims, funded calls
+
+- `pantaTrading.positions` (session only) feeds `PantaPositionsController` and
+  `PantaPositionsView` (Profile → Positions): proven cost, Panta's quoted
+  shares, entry/current price, value and P&L as exact USDC base units, and the
+  status `pending · failed · open · awaiting_result · won_claimable · won ·
+  claiming · claimed · lost · void`. A missing source shows "—", never zero.
+  It refreshes itself while an order or claim is still being confirmed.
+- Claims: `claimPrepare` → local v0 checks → the signer from
+  `PantaSignerResolver` (`domain/panta_signer.dart`) → re-check of the signed
+  message → `claimSubmit`; a lost reply retries the identical signed bytes and
+  never re-signs. The server confirms only on chain proof of a USDC payout.
+  The resolver is the plug-in point for wallets: the profile tab maps a
+  connected MWA wallet to `PantaMwaWallet`; an on-phone wallet should return
+  its own `PantaWalletPort` for its address and check the
+  `PantaClaimSigningIntent` it is given before signing.
+- Selling: Panta's public API has no sell/close. The app links to
+  `https://panta.market/market/<venueMarketId>` (`pantaMarketUri`,
+  `PantaMarketLink`), which is also how receipts and market detail show
+  "Resolved by Panta" instead of the authenticated API URL.
+- Feed entries carry `funding` only for a confirmed fill; cards read "Funded"
+  and receipts say "Backed with a Panta position" — never an amount.
+
 ## Files
 
 All implementation and support files are new under `lib/features/panta_trading/`:
@@ -70,6 +97,10 @@ All implementation and support files are new under `lib/features/panta_trading/`
 - `domain/panta_wallet_port.dart` — existing session/selected-wallet callbacks and signing port.
 - `domain/panta_transaction_validator.dart` — local native v0 structural/message checks.
 - `panta_trade_controller.dart` — review, approval, replay, manual checks and cold recovery.
+- `data/panta_lifecycle_models.dart` — positions, claims, call order, exact money display.
+- `domain/panta_signer.dart` — signer resolver and signing intents (wallet plug-in point).
+- `panta_positions_controller.dart` — positions, auto refresh, claim flow.
+- `presentation/panta_positions_view.dart`, `panta_order_status_row.dart`, `panta_market_link.dart`.
 - `presentation/panta_trade_sheet.dart` — existing wavy-sheet/button/icon treatment.
 - `testing/bff_contract_harness.ts` — local real-router contract test bridge, no network.
 - `README.md` — integration, ownership, retry and recovery notes.
@@ -80,3 +111,4 @@ New scoped tests:
 - `test/panta_trading_controller_test.dart`
 - `test/panta_trading_sheet_test.dart`
 - `test/panta_trading_bff_contract_test.dart`
+- `test/panta_lifecycle_test.dart`, `test/panta_lifecycle_surfaces_test.dart`

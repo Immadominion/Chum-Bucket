@@ -216,8 +216,10 @@ void main() {
       await revealPeopleText(tester, 'Positions');
       await tester.tap(find.text('Positions'));
       await tester.pumpAndSettle();
-      expect(find.text('Private positions'), findsOneWidget);
-      expect(find.textContaining('not available here yet'), findsOneWidget);
+      // Positions are real and account-scoped now: without a canonical
+      // session the tab asks for sign-in instead of showing any figure.
+      expect(find.text('Sign in to see your positions'), findsOneWidget);
+      expect(find.textContaining('USDC'), findsNothing);
       await tester.drag(
         find.byType(SingleChildScrollView).first,
         const Offset(-400, 0),

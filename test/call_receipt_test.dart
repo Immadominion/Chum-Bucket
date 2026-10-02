@@ -137,7 +137,14 @@ void main() {
       // The source market.
       expect(find.text(receipt.marketQuestion), findsOneWidget);
       expect(find.text('Demo catalog'), findsOneWidget);
-      expect(find.text('res_fomc_sep_2026'), findsOneWidget);
+      // The evidence is stated in words; its raw record ID sits behind a
+      // disclosure so a shared image shows facts, not identifiers (M21).
+      expect(find.text('Demo catalog published the result'), findsOneWidget);
+      expect(find.textContaining('res_fomc_sep_2026'), findsNothing);
+      await tester.ensureVisible(find.text('Record IDs'));
+      await tester.tap(find.text('Record IDs'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('res_fomc_sep_2026'), findsOneWidget);
       // And the explicit denial of a stake.
       expect(
         find.text('Free call. No stake, no position, no money.'),

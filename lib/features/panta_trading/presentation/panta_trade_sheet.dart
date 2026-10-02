@@ -180,7 +180,7 @@ class _PantaTradeSheetState extends State<PantaTradeSheet> {
               'You can lose the full amount. This USDC buy is separate from your free call. '
               'Your call stays unchanged whether you trade or not. '
               'Your wallet also pays SOL transaction fees and possible account rent. '
-              'In-app selling and claims are not available in this build.',
+              'Claim winnings from Profile → Positions; selling happens on panta.market.',
               style: AppTextStyles.textTheme.bodySmall?.copyWith(
                 color: AppColors.onWarningContainer,
                 height: 1.5,

@@ -125,6 +125,8 @@ CallFeedEntry callFeedEntryFromJson(Map<String, dynamic> json) {
       json['viewerHasCalled'],
       'CallFeedEntry.viewerHasCalled',
     ),
+    // Additive: absent means not funded, never an error.
+    funding: CallFunding.fromJson(json['funding']),
   );
 }
 
@@ -192,6 +194,21 @@ MarketDetail marketDetailFromJson(Map<String, dynamic> json) {
     viewerCall: viewerCall == null ? null : callFeedEntryFromJson(viewerCall),
     crowdSplit: crowdSplit == null ? null : crowdSplitFromJson(crowdSplit),
     servedAt: requireWireTimestampMs(json['servedAt'], 'MarketDetail.servedAt'),
+    // Additive (M14): absent means the server did not say, never "no window".
+    callsCloseAt:
+        json['callsCloseAt'] == null
+            ? null
+            : requireWireTimestampMs(
+              json['callsCloseAt'],
+              'MarketDetail.callsCloseAt',
+            ),
+    callCutoffMs:
+        json['callCutoffMs'] == null
+            ? null
+            : requireWireCount(
+              json['callCutoffMs'],
+              'MarketDetail.callCutoffMs',
+            ),
   );
 }
 

@@ -16,6 +16,7 @@ import 'package:chumbucket/shared/widgets/app_components/app_avatar.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
+import 'package:chumbucket/features/panta_trading/presentation/panta_market_link.dart';
 
 Future<CallFeedEntry?> showCallComposer({
   required BuildContext context,
@@ -225,7 +226,18 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
                   ),
                   children: [
                     SelectableText(market.rulesText, style: callJourneyBody()),
-                    if (market.resolutionSource != null)
+                    // Panta's public page, never its authenticated API URL.
+                    if (market.venue == MarketVenue.panta &&
+                        market.venueMarketId.isNotEmpty)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: PantaMarketLink(
+                          venueMarketId: market.venueMarketId,
+                          label: 'Resolved by Panta',
+                          style: callJourneyBody(12),
+                        ),
+                      )
+                    else if (market.resolutionSource != null)
                       CallJourneyFact(
                         'Resolution source',
                         market.resolutionSource!,

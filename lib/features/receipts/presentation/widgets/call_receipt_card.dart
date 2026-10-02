@@ -8,6 +8,8 @@ import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_badges.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_composer_sheet.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart';
+import 'package:chumbucket/features/panta_trading/data/panta_lifecycle_models.dart';
+import 'package:chumbucket/features/panta_trading/presentation/panta_market_link.dart';
 import 'package:chumbucket/features/receipts/data/call_receipt.dart';
 import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
 import 'package:chumbucket/shared/widgets/app_components/app_avatar.dart';
@@ -223,7 +225,9 @@ class CallReceiptCard extends StatelessWidget {
                     CallsFormat.timestampUtc(receipt.resolvedAt!),
                   ),
                 Text(
-                  'Free call. No stake, no position, no money.',
+                  receipt.fundedOnPanta
+                      ? 'Backed with a Panta position. The amount stays private.'
+                      : 'Free call. No stake, no position, no money.',
                   style: proofStyle,
                 ),
                 const _DashedRule(),
@@ -243,22 +247,39 @@ class CallReceiptCard extends StatelessWidget {
                     'Price source',
                     SharePriceSnapshot.attribution,
                   ),
-                  CallJourneyFact('Price record', price.id),
                   const CallJourneyFact(
                     'Price type',
                     'Indicative, not a trade quote',
                   ),
                 ],
-                if (receipt.resolutionSource != null)
+                // Panta's public page, never its authenticated API URL.
+                if (receipt.resolvedByPanta) ...[
+                  CallJourneyFact(
+                    'Resolved by',
+                    'Panta · ${pantaMarketUri(receipt.venueMarketId!).host}'
+                        '${pantaMarketUri(receipt.venueMarketId!).path}',
+                  ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: PantaMarketLink(
+                      venueMarketId: receipt.venueMarketId!,
+                      label: 'Check the result on Panta',
+                      style: proofStyle,
+                    ),
+                  ),
+                ] else if (receipt.resolutionSource != null &&
+                    receipt.venueLabel != 'Panta')
                   CallJourneyFact('Resolved by', receipt.resolutionSource!),
                 CallJourneyFact(
                   'Evidence',
-                  receipt.marketResolutionId ??
-                      'No resolution reference published',
+                  receipt.marketResolutionId == null
+                      ? 'No resolution published yet'
+                      : '${receipt.venueLabel} published the result',
                 ),
                 if (original != null)
                   CallJourneyFact('Visibility', original.call.visibility.label),
-                Text('Call ${receipt.callId}', style: proofStyle),
+                // Raw record IDs, for anyone checking, behind a disclosure.
+                _RecordIds(receipt: receipt, style: proofStyle),
                 const SizedBox(height: 18),
                 // Wordmark left, tagline right; the tagline drops below at
                 // large text rather than squeezing either.
@@ -282,6 +303,46 @@ class CallReceiptCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The exact identifiers behind the receipt, collapsed by default so a shared
+/// image shows facts, not UUIDs.
+class _RecordIds extends StatelessWidget {
+  const _RecordIds({required this.receipt, required this.style});
+  final CallReceipt receipt;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    final ids = <(String, String)>[
+      ('Call', receipt.callId),
+      if (receipt.entryPrice case final price?) ('Price record', price.id),
+      if (receipt.marketResolutionId case final id?) ('Result record', id),
+      if (receipt.venueMarketId case final id?) ('Venue market', id),
+    ];
+    // Its own transparent Material: the receipt is a decorated box, and a
+    // list tile paints its ink on the nearest Material.
+    return Material(
+      type: MaterialType.transparency,
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          key: ValueKey('receipt-record-ids-${receipt.callId}'),
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: const EdgeInsets.only(bottom: 4),
+          dense: true,
+          title: Text('Record IDs', style: style),
+          children: [
+            for (final (label, value) in ids)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: SelectableText('$label  $value', style: style),
+              ),
+          ],
+        ),
       ),
     );
   }
