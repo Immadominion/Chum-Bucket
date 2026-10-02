@@ -11,6 +11,7 @@
 library;
 
 import 'package:chumbucket/features/calls/data/call_models.dart';
+import 'package:chumbucket/features/people/data/people_models.dart';
 
 // ---------------------------------------------------------------------------
 // Failures — one per reachable UI state
@@ -79,6 +80,12 @@ class Person {
   final int settledCalls;
   final int correctCalls;
 
+  /// The person's own profile line, when they wrote one.
+  final String? bio;
+
+  /// Unix ms the account was created. Null when unknown — never guessed.
+  final int? joinedAt;
+
   const Person({
     required this.id,
     required this.handle,
@@ -87,7 +94,14 @@ class Person {
     this.walletAddress,
     this.settledCalls = 0,
     this.correctCalls = 0,
+    this.bio,
+    this.joinedAt,
   });
+
+  DateTime? get joinedAtUtc =>
+      joinedAt == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(joinedAt!, isUtc: true);
 
   /// Null when there is nothing settled yet — never render "0%" for "no data".
   double? get accuracy =>
@@ -264,10 +278,19 @@ class CallDetail {
   /// Responses made to this call.
   final List<CallResponse> responses;
 
+  /// The thesis thread: the author's timestamped follow-ups, oldest first.
+  /// The original [Call.thesis] is never changed by them.
+  final List<ThesisUpdate> updates;
+
+  /// False when the server cannot take updates yet — offer no action then.
+  final bool updatesAvailable;
+
   const CallDetail({
     required this.entry,
     this.parent,
     this.responses = const [],
+    this.updates = const [],
+    this.updatesAvailable = false,
   });
 }
 
@@ -278,12 +301,37 @@ class PersonDetail {
   final bool viewerIsFollowing;
   final int servedAt;
 
+  /// Follow counts. Null when the server did not send them (never zero for
+  /// "unknown"). The lists themselves are not public.
+  final int? followerCount;
+  final int? followingCount;
+
+  /// The server's public record — withdrawn calls included, followers-only
+  /// excluded. Null from a server that predates it.
+  final PublicRecord? record;
+
   const PersonDetail({
     required this.person,
     required this.calls,
     this.viewerIsFollowing = false,
     required this.servedAt,
+    this.followerCount,
+    this.followingCount,
+    this.record,
   });
+
+  PersonDetail copyWith({
+    List<CallFeedEntry>? calls,
+    bool? viewerIsFollowing,
+  }) => PersonDetail(
+    person: person,
+    calls: calls ?? this.calls,
+    viewerIsFollowing: viewerIsFollowing ?? this.viewerIsFollowing,
+    servedAt: servedAt,
+    followerCount: followerCount,
+    followingCount: followingCount,
+    record: record,
+  );
 }
 
 // ---------------------------------------------------------------------------

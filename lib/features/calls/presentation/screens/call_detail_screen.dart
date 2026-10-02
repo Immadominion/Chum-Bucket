@@ -28,6 +28,7 @@ import 'package:chumbucket/features/calls/presentation/widgets/call_response_she
 import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
+import 'package:chumbucket/features/people/presentation/widgets/thesis_thread.dart';
 import 'package:chumbucket/features/receipts/data/call_receipt.dart';
 import 'package:chumbucket/features/receipts/presentation/call_receipt_sheet.dart';
 
@@ -217,6 +218,19 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
     } finally {
       if (mounted) setState(() => _followBusy = false);
     }
+  }
+
+  Future<void> _addUpdate(CallDetail detail) async {
+    final posted = await showThesisUpdateSheet(
+      context: context,
+      detail: detail,
+    );
+    if (posted == null || !mounted) return;
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      const SnackBar(
+        content: Text('Update posted. Your original call is unchanged.'),
+      ),
+    );
   }
 
   Future<void> _shareReceipt(CallFeedEntry entry) async {
@@ -429,6 +443,16 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
                       style: callJourneyBody(
                         14,
                       ).copyWith(color: AppColors.textPrimary, height: 1.75),
+                    ),
+                    // The thread hangs under the original reason and never
+                    // replaces it. Only the author may add to it.
+                    ThesisThread(
+                      detail: detail,
+                      isAuthor: own,
+                      onAddUpdate:
+                          own && provider.supportsPeople
+                              ? () => _addUpdate(detail)
+                              : null,
                     ),
                     const Padding(
                       padding: EdgeInsets.only(top: 18, bottom: 14),

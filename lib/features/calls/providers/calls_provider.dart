@@ -20,6 +20,8 @@ import 'package:flutter/foundation.dart';
 import 'package:chumbucket/core/analytics/analytics.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
+import 'package:chumbucket/features/people/data/people_models.dart';
+import 'package:chumbucket/features/people/data/people_repository.dart';
 
 /// The states every list surface in this slice must be able to reach.
 enum CallsLoadState {
@@ -136,6 +138,7 @@ class CallsProvider extends ChangeNotifier {
     _personErrors.clear();
     _openMarketsError = null;
     _feedFromCache = false;
+    _clearPeople();
     // Binds the experiment unit to the canonical `public.users.id` — never a
     // wallet (contract §0.3). The id is hashed to an arm and is never itself
     // recorded. Also clears the impression dedupe so the next account's first
@@ -582,8 +585,7 @@ class CallsProvider extends ChangeNotifier {
       for (final ref in _personDetails.keys.toList()) {
         final cached = _personDetails[ref];
         if (cached?.person.id != personId) continue;
-        _personDetails[ref] = PersonDetail(
-          person: cached!.person,
+        _personDetails[ref] = cached!.copyWith(
           calls:
               confirmed
                   ? cached.calls
@@ -594,9 +596,15 @@ class CallsProvider extends ChangeNotifier {
                       )
                       .toList(),
           viewerIsFollowing: confirmed,
-          servedAt: cached.servedAt,
         );
       }
+      // The follow list changed; read it again rather than editing it here.
+      // A read already in flight predates this change, so it is discarded
+      // rather than allowed to refill the list with the old membership.
+      _requests.remove('following');
+      _isLoadingFollowing = false;
+      _followingError = null;
+      _following = null;
       if (!confirmed) {
         _callDetails.removeWhere(
           (_, cached) =>
@@ -719,6 +727,12 @@ class CallsProvider extends ChangeNotifier {
     // The viewer now has a locked call on this market, so the crowd split
     // becomes available — force a refetch rather than synthesising it here.
     _marketDetails.remove(entry.market.id);
+    // Same gate on Home's top calls: a top call on this market now carries
+    // its split (and, after a Back/Fade, one more response). The strip on
+    // screen stays until the server's answer replaces it.
+    if (_topCalls?.any((top) => top.market.id == entry.market.id) ?? false) {
+      unawaited(loadTopCalls(force: true));
+    }
 
     final call = entry.call;
     _analytics.record(
@@ -819,6 +833,203 @@ class CallsProvider extends ChangeNotifier {
       if (_isCurrent('invitations', request)) {
         _requests.remove('invitations');
         _isLoadingInvitations = false;
+        _notify();
+      }
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // The people layer — leaderboard, following, top calls, search, thesis
+  // -------------------------------------------------------------------------
+  //
+  // Available only when the repository implements [PeopleRepository] (the
+  // live BFF does; the seeded mock does not). Without it every surface below
+  // reports itself unavailable instead of inventing rankings or activity.
+
+  PeopleRepository? get _people =>
+      _repository is PeopleRepository ? _repository as PeopleRepository : null;
+
+  /// Whether this build can show the people layer at all.
+  bool get supportsPeople => _people != null;
+
+  final Map<LeaderboardWindow, Leaderboard> _leaderboards = {};
+  final Set<LeaderboardWindow> _leaderboardsInFlight = {};
+  final Map<LeaderboardWindow, String> _leaderboardErrors = {};
+
+  List<TopCall>? _topCalls;
+  bool _isLoadingTopCalls = false;
+  String? _topCallsError;
+
+  List<PersonCard>? _following;
+  bool _isLoadingFollowing = false;
+  String? _followingError;
+
+  Leaderboard? leaderboard(LeaderboardWindow window) => _leaderboards[window];
+  bool isLoadingLeaderboard(LeaderboardWindow window) =>
+      _leaderboardsInFlight.contains(window);
+  String? leaderboardError(LeaderboardWindow window) =>
+      _leaderboardErrors[window];
+
+  /// Null until loaded; empty means "loaded, nothing to show".
+  List<TopCall>? get topCalls =>
+      _topCalls == null ? null : List.unmodifiable(_topCalls!);
+  bool get isLoadingTopCalls => _isLoadingTopCalls;
+  String? get topCallsError => _topCallsError;
+
+  /// The signed-in person's follow list. Null until loaded.
+  List<PersonCard>? get following =>
+      _following == null ? null : List.unmodifiable(_following!);
+  bool get isLoadingFollowing => _isLoadingFollowing;
+  String? get followingError => _followingError;
+
+  void _clearPeople() {
+    _leaderboards.clear();
+    _leaderboardsInFlight.clear();
+    _leaderboardErrors.clear();
+    _topCalls = null;
+    _isLoadingTopCalls = false;
+    _topCallsError = null;
+    _following = null;
+    _isLoadingFollowing = false;
+    _followingError = null;
+  }
+
+  static String _messageOf(Object error) =>
+      error is CallsException ? error.message : const CallsFailure().message;
+
+  Future<void> loadLeaderboard(
+    LeaderboardWindow window, {
+    bool force = false,
+  }) async {
+    final people = _people;
+    if (people == null) return;
+    if (_leaderboardsInFlight.contains(window)) return;
+    if (!force && _leaderboards.containsKey(window)) return;
+    final key = 'leaderboard:${window.wire}';
+    final request = _beginRequest(key);
+    _leaderboardsInFlight.add(window);
+    _leaderboardErrors.remove(window);
+    _notify();
+    try {
+      final board = await people.fetchLeaderboard(window: window);
+      if (!_isCurrent(key, request)) return;
+      _leaderboards[window] = board;
+      _isOffline = false;
+    } on CallsOfflineException catch (e) {
+      if (!_isCurrent(key, request)) return;
+      _isOffline = true;
+      _leaderboardErrors[window] = e.message;
+    } catch (e) {
+      if (!_isCurrent(key, request)) return;
+      developer.log('CallsProvider.loadLeaderboard failed: $e');
+      _leaderboardErrors[window] = _messageOf(e);
+    } finally {
+      if (_isCurrent(key, request)) {
+        _requests.remove(key);
+        _leaderboardsInFlight.remove(window);
+        _notify();
+      }
+    }
+  }
+
+  Future<void> loadTopCalls({bool force = false}) async {
+    final people = _people;
+    if (people == null || _isLoadingTopCalls) return;
+    if (!force && _topCalls != null) return;
+    const key = 'top-calls';
+    final request = _beginRequest(key);
+    _isLoadingTopCalls = true;
+    _topCallsError = null;
+    _notify();
+    try {
+      final calls = await people.fetchTopCalls();
+      if (!_isCurrent(key, request)) return;
+      _topCalls = calls;
+    } catch (e) {
+      if (!_isCurrent(key, request)) return;
+      developer.log('CallsProvider.loadTopCalls failed: $e');
+      _topCallsError = _messageOf(e);
+    } finally {
+      if (_isCurrent(key, request)) {
+        _requests.remove(key);
+        _isLoadingTopCalls = false;
+        _notify();
+      }
+    }
+  }
+
+  Future<void> loadFollowing({bool force = false}) async {
+    final people = _people;
+    if (people == null || !isSignedIn || _isLoadingFollowing) return;
+    if (!force && _following != null) return;
+    const key = 'following';
+    final request = _beginRequest(key);
+    _isLoadingFollowing = true;
+    _followingError = null;
+    _notify();
+    try {
+      final list = await people.fetchFollowing();
+      if (!_isCurrent(key, request)) return;
+      _following = list;
+    } catch (e) {
+      if (!_isCurrent(key, request)) return;
+      developer.log('CallsProvider.loadFollowing failed: $e');
+      _followingError = _messageOf(e);
+    } finally {
+      if (_isCurrent(key, request)) {
+        _requests.remove(key);
+        _isLoadingFollowing = false;
+        _notify();
+      }
+    }
+  }
+
+  /// One search, returned directly: results belong to the screen asking, not
+  /// to a shared cache. A result for a viewer who has since changed is
+  /// discarded rather than shown.
+  Future<List<PersonCard>> searchPeople(String query) async {
+    final people = _people;
+    if (people == null) {
+      throw const CallsFailure('People search is not available in this build.');
+    }
+    final viewer = _viewerUserId;
+    final results = await people.searchPeople(query);
+    if (_disposed || viewer != _viewerUserId) throw _accountChanged;
+    return results;
+  }
+
+  /// Append to the viewer's own call's thesis, then re-read the call so the
+  /// thread on screen is the server's, not a local guess.
+  Future<ThesisUpdate> appendThesisUpdate(String callId, String body) async {
+    final people = _people;
+    if (people == null) {
+      throw const CallsRejectedException(
+        'Thesis updates are not available in this build.',
+      );
+    }
+    if (!isSignedIn) throw const CallsSignedOutException();
+    if (_isSubmitting) {
+      throw const CallsRejectedException('Already posting that.');
+    }
+    final request = _beginRequest('submit');
+    _isSubmitting = true;
+    _notify();
+    try {
+      final update = await people.appendThesisUpdate(
+        callId: callId,
+        body: body,
+      );
+      if (!_isCurrent('submit', request)) throw _accountChanged;
+      // Keeps the action busy until the thread on screen includes it.
+      await loadCall(callId, force: true, reportOpen: false);
+      return update;
+    } catch (_) {
+      if (!_isCurrent('submit', request)) throw _accountChanged;
+      rethrow;
+    } finally {
+      if (_isCurrent('submit', request)) {
+        _requests.remove('submit');
+        _isSubmitting = false;
         _notify();
       }
     }

@@ -8,6 +8,9 @@ import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_person_screen.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_detail_screen.dart';
+import 'package:chumbucket/features/people/presentation/leaderboard_view.dart';
+import 'package:chumbucket/features/people/presentation/search_screen.dart';
+import 'package:chumbucket/features/people/presentation/widgets/person_row.dart';
 import 'package:chumbucket/shared/screens/home/widgets/friends_tab.dart';
 import 'package:chumbucket/shared/screens/home/widgets/header.dart';
 import 'package:chumbucket/shared/widgets/app_components/app_avatar.dart';
@@ -48,16 +51,30 @@ class _FriendsHubTabState extends State<FriendsHubTab>
     super.build(context);
     final calls = context.watch<CallsProvider?>();
     final wallet = context.watch<MwaAuthProvider?>()?.walletAddress;
+    // The record-based Leaderboard exists only where the live people layer
+    // does. A build without it (the seeded mock) shows no ranking at all
+    // rather than an invented one.
+    final people = calls?.supportsPeople == true;
+    final labels = ['Friends', 'Following', if (people) 'Leaderboard'];
+    final selected = _selectedIndex < labels.length ? _selectedIndex : 0;
     return SafeArea(
       bottom: false,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: ChumbucketAppHeader(
               title: 'Friends',
               showAccountActions: false,
+              onSearchTap:
+                  calls == null
+                      ? null
+                      : () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const PeopleSearchScreen(),
+                        ),
+                      ),
             ),
           ),
           Padding(
@@ -65,8 +82,8 @@ class _FriendsHubTabState extends State<FriendsHubTab>
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: ChumbucketTabs(
-                labels: const ['Friends', 'Following'],
-                selectedIndex: _selectedIndex,
+                labels: labels,
+                selectedIndex: selected,
                 onSelected: (index) => setState(() => _selectedIndex = index),
               ),
             ),
@@ -74,7 +91,7 @@ class _FriendsHubTabState extends State<FriendsHubTab>
           const SizedBox(height: 16),
           Expanded(
             child: IndexedStack(
-              index: _selectedIndex,
+              index: selected,
               children: [
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -98,13 +115,111 @@ class _FriendsHubTabState extends State<FriendsHubTab>
                             : null,
                   ),
                 ),
-                _FollowingPeople(
-                  key: ValueKey('following-${calls?.viewerUserId}'),
-                  provider: calls,
-                ),
+                if (people)
+                  _FollowingList(
+                    key: ValueKey('following-list-${calls!.viewerUserId}'),
+                    provider: calls,
+                  )
+                else
+                  _FollowingPeople(
+                    key: ValueKey('following-${calls?.viewerUserId}'),
+                    provider: calls,
+                  ),
+                if (people) const LeaderboardView(),
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The people you follow, from the server's own follow list
+/// (`people.following`) — complete, not inferred from recent calls — each
+/// with their public record.
+class _FollowingList extends StatelessWidget {
+  final CallsProvider provider;
+  const _FollowingList({super.key, required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final styles = AppTextStyles.textTheme;
+    if (!provider.isSignedIn) {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 140),
+        children: [
+          _PeopleNotice(
+            artwork: ChumbucketStateArtwork.access,
+            title: 'Keep up with your people',
+            message: 'Sign in to see the people you follow.',
+            action: () => requestCallSignIn(context),
+            actionLabel: 'Sign in',
+          ),
+        ],
+      );
+    }
+    final following = provider.following;
+    final error = provider.followingError;
+    final loading = provider.isLoadingFollowing;
+    // First open, or the list was dropped after a follow change: read it.
+    if (following == null && !loading && error == null) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => provider.loadFollowing(),
+      );
+    }
+    return RefreshIndicator(
+      color: AppColors.primary,
+      onRefresh: () => provider.loadFollowing(force: true),
+      child: ListView(
+        key: const PageStorageKey('following-list'),
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 140),
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          Text('People you follow', style: styles.titleLarge),
+          const SizedBox(height: 8),
+          Text(
+            'Their calls fill your Following feed on Home. Following is '
+            'separate from friendship.',
+            style: styles.bodySmall?.copyWith(
+              color: AppColors.textSecondary,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (loading) const LinearProgressIndicator(color: AppColors.primary),
+          if (error != null)
+            _PeopleNotice(
+              artwork: ChumbucketStateArtwork.error,
+              title: 'Following unavailable',
+              message: error,
+              action: () => provider.loadFollowing(force: true),
+              actionLabel: 'Try again',
+            )
+          else if (following != null && following.isEmpty)
+            const _PeopleNotice(
+              artwork: ChumbucketStateArtwork.people,
+              title: 'You don’t follow anyone yet',
+              message:
+                  'Find people on the Leaderboard, in Search, or from any call '
+                  'on Home, then tap Follow.',
+            )
+          else if (following != null)
+            PersonRowGroup(
+              rows: [
+                for (final person in following)
+                  PersonRow(
+                    person: person,
+                    onTap:
+                        () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder:
+                                (_) => CallPersonScreen(personRef: person.id),
+                          ),
+                        ),
+                  ),
+              ],
+            ),
         ],
       ),
     );
