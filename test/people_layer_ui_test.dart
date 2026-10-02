@@ -8,6 +8,7 @@
 library;
 
 import 'package:chumbucket/core/theme/app_text_styles.dart';
+import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/data/mock_calls_repository.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_detail_screen.dart';
@@ -87,8 +88,13 @@ class PeopleFake extends MockCallsRepository implements PeopleRepository {
   @override
   Future<List<PersonCard>> fetchFollowing() async => follows;
 
+  int topRequests = 0;
+
   @override
-  Future<List<TopCall>> fetchTopCalls({int limit = 10}) async => top;
+  Future<List<TopCall>> fetchTopCalls({int limit = 10}) async {
+    topRequests++;
+    return top;
+  }
 
   @override
   Future<ThesisUpdate> appendThesisUpdate({
@@ -389,6 +395,56 @@ void main() {
       expect(find.text('Top calls'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('an empty Following feed still shows the strip, at 320dp/2x', (
+      tester,
+    ) async {
+      final repo = _EmptyFollowingFake();
+      final seed = (await repo.fetchFeed(
+        mode: CallFeedMode.global,
+      )).entries.firstWhere((e) => e.author.id != _viewer);
+      repo.top = [topCall(seed)];
+      final provider = await signedIn(repo);
+      provider.setFeedMode(CallFeedMode.following);
+      await mountPeople(
+        tester,
+        withCalls(provider, const CallFeedScreen(showHeader: false)),
+      );
+      expect(provider.feed, isEmpty);
+      expect(find.text('Top calls'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    test('locking a call on a top call’s market re-reads the strip', () async {
+      final repo = PeopleFake();
+      final provider = await signedIn(repo);
+      final seed = (await repo.fetchFeed(
+        mode: CallFeedMode.global,
+        viewerUserId: _viewer,
+      )).entries.firstWhere(
+        (e) => e.author.id != _viewer && !e.viewerHasCalled,
+      );
+      repo.top = [topCall(seed)];
+      await provider.loadTopCalls();
+      expect(repo.topRequests, 1);
+
+      // Calling elsewhere leaves the strip alone.
+      final elsewhere = (await repo.fetchOpenMarkets()).firstWhere(
+        (m) => m.id != seed.market.id,
+      );
+      await provider.createCall(
+        CreateCallInput(marketId: elsewhere.id, side: Side.yes),
+      );
+      await pumpEventQueue();
+      expect(repo.topRequests, 1);
+
+      // Calling on its market opens the split gate: the strip is read again.
+      await provider.createCall(
+        CreateCallInput(marketId: seed.market.id, side: Side.yes),
+      );
+      await pumpEventQueue();
+      expect(repo.topRequests, 2);
+    });
   });
 
   group('trader profile', () {
@@ -561,4 +617,25 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+}
+
+/// A viewer who follows nobody yet: the Following feed is empty.
+class _EmptyFollowingFake extends PeopleFake {
+  @override
+  Future<CallFeedPage> fetchFeed({
+    required CallFeedMode mode,
+    String? viewerUserId,
+    String? cursor,
+    int limit = 20,
+  }) async {
+    if (mode == CallFeedMode.following) {
+      return const CallFeedPage(entries: [], servedAt: 0);
+    }
+    return super.fetchFeed(
+      mode: mode,
+      viewerUserId: viewerUserId,
+      cursor: cursor,
+      limit: limit,
+    );
+  }
 }

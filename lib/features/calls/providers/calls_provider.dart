@@ -722,6 +722,12 @@ class CallsProvider extends ChangeNotifier {
     // The viewer now has a locked call on this market, so the crowd split
     // becomes available — force a refetch rather than synthesising it here.
     _marketDetails.remove(entry.market.id);
+    // Same gate on Home's top calls: a top call on this market now carries
+    // its split (and, after a Back/Fade, one more response). The strip on
+    // screen stays until the server's answer replaces it.
+    if (_topCalls?.any((top) => top.market.id == entry.market.id) ?? false) {
+      unawaited(loadTopCalls(force: true));
+    }
 
     final call = entry.call;
     _analytics.record(

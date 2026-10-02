@@ -126,20 +126,39 @@ void main() {
   test(
     'an older server without these paths reads as "not yet", not as a refusal',
     () async {
-      final server = FakeBffServer.failing(
+      // Both of tRPC's wordings. The first is what the deployed production
+      // BFF actually answers for a path it does not have (observed
+      // 2026-10-02); the second is the wrong-procedure-type variant.
+      for (final message in [
+        'No procedure found on path "people.leaderboard"',
+        'No "query"-procedure on path "people.leaderboard"',
+      ]) {
+        final server = FakeBffServer.failing(
+          code: 'NOT_FOUND',
+          httpStatus: 404,
+          message: message,
+        );
+        await expectLater(
+          build(server).fetchLeaderboard(window: LeaderboardWindow.all),
+          throwsA(
+            isA<CallsFailure>().having(
+              (e) => e.message,
+              'message',
+              contains("isn't available on the server yet"),
+            ),
+          ),
+          reason: message,
+        );
+      }
+      // The mutation path too: an older server has no calls.addUpdate.
+      final noMutation = FakeBffServer.failing(
         code: 'NOT_FOUND',
         httpStatus: 404,
-        message: 'No "query"-procedure on path "people.leaderboard"',
+        message: 'No procedure found on path "calls.addUpdate"',
       );
       await expectLater(
-        build(server).fetchLeaderboard(window: LeaderboardWindow.all),
-        throwsA(
-          isA<CallsFailure>().having(
-            (e) => e.message,
-            'message',
-            contains("isn't available on the server yet"),
-          ),
-        ),
+        build(noMutation).appendThesisUpdate(callId: 'c', body: 'x'),
+        throwsA(isA<CallsFailure>()),
       );
       // A real refusal is still shown verbatim.
       final refused = FakeBffServer.failing(

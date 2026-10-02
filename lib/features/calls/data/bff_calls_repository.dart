@@ -312,11 +312,13 @@ class BffCallsRepository
   // -------------------------------------------------------------------------
   //
   // These paths are newer than the original surface. A server that has not
-  // been updated answers tRPC's own NOT_FOUND ("No procedure on path …"),
-  // which is a deployment fact, not a refusal to show a person verbatim.
-
+  // been updated answers tRPC's own NOT_FOUND, which is a deployment fact,
+  // not a refusal to show a person verbatim. tRPC words it two ways:
+  //   No procedure found on path "people.leaderboard"    (path unknown: what
+  //                                                       an older deploy says)
+  //   No "query"-procedure on path "people.leaderboard"  (wrong procedure type)
   static final RegExp _missingProcedure = RegExp(
-    r'procedure on path',
+    r'\bno (?:"\w+"-)?procedure (?:found )?on path\b',
     caseSensitive: false,
   );
 
