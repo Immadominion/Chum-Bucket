@@ -20,6 +20,7 @@ library;
 
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
+import 'package:chumbucket/features/people/data/people_models.dart';
 
 // ---------------------------------------------------------------------------
 // Structural guards
@@ -90,6 +91,14 @@ Person personFromJson(Map<String, dynamic> json) => Person(
   walletAddress: json['walletAddress'] as String?,
   settledCalls: requireWireCount(json['settledCalls'], 'Person.settledCalls'),
   correctCalls: requireWireCount(json['correctCalls'], 'Person.correctCalls'),
+  bio: switch (json['bio']) {
+    final String bio when bio.trim().isNotEmpty => bio.trim(),
+    _ => null,
+  },
+  joinedAt:
+      json['joinedAt'] == null
+          ? null
+          : requireWireTimestampMs(json['joinedAt'], 'Person.joinedAt'),
 );
 
 // ---------------------------------------------------------------------------
@@ -199,18 +208,39 @@ MarketDetail marketDetailFromJson(Map<String, dynamic> json) {
 // Call detail
 // ---------------------------------------------------------------------------
 
-/// `{ entry, parent?, responses[] }`.
+/// `{ entry, parent?, responses[], updates[]?, updatesAvailable? }`.
+///
+/// `updates` is additive: a server without the thesis thread omits it, which
+/// reads as an empty thread that cannot take updates — never as an error.
 CallDetail callDetailFromJson(Map<String, dynamic> json) {
   final parent = optionalJsonMap(json['parent'], 'CallDetail.parent');
+  final entry = callFeedEntryFromJson(
+    requireJsonMap(json['entry'], 'CallDetail.entry'),
+  );
+  final updates = requireJsonList(
+    json['updates'],
+    'CallDetail.updates',
+  ).map(ThesisUpdate.fromJson).toList(growable: false);
+  for (final update in updates) {
+    if (update.callId != entry.call.id ||
+        update.authorUserId != entry.call.userId) {
+      throw const CallVocabularyException(
+        'A thesis update must belong to this call and its author.',
+      );
+    }
+  }
   return CallDetail(
-    entry: callFeedEntryFromJson(
-      requireJsonMap(json['entry'], 'CallDetail.entry'),
-    ),
+    entry: entry,
     parent: parent == null ? null : callFeedEntryFromJson(parent),
     responses: requireJsonList(
       json['responses'],
       'CallDetail.responses',
     ).map(CallResponse.fromJson).toList(growable: false),
+    updates: [...updates]..sort((a, b) => a.createdAt.compareTo(b.createdAt)),
+    updatesAvailable: requireWireBool(
+      json['updatesAvailable'],
+      'CallDetail.updatesAvailable',
+    ),
   );
 }
 
@@ -218,15 +248,41 @@ CallDetail callDetailFromJson(Map<String, dynamic> json) {
 // Person detail
 // ---------------------------------------------------------------------------
 
-/// `{ person, calls[], viewerIsFollowing, servedAt }`.
-PersonDetail personDetailFromJson(Map<String, dynamic> json) => PersonDetail(
-  person: personFromJson(requireJsonMap(json['person'], 'PersonDetail.person')),
-  calls: callFeedEntriesFromJson(json['calls'], 'PersonDetail.calls'),
-  viewerIsFollowing: requireWireBool(
-    json['viewerIsFollowing'], 'PersonDetail.viewerIsFollowing',
-  ),
-  servedAt: requireWireTimestampMs(json['servedAt'], 'PersonDetail.servedAt'),
-);
+/// `{ person, calls[], viewerIsFollowing, servedAt, followerCount?,
+/// followingCount?, record? }`. The last three are additive: absent stays
+/// null (unknown), never zero.
+PersonDetail personDetailFromJson(Map<String, dynamic> json) {
+  final record = optionalJsonMap(json['record'], 'PersonDetail.record');
+  return PersonDetail(
+    person: personFromJson(
+      requireJsonMap(json['person'], 'PersonDetail.person'),
+    ),
+    calls: callFeedEntriesFromJson(json['calls'], 'PersonDetail.calls'),
+    viewerIsFollowing: requireWireBool(
+      json['viewerIsFollowing'],
+      'PersonDetail.viewerIsFollowing',
+    ),
+    servedAt: requireWireTimestampMs(
+      json['servedAt'],
+      'PersonDetail.servedAt',
+    ),
+    followerCount:
+        json['followerCount'] == null
+            ? null
+            : requireWireCount(
+              json['followerCount'],
+              'PersonDetail.followerCount',
+            ),
+    followingCount:
+        json['followingCount'] == null
+            ? null
+            : requireWireCount(
+              json['followingCount'],
+              'PersonDetail.followingCount',
+            ),
+    record: record == null ? null : PublicRecord.fromJson(record),
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Challenge invitation

@@ -24,6 +24,16 @@
 /// | `fetchInvitations` | `calls.invitations` | query |
 /// | `setFollowing` | `people.follow` / `people.unfollow` | mutation |
 ///
+/// And the people layer ([PeopleRepository]), additive on the same BFF:
+///
+/// | Method | Procedure | Kind |
+/// | --- | --- | --- |
+/// | `fetchLeaderboard` | `people.leaderboard` | query |
+/// | `searchPeople` | `people.search` | query |
+/// | `fetchFollowing` | `people.following` | query |
+/// | `fetchTopCalls` | `calls.top` | query |
+/// | `appendThesisUpdate` | `calls.addUpdate` | mutation |
+///
 /// ## Identity
 ///
 /// **`viewerUserId` is never sent.** The §5 inputs carry no viewer field, and
@@ -49,8 +59,11 @@ import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_payloads.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_transport.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
+import 'package:chumbucket/features/people/data/people_models.dart';
+import 'package:chumbucket/features/people/data/people_repository.dart';
 
-class BffCallsRepository implements CallsRepository, CallsCatalogRepository {
+class BffCallsRepository
+    implements CallsRepository, CallsCatalogRepository, PeopleRepository {
   /// [httpClient] is the test seam: inject one and no socket is ever opened.
   /// [authToken] supplies the session; returning null simply means signed out.
   BffCallsRepository({
@@ -87,6 +100,11 @@ class BffCallsRepository implements CallsRepository, CallsCatalogRepository {
   static const String createCallProcedure = 'calls.create';
   static const String respondProcedure = 'calls.respond';
   static const String invitationsProcedure = 'calls.invitations';
+  static const String leaderboardProcedure = 'people.leaderboard';
+  static const String searchPeopleProcedure = 'people.search';
+  static const String followingProcedure = 'people.following';
+  static const String topCallsProcedure = 'calls.top';
+  static const String addUpdateProcedure = 'calls.addUpdate';
 
   /// Where this repository is pointed. Useful in a debug screen; never a
   /// hardcoded host.
@@ -287,6 +305,116 @@ class BffCallsRepository implements CallsRepository, CallsCatalogRepository {
     if (viewerUserId == null || viewerUserId.isEmpty) {
       throw const CallsSignedOutException();
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // The people layer
+  // -------------------------------------------------------------------------
+  //
+  // These paths are newer than the original surface. A server that has not
+  // been updated answers tRPC's own NOT_FOUND ("No procedure on path …"),
+  // which is a deployment fact, not a refusal to show a person verbatim.
+
+  static final RegExp _missingProcedure = RegExp(
+    r'procedure on path',
+    caseSensitive: false,
+  );
+
+  static Future<T> _people<T>(Future<T> Function() read) async {
+    try {
+      return await read();
+    } on CallsRejectedException catch (e) {
+      if (_missingProcedure.hasMatch(e.message)) {
+        throw const CallsFailure(
+          "This isn't available on the server yet. Please try again later.",
+        );
+      }
+      rethrow;
+    }
+  }
+
+  @override
+  Future<Leaderboard> fetchLeaderboard({
+    required LeaderboardWindow window,
+    int limit = 50,
+  }) => _people(() async {
+    final data = await _transport.query(leaderboardProcedure, {
+      'window': window.wire,
+      'limit': limit,
+    });
+    final board = Leaderboard.fromJson(
+      requireJsonMap(data, '$leaderboardProcedure result'),
+    );
+    if (board.window != window) {
+      throw const CallVocabularyException(
+        'The leaderboard answered for a different window.',
+      );
+    }
+    return board;
+  });
+
+  @override
+  Future<List<PersonCard>> searchPeople(String query, {int limit = 20}) =>
+      _people(() async {
+        final trimmed = query.trim();
+        // The server refuses an empty query; there is nothing to ask for.
+        if (trimmed.isEmpty) return const <PersonCard>[];
+        final data = await _transport.query(searchPeopleProcedure, {
+          'query': trimmed.length > 64 ? trimmed.substring(0, 64) : trimmed,
+          'limit': limit,
+        });
+        return personCardsFromJson(
+          requireJsonMap(data, '$searchPeopleProcedure result')['people'],
+          '$searchPeopleProcedure.people',
+        );
+      });
+
+  @override
+  Future<List<PersonCard>> fetchFollowing() => _people(() async {
+    final data = await _transport.query(followingProcedure, const {});
+    return personCardsFromJson(
+      requireJsonMap(data, '$followingProcedure result')['people'],
+      '$followingProcedure.people',
+    );
+  });
+
+  @override
+  Future<List<TopCall>> fetchTopCalls({int limit = 10}) => _people(() async {
+    final data = await _transport.query(topCallsProcedure, {'limit': limit});
+    return topCallsFromJson(requireJsonMap(data, '$topCallsProcedure result'));
+  });
+
+  @override
+  Future<ThesisUpdate> appendThesisUpdate({
+    required String callId,
+    required String body,
+  }) async {
+    final trimmed = body.trim();
+    if (trimmed.isEmpty) {
+      throw const CallsRejectedException(
+        'Write something before posting an update.',
+      );
+    }
+    if (trimmed.length > kThesisMaxLength) {
+      throw const CallsRejectedException(
+        'Keep an update to $kThesisMaxLength characters.',
+      );
+    }
+    final data = await _people(
+      () => _transport.mutate(addUpdateProcedure, {
+        'callId': callId,
+        'body': trimmed,
+      }),
+    );
+    final update = ThesisUpdate.fromJson(
+      requireJsonMap(data, '$addUpdateProcedure result'),
+    );
+    if (update.callId != callId) {
+      throw const CallVocabularyException(
+        'The update was recorded against a different call.',
+      );
+    }
+    return update;
   }
 
   // -------------------------------------------------------------------------

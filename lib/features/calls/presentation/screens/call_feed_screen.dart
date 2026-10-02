@@ -25,6 +25,9 @@ import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.
 import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/market_picker_sheet.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
+import 'package:chumbucket/features/people/data/people_models.dart';
+import 'package:chumbucket/features/people/presentation/search_screen.dart';
+import 'package:chumbucket/features/people/presentation/widgets/top_calls_strip.dart';
 import 'package:chumbucket/features/receipts/data/call_receipt.dart';
 import 'package:chumbucket/features/receipts/presentation/call_receipt_sheet.dart';
 import 'package:chumbucket/shared/screens/home/widgets/header.dart';
@@ -59,15 +62,26 @@ class _CallFeedScreenState extends State<CallFeedScreen>
   @override
   bool get wantKeepAlive => true;
 
+  /// The viewer the current reads were made for. A sign-in, sign-out or
+  /// account switch clears the provider's viewer-scoped caches, so Home reads
+  /// again for the new viewer instead of waiting on a skeleton nobody fills.
+  Object? _loadedForViewer = _notLoaded;
+  static const Object _notLoaded = Object();
+
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+  }
+
+  void _loadFor(CallsProvider provider) {
+    if (_loadedForViewer == provider.viewerUserId) return;
+    _loadedForViewer = provider.viewerUserId;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final provider = context.read<CallsProvider>();
       provider.loadFeed();
       provider.loadInvitations();
+      provider.loadTopCalls();
     });
   }
 
@@ -86,8 +100,28 @@ class _CallFeedScreenState extends State<CallFeedScreen>
     }
   }
 
-  Future<void> _refresh() =>
-      context.read<CallsProvider>().loadFeed(force: true);
+  Future<void> _refresh() async {
+    final provider = context.read<CallsProvider>();
+    await Future.wait([
+      provider.loadFeed(force: true),
+      provider.loadTopCalls(force: true),
+    ]);
+  }
+
+  void _openSearch() => Navigator.of(
+    context,
+  ).push(MaterialPageRoute(builder: (_) => const PeopleSearchScreen()));
+
+  /// The strip, or nothing: shown only with real entries, never a skeleton
+  /// that could read as activity.
+  Widget? _topCallsStrip(CallsProvider provider) {
+    final calls = provider.topCalls;
+    if (calls == null || calls.isEmpty) return null;
+    return TopCallsStrip(
+      calls: calls,
+      onOpen: (TopCall call) => _openCall(call.call.id),
+    );
+  }
 
   void _openCall(String callId) {
     Navigator.of(
@@ -148,14 +182,16 @@ class _CallFeedScreenState extends State<CallFeedScreen>
         bottom: false,
         child: Consumer<CallsProvider>(
           builder: (context, provider, _) {
+            _loadFor(provider);
             return Column(
               children: [
                 if (widget.showHeader)
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: 16.w),
-                    child: const ChumbucketAppHeader(
+                    child: ChumbucketAppHeader(
                       title: 'Home',
                       showAccountActions: false,
+                      onSearchTap: _openSearch,
                     ),
                   ),
                 _ModeBar(provider: provider, onCompose: _compose),
@@ -233,7 +269,11 @@ class _CallFeedScreenState extends State<CallFeedScreen>
                 ),
           );
         }
-        return CallsEmptyView(
+        final strip =
+            provider.feedMode == CallFeedMode.following
+                ? _topCallsStrip(provider)
+                : null;
+        final empty = CallsEmptyView(
           artwork:
               provider.feedMode == CallFeedMode.following
                   ? ChumbucketStateArtwork.people
@@ -255,6 +295,15 @@ class _CallFeedScreenState extends State<CallFeedScreen>
                   ? () => provider.setFeedMode(CallFeedMode.global)
                   : _compose,
         );
+        if (strip == null) return empty;
+        return RefreshIndicator(
+          color: AppColors.primary,
+          onRefresh: _refresh,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 140),
+            children: [strip, empty],
+          ),
+        );
       case CallsLoadState.ready:
         // A real resolved call from this session, not an invented unread count.
         final receipts =
@@ -268,7 +317,13 @@ class _CallFeedScreenState extends State<CallFeedScreen>
                 .toList()
               ..sort((a, b) => b.call.createdAt.compareTo(a.call.createdAt));
         final receipt = receipts.firstOrNull;
-        final headerCount = receipt == null ? 0 : 1;
+        final strip = _topCallsStrip(provider);
+        final headers = <Widget>[
+          if (receipt != null)
+            _ReceiptNudge(entry: receipt, onTap: () => _shareReceipt(receipt)),
+          if (strip != null) strip,
+        ];
+        final headerCount = headers.length;
         return RefreshIndicator(
           color: AppColors.primary,
           onRefresh: _refresh,
@@ -279,12 +334,7 @@ class _CallFeedScreenState extends State<CallFeedScreen>
                 headerCount + provider.feed.length + (provider.hasMore ? 1 : 0),
             separatorBuilder: (_, __) => SizedBox(height: 12.h),
             itemBuilder: (context, index) {
-              if (index == 0 && receipt != null) {
-                return _ReceiptNudge(
-                  entry: receipt,
-                  onTap: () => _shareReceipt(receipt),
-                );
-              }
+              if (index < headerCount) return headers[index];
               index -= headerCount;
               if (index >= provider.feed.length) {
                 return Padding(

@@ -20,6 +20,8 @@ import 'package:chumbucket/features/calls/presentation/widgets/call_card.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_response_sheet.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
+import 'package:chumbucket/features/people/presentation/widgets/credibility_strip.dart';
+import 'package:chumbucket/features/people/presentation/widgets/people_format.dart';
 import 'package:chumbucket/features/receipts/data/call_receipt.dart';
 import 'package:chumbucket/features/receipts/presentation/call_receipt_sheet.dart';
 import 'package:chumbucket/features/record/data/category_record.dart';
@@ -201,11 +203,20 @@ class _CallPersonScreenState extends State<CallPersonScreen> {
   Widget _body(CallsProvider provider, PersonDetail detail) {
     final person = detail.person;
     final styles = AppTextStyles.textTheme;
-    // Only visible public free calls contribute to the public summary.
+    // Only visible public free calls contribute to the per-category view.
     // Person's lifetime fields do not carry a visibility scope in this model.
     final record = PersonRecord.fromEntries(
       detail.calls.where((e) => e.call.visibility == CallVisibility.public),
     );
+    final publicRecord = detail.record;
+    final followCounts = PeopleFormat.followCounts(
+      detail.followerCount,
+      detail.followingCount,
+    );
+    final isSelf = provider.viewerUserId == person.id;
+    final open = detail.calls.where((e) => !e.outcome.isSettled).toList();
+    final settled = detail.calls.where((e) => e.outcome.isSettled).toList();
+    final listed = _selectedTab == 0 ? open : settled;
     return RefreshIndicator(
       color: AppColors.primary,
       onRefresh: () async {
@@ -230,41 +241,69 @@ class _CallPersonScreenState extends State<CallPersonScreen> {
                   ProfileHeader(
                     username: person.displayName,
                     handle: person.handle,
-                    bio: '',
+                    bio: person.bio ?? '',
                     profileImagePath: person.avatarUrl,
                     canEdit: false,
                     onEditProfile: () {},
                     footer:
-                        provider.viewerUserId == person.id
+                        isSelf && followCounts == null
                             ? null
-                            : Padding(
-                              padding: const EdgeInsets.only(top: 16),
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  minHeight: 48,
-                                ),
-                                child: ChallengeButton(
-                                  label:
-                                      detail.viewerIsFollowing
-                                          ? 'Following'
-                                          : 'Follow',
-                                  isLoading: provider.isFollowBusy(person.id),
-                                  blurRadius: false,
-                                  createNewChallenge:
-                                      () => _setFollowing(detail),
-                                ),
-                              ),
+                            : Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                if (followCounts != null) ...[
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    followCounts,
+                                    style: styles.bodyMedium?.copyWith(
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                                if (!isSelf)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 16),
+                                    child: ConstrainedBox(
+                                      constraints: const BoxConstraints(
+                                        minHeight: 48,
+                                      ),
+                                      child: ChallengeButton(
+                                        label:
+                                            detail.viewerIsFollowing
+                                                ? 'Following'
+                                                : 'Follow',
+                                        isLoading: provider.isFollowBusy(
+                                          person.id,
+                                        ),
+                                        blurRadius: false,
+                                        createNewChallenge:
+                                            () => _setFollowing(detail),
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                   ),
-                  ProfileStatsCard(entries: detail.calls),
+                  // The server's public record when it sent one; otherwise
+                  // the older summary computed from the visible calls.
+                  if (publicRecord != null)
+                    CredibilityStrip(
+                      record: publicRecord,
+                      joinedAtUtc: person.joinedAtUtc,
+                    )
+                  else
+                    ProfileStatsCard(entries: detail.calls),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 12),
           Text(
-            'Public free calls shown here, including incorrect calls. '
-            'Void excluded from scored results. Separate from trading performance.',
+            publicRecord != null
+                ? 'Public free calls, misses and withdrawn calls included. '
+                    'Void is never scored. Followers-only calls and trades are not counted.'
+                : 'Public free calls shown here, including incorrect calls. '
+                    'Void excluded from scored results. Separate from trading performance.',
             style: styles.bodySmall?.copyWith(
               color: AppColors.textSecondary,
               height: 1.5,
@@ -284,13 +323,17 @@ class _CallPersonScreenState extends State<CallPersonScreen> {
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: ChumbucketTabs(
-              labels: const ['Calls', 'Record'],
+              labels: [
+                'Open · ${open.length}',
+                'Settled · ${settled.length}',
+                'Record',
+              ],
               selectedIndex: _selectedTab,
               onSelected: (index) => setState(() => _selectedTab = index),
             ),
           ),
           const SizedBox(height: 16),
-          if (_selectedTab == 1) ...[
+          if (_selectedTab == 2) ...[
             for (final category in record.categories)
               Container(
                 padding: const EdgeInsets.all(16),
@@ -331,8 +374,19 @@ class _CallPersonScreenState extends State<CallPersonScreen> {
               title: 'Nothing on record yet',
               message: 'When they make a call, it shows up here.',
             )
+          else if (listed.isEmpty)
+            CallsEmptyView(
+              artwork: ChumbucketStateArtwork.record,
+              title:
+                  _selectedTab == 0 ? 'No open calls' : 'Nothing settled yet',
+              message:
+                  _selectedTab == 0
+                      ? 'Every call here has a venue result. See Settled.'
+                      : 'No call here has a venue result yet. Closing time alone '
+                          'does not settle a call.',
+            )
           else
-            for (final entry in detail.calls)
+            for (final entry in listed)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Column(

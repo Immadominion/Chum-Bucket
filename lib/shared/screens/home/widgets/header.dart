@@ -27,12 +27,16 @@ class ChumbucketAppHeader extends StatelessWidget {
   final bool showAccountActions;
   final VoidCallback? onActivityTap;
 
+  /// Opens people + market search. Null shows no search action.
+  final VoidCallback? onSearchTap;
+
   const ChumbucketAppHeader({
     super.key,
     this.title,
     this.onProfileTap,
     this.showAccountActions = true,
     this.onActivityTap,
+    this.onSearchTap,
   });
 
   @override
@@ -51,6 +55,16 @@ class ChumbucketAppHeader extends StatelessWidget {
             const _WalletButton(),
             SizedBox(width: 6.w),
           ],
+          if (onSearchTap != null)
+            IconButton(
+              tooltip: 'Search',
+              onPressed: onSearchTap,
+              icon: BasilIcon(
+                'search-outline',
+                size: 20.w,
+                color: AppColors.textPrimary,
+              ),
+            ),
           if (onActivityTap != null)
             IconButton(
               tooltip: 'Activity',
