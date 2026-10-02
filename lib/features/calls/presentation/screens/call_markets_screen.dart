@@ -35,7 +35,10 @@ class _CallMarketsScreenState extends State<CallMarketsScreen> {
 
   String _query = '';
   MarketDiscoveryWindow _window = MarketDiscoveryWindow.all;
-  bool _cryptoOnly = false;
+
+  /// A category slug from the catalog itself, or null for all of them.
+  String? _category;
+  MarketDiscoverySort _sort = MarketDiscoverySort.closingSoon;
   final _requestedPrices = <String>{};
   String? _priceViewer;
 
@@ -73,11 +76,23 @@ class _CallMarketsScreenState extends State<CallMarketsScreen> {
       _priceViewer = provider.viewerUserId;
       _requestedPrices.clear();
     }
+    final open = provider.openMarkets;
+    final categories = discoveryCategories(open);
+    // A category that closed out since it was picked is not a silent filter.
+    final category =
+        categories.any((entry) => entry.category == _category)
+            ? _category
+            : null;
+    final hasActivity = discoveryHasActivity(open);
+    final sort = hasActivity ? _sort : MarketDiscoverySort.closingSoon;
+    final openCount = categories.fold(0, (sum, entry) => sum + entry.count);
+    final filtered = _window != MarketDiscoveryWindow.all || category != null;
     final rows = discoveryMarkets(
-      provider.openMarkets,
+      open,
       window: _window,
       query: _query,
-      category: _cryptoOnly ? 'crypto' : null,
+      category: category,
+      sort: sort,
     );
     final bottomPadding = widget.embedded ? 128.0 : 24.0;
     final content = RefreshIndicator(
@@ -87,7 +102,7 @@ class _CallMarketsScreenState extends State<CallMarketsScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             sliver: SliverToBoxAdapter(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -149,9 +164,33 @@ class _CallMarketsScreenState extends State<CallMarketsScreen> {
                     selected: _window,
                     onChanged: (value) => setState(() => _window = value),
                   ),
-                  const SizedBox(height: 15),
-                  // The prototype's section header; the category toggle sits
-                  // where it puts "Crypto", keeping the date chips one row.
+                ],
+              ),
+            ),
+          ),
+          // Edge to edge: the row scrolls under the screen edge rather than
+          // clipping at the gutter, while its first chip keeps the gutter.
+          if (categories.isNotEmpty)
+            SliverPadding(
+              padding: const EdgeInsets.only(top: 8),
+              sliver: SliverToBoxAdapter(
+                child: MarketCategoryFilters(
+                  categories: categories,
+                  selected: category,
+                  onChanged: (value) => setState(() => _category = value),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                ),
+              ),
+            ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
+            sliver: SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // The prototype's section header. The sort toggle sits where
+                  // it puts "Crypto", and only when the venue reports volume:
+                  // "Most active" over all-zero figures would be a coin flip.
                   Row(
                     children: [
                       Expanded(
@@ -163,18 +202,38 @@ class _CallMarketsScreenState extends State<CallMarketsScreen> {
                           ),
                         ),
                       ),
-                      Semantics(
-                        toggled: _cryptoOnly,
-                        child: MarketFilterChip(
-                          label: 'Crypto only',
-                          dense: true,
-                          selected: _cryptoOnly,
-                          onPressed:
-                              () => setState(() => _cryptoOnly = !_cryptoOnly),
+                      if (hasActivity)
+                        Semantics(
+                          toggled: sort == MarketDiscoverySort.mostActive,
+                          child: MarketFilterChip(
+                            label: MarketDiscoverySort.mostActive.label,
+                            dense: true,
+                            selected: sort == MarketDiscoverySort.mostActive,
+                            onPressed:
+                                () => setState(
+                                  () =>
+                                      _sort =
+                                          sort == MarketDiscoverySort.mostActive
+                                              ? MarketDiscoverySort.closingSoon
+                                              : MarketDiscoverySort.mostActive,
+                                ),
+                          ),
                         ),
-                      ),
                     ],
                   ),
+                  if (openCount > 0) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      discoveryCountLabel(
+                        shown: rows.length,
+                        open: openCount,
+                        sort: sort,
+                      ),
+                      style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
                   if (rows.any(
                     (market) => market.venue == MarketVenue.panta,
                   )) ...[
@@ -237,15 +296,12 @@ class _CallMarketsScreenState extends State<CallMarketsScreen> {
                         : 'No matching questions',
                 message:
                     'Try all categories and dates, or refresh the Panta catalog.',
-                actionLabel:
-                    _window != MarketDiscoveryWindow.all || _cryptoOnly
-                        ? 'Show all markets'
-                        : 'Refresh',
+                actionLabel: filtered ? 'Show all markets' : 'Refresh',
                 onAction:
-                    _window != MarketDiscoveryWindow.all || _cryptoOnly
+                    filtered
                         ? () => setState(() {
                           _window = MarketDiscoveryWindow.all;
-                          _cryptoOnly = false;
+                          _category = null;
                         })
                         : _refresh,
               ),

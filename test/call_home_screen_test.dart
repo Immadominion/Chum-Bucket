@@ -393,7 +393,11 @@ void main() {
     expect(find.text("Today's matches"), findsNothing);
     expect(find.textContaining('Powered by Panta'), findsOneWidget);
     expect(find.byType(CallMarketCard), findsOneWidget);
-    expect(server.requestFor('predictions.catalog').input, {'limit': 100});
+    expect(server.requestFor('predictions.catalog').input, {
+      'limit': 100,
+      'scope': 'open',
+      'sort': 'closing',
+    });
     await tester.tap(find.byType(CallMarketCard));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));

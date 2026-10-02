@@ -525,4 +525,317 @@ void main() {
       },
     );
   }
+
+  // ── The whole open catalog: real categories, search, sort, honest counts ──
+
+  VenueMarket withVolume(VenueMarket m, String? volume) =>
+      VenueMarket.fromJson({...m.toJson(), 'volumeUsdc': volume});
+
+  // Category chips share one horizontally scrolling row.
+  Future<void> tapChip(WidgetTester tester, String label) async {
+    await tester.ensureVisible(find.text(label));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(label));
+    await tester.pumpAndSettle();
+  }
+
+  String firstCard(WidgetTester tester) =>
+      tester
+          .widget<CallMarketCard>(find.byType(CallMarketCard).first)
+          .market
+          .id;
+
+  // Today's open Panta catalog has exactly this shape (2026-10-02): six open
+  // markets across crypto, pop-culture, sports and gaming.
+  List<VenueMarket> liveShapedCatalog() => [
+    market(
+      'jump',
+      const Duration(hours: 1),
+      question: r'Will the $JUMP sale exceed $35m?',
+    ),
+    market(
+      'bbn',
+      const Duration(hours: 57),
+      category: 'pop-culture',
+      question: 'Will a female housemate win BBNaija?',
+    ),
+    market(
+      'tram',
+      const Duration(hours: 58),
+      category: 'pop-culture',
+      question: 'Will Tram finish top 3?',
+    ),
+    market(
+      'mufc',
+      const Duration(days: 8),
+      category: 'sports',
+      question: 'Will Manchester United beat Spurs by 2+?',
+    ),
+    market(
+      'gta',
+      const Duration(days: 49),
+      category: 'gaming',
+      question: 'Will GTA 6 release on November 19th?',
+    ),
+    market(
+      'btc',
+      const Duration(days: 89),
+      question: r'Will bitcoin hit $100,000 by 31 Dec 2026?',
+    ),
+  ];
+
+  test('category chips come from the open markets themselves', () {
+    final now = DateTime.now();
+    final markets = [
+      ...liveShapedCatalog(),
+      market('ended', const Duration(hours: -1), category: 'commodities'),
+      market(
+        'closed',
+        const Duration(days: 2),
+        category: 'weather',
+        status: MarketStatus.closedPendingResolution,
+      ),
+      market(
+        'foreign',
+        const Duration(days: 2),
+        category: 'politics',
+        venue: MarketVenue.jupiter,
+      ),
+    ];
+    expect(discoveryCategories(markets, now: now), [
+      (category: 'crypto', count: 2),
+      (category: 'pop-culture', count: 2),
+      (category: 'gaming', count: 1),
+      (category: 'sports', count: 1),
+    ]);
+    expect(marketCategoryLabel('pop-culture'), 'Pop culture');
+    expect(marketCategoryLabel('meme-coins'), 'Meme coins');
+    expect(marketCategoryLabel('CRYPTO'), 'Crypto');
+    expect(
+      discoveryMarkets(
+        markets,
+        window: MarketDiscoveryWindow.all,
+        category: 'Pop-Culture',
+        now: now,
+      ).map((m) => m.id),
+      ['bbn', 'tram'],
+    );
+  });
+
+  test('search covers question and category across the whole catalog', () {
+    final markets = liveShapedCatalog();
+    List<String> search(String q) =>
+        discoveryMarkets(
+          markets,
+          window: MarketDiscoveryWindow.all,
+          query: q,
+        ).map((m) => m.id).toList();
+    expect(search('pop culture'), ['bbn', 'tram']);
+    expect(search('  GAMING '), ['gta']);
+    expect(search('spurs'), ['mufc']);
+    expect(search(r'$100,000'), ['btc']);
+    expect(search('nothing like this'), isEmpty);
+  });
+
+  test('most active orders by venue-reported volume only, unreported last', () {
+    final now = DateTime.now();
+    final markets = [
+      withVolume(market('quiet', const Duration(hours: 2)), '0.00'),
+      withVolume(market('busy', const Duration(days: 3)), '1200.50'),
+      market('unknown', const Duration(hours: 1)),
+      withVolume(market('mid', const Duration(days: 1)), '75'),
+    ];
+    expect(
+      discoveryMarkets(
+        markets,
+        window: MarketDiscoveryWindow.all,
+        sort: MarketDiscoverySort.mostActive,
+        now: now,
+      ).map((m) => m.id),
+      ['busy', 'mid', 'quiet', 'unknown'],
+    );
+    expect(
+      discoveryMarkets(
+        markets,
+        window: MarketDiscoveryWindow.all,
+        now: now,
+      ).map((m) => m.id),
+      ['unknown', 'quiet', 'mid', 'busy'],
+    );
+    expect(discoveryHasActivity(markets, now: now), isTrue);
+    expect(
+      discoveryHasActivity([
+        withVolume(market('z', const Duration(hours: 2)), '0'),
+        market('n', const Duration(hours: 2)),
+      ], now: now),
+      isFalse,
+    );
+    expect(
+      discoveryCountLabel(shown: 6, open: 6),
+      '6 open markets · soonest to close first',
+    );
+    expect(
+      discoveryCountLabel(
+        shown: 2,
+        open: 6,
+        sort: MarketDiscoverySort.mostActive,
+      ),
+      '2 of 6 open markets · most active first',
+    );
+    expect(
+      discoveryCountLabel(shown: 1, open: 1),
+      '1 open market · soonest to close first',
+    );
+  });
+
+  testWidgets('Markets offers every open category and filters by it', (
+    tester,
+  ) async {
+    final provider = CallsProvider(
+      repository: CatalogRepository(liveShapedCatalog()),
+    );
+    addTearDown(provider.dispose);
+    await mount(tester, provider, const CallMarketsScreen());
+    expect(find.text('Crypto only'), findsNothing);
+    expect(
+      find.text('6 open markets · soonest to close first'),
+      findsOneWidget,
+    );
+    for (final chip in [
+      'All categories',
+      'Crypto · 2',
+      'Pop culture · 2',
+      'Gaming · 1',
+      'Sports · 1',
+    ]) {
+      expect(find.text(chip), findsOneWidget);
+    }
+    // Discovery does not wait for prices: every open market is listed.
+    expect(find.byType(CallMarketCard), findsWidgets);
+    await tapChip(tester, 'Pop culture · 2');
+    expect(
+      find.text('2 of 6 open markets · soonest to close first'),
+      findsOneWidget,
+    );
+    expect(find.byType(CallMarketCard), findsNWidgets(2));
+    expect(find.textContaining('BBNaija'), findsOneWidget);
+    expect(find.textContaining('Tram'), findsOneWidget);
+    // Tapping the selected chip again, or "All categories", clears it.
+    await tapChip(tester, 'Pop culture · 2');
+    expect(
+      find.text('6 open markets · soonest to close first'),
+      findsOneWidget,
+    );
+    await tapChip(tester, 'Gaming · 1');
+    await tester.tap(find.text('Ending soon'));
+    await tester.pumpAndSettle();
+    expect(find.text('No open markets match these filters'), findsOneWidget);
+    await tester.tap(find.text('Show all markets'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('6 open markets · soonest to close first'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a market without a price is listed, labelled unavailable', (
+    tester,
+  ) async {
+    final m = market(
+      'nil',
+      const Duration(hours: 5),
+      question: 'Will the unpriced market list?',
+    );
+    final provider = CallsProvider(repository: CatalogRepository([m]));
+    addTearDown(provider.dispose);
+    await mount(tester, provider, const CallMarketsScreen());
+    expect(find.text(m.question), findsOneWidget);
+    expect(find.text('Price unavailable'), findsNWidgets(2));
+    expect(find.text('0.00'), findsNothing);
+  });
+
+  testWidgets('Most active appears only when the venue reports volume', (
+    tester,
+  ) async {
+    final quiet = CallsProvider(
+      repository: CatalogRepository(liveShapedCatalog()),
+    );
+    addTearDown(quiet.dispose);
+    await mount(tester, quiet, const CallMarketsScreen());
+    expect(find.text('Most active'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+
+    final markets = liveShapedCatalog();
+    markets[5] = withVolume(markets[5], '900.00'); // btc, closes last
+    markets[3] = withVolume(markets[3], '15.25'); // mufc
+    final active = CallsProvider(repository: CatalogRepository(markets));
+    addTearDown(active.dispose);
+    await mount(tester, active, const CallMarketsScreen());
+    expect(firstCard(tester), 'jump'); // soonest to close
+    await tester.tap(find.text('Most active'));
+    await tester.pumpAndSettle();
+    expect(find.text('6 open markets · most active first'), findsOneWidget);
+    expect(firstCard(tester), 'btc'); // highest reported volume
+    await tester.tap(find.text('Most active'));
+    await tester.pumpAndSettle();
+    expect(firstCard(tester), 'jump');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('category row scrolls at 320dp / 2x with 48dp targets', (
+    tester,
+  ) async {
+    final markets = [
+      for (final (i, c)
+          in [
+            'crypto',
+            'pop-culture',
+            'sports',
+            'gaming',
+            'commodities',
+            'meme-coins',
+            'macroeconomics',
+          ].indexed)
+        market('m$i', Duration(hours: 10 + i), category: c),
+    ];
+    final provider = CallsProvider(repository: CatalogRepository(markets));
+    addTearDown(provider.dispose);
+    await mount(
+      tester,
+      provider,
+      const CallMarketsScreen(),
+      width: 320,
+      scale: 2,
+    );
+    // Seven categories cannot fit 320dp at 2x; the last is reached by
+    // scrolling the row, not by wrapping chips down the screen.
+    final row = find.ancestor(
+      of: find.text('All categories'),
+      matching: find.byType(SingleChildScrollView),
+    );
+    expect(tester.getSize(row).width, lessThanOrEqualTo(320));
+    await tapChip(tester, 'Macroeconomics · 1');
+    expect(find.byType(CallMarketCard), findsOneWidget);
+    expect(firstCard(tester), 'm6');
+    for (final chip in find.byType(OutlinedButton).evaluate()) {
+      expect(
+        tester.getSize(find.byWidget(chip.widget)).height,
+        greaterThanOrEqualTo(48),
+      );
+    }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the market picker browses by category too', (tester) async {
+    final provider = CallsProvider(
+      repository: CatalogRepository(liveShapedCatalog()),
+    )..setViewer('test-person');
+    addTearDown(provider.dispose);
+    await mount(tester, provider, const MarketPickerSheet());
+    await tapChip(tester, 'Sports · 1');
+    expect(find.byType(CallMarketCard), findsOneWidget);
+    expect(find.textContaining('Manchester'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

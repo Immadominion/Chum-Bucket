@@ -18,39 +18,139 @@ enum MarketDiscoveryWindow {
   final Duration? horizon;
 }
 
+/// Discovery order. "Most active" uses only the venue's own reported volume
+/// ([VenueMarket.volumeUsdc]); a market without one sorts after those with
+/// one, soonest-closing first, rather than being treated as zero.
+enum MarketDiscoverySort {
+  closingSoon('Closing soon'),
+  mostActive('Most active');
+
+  const MarketDiscoverySort(this.label);
+  final String label;
+}
+
+const _farFuture = 9223372036854775807;
+
+/// Lowercase, hyphens as spaces: "pop culture" finds `pop-culture`.
+String _fold(String text) =>
+    text.toLowerCase().replaceAll(RegExp(r'[-_\s]+'), ' ').trim();
+
+/// The markets discovery may offer right now: open, inside their window, and
+/// from the live venue (or visibly-demo fixtures). Shared by every filter so
+/// counts and chips describe exactly what the list can show.
+bool _discoverable(VenueMarket market, DateTime reference) {
+  final close = market.closesAtUtc;
+  return market.status.acceptsNewCalls &&
+      (market.venue == MarketVenue.panta || market.venue.isDemo) &&
+      (market.opensAt == null ||
+          market.opensAt! <= reference.millisecondsSinceEpoch) &&
+      (close == null || close.isAfter(reference));
+}
+
 List<VenueMarket> discoveryMarkets(
   Iterable<VenueMarket> markets, {
   required MarketDiscoveryWindow window,
   String query = '',
   String? category,
+  MarketDiscoverySort sort = MarketDiscoverySort.closingSoon,
   DateTime? now,
 }) {
   final reference = (now ?? DateTime.now()).toUtc();
-  final term = query.trim().toLowerCase();
-  return markets.where((market) {
-      final close = market.closesAtUtc;
-      if (!market.status.acceptsNewCalls ||
-          (category != null &&
-              market.category.toLowerCase() != category.toLowerCase()) ||
-          (market.venue != MarketVenue.panta && !market.venue.isDemo) ||
-          (market.opensAt != null &&
-              market.opensAt! > reference.millisecondsSinceEpoch)) {
-        return false;
-      }
-      if (close == null) {
-        return window == MarketDiscoveryWindow.all &&
-            market.question.toLowerCase().contains(term);
-      }
-      final remaining = close.difference(reference);
-      return remaining > Duration.zero &&
-          (window.horizon == null || remaining <= window.horizon!) &&
-          market.question.toLowerCase().contains(term);
-    }).toList()
-    ..sort(
-      (a, b) => (a.closesAt ?? 9223372036854775807).compareTo(
-        b.closesAt ?? 9223372036854775807,
-      ),
+  final term = _fold(query);
+  final rows =
+      markets.where((market) {
+        if (!_discoverable(market, reference) ||
+            (category != null &&
+                market.category.toLowerCase() != category.toLowerCase()) ||
+            (term.isNotEmpty &&
+                !_fold(market.question).contains(term) &&
+                !_fold(market.category).contains(term))) {
+          return false;
+        }
+        final close = market.closesAtUtc;
+        if (close == null) return window == MarketDiscoveryWindow.all;
+        return window.horizon == null ||
+            close.difference(reference) <= window.horizon!;
+      }).toList();
+  int closing(VenueMarket a, VenueMarket b) {
+    final byClose = (a.closesAt ?? _farFuture).compareTo(
+      b.closesAt ?? _farFuture,
     );
+    return byClose != 0 ? byClose : a.id.compareTo(b.id);
+  }
+
+  return rows..sort(switch (sort) {
+    MarketDiscoverySort.closingSoon => closing,
+    MarketDiscoverySort.mostActive => (a, b) {
+      final av = reportedVolume(a), bv = reportedVolume(b);
+      if (av != null && bv != null && av != bv) return bv.compareTo(av);
+      if ((av == null) != (bv == null)) return av == null ? 1 : -1;
+      return closing(a, b);
+    },
+  });
+}
+
+/// The venue's reported volume as a number for ordering, or null.
+double? reportedVolume(VenueMarket market) =>
+    market.volumeUsdc == null ? null : double.tryParse(market.volumeUsdc!);
+
+/// Whether "Most active" can mean anything: some discoverable market carries
+/// a venue-reported volume above zero. Otherwise the option is not offered.
+bool discoveryHasActivity(Iterable<VenueMarket> markets, {DateTime? now}) {
+  final reference = (now ?? DateTime.now()).toUtc();
+  return markets.any(
+    (market) =>
+        _discoverable(market, reference) && (reportedVolume(market) ?? 0) > 0,
+  );
+}
+
+/// One category the venue actually has open, with how many markets it holds.
+typedef MarketCategoryCount = ({String category, int count});
+
+/// Category chips come from the open markets themselves — never a fixed
+/// list — so every chip leads somewhere and no live category is missing.
+List<MarketCategoryCount> discoveryCategories(
+  Iterable<VenueMarket> markets, {
+  DateTime? now,
+}) {
+  final reference = (now ?? DateTime.now()).toUtc();
+  final counts = <String, int>{};
+  for (final market in markets) {
+    if (!_discoverable(market, reference)) continue;
+    final key = market.category.toLowerCase();
+    counts[key] = (counts[key] ?? 0) + 1;
+  }
+  return [
+    for (final entry in counts.entries)
+      (category: entry.key, count: entry.value),
+  ]..sort((a, b) {
+    final byCount = b.count.compareTo(a.count);
+    return byCount != 0 ? byCount : a.category.compareTo(b.category);
+  });
+}
+
+/// "6 open markets · soonest to close first", or "2 of 6 …" while a filter or
+/// search narrows them. Counts only what discovery holds — never a venue total
+/// the app has not actually loaded.
+String discoveryCountLabel({
+  required int shown,
+  required int open,
+  MarketDiscoverySort sort = MarketDiscoverySort.closingSoon,
+}) {
+  final noun = open == 1 ? 'open market' : 'open markets';
+  final count = shown == open ? '$open $noun' : '$shown of $open $noun';
+  return '$count · ${switch (sort) {
+    MarketDiscoverySort.closingSoon => 'soonest to close first',
+    MarketDiscoverySort.mostActive => 'most active first',
+  }}';
+}
+
+/// "pop-culture" → "Pop culture". The venue's slug, made readable; never a
+/// renamed or merged category.
+String marketCategoryLabel(String category) {
+  final words = category.trim().replaceAll(RegExp(r'[-_\s]+'), ' ');
+  if (words.isEmpty) return 'Other';
+  return words[0].toUpperCase() + words.substring(1).toLowerCase();
 }
 
 class MarketWindowFilters extends StatelessWidget {
@@ -77,6 +177,59 @@ class MarketWindowFilters extends StatelessWidget {
           ),
         ),
     ],
+  );
+}
+
+/// "All" plus one chip per category the open catalog actually has, with its
+/// market count. One scrolling row: it never wraps the list down the screen,
+/// and at 2x text the row simply grows taller and scrolls further.
+class MarketCategoryFilters extends StatelessWidget {
+  const MarketCategoryFilters({
+    super.key,
+    required this.categories,
+    required this.selected,
+    required this.onChanged,
+    this.padding = EdgeInsets.zero,
+  });
+
+  final List<MarketCategoryCount> categories;
+
+  /// The selected category slug, or null for every category.
+  final String? selected;
+  final ValueChanged<String?> onChanged;
+
+  /// Lets the row scroll edge to edge while its first chip aligns with the
+  /// page gutter.
+  final EdgeInsets padding;
+
+  Widget _chip(String label, bool isSelected, VoidCallback onPressed) =>
+      Padding(
+        padding: const EdgeInsets.only(right: 6),
+        child: Semantics(
+          selected: isSelected,
+          child: MarketFilterChip(
+            label: label,
+            selected: isSelected,
+            onPressed: onPressed,
+          ),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    padding: padding,
+    child: Row(
+      children: [
+        _chip('All categories', selected == null, () => onChanged(null)),
+        for (final entry in categories)
+          _chip(
+            '${marketCategoryLabel(entry.category)} · ${entry.count}',
+            selected == entry.category,
+            () => onChanged(selected == entry.category ? null : entry.category),
+          ),
+      ],
+    ),
   );
 }
 
@@ -294,14 +447,22 @@ class MarketGlyph extends StatelessWidget {
     );
   }
 
+  // Panta's catalog carries categories beyond its documented create list
+  // (pop-culture, gaming, commodities, …); each gets a fitting mark.
   static String _categoryIcon(String category) => switch (category
       .toLowerCase()) {
     'crypto' => 'lightning-outline',
+    'meme-coins' => 'fire-outline',
     'sports' => 'award-outline',
-    'finance' => 'chart-pie-outline',
+    'finance' || 'macroeconomics' || 'business' => 'chart-pie-outline',
+    'stocks' => 'chart-pie-alt-outline',
+    'commodities' => 'box-outline',
     'politics' => 'bank-outline',
-    'entertainment' => 'play-outline',
-    'science' => 'flask-outline',
+    'entertainment' || 'pop-culture' => 'star-outline',
+    'gaming' => 'gamepad-outline',
+    'science' || 'space-universe' => 'flask-outline',
+    'tech' || 'technology' => 'processor-outline',
+    'weather' => 'sun-outline',
     'world' => 'globe-outline',
     _ => 'lightbulb-outline',
   };
