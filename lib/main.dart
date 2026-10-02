@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -15,6 +17,8 @@ import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
 import 'package:chumbucket/shared/screens/splash/mwa_splash_screen.dart';
 import 'package:chumbucket/shared/services/unified_database_service.dart';
 import 'package:chumbucket/core/config/app_config.dart';
+import 'package:chumbucket/core/crash/crash_reporting.dart';
+import 'package:chumbucket/core/utils/app_logger.dart';
 import 'package:chumbucket/core/navigation/deep_link_host.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/authentication/session/app_session_persistence.dart';
@@ -34,6 +38,9 @@ import 'package:chumbucket/core/services/fcm_token_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Release builds drop debugPrint output: it carried wallet and challenge
+  // details into logcat. Errors still reach crash reporting (opt-in).
+  AppLogger.installReleaseLogPolicy();
   // unawaited(RiveFile.initialize());
 
   // Public configuration only, supplied at build time via --dart-define.
@@ -87,25 +94,14 @@ void main() async {
     if (kDebugMode) debugPrint("Warning: Failed to initialize Firebase: $e");
   }
 
-  // Initialize local notification service
-  try {
-    await NotificationService.initialize();
-    if (kDebugMode) debugPrint("Notification service initialized");
-  } catch (e) {
-    if (kDebugMode) {
-      debugPrint("Warning: Failed to initialize notifications: $e");
-    }
-    // Notifications are optional - app works without them
-  }
+  // Opt-in crash reporting. Reads the stored answer (off by default) and
+  // installs the error hooks; never throws.
+  await CrashReporting.instance.initialize();
 
-  // Initialize FCM for push notifications (Firebase required)
-  try {
-    await FcmTokenService.initialize();
-    if (kDebugMode) debugPrint("FCM initialized");
-  } catch (e) {
-    if (kDebugMode) debugPrint("Warning: FCM initialization failed: $e");
-    // FCM is optional - local notifications still work
-  }
+  // Push setup no longer holds the first frame: it includes the notification
+  // permission prompt and a network token fetch, which used to put a system
+  // dialog (or an offline stall) in front of any UI.
+  unawaited(_initializePush());
 
   runApp(
     AccountSessionHost(
@@ -188,6 +184,24 @@ void main() async {
           ),
     ),
   );
+}
+
+/// Local notifications, then FCM. Both optional: the app works without them.
+Future<void> _initializePush() async {
+  try {
+    await NotificationService.initialize();
+    if (kDebugMode) debugPrint("Notification service initialized");
+  } catch (e) {
+    if (kDebugMode) {
+      debugPrint("Warning: Failed to initialize notifications: $e");
+    }
+  }
+  try {
+    await FcmTokenService.initialize();
+    if (kDebugMode) debugPrint("FCM initialized");
+  } catch (e) {
+    if (kDebugMode) debugPrint("Warning: FCM initialization failed: $e");
+  }
 }
 
 /// Navigator handle for deep links, which arrive from outside the widget tree
