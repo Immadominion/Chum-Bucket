@@ -2,8 +2,13 @@ import 'session_bff_client.dart';
 import 'session_state.dart';
 
 /// Pinned app identity, never chosen from an untrusted server response.
-const accountClaimDomain = 'chumbucket.app';
-const accountClaimUri = 'https://chumbucket.app';
+///
+/// The owner's live domain, the same one Supabase's Sign in with Solana uses
+/// (`kSolanaSignInDomain`). It was `chumbucket.app`, which was never
+/// registered; the BFF's allowlist (`FIXTURE_AUTH_IDENTITY_POLICY`) moved with
+/// it, and this app refuses to sign when the server does not list it.
+const accountClaimDomain = 'chumbucket.fun';
+const accountClaimUri = 'https://chumbucket.fun';
 const accountClaimStatement =
     'Connect your signed-in account to your existing Chumbucket profile. '
     'This request does not create a profile or authorise any transaction, transfer or spend.';

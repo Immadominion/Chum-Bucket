@@ -126,7 +126,7 @@ void main() {
     baseUrl: 'https://synthetic.invalid/trpc',
     httpClient: _PipeClient(pipe),
     authToken: token == null ? null : () => token,
-    linkHost: 'https://chumbucket.app',
+    linkHost: 'https://chumbucket.fun',
     verbose: false,
   );
 

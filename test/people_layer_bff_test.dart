@@ -22,7 +22,7 @@ BffCallsRepository build(FakeBffServer server, {String? token = 'tok'}) =>
       baseUrl: kBase,
       httpClient: server.client,
       authToken: token == null ? null : () => token,
-      linkHost: 'https://chumbucket.app',
+      linkHost: 'https://chumbucket.fun',
       verbose: false,
     );
 

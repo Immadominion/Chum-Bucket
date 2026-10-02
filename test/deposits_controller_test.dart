@@ -315,7 +315,7 @@ void main() {
     'ownership proof: the receiving wallet signs the exact message',
     () async {
       const message =
-          'chumbucket.app wants you to verify ownership of this wallet.';
+          'chumbucket.fun wants you to verify ownership of this wallet.';
       final source = FakeWalletSource(walletA);
       bff.orderStates = [
         orderJson(state: 'awaiting_wallet_proof', proof: message),

@@ -32,7 +32,7 @@ Map<String, Object?> linkNonceFor(
   String statement = walletLinkStatement,
   String purpose = 'link_wallet',
   String network = 'devnet',
-  String domain = 'chumbucket.app',
+  String domain = 'chumbucket.fun',
 }) {
   final at = (issued ?? DateTime.now().toUtc()).toUtc();
   final issuedAt = _iso(
@@ -47,7 +47,7 @@ Map<String, Object?> linkNonceFor(
     '',
     statement,
     '',
-    'URI: https://chumbucket.app',
+    'URI: https://chumbucket.fun',
     'Version: 1',
     'Chain ID: ${siwsChainId(network) ?? 'solana:unknown'}',
     'Nonce: ${'ab' * 32}',
@@ -61,7 +61,7 @@ Map<String, Object?> linkNonceFor(
     'issuedAt': issuedAt,
     'expiresAt': expiresAt,
     'domain': domain,
-    'uri': 'https://chumbucket.app',
+    'uri': 'https://chumbucket.fun',
     'network': network,
     'purpose': purpose,
     'proofVersion': 1,

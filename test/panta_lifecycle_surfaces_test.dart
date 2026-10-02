@@ -146,7 +146,7 @@ void main() {
       (tester) async {
         final receipt = CallReceipt.fromEntry(
           pantaEntry(),
-          shareUrl: 'https://chumbucket.app/c/$_callId',
+          shareUrl: 'https://chumbucket.fun/c/$_callId',
         );
         await tester.pumpWidget(app(CallReceiptCard(receipt: receipt)));
         await tester.pumpAndSettle();
@@ -174,7 +174,7 @@ void main() {
     testWidgets('a funded call says so, without an amount', (tester) async {
       final receipt = CallReceipt.fromEntry(
         pantaEntry(funded: true),
-        shareUrl: 'https://chumbucket.app/c/$_callId',
+        shareUrl: 'https://chumbucket.fun/c/$_callId',
       );
       expect(receipt.fundedOnPanta, isTrue);
       await tester.pumpWidget(app(CallReceiptCard(receipt: receipt)));
