@@ -1,7 +1,10 @@
 import 'dart:io';
 
 import 'package:chumbucket/core/config/app_config.dart';
+import 'package:chumbucket/features/authentication/session/existing_account_proof.dart';
+import 'package:chumbucket/features/authentication/session/solana_sign_in.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_transport.dart';
+import 'package:chumbucket/features/trust/data/legal_links.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yaml/yaml.dart';
 
@@ -43,6 +46,19 @@ void main() {
       expect(committed['CALLS_BACKEND'], 'bff');
       expect(committed['CALLS_LINK_HOST'], kCallsLinkHostDefault);
       expect(committed['CALLS_BFF_URL'], kCallsBffDefaultUrl);
+    });
+
+    test('what it leaves to defaults already points at the live site', () {
+      // Trust's Terms / Privacy / delete-account pages and every identity
+      // proof (Sign in with Solana, account claim, wallet link) name the same
+      // site the release links to, so a release cannot split them.
+      final host = Uri.parse(kReleaseLinkHost).host;
+      expect(committed.containsKey('LEGAL_SITE_URL'), isFalse);
+      expect(kLegalSiteUrl, kReleaseLinkHost);
+      expect(kSolanaSignInDomain, host);
+      expect(accountClaimDomain, host);
+      expect(accountClaimUri, kReleaseLinkHost);
+      expect(kCallsLinkHostDefault, kReleaseLinkHost);
     });
   });
 
@@ -88,6 +104,18 @@ void main() {
     test('the dead chumbucket.app link host', () {
       final c = good()..['CALLS_LINK_HOST'] = 'https://chumbucket.app';
       expect(releaseConfigProblems(c).join(), contains('CALLS_LINK_HOST'));
+    });
+
+    test('a legal site or store link that is not the real one', () {
+      final legal = good()..['LEGAL_SITE_URL'] = 'https://chumbucket.app';
+      expect(releaseConfigProblems(legal).join(), contains('LEGAL_SITE_URL'));
+      final fine = good()..['LEGAL_SITE_URL'] = 'https://chumbucket.fun/';
+      expect(releaseConfigProblems(fine), isEmpty);
+      final store = good()..['STORE_LISTING_URL'] = 'http://localhost/app';
+      expect(releaseConfigProblems(store).join(), contains('STORE_LISTING_URL'));
+      final dapp = good()
+        ..['STORE_LISTING_URL'] = 'solanadappstore://details?id=dev.cleva.chumbucket';
+      expect(releaseConfigProblems(dapp), isEmpty);
     });
 
     test('missing Supabase values when building', () {

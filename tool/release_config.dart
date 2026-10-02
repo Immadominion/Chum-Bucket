@@ -10,6 +10,8 @@
 ///   * SOLANA_NETWORK not mainnet shows a devnet balance beside mainnet trades.
 ///   * CALLS_BACKEND not bff can put the seeded demo catalog in front of people.
 ///   * a link host other than chumbucket.fun builds links nobody can open.
+///   * a legal site other than chumbucket.fun sends Terms, Privacy and the
+///     account-deletion page (trust) somewhere that does not serve them.
 library;
 
 import 'dart:convert';
@@ -99,6 +101,23 @@ List<String> releaseConfigProblems(
     problems.add(
       'CALLS_LINK_HOST must be "$kReleaseLinkHost" (got ${_show(v('CALLS_LINK_HOST'))}). '
       'It is the only host the app verifies and the site serves.',
+    );
+  }
+
+  // Optional (lib/features/trust/data/legal_links.dart defaults to the live
+  // site): when a build names them, they must still be the right places.
+  final legal = v('LEGAL_SITE_URL')?.replaceAll(RegExp(r'/+$'), '');
+  if (legal != null && legal.isNotEmpty && legal != kReleaseLinkHost) {
+    problems.add(
+      'LEGAL_SITE_URL must be "$kReleaseLinkHost" when set (got ${_show(v('LEGAL_SITE_URL'))}). '
+      'It serves /terms, /privacy and /delete-account.',
+    );
+  }
+  final store = v('STORE_LISTING_URL');
+  if (store != null && store.isNotEmpty && !_isPublicHttps(store) &&
+      !store.startsWith('solanadappstore://')) {
+    problems.add(
+      'STORE_LISTING_URL must be a public https or solanadappstore:// link when set (got ${_show(store)}).',
     );
   }
 
