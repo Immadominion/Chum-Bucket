@@ -11,6 +11,7 @@ import 'package:chumbucket/features/authentication/session/chumbucket_session.da
 import 'package:chumbucket/features/authentication/session/last_sign_in.dart';
 import 'package:chumbucket/features/authentication/session/session_bff_client.dart';
 import 'package:chumbucket/features/embedded_wallet/embedded_wallet_controller.dart';
+import 'package:chumbucket/features/embedded_wallet/secure_window.dart';
 import 'package:chumbucket/features/embedded_wallet/embedded_wallet_key.dart';
 import 'package:chumbucket/features/embedded_wallet/embedded_wallet_vault.dart';
 import 'package:chumbucket/features/panta_trading/panta_trading.dart';
@@ -155,11 +156,33 @@ void main() {
           findsOneWidget,
         );
         expect(find.textContaining('abandon'), findsNothing);
+        final secure = <bool>[];
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SecureWindow.channel,
+          (call) async {
+            secure.add((call.arguments as Map)['secure'] as bool);
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SecureWindow.channel,
+            null,
+          ),
+        );
         await tester.ensureVisible(find.text('Show my 12 words'));
         await tester.tap(find.text('Show my 12 words'));
         await tester.pumpAndSettle();
         expect(find.text('1. abandon'), findsOneWidget);
         expect(find.text('12. about'), findsOneWidget);
+        // Out of screenshots and recents while the words are up, and back
+        // once they are hidden.
+        expect(secure, [true]);
+        await tester.ensureVisible(find.text('Hide'));
+        await tester.tap(find.text('Hide'));
+        await tester.pumpAndSettle();
+        expect(find.textContaining('abandon'), findsNothing);
+        expect(secure, [true, false]);
         expect(tester.takeException(), isNull);
       },
     );

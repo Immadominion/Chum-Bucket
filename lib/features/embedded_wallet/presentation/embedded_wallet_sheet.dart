@@ -17,6 +17,7 @@ import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 import '../embedded_wallet_controller.dart';
+import '../secure_window.dart';
 
 /// Connects a wallet app to the signed-in account; true when one connected.
 typedef ConnectWalletApp = Future<bool> Function(BuildContext context);
@@ -262,6 +263,27 @@ enum _Reveal { none, confirmPhrase, phrase, confirmKey, key }
 class _WalletDetailsState extends State<_WalletDetails> {
   _Reveal _reveal = _Reveal.none;
   String? _privateKey;
+  bool _secure = false;
+
+  /// Moves between reveal steps. While the phrase or the key is on screen
+  /// the window is kept out of screenshots, recordings and recents.
+  void _show(_Reveal next, {String? privateKey}) {
+    setState(() {
+      _reveal = next;
+      _privateKey = next == _Reveal.key ? privateKey : null;
+    });
+    final secure = next == _Reveal.phrase || next == _Reveal.key;
+    if (secure != _secure) {
+      _secure = secure;
+      SecureWindow.set(secure);
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_secure) SecureWindow.set(false);
+    super.dispose();
+  }
 
   Future<void> _copy(String text, String what) async {
     await Clipboard.setData(ClipboardData(text: text));
@@ -343,12 +365,12 @@ class _WalletDetailsState extends State<_WalletDetails> {
         return [
           ChumbucketTextAction(
             label: 'Show recovery phrase',
-            onPressed: () => setState(() => _reveal = _Reveal.confirmPhrase),
+            onPressed: () => _show(_Reveal.confirmPhrase),
           ),
           ChumbucketTextAction(
             label: 'Export private key',
             color: AppColors.textSecondary,
-            onPressed: () => setState(() => _reveal = _Reveal.confirmKey),
+            onPressed: () => _show(_Reveal.confirmKey),
           ),
         ];
       case _Reveal.confirmPhrase:
@@ -380,21 +402,18 @@ class _WalletDetailsState extends State<_WalletDetails> {
             label: phrase ? 'Show my 12 words' : 'Show my private key',
             onPressed: () async {
               if (phrase) {
-                setState(() => _reveal = _Reveal.phrase);
+                _show(_Reveal.phrase);
                 return;
               }
               final key = await wallet.exportPrivateKey();
               if (!mounted) return;
-              setState(() {
-                _privateKey = key;
-                _reveal = _Reveal.key;
-              });
+              _show(_Reveal.key, privateKey: key);
             },
           ),
           ChumbucketTextAction(
             label: 'Cancel',
             color: AppColors.textSecondary,
-            onPressed: () => setState(() => _reveal = _Reveal.none),
+            onPressed: () => _show(_Reveal.none),
           ),
         ];
       case _Reveal.phrase:
@@ -424,7 +443,7 @@ class _WalletDetailsState extends State<_WalletDetails> {
           const SizedBox(height: 8),
           ChumbucketTextAction(
             label: 'Hide',
-            onPressed: () => setState(() => _reveal = _Reveal.none),
+            onPressed: () => _show(_Reveal.none),
           ),
         ];
       case _Reveal.key:
@@ -445,11 +464,7 @@ class _WalletDetailsState extends State<_WalletDetails> {
           ChumbucketTextAction(
             label: 'Hide',
             color: AppColors.textSecondary,
-            onPressed:
-                () => setState(() {
-                  _privateKey = null;
-                  _reveal = _Reveal.none;
-                }),
+            onPressed: () => _show(_Reveal.none),
           ),
         ];
     }
