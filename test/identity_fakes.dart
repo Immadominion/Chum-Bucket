@@ -25,15 +25,20 @@ class MemoryBlockStore implements BlockStorePort {
   int writes = 0;
   int deletes = 0;
 
+  /// Play services is there but its Block Store API is not: availability
+  /// says no, and every call fails (rather than reporting "unavailable").
+  bool apiMissing = false;
+
   @override
   Future<BlockStoreAvailability> availability() async => BlockStoreAvailability(
-    available: available,
-    endToEndEncrypted: available && endToEndEncrypted,
+    available: available && !apiMissing,
+    endToEndEncrypted: available && !apiMissing && endToEndEncrypted,
   );
 
   @override
   Future<Uint8List?> read(String key) async {
     if (!available) throw const BlockStoreUnavailable();
+    if (apiMissing) throw const BlockStoreFailure();
     if (failReads) throw const BlockStoreFailure();
     return entries[key];
   }
@@ -45,6 +50,7 @@ class MemoryBlockStore implements BlockStorePort {
     required bool backupToCloud,
   }) async {
     if (!available) throw const BlockStoreUnavailable();
+    if (apiMissing) throw const BlockStoreFailure();
     if (failWrites) throw const BlockStoreFailure();
     writes++;
     entries[key] = Uint8List.fromList(bytes);
@@ -54,6 +60,7 @@ class MemoryBlockStore implements BlockStorePort {
   @override
   Future<void> delete(String key) async {
     if (!available) throw const BlockStoreUnavailable();
+    if (apiMissing) throw const BlockStoreFailure();
     if (failDeletes) throw const BlockStoreFailure();
     deletes++;
     entries.remove(key);

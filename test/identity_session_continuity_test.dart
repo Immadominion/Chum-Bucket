@@ -273,6 +273,21 @@ void main() {
         expect(rig.backup, isNull);
       },
     );
+
+    test(
+      'sign-out never locks on a device where nothing can have been stored',
+      () async {
+        // Play services without the Block Store API: every call fails.
+        final missing = _Rig(store: MemoryBlockStore()..apiMissing = true);
+        missing.continuity.sessionPersisted(persistedSession());
+        await missing.settle();
+        await missing.continuity.clearSession();
+        // A delete refused while no session entry exists.
+        final empty = _Rig()..store.failDeletes = true;
+        await empty.continuity.clearSession();
+        expect(empty.store.entries, isEmpty);
+      },
+    );
   });
 
   group('wallet keys', () {

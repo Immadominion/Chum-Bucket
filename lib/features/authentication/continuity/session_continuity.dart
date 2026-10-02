@@ -254,15 +254,38 @@ class SessionContinuity {
     unawaited(_enqueue(_deleteSessionQuietly).catchError((Object _) {}));
   }
 
-  /// Explicit sign-out. Throws only when Block Store is there and refused the
-  /// delete, so the sign-out can be retried rather than leave a session behind.
+  /// Explicit sign-out. Throws only when a backed-up session is really there
+  /// and Block Store refused to delete it, so the sign-out can be retried
+  /// rather than leave a session behind.
+  ///
+  /// A sign-out task that throws locks the account screens until it succeeds,
+  /// so this must not throw on a device where nothing can have been stored: no
+  /// Block Store, Play services without its API (availability says no, and
+  /// every call fails), or a delete that fails while no entry exists.
   Future<void> clearSession() => _enqueue(() async {
     _mirroredToken = null;
     _mirroredMethod = null;
+    final BlockStoreAvailability availability;
+    try {
+      availability = await _store.availability();
+    } catch (_) {
+      return;
+    }
+    // Nothing is ever written unless Block Store said it was available.
+    if (!availability.available) return;
     try {
       await _store.delete(sessionKey);
     } on BlockStoreUnavailable {
       // Nothing can have been stored.
+    } catch (_) {
+      // Refused. Only an entry that is still there is worth blocking for.
+      final Uint8List? left;
+      try {
+        left = await _store.read(sessionKey);
+      } on BlockStoreUnavailable {
+        return;
+      }
+      if (left != null && left.isNotEmpty) rethrow;
     }
   });
 
