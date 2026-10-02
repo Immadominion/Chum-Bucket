@@ -39,31 +39,30 @@ class ChumbucketAppHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _InboxResumeRefresh(
-      child: Padding(
-        padding: EdgeInsets.symmetric(vertical: 12.h),
-        child: Row(
-          children: [
-            if (showAccountActions) _ProfileAvatar(onTap: onProfileTap),
-            if (title != null) ...[
-              if (showAccountActions) SizedBox(width: 12.w),
-              Expanded(child: Text(title!, style: AppTextStyles.pageTitle)),
-            ] else
-              const Spacer(),
-            if (showAccountActions) ...[
-              const _WalletButton(),
-              SizedBox(width: 6.w),
-            ],
-            if (onActivityTap != null)
-              IconButton(
-                tooltip: 'Activity',
-                onPressed: onActivityTap,
-                icon: const BasilIcon('notification-outline', size: 22),
-              )
-            else
-              const _NotificationBell(),
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 12.h),
+      child: Row(
+        children: [
+          const _InboxResumeRefresh(),
+          if (showAccountActions) _ProfileAvatar(onTap: onProfileTap),
+          if (title != null) ...[
+            if (showAccountActions) SizedBox(width: 12.w),
+            Expanded(child: Text(title!, style: AppTextStyles.pageTitle)),
+          ] else
+            const Spacer(),
+          if (showAccountActions) ...[
+            const _WalletButton(),
+            SizedBox(width: 6.w),
           ],
-        ),
+          if (onActivityTap != null)
+            IconButton(
+              tooltip: 'Activity',
+              onPressed: onActivityTap,
+              icon: const BasilIcon('notification-outline', size: 22),
+            )
+          else
+            const _NotificationBell(),
+        ],
       ),
     );
   }
@@ -75,8 +74,7 @@ class ChumbucketAppHeader extends StatelessWidget {
 /// device is registered for the signed-in account's pushes when the person
 /// has already allowed notifications — it never prompts.
 class _InboxResumeRefresh extends StatefulWidget {
-  const _InboxResumeRefresh({required this.child});
-  final Widget child;
+  const _InboxResumeRefresh();
 
   @override
   State<_InboxResumeRefresh> createState() => _InboxResumeRefreshState();
@@ -121,7 +119,7 @@ class _InboxResumeRefreshState extends State<_InboxResumeRefresh>
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }
 
 class _ProfileAvatar extends StatelessWidget {
