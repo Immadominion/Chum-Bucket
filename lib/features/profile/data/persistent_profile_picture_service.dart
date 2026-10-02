@@ -124,6 +124,19 @@ class PersistentProfilePictureService {
 
   // Private methods for different storage backends
 
+  static final RegExp _base58 = RegExp(r'^[1-9A-HJ-NP-Za-km-z]+$');
+
+  /// The caller's key is a wallet address. Profiles made at wallet connect
+  /// carry it only in wallet_address (privy_id stays null); older ones carry
+  /// it in privy_id too. Matching only privy_id updated 0 rows for the former,
+  /// so their chosen picture was lost and re-randomised on the next load.
+  static String _ownRowFilter(String key) {
+    if (!_base58.hasMatch(key)) {
+      throw ArgumentError.value(key, 'key', 'not a wallet address');
+    }
+    return 'wallet_address.eq.$key,privy_id.eq.$key';
+  }
+
   static Future<String?> _getProfilePictureFromLocalDB(String privyId) async {
     try {
       AppLogger.debug(
@@ -135,7 +148,8 @@ class PersistentProfilePictureService {
           await Supabase.instance.client
               .from('users')
               .select('profile_image_id')
-              .eq('privy_id', privyId)
+              .or(_ownRowFilter(privyId))
+              .limit(1)
               .maybeSingle();
 
       if (response != null && response['profile_image_id'] != null) {
@@ -193,10 +207,14 @@ class PersistentProfilePictureService {
       if (match != null) {
         final imageId = int.parse(match.group(1)!);
 
-        await Supabase.instance.client
+        final updated = await Supabase.instance.client
             .from('users')
             .update({'profile_image_id': imageId})
-            .eq('privy_id', privyId);
+            .or(_ownRowFilter(privyId))
+            .select('id');
+        if (updated.isEmpty) {
+          throw StateError('No profile row for $privyId');
+        }
 
         AppLogger.info(
           'Successfully saved profile picture ID $imageId to Supabase for user: $privyId',
