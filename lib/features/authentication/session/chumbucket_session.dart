@@ -45,6 +45,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import 'package:chumbucket/features/authentication/session/last_sign_in.dart';
 import 'package:chumbucket/features/authentication/session/session_bff_client.dart';
 import 'package:chumbucket/features/authentication/session/session_state.dart';
 import 'package:chumbucket/features/authentication/session/solana_sign_in.dart';
@@ -71,13 +72,16 @@ class ChumbucketSession extends ChangeNotifier {
     SessionBffClient? bff,
     String redirectTo = kChumbucketOAuthRedirect,
     Duration oauthTimeout = kSessionOAuthTimeout,
+    LastSignInStore lastSignIn = const PreferencesLastSignInStore(),
   }) : _auth = auth ?? const SupabaseFlutterAuthPort(),
        _bff = bff ?? SessionBffClient(),
        _ownsBff = bff == null,
        _redirectTo = redirectTo,
-       _oauthTimeout = oauthTimeout;
+       _oauthTimeout = oauthTimeout,
+       _lastSignIn = lastSignIn;
 
   final SupabaseAuthPort _auth;
+  final LastSignInStore _lastSignIn;
   final SessionBffClient _bff;
   final bool _ownsBff;
   final String _redirectTo;
@@ -109,6 +113,29 @@ class ChumbucketSession extends ChangeNotifier {
   // ---------------------------------------------------------------------------
 
   SessionStatus get status => _status;
+
+  /// The account's own @username (lowercase, no `@`), or null — either the
+  /// account has none ([needsHandleClaim]) or it is not known yet.
+  String? get handle => _identity?.handle;
+
+  /// Signed in to an account the server says has no @username yet: an account
+  /// made before usernames, or a wallet profile carried over to wallet sign-in.
+  /// The person is asked, once, to claim one.
+  bool get needsHandleClaim => isReady && _identity!.needsHandle;
+
+  bool _claimingHandle = false;
+
+  /// True while [claimUsername] is in flight.
+  bool get isClaimingHandle => _claimingHandle;
+
+  SignInMethod? _lastMethod;
+  bool _lastMethodLoaded = false;
+  SignInMethod? _methodInFlight;
+
+  /// How this device last got in (wallet, Google or X), for the front door's
+  /// "Last used" badge. Null until [loadLastSignInMethod] has read it, or when
+  /// nobody has signed in here.
+  SignInMethod? get lastSignInMethod => _lastMethod;
 
   /// Non-null exactly when [status] is [SessionStatus.failed].
   SessionError? get error => _error;
@@ -142,9 +169,16 @@ class ChumbucketSession extends ChangeNotifier {
   bool _needsProfile = false;
 
   /// Whether the current session came from a wallet signature (as opposed to
-  /// Google or X).
-  bool get isWalletSession => _walletSession && _session != null;
+  /// Google or X) — signed here, or restored from storage or a backup.
+  bool get isWalletSession =>
+      _session != null && (_walletSession || _session!.solanaWallet != null);
   bool _walletSession = false;
+
+  /// The wallet this account signed in with, when it signed in with one: the
+  /// address Supabase Auth verified. After a reinstall the session comes back
+  /// but the wallet app's authorization does not; this says which wallet to
+  /// reconnect. Null for Google and X sessions.
+  String? get signInWallet => _session?.solanaWallet;
 
   /// Signed in (wallet, Google or X), but no Chumbucket account yet: the
   /// person claims a @username next. Survives a refused claim ("taken"), so
@@ -218,12 +252,16 @@ class ChumbucketSession extends ChangeNotifier {
   ///
   /// Never throws. Every failure lands in [error] with [status] =
   /// [SessionStatus.failed].
-  Future<void> signInWithGoogle() =>
-      _signInWithOAuth(() => _auth.startGoogleSignIn(redirectTo: _redirectTo));
+  Future<void> signInWithGoogle() => _signInWithOAuth(
+    () => _auth.startGoogleSignIn(redirectTo: _redirectTo),
+    SignInMethod.google,
+  );
 
   /// The same flow with X's consent screen (Supabase's "Twitter (X)").
-  Future<void> signInWithX() =>
-      _signInWithOAuth(() => _auth.startXSignIn(redirectTo: _redirectTo));
+  Future<void> signInWithX() => _signInWithOAuth(
+    () => _auth.startXSignIn(redirectTo: _redirectTo),
+    SignInMethod.x,
+  );
 
   /// Sign in with a Solana wallet: it signs one message (no transaction),
   /// Supabase Auth verifies it and issues a session, and the canonical person
@@ -239,6 +277,7 @@ class ChumbucketSession extends ChangeNotifier {
     _ensureSubscribed();
     final pending = Completer<SupabaseSessionSnapshot?>();
     _pendingSignIn = pending;
+    _methodInFlight = SignInMethod.wallet;
     _status = SessionStatus.signingIn;
     _error = null;
     _notify();
@@ -320,6 +359,71 @@ class ChumbucketSession extends ChangeNotifier {
     _notify();
   }
 
+  /// Reads the remembered sign-in method once.
+  Future<void> loadLastSignInMethod() async {
+    if (_lastMethodLoaded) return;
+    _lastMethodLoaded = true;
+    final method = await _lastSignIn.read();
+    if (_disposed || method == null || _lastMethod != null) return;
+    _lastMethod = method;
+    _notify();
+  }
+
+  /// Remembers [method] as the last one that got this device in. Called by
+  /// the session itself when an interactive sign-in reaches an account, and by
+  /// the wallet door when a wallet connects without an account sign-in.
+  Future<void> rememberSignInMethod(SignInMethod method) async {
+    _lastMethod = method;
+    _lastMethodLoaded = true;
+    _notify();
+    await _lastSignIn.write(method);
+  }
+
+  /// The account claims [handle] as its @username. Only while it has none;
+  /// the server re-checks everything. Returns null on success, or why not.
+  /// The session stays signed in either way.
+  Future<SessionError?> claimUsername(String handle) async {
+    final held = _identity;
+    if (_disposed || !isReady || held == null || _claimingHandle) {
+      return const SessionError.refused(
+        'Sign in to claim a username.',
+        code: SessionErrorCode.tokenInvalid,
+      );
+    }
+    final epoch = _sessionEpoch;
+    _claimingHandle = true;
+    _notify();
+    try {
+      final token = await bffAuthToken();
+      if (token == null || epoch != _sessionEpoch || _disposed) {
+        return const SessionError.refused(
+          'Sign in to claim a username.',
+          code: SessionErrorCode.tokenInvalid,
+        );
+      }
+      final claimed = await _bff.claimUsername(token, handle: handle);
+      if (epoch != _sessionEpoch || _disposed) {
+        return const SessionError.refused(
+          'Your account changed. Nothing was claimed here.',
+          code: 'ACCOUNT_CHANGED',
+        );
+      }
+      if (claimed.userId != held.userId) {
+        return const SessionError.network(
+          'The server could not confirm your username.',
+          code: SessionErrorCode.unreadable,
+        );
+      }
+      _identity = held.withHandle(claimed.handle!);
+      return null;
+    } on SessionException catch (e) {
+      return e.error;
+    } finally {
+      _claimingHandle = false;
+      _notify();
+    }
+  }
+
   /// Whether a @username can be claimed. Null when the check could not run.
   Future<UsernameStatus?> usernameStatus(String handle) async {
     try {
@@ -329,7 +433,10 @@ class ChumbucketSession extends ChangeNotifier {
     }
   }
 
-  Future<void> _signInWithOAuth(Future<bool> Function() start) async {
+  Future<void> _signInWithOAuth(
+    Future<bool> Function() start,
+    SignInMethod method,
+  ) async {
     _walletSession = false;
     if (_disposed ||
         _linkingExistingAccount ||
@@ -342,6 +449,7 @@ class ChumbucketSession extends ChangeNotifier {
 
     final pending = Completer<SupabaseSessionSnapshot?>();
     _pendingSignIn = pending;
+    _methodInFlight = method;
     _status = SessionStatus.signingIn;
     _error = null;
     _notify();
@@ -442,14 +550,29 @@ class ChumbucketSession extends ChangeNotifier {
           ),
         );
       }
-      _identity = identity;
+      // A new account's handle is the one just claimed.
+      _identity =
+          handle != null && identity.handle == null
+              ? identity.withHandle(handle.trim().toLowerCase())
+              : identity;
       _needsProfile = false;
       _status = SessionStatus.ready;
       _error = null;
+      _recordSignInMethod();
       _notify();
     } on SessionException catch (e) {
       if (epoch == _sessionEpoch && !_disposed) _applyFailure(e.error);
     }
+  }
+
+  /// An interactive sign-in reached an account: remember how, for "Last used".
+  void _recordSignInMethod() {
+    final method = _methodInFlight;
+    if (method == null) return;
+    _methodInFlight = null;
+    _lastMethod = method;
+    _lastMethodLoaded = true;
+    unawaited(_lastSignIn.write(method));
   }
 
   SessionIdentityStatus? _identityStatus;
@@ -853,6 +976,7 @@ class ChumbucketSession extends ChangeNotifier {
         _needsProfile = false;
         _status = SessionStatus.ready;
         _error = null;
+        _recordSignInMethod();
         _notify();
         return;
       } on SessionException catch (e) {
@@ -896,6 +1020,7 @@ class ChumbucketSession extends ChangeNotifier {
     _session = null;
     _identity = null;
     _needsProfile = false;
+    _methodInFlight = null;
     _status = SessionStatus.signedOut;
     _error = null;
     _notify();

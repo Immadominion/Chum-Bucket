@@ -138,23 +138,51 @@ class SessionError {
 /// `auth.uid()`; the BFF returns it deliberately because the client already
 /// holds it, and it is not another user's identifier.
 class SessionIdentity {
-  const SessionIdentity({required this.userId, required this.authUserId});
+  const SessionIdentity({
+    required this.userId,
+    required this.authUserId,
+    this.handle,
+    this.handleKnown = false,
+  });
 
   final String userId;
   final String authUserId;
+
+  /// The account's own stored @username, lowercase, without the `@`. Null
+  /// when the account has none — or when the server did not say, which is
+  /// what [handleKnown] tells apart. Never the `user-xxxxxxxx` placeholder
+  /// other surfaces show for a handle-less account.
+  final String? handle;
+
+  /// True when the server answered with the stored handle (even a null one).
+  /// Only then may a null [handle] be read as "this account has no username".
+  final bool handleKnown;
+
+  /// Has no @username yet, as far as the server is concerned.
+  bool get needsHandle => handleKnown && handle == null;
+
+  SessionIdentity withHandle(String value) => SessionIdentity(
+    userId: userId,
+    authUserId: authUserId,
+    handle: value,
+    handleKnown: true,
+  );
 
   @override
   bool operator ==(Object other) =>
       other is SessionIdentity &&
       other.userId == userId &&
-      other.authUserId == authUserId;
+      other.authUserId == authUserId &&
+      other.handle == handle &&
+      other.handleKnown == handleKnown;
 
   @override
-  int get hashCode => Object.hash(userId, authUserId);
+  int get hashCode => Object.hash(userId, authUserId, handle, handleKnown);
 
   @override
   String toString() =>
-      'SessionIdentity(userId: $userId, authUserId: $authUserId)';
+      'SessionIdentity(userId: $userId, authUserId: $authUserId, '
+      'handle: ${handleKnown ? handle : '<unknown>'})';
 }
 
 /// What `auth.identityStatus` answers with — public, credential-free, and
