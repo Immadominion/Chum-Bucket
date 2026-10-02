@@ -71,6 +71,19 @@ enum WalletBackupOutcome {
 
   /// Block Store refused the write.
   failed,
+
+  /// A different wallet key is already backed up for this account. It is
+  /// never replaced — it may be the only copy of a wallet that holds funds —
+  /// so this one is not backed up: its recovery phrase is its only backup.
+  otherWalletBackedUp,
+}
+
+/// Block Store is there but its wallet backup could not be read. A backup may
+/// exist, so this must never be taken to mean "no wallet".
+class WalletBackupUnreadable implements Exception {
+  const WalletBackupUnreadable();
+  @override
+  String toString() => 'WalletBackupUnreadable';
 }
 
 /// The one session entry. [toString] is redacted: it carries a credential.
@@ -325,7 +338,9 @@ class SessionContinuity {
         return WalletBackupOutcome.notEncrypted;
       }
       final wallets = await _readWallets();
-      if (wallets[userId] == secret) return WalletBackupOutcome.backedUp;
+      final existing = wallets[userId];
+      if (existing == secret) return WalletBackupOutcome.backedUp;
+      if (existing != null) return WalletBackupOutcome.otherWalletBackedUp;
       wallets[userId] = secret;
       final bytes = _encodeWallets(wallets);
       if (bytes.length > maxEntryBytes) return WalletBackupOutcome.failed;
@@ -338,12 +353,24 @@ class SessionContinuity {
     }
   });
 
-  /// The backed-up wallet secret for [userId], or null.
+  /// The backed-up wallet secret for [userId], or null when there is none
+  /// (or no Block Store on this device). Throws [WalletBackupUnreadable] when
+  /// Block Store is there but did not answer: a caller that took that as
+  /// "none" could make a new wallet and lose the backed-up one.
   Future<String?> restoreWalletSecret(String userId) => _enqueue(() async {
+    final BlockStoreAvailability availability;
     try {
-      return (await _readWallets())[userId];
+      availability = await _store.availability();
     } catch (_) {
       return null;
+    }
+    if (!availability.available) return null;
+    try {
+      return (await _readWallets())[userId];
+    } on BlockStoreUnavailable {
+      return null;
+    } catch (_) {
+      throw const WalletBackupUnreadable();
     }
   });
 }

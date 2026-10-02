@@ -30,10 +30,8 @@ String persistedSession({
 });
 
 class _Rig {
-  _Rig({
-    MemoryBlockStore? store,
-    this.outcome = SessionAdoption.adopted,
-  }) : store = store ?? MemoryBlockStore();
+  _Rig({MemoryBlockStore? store, this.outcome = SessionAdoption.adopted})
+    : store = store ?? MemoryBlockStore();
 
   final MemoryBlockStore store;
   final MemoryLastSignInStore lastSignIn = MemoryLastSignInStore();
@@ -303,6 +301,32 @@ void main() {
       );
       expect(noLock.store.entries, isEmpty);
     });
+
+    test('a backed-up key is never replaced by a different one', () async {
+      final rig = _Rig();
+      await rig.continuity.backupWalletSecret('user-1', kTestPhrase);
+      expect(
+        await rig.continuity.backupWalletSecret('user-1', kOtherTestPhrase),
+        WalletBackupOutcome.otherWalletBackedUp,
+      );
+      expect(await rig.continuity.restoreWalletSecret('user-1'), kTestPhrase);
+    });
+
+    test(
+      'an unreadable backup is reported as such, never as "no key"',
+      () async {
+        final rig = _Rig();
+        await rig.continuity.backupWalletSecret('user-1', kTestPhrase);
+        rig.store.failReads = true;
+        await expectLater(
+          rig.continuity.restoreWalletSecret('user-1'),
+          throwsA(isA<WalletBackupUnreadable>()),
+        );
+        // No Block Store at all is simply "none".
+        rig.store.available = false;
+        expect(await rig.continuity.restoreWalletSecret('user-1'), isNull);
+      },
+    );
   });
 
   group('the platform channel', () {

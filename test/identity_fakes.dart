@@ -15,6 +15,9 @@ class MemoryBlockStore implements BlockStorePort {
   bool endToEndEncrypted;
   bool failWrites = false;
   bool failDeletes = false;
+
+  /// Block Store is there but a read fails (Play services not answering).
+  bool failReads = false;
   final Map<String, Uint8List> entries = {};
 
   /// Whether each key's last write asked for cloud backup.
@@ -31,6 +34,7 @@ class MemoryBlockStore implements BlockStorePort {
   @override
   Future<Uint8List?> read(String key) async {
     if (!available) throw const BlockStoreUnavailable();
+    if (failReads) throw const BlockStoreFailure();
     return entries[key];
   }
 
@@ -65,9 +69,14 @@ class MemorySecretStore implements EmbeddedWalletSecretStore {
   /// Models storage that accepts a write but reads back something else.
   bool corruptReads = false;
 
+  /// Models a read the Keystore refuses (a locked phone).
+  bool failReads = false;
+
   @override
-  Future<String?> read(String key) async =>
-      corruptReads && values.containsKey(key) ? 'corrupt' : values[key];
+  Future<String?> read(String key) async {
+    if (failReads) throw StateError('keystore locked');
+    return corruptReads && values.containsKey(key) ? 'corrupt' : values[key];
+  }
 
   @override
   Future<void> write(String key, String value) async {

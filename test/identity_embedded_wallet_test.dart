@@ -434,6 +434,125 @@ void main() {
       },
     );
 
+    test(
+      'a phrase the server refuses is not stored: no wallet the account can never link',
+      () async {
+        final link = LinkServer()..refuseLink = true;
+        final store = MemorySecretStore();
+        final blockStore = MemoryBlockStore();
+        final wallet = controllerFor(
+          link,
+          store: store,
+          continuity: SessionContinuity(
+            store: blockStore,
+            adopt: (_) async => SessionAdoption.rejected,
+            localSession: () async => null,
+          ),
+        );
+        addTearDown(wallet.dispose);
+        await wallet.bind(kCanonicalUserId);
+        await wallet.importRecoveryPhrase(kTestPhrase);
+        expect(wallet.hasWallet, isFalse);
+        expect(wallet.phase, EmbeddedWalletPhase.none);
+        expect(wallet.error, contains('another Chumbucket account'));
+        expect(wallet.error, contains('not saved'));
+        expect(store.values, isEmpty);
+        expect(blockStore.entries, isEmpty);
+        // Still free to make a wallet, or import another phrase.
+        link.refuseLink = false;
+        await wallet.importRecoveryPhrase(kTestPhrase);
+        expect(wallet.linked, isTrue);
+        expect(store.values, hasLength(1));
+      },
+    );
+
+    test(
+      'a failed read never becomes a new key written over the stored one',
+      () async {
+        final link = LinkServer();
+        final store = MemorySecretStore();
+        final existing = EmbeddedWalletRecord(
+          address: kTestPhraseAddress,
+          recoveryPhrase: kTestPhrase,
+          linked: true,
+          createdAt: DateTime.utc(2026, 10, 1),
+        );
+        store.values[EmbeddedWalletVault.keyFor(kCanonicalUserId)] =
+            existing.encode();
+        final wallet = EmbeddedWalletController(
+          vault: EmbeddedWalletVault(store: store),
+          bff: SessionBffClient(
+            baseUrl: kSessionBase,
+            httpClient: link.server.client,
+          ),
+          authToken: () async => kAccessToken,
+          generate:
+              () => EmbeddedWalletKey.fromRecoveryPhrase(kOtherTestPhrase),
+        );
+        addTearDown(wallet.dispose);
+        // A locked phone: the stored wallet cannot be read.
+        store.failReads = true;
+        await wallet.bind(kCanonicalUserId);
+        expect(wallet.hasWallet, isFalse);
+        expect(wallet.error, contains('Couldn’t open'));
+        // Still unreadable: "Create" refuses rather than overwrite.
+        await wallet.create();
+        expect(wallet.hasWallet, isFalse);
+        expect(wallet.error, contains('Nothing was created'));
+        expect(
+          EmbeddedWalletRecord.decode(
+            store.values[EmbeddedWalletVault.keyFor(kCanonicalUserId)],
+          )?.address,
+          kTestPhraseAddress,
+        );
+        // Unlocked: "Create" finds the wallet that was there all along.
+        store.failReads = false;
+        await wallet.create();
+        expect(wallet.address, kTestPhraseAddress);
+        expect(wallet.error, contains('Nothing was replaced'));
+        expect(link.server.received, isEmpty);
+      },
+    );
+
+    test(
+      'after a reinstall, a backup that could not be read is not "no wallet"',
+      () async {
+        final link = LinkServer();
+        final blockStore = MemoryBlockStore();
+        final continuity = SessionContinuity(
+          store: blockStore,
+          adopt: (_) async => SessionAdoption.rejected,
+          localSession: () async => null,
+        );
+        await continuity.backupWalletSecret(kCanonicalUserId, kTestPhrase);
+        final store = MemorySecretStore();
+        final wallet = EmbeddedWalletController(
+          vault: EmbeddedWalletVault(store: store, continuity: continuity),
+          bff: SessionBffClient(
+            baseUrl: kSessionBase,
+            httpClient: link.server.client,
+          ),
+          authToken: () async => kAccessToken,
+          generate:
+              () => EmbeddedWalletKey.fromRecoveryPhrase(kOtherTestPhrase),
+        );
+        addTearDown(wallet.dispose);
+        blockStore.failReads = true;
+        await wallet.bind(kCanonicalUserId);
+        expect(wallet.hasWallet, isFalse);
+        await wallet.create();
+        expect(wallet.hasWallet, isFalse, reason: 'no new key while unsure');
+        expect(store.values, isEmpty);
+        blockStore.failReads = false;
+        await wallet.create();
+        expect(wallet.address, kTestPhraseAddress, reason: 'the backed-up one');
+        expect(
+          await continuity.restoreWalletSecret(kCanonicalUserId),
+          kTestPhrase,
+        );
+      },
+    );
+
     test('no session: the wallet stays unlinked and says to sign in', () async {
       final link = LinkServer();
       final wallet = controllerFor(link, token: null);

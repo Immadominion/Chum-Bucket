@@ -140,7 +140,9 @@ class EmbeddedWalletVault {
 
   /// This account's wallet on this phone — from secure storage, or from the
   /// Block Store backup after a reinstall (then written back locally). Null
-  /// when the account has none here.
+  /// only when the account has none here; throws
+  /// [EmbeddedWalletStorageException] when that cannot be known (storage or
+  /// the backup did not answer), so a failed read never looks like "none".
   Future<EmbeddedWalletRecord?> load(String userId) async {
     final String? stored;
     try {
@@ -150,7 +152,17 @@ class EmbeddedWalletVault {
     }
     final local = EmbeddedWalletRecord.decode(stored);
     if (local != null) return local;
-    final phrase = await continuity?.restoreWalletSecret(userId);
+    // Something is stored but it is not a record this build reads: never
+    // treat it as empty (and so never write a new key over it).
+    if (stored != null && stored.isNotEmpty) {
+      throw const EmbeddedWalletStorageException();
+    }
+    final String? phrase;
+    try {
+      phrase = await continuity?.restoreWalletSecret(userId);
+    } on WalletBackupUnreadable {
+      throw const EmbeddedWalletStorageException();
+    }
     if (phrase == null) return null;
     final EmbeddedWalletKey key;
     try {

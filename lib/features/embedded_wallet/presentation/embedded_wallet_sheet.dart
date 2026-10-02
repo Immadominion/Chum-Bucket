@@ -513,6 +513,13 @@ class _BackupLine extends StatelessWidget {
             'until it does.',
         true,
       ),
+      WalletBackupOutcome.otherWalletBackedUp => (
+        'cloud-off-outline',
+        'Not backed up: this phone’s backup already holds a different wallet '
+            'for your account, and it is never replaced. Write down this '
+            'wallet’s recovery phrase — it is its only backup.',
+        false,
+      ),
       WalletBackupOutcome.unavailable || null => (
         'key-outline',
         'Your recovery phrase is your backup. Write it down — if this phone '

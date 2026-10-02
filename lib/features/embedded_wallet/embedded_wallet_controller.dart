@@ -10,6 +10,16 @@
 /// Order matters when making a wallet: the key is saved to secure storage and
 /// read back BEFORE it is linked or shown as usable, so a crash at any point
 /// can never leave an account pointing at a key nobody holds.
+///
+/// Two more rules keep a key from being lost or stuck:
+///  * A new wallet is only ever made after reading — successfully — that the
+///    account has none on this phone or in its backup. A read that failed (a
+///    locked phone, Block Store not answering) is never taken as "none", so a
+///    new key can never be written over an existing one.
+///  * An imported phrase is proven to the server BEFORE it is stored. The
+///    person already holds that phrase, so nothing is lost if the server
+///    refuses it (for example, it is another Chumbucket account's wallet) —
+///    and the account is never left holding a wallet it can never link.
 library;
 
 import 'dart:async';
@@ -125,30 +135,42 @@ class EmbeddedWalletController extends ChangeNotifier {
         _notify();
         return;
       }
-      final key = await EmbeddedWalletKey.fromRecoveryPhrase(
-        record.recoveryPhrase,
-      );
-      if (!_current(epoch)) return;
-      if (key.address != record.address) {
-        throw const EmbeddedWalletStorageException();
-      }
-      _record = record;
-      _key = key;
-      _phase = EmbeddedWalletPhase.ready;
-      _notify();
-      // Keeps the encrypted backup current (a screen lock added since, a
-      // reinstall) and learns its state; a no-op when it already matches.
-      unawaited(_refreshBackup(epoch, userId, key));
-      // A wallet restored after a reinstall is re-proven to the server.
-      if (!record.linked) unawaited(link());
+      await _open(epoch, userId, record);
     } catch (_) {
       if (!_current(epoch)) return;
       _phase = EmbeddedWalletPhase.none;
-      _error =
-          'Couldn’t open the wallet stored on this phone. Unlock your phone '
-          'and try again.';
+      _error = _unreadableCopy;
       _notify();
     }
+  }
+
+  static const _unreadableCopy =
+      'Couldn’t open the wallet stored on this phone. Unlock your phone and '
+      'try again.';
+
+  /// Shows a stored wallet as this account's, after checking its key opens
+  /// the address it was stored with.
+  Future<void> _open(
+    int epoch,
+    String userId,
+    EmbeddedWalletRecord record,
+  ) async {
+    final key = await EmbeddedWalletKey.fromRecoveryPhrase(
+      record.recoveryPhrase,
+    );
+    if (!_current(epoch)) return;
+    if (key.address != record.address) {
+      throw const EmbeddedWalletStorageException();
+    }
+    _record = record;
+    _key = key;
+    _phase = EmbeddedWalletPhase.ready;
+    _notify();
+    // Keeps the encrypted backup current (a screen lock added since, a
+    // reinstall) and learns its state; a no-op when it already matches.
+    unawaited(_refreshBackup(epoch, userId, key));
+    // A wallet restored after a reinstall is re-proven to the server.
+    if (!record.linked) unawaited(link());
   }
 
   bool _current(int epoch) => !_disposed && epoch == _epoch;
@@ -166,27 +188,56 @@ class EmbeddedWalletController extends ChangeNotifier {
 
   /// Makes a new wallet for this account on this phone, saves it, backs it
   /// up when that can be end-to-end encrypted, then links it.
-  Future<void> create() => _adopt(() => _generate());
+  Future<void> create() => _adopt(() => _generate(), proveFirst: false);
 
   /// Puts an existing wallet (its 12-word phrase) on this phone for this
-  /// account, then links it. Only when the account has none here.
-  Future<void> importRecoveryPhrase(String phrase) =>
-      _adopt(() => EmbeddedWalletKey.fromRecoveryPhrase(phrase));
+  /// account. Only when the account has none here, and only once the server
+  /// has linked it to this account — a refused phrase is not stored.
+  Future<void> importRecoveryPhrase(String phrase) => _adopt(
+    () => EmbeddedWalletKey.fromRecoveryPhrase(phrase),
+    proveFirst: true,
+  );
 
-  Future<void> _adopt(Future<EmbeddedWalletKey> Function() make) async {
+  Future<void> _adopt(
+    Future<EmbeddedWalletKey> Function() make, {
+    required bool proveFirst,
+  }) async {
     final userId = _userId;
     if (_disposed || userId == null || hasWallet || isBusy) return;
     final epoch = _epoch;
     _phase = EmbeddedWalletPhase.creating;
     _error = null;
     _notify();
+    var proving = false;
     try {
+      // Read again, and only go on if it says — successfully — that this
+      // account has no wallet here. An earlier failed read (a locked phone,
+      // Block Store not answering) must never become a new key written over
+      // the old one.
+      final existing = await _vault.load(userId);
+      if (!_current(epoch)) return;
+      if (existing != null) {
+        await _open(epoch, userId, existing);
+        if (!_current(epoch)) return;
+        _error =
+            'This phone already holds a wallet for your account — here it '
+            'is. Nothing was replaced.';
+        _notify();
+        return;
+      }
       final key = await make();
       if (!_current(epoch)) return;
+      if (proveFirst) {
+        proving = true;
+        _phase = EmbeddedWalletPhase.linking;
+        _notify();
+        if (!await _prove(epoch, key)) return;
+        proving = false;
+      }
       final record = EmbeddedWalletRecord(
         address: key.address,
         recoveryPhrase: key.recoveryPhrase,
-        linked: false,
+        linked: proveFirst,
         createdAt: DateTime.now().toUtc(),
       );
       await _vault.save(userId, record);
@@ -198,20 +249,66 @@ class EmbeddedWalletController extends ChangeNotifier {
       _backup = await _vault.backUp(userId, key.recoveryPhrase);
       if (!_current(epoch)) return;
       _notify();
-      await link();
+      if (!proveFirst) await link();
     } on EmbeddedWalletException catch (e) {
       if (!_current(epoch)) return;
       _phase = EmbeddedWalletPhase.none;
       _error = e.message;
       _notify();
+    } on SessionException catch (e) {
+      // Only an import's proof gets here: nothing was stored.
+      if (!_current(epoch)) return;
+      _phase = hasWallet ? EmbeddedWalletPhase.ready : EmbeddedWalletPhase.none;
+      _error = '${_linkCopy(e.error)} This phrase was not saved.';
+      _notify();
+    } on EmbeddedWalletStorageException {
+      if (!_current(epoch)) return;
+      _phase = hasWallet ? EmbeddedWalletPhase.ready : EmbeddedWalletPhase.none;
+      _error =
+          hasWallet
+              ? _unreadableCopy
+              : 'Couldn’t check this phone for the wallet you may already '
+                  'have, or save a new one. Unlock your phone and try again. '
+                  'Nothing was created.';
+      _notify();
     } catch (_) {
       if (!_current(epoch)) return;
       _phase = hasWallet ? EmbeddedWalletPhase.ready : EmbeddedWalletPhase.none;
       _error =
-          'Couldn’t save a wallet on this phone. Unlock your phone and try '
-          'again. Nothing was created.';
+          proving
+              ? 'Couldn’t link the wallet. Try again. This phrase was not '
+                  'saved.'
+              : 'Couldn’t save a wallet on this phone. Unlock your phone and '
+                  'try again. Nothing was created.';
       _notify();
     }
+  }
+
+  /// Signs the server's link challenge for [key] and has the server attach
+  /// it to this account (labelled "embedded"). False when the account changed
+  /// meanwhile; throws [SessionException] when the server refused.
+  Future<bool> _prove(int epoch, EmbeddedWalletKey key) async {
+    final token = await _authToken();
+    if (!_current(epoch)) return false;
+    if (token == null) {
+      throw const SessionException(
+        SessionError.refused(
+          'Sign in again to link this wallet.',
+          code: SessionErrorCode.tokenInvalid,
+        ),
+      );
+    }
+    final proof = await _bff.requestWalletLink(token, address: key.address);
+    if (!_current(epoch)) return false;
+    final signature = base58encode(await key.sign(utf8.encode(proof.message)));
+    await _bff.linkWallet(
+      token,
+      address: key.address,
+      proof: proof,
+      signature: signature,
+      walletType: 'embedded',
+    );
+    return _current(epoch);
   }
 
   /// Proves the wallet to the server and records the answer. Safe to repeat:
@@ -232,29 +329,7 @@ class EmbeddedWalletController extends ChangeNotifier {
     _error = null;
     _notify();
     try {
-      final token = await _authToken();
-      if (!_current(epoch)) return;
-      if (token == null) {
-        throw const SessionException(
-          SessionError.refused(
-            'Sign in again to link this wallet.',
-            code: SessionErrorCode.tokenInvalid,
-          ),
-        );
-      }
-      final proof = await _bff.requestWalletLink(token, address: key.address);
-      if (!_current(epoch)) return;
-      final signature = base58encode(
-        await key.sign(utf8.encode(proof.message)),
-      );
-      await _bff.linkWallet(
-        token,
-        address: key.address,
-        proof: proof,
-        signature: signature,
-        walletType: 'embedded',
-      );
-      if (!_current(epoch)) return;
+      if (!await _prove(epoch, key)) return;
       final linked = record.copyWith(linked: true);
       await _vault.save(userId, linked);
       if (!_current(epoch)) return;
