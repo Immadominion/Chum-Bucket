@@ -96,9 +96,9 @@ flutter:
     - assets/images/ai_gen/logo/
     - assets/images/ai_gen/profile_images/
     - assets/images/ai_gen/whisk_animation_fallback/
+    # Only 3d-texture.JPG is used at runtime from here. The irfan/ design
+    # references are cited in comments and stay in the repo, unbundled.
     - assets/images/open_sourced_design_inspiration/
-    - assets/images/open_sourced_design_inspiration/figma_community/onboarding/
-    - assets/images/open_sourced_design_inspiration/irfan/
     - assets/animations/
     - assets/animations/whisk_ai_generate/
     - assets/animations/lottie/

@@ -2,6 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 
+/// The image for an avatar, decoded at the size it is drawn rather than at
+/// its source resolution (the bundled avatars are 256px; a remote one can be
+/// any size). `cacheWidth` for a [DecorationImage].
+ImageProvider avatarImageProvider(
+  String url, {
+  required double logicalSize,
+  required double devicePixelRatio,
+}) {
+  final ImageProvider base =
+      url.startsWith('assets/') ? AssetImage(url) : NetworkImage(url);
+  final px = (logicalSize * devicePixelRatio).ceil().clamp(1, 512);
+  return ResizeImage(base, width: px, policy: ResizeImagePolicy.fit);
+}
+
 /// Reusable avatar component with consistent sizing and fallback
 class AppAvatar extends StatelessWidget {
   final String? imageUrl;
@@ -53,19 +67,27 @@ class AppAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // One unit for both axes. `.w` and `.h` scale by different factors on any
+    // screen whose aspect ratio differs from the 390x844 design (320dp phones,
+    // tablets, split screen), which drew avatars as ellipses.
+    final diameter = size.r;
     final avatar = Container(
-      width: size.w,
-      height: size.h,
+      width: diameter,
+      height: diameter,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: backgroundColor ?? _getDefaultColor(initials),
         image:
             imageUrl != null
                 ? DecorationImage(
-                  image:
-                      imageUrl!.startsWith('assets/')
-                          ? AssetImage(imageUrl!)
-                          : NetworkImage(imageUrl!) as ImageProvider,
+                  image: avatarImageProvider(
+                    imageUrl!,
+                    logicalSize: diameter,
+                    devicePixelRatio: MediaQuery.maybeDevicePixelRatioOf(
+                          context,
+                        ) ??
+                        3,
+                  ),
                   fit: BoxFit.cover,
                 )
                 : null,
@@ -149,8 +171,8 @@ class FriendAvatar extends StatelessWidget {
             right: 0,
             bottom: 0,
             child: Container(
-              width: (size * 0.25).w,
-              height: (size * 0.25).h,
+              width: (size * 0.25).r,
+              height: (size * 0.25).r,
               decoration: BoxDecoration(
                 color: const Color(0xFF4CAF50),
                 shape: BoxShape.circle,
