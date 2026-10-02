@@ -10,7 +10,10 @@ import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
-import 'package:chumbucket/features/authentication/session/panta_mwa_wallet.dart';
+import 'package:chumbucket/features/embedded_wallet/embedded_wallet_controller.dart';
+import 'package:chumbucket/features/embedded_wallet/panta_embedded_wallet.dart';
+import 'package:chumbucket/features/embedded_wallet/panta_signer_choice.dart';
+import 'package:chumbucket/features/embedded_wallet/presentation/embedded_wallet_sheet.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_transport.dart';
 import 'package:chumbucket/features/panta_trading/panta_trading.dart';
@@ -59,21 +62,38 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
     super.dispose();
   }
 
+  /// Opens the private Panta trade for the viewer's own call.
+  ///
+  /// Signs with the wallet app when one is connected (as before). An account
+  /// without one — Google or X — signs with the wallet that lives on this
+  /// phone, once it exists and the server has confirmed it is theirs; until
+  /// then, this opens that wallet's sheet to make or link it.
   Future<void> _fund(CallFeedEntry entry) async {
     final auth = context.read<MwaAuthProvider>();
     final account = context.read<ChumbucketSession>();
-    final wallet = auth.walletAddress;
-    if (!account.isReady || wallet == null || !auth.isAuthenticated) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Use your connected wallet and link Google in Profile → Settings to fund your own call.',
-          ),
-        ),
-      );
+    final onPhone = context.read<EmbeddedWalletController?>();
+    if (!account.isReady) {
+      requestCallSignIn(context, onRequested: widget.onSignInRequested);
       return;
     }
-    if (_trade == null || _trade!.phase == PantaTradePhase.cancelled) {
+    final choice = choosePantaSigner(
+      walletApp: auth,
+      onPhone: onPhone,
+      reviewed: PantaReviewedBuy(
+        venueMarketId: entry.market.venueMarketId,
+        side: entry.call.side,
+        amountBaseUnits: () => _trade?.prepared?.order.amountBaseUnits,
+      ),
+    );
+    if (choice == null) {
+      if (onPhone == null) return;
+      await showEmbeddedWalletSheet(context);
+      return;
+    }
+    final wallet = choice.address;
+    if (_trade == null ||
+        _trade!.phase == PantaTradePhase.cancelled ||
+        _trade!.wallet != wallet) {
       _trade?.dispose();
       _tradingClient?.close();
       _tradingClient = PantaTradingClient(
@@ -93,14 +113,15 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
         side: entry.call.side,
         wallet: wallet,
         client: _tradingClient!,
-        walletPort: PantaMwaWallet(auth),
-        selectedWallet: () => auth.walletAddress,
+        walletPort: choice.port,
+        selectedWallet: choice.selectedWallet,
       );
     }
     await showPantaTradeSheet(
       context: context,
       controller: _trade!,
       marketQuestion: entry.market.question,
+      signer: choice.kind,
     );
     if (mounted) setState(() {});
   }
