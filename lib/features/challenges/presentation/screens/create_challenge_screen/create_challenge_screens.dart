@@ -93,13 +93,13 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
 
     try {
       if (kDebugMode) {
-        print('🚨 UI: ABOUT TO CALL walletProvider.createChallenge');
-        print('🔍 UI: Parameters:');
-        print('  - friendEmail: ${widget.friendAddress}');
-        print('  - friendAddress: ${widget.friendAddress}');
-        print('  - amount: $_betAmount');
-        print('  - description: $description');
-        print('  - durationDays: 7');
+        AppLogger.debug('🚨 UI: ABOUT TO CALL walletProvider.createChallenge');
+        AppLogger.debug('🔍 UI: Parameters:');
+        AppLogger.debug('  - friendEmail: ${widget.friendAddress}');
+        AppLogger.debug('  - friendAddress: ${widget.friendAddress}');
+        AppLogger.debug('  - amount: $_betAmount');
+        AppLogger.debug('  - description: $description');
+        AppLogger.debug('  - durationDays: 7');
       }
 
       // Validate friend information before creating challenge
@@ -120,7 +120,7 @@ class _CreateChallengeScreenState extends State<CreateChallengeScreen> {
       );
 
       if (kDebugMode) {
-        print(
+        AppLogger.debug(
           '🚨 UI: walletProvider.createChallenge returned: $createdChallenge',
         );
       }

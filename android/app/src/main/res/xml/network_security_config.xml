@@ -22,10 +22,9 @@
             <certificates src="system" />
         </trust-anchors>
     </domain-config>
-    
-    <!-- Allow localhost for local development -->
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="false">localhost</domain>
-        <domain includeSubdomains="false">127.0.0.1</domain>
-    </domain-config>
+
+    <!-- No cleartext exception here. Release and profile builds speak HTTPS
+         only. The localhost exception for a local BFF lives in the debug-only
+         override at android/app/src/debug/res/xml/network_security_config.xml,
+         which Gradle merges over this file for debug builds alone. -->
 </network-security-config>

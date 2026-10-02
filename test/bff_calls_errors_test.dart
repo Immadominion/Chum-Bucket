@@ -39,7 +39,7 @@ BffCallsRepository build(
   baseUrl: kBase,
   httpClient: server.client,
   timeout: timeout,
-  linkHost: 'https://chumbucket.app',
+  linkHost: 'https://chumbucket.fun',
   verbose: false,
 );
 

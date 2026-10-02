@@ -21,7 +21,15 @@ enum CallsBackend {
 
   static const String configKey = 'CALLS_BACKEND';
 
-  static CallsBackend fromName(String? raw) {
+  /// The backend for a `CALLS_BACKEND` value.
+  ///
+  /// A **release** build always runs on the BFF. The seeded mock is demo data,
+  /// and demo data shown in a store build reads as real to the person holding
+  /// the phone, so no value — not `mock`, not a typo — can select it there.
+  /// `scripts/build_release.sh` also refuses to build a release whose
+  /// configuration does not say `bff`, so this is the second of two locks.
+  static CallsBackend fromName(String? raw, {bool releaseMode = kReleaseMode}) {
+    if (releaseMode) return CallsBackend.bff;
     switch (raw?.trim().toLowerCase()) {
       case 'mock':
         return CallsBackend.mock;
@@ -33,11 +41,11 @@ enum CallsBackend {
         // backend migration is a separate gate, not something this flag proves.
         return CallsBackend.bff;
       default:
-        // An unrecognised value is a configuration mistake. Falling back to the
-        // mock is still the safe direction for a TYPO specifically: the app runs
-        // on visibly-demo data instead of silently pointing somewhere nobody
-        // meant to name. An absent value is different — that is the normal case,
-        // and it means production.
+        // An unrecognised value is a configuration mistake. In a debug or
+        // profile build, falling back to the mock is the safe direction for a
+        // TYPO specifically: the app runs on visibly-demo data instead of
+        // silently pointing somewhere nobody meant to name. An absent value is
+        // different — that is the normal case, and it means production.
         assert(() {
           debugPrint(
             'CallsBackend: unrecognised $configKey="$raw" — using the mock. '
@@ -55,11 +63,14 @@ enum CallsBackend {
 /// Defaults to [CallsBackend.bff]. This chooses a transport, not a venue, and
 /// does not certify deployment readiness. The mock remains reachable with
 /// `--dart-define=CALLS_BACKEND=mock` for tests and offline work.
-CallsBackend resolveCallsBackend({Map<String, String>? overrides}) {
+CallsBackend resolveCallsBackend({
+  Map<String, String>? overrides,
+  bool releaseMode = kReleaseMode,
+}) {
   final raw =
       overrides?[CallsBackend.configKey] ??
       AppConfig.values[CallsBackend.configKey];
-  return CallsBackend.fromName(raw);
+  return CallsBackend.fromName(raw, releaseMode: releaseMode);
 }
 
 /// Builds the repository the app should run on.

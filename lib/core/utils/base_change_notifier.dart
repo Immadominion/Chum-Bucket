@@ -4,6 +4,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io'; // Add this import for InternetAddress
+import 'package:chumbucket/core/utils/app_logger.dart';
 
 enum LoadingState { idle, loading, success, error }
 
@@ -123,7 +124,7 @@ class BaseChangeNotifier extends ChangeNotifier {
       return false;
     } catch (e) {
       if (kDebugMode) {
-        print('Error checking internet connection: $e');
+        AppLogger.debug('Error checking internet connection: $e');
       }
       return false; // Assume no connection on any error
     }

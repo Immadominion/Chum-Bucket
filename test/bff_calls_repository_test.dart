@@ -19,7 +19,7 @@ const String kViewer = 'user_you';
 BffCallsRepository build(
   FakeBffServer server, {
   String? token,
-  String linkHost = 'https://chumbucket.app',
+  String linkHost = 'https://chumbucket.fun',
 }) => BffCallsRepository(
   baseUrl: kBase,
   httpClient: server.client,
@@ -594,15 +594,15 @@ void main() {
     test('are built from the configured host, never a hardcoded one', () {
       final repo = build(
         FakeBffServer.replying(null),
-        linkHost: 'https://staging.chumbucket.app/',
+        linkHost: 'https://staging.chumbucket.fun/',
       );
       expect(
         repo.shareLinkForCall('call_ada_btc'),
-        'https://staging.chumbucket.app/c/call_ada_btc',
+        'https://staging.chumbucket.fun/c/call_ada_btc',
       );
       expect(
         repo.shareLinkForPerson('@ada'),
-        'https://staging.chumbucket.app/u/ada',
+        'https://staging.chumbucket.fun/u/ada',
       );
     });
   });

@@ -26,10 +26,17 @@ import 'package:chumbucket/features/calls/data/calls_repository.dart';
 const Set<String> kCallDeepLinkSchemes = {'chumbucket', 'dev.cleva.chumbucket'};
 
 /// Hosts whose https links belong to this app.
+///
+/// Only domains the product actually serves. `chumbucket.fun` is the live site
+/// that hosts the landing pages and `/.well-known/assetlinks.json`; the Android
+/// manifest claims the same hosts with `android:autoVerify`.
+///
+/// `chumbucket.app` is deliberately absent: it was never registered (NXDOMAIN),
+/// so no working link was ever built on it, and a domain this product does not
+/// own must not be treated as its own.
 const Set<String> kCallDeepLinkHosts = {
-  'chumbucket.app',
-  'www.chumbucket.app',
-  'link.chumbucket.app',
+  'chumbucket.fun',
+  'www.chumbucket.fun',
 };
 
 /// What a shared link points at.

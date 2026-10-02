@@ -6,8 +6,24 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Notification channels for different notification types
 class NotificationChannels {
-  static const String challenges = 'challenge_channel';
+  /// Calls, responses, follows and receipts. Also the FCM default channel
+  /// (`default_notification_channel_id` in AndroidManifest.xml) — keep equal.
+  static const String activity = 'activity_channel';
+
+  /// The high-priority channel under its older name; same id as [activity].
+  static const String challenges = activity;
+
   static const String general = 'general_channel';
+
+  /// The pre-calls id. Deleted on start so a stale "Challenges" entry stops
+  /// showing in system settings. A push still naming it falls back to the
+  /// manifest default, which is [activity].
+  static const String legacyChallenges = 'challenge_channel';
+
+  /// User-visible name and description of [activity].
+  static const String activityName = 'Calls and activity';
+  static const String activityDescription =
+      'Backs, fades, challenges, follows and resolved receipts';
 }
 
 /// Service for managing local and push notifications for Chumbucket
@@ -132,12 +148,20 @@ class NotificationService {
             >();
 
     if (androidPlugin != null) {
-      // Challenge notifications channel
+      try {
+        await androidPlugin.deleteNotificationChannel(
+          NotificationChannels.legacyChallenges,
+        );
+      } catch (_) {
+        // Absent on a fresh install; nothing to clean up.
+      }
+
+      // Calls and activity channel (the FCM default)
       await androidPlugin.createNotificationChannel(
         const AndroidNotificationChannel(
-          NotificationChannels.challenges,
-          'Challenges',
-          description: 'Notifications for challenge events',
+          NotificationChannels.activity,
+          NotificationChannels.activityName,
+          description: NotificationChannels.activityDescription,
           importance: Importance.high,
           playSound: true,
           enableVibration: true,
@@ -290,9 +314,9 @@ class NotificationService {
       '"$challengeTitle" - $amountStr at stake',
       NotificationDetails(
         android: AndroidNotificationDetails(
-          NotificationChannels.challenges,
-          'Challenges',
-          channelDescription: 'Challenge notifications',
+          NotificationChannels.activity,
+          NotificationChannels.activityName,
+          channelDescription: NotificationChannels.activityDescription,
           importance: Importance.high,
           priority: Priority.high,
           ticker: 'New challenge',
@@ -318,9 +342,9 @@ class NotificationService {
       'Congratulations! You won ${winnerAmountSol.toStringAsFixed(2)} SOL!',
       NotificationDetails(
         android: AndroidNotificationDetails(
-          NotificationChannels.challenges,
-          'Challenges',
-          channelDescription: 'Challenge notifications',
+          NotificationChannels.activity,
+          NotificationChannels.activityName,
+          channelDescription: NotificationChannels.activityDescription,
           importance: Importance.high,
           priority: Priority.high,
           ticker: 'Challenge won',
@@ -343,9 +367,9 @@ class NotificationService {
       'Better luck next time. The witness judged against you.',
       NotificationDetails(
         android: AndroidNotificationDetails(
-          NotificationChannels.challenges,
-          'Challenges',
-          channelDescription: 'Challenge notifications',
+          NotificationChannels.activity,
+          NotificationChannels.activityName,
+          channelDescription: NotificationChannels.activityDescription,
           importance: Importance.high,
           priority: Priority.high,
           ticker: 'Challenge lost',
@@ -367,10 +391,10 @@ class NotificationService {
     String? payload,
     bool highPriority = true,
   }) async {
-    // Use challenge channel for high priority (FCM notifications)
+    // The activity channel for high priority (FCM notifications)
     final channel =
         highPriority
-            ? NotificationChannels.challenges
+            ? NotificationChannels.activity
             : NotificationChannels.general;
     final importance =
         highPriority ? Importance.high : Importance.defaultImportance;
@@ -383,10 +407,10 @@ class NotificationService {
       NotificationDetails(
         android: AndroidNotificationDetails(
           channel,
-          highPriority ? 'Challenges' : 'General',
+          highPriority ? NotificationChannels.activityName : 'General',
           channelDescription:
               highPriority
-                  ? 'Challenge notifications'
+                  ? NotificationChannels.activityDescription
                   : 'General notifications',
           importance: importance,
           priority: priority,

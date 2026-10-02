@@ -465,8 +465,8 @@ void main() {
 
     test('share links are stable and well formed', () {
       final repo = build();
-      expect(repo.shareLinkForCall('call_1'), 'https://chumbucket.app/c/call_1');
-      expect(repo.shareLinkForPerson('ada'), 'https://chumbucket.app/u/ada');
+      expect(repo.shareLinkForCall('call_1'), 'https://chumbucket.fun/c/call_1');
+      expect(repo.shareLinkForPerson('ada'), 'https://chumbucket.fun/u/ada');
     });
   });
 

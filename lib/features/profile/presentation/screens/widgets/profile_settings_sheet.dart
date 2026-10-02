@@ -1,3 +1,4 @@
+import 'package:chumbucket/core/crash/crash_reports_setting_tile.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
@@ -61,6 +62,7 @@ class ProfileSettingsSheet extends StatelessWidget {
                 onTap: () => _showIdentityLink(context),
               ),
 
+            const CrashReportsSettingTile(),
             ProfileMenuItem(
               basilIcon: 'shield-outline',
               title: 'Privacy & data',
