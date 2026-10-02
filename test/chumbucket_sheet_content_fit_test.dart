@@ -135,7 +135,9 @@ void main() {
       final button = tester.getRect(find.byType(ChallengeButton));
       expect(button.bottom, closeTo(tester.getRect(surface).bottom - 24, .01));
       expect(find.text('Sign Out').hitTestable(), findsOneWidget);
-      expect(tester.getSize(surface).height, lessThan(650));
+      // Six rows since Privacy & data and History joined (store and legal
+      // requirements); still content-sized on an 844dp phone.
+      expect(tester.getSize(surface).height, lessThan(720));
       expect(tester.takeException(), isNull);
     },
   );

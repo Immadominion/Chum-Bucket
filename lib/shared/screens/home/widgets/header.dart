@@ -7,7 +7,6 @@ import 'package:chumbucket/core/services/fcm_token_service.dart';
 import 'package:chumbucket/core/services/push_registration.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
-import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/notifications/presentation/screens/activity_screen.dart';
 import 'package:chumbucket/features/notifications/providers/notifications_provider.dart';
@@ -235,8 +234,8 @@ class _WalletButton extends StatelessWidget {
   }
 }
 
-/// The one bell: calls activity plus the earlier wallet notices, opening
-/// [ActivityScreen]. Its badge is the two unread counts added together.
+/// The one bell: calls activity, opening [ActivityScreen]. The earlier Arena
+/// and escrow notices live in Settings → History and do not count here.
 class _NotificationBell extends StatefulWidget {
   const _NotificationBell();
 
@@ -248,25 +247,17 @@ class _NotificationBellState extends State<_NotificationBell> {
   @override
   void initState() {
     super.initState();
-    // Both counts on first sight, so the badge is right before the inbox is
+    // The count on first sight, so the badge is right before the inbox is
     // ever opened. A missing provider (a test, a preview) is simply skipped.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final wallet = context.read<MwaAuthProvider?>()?.walletAddress;
-      final arena = context.read<ArenaProvider?>();
-      if (wallet != null && arena != null) {
-        arena.loadNotifications(walletAddress: wallet);
-      }
       context.read<NotificationsProvider?>()?.refreshUnreadCount();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final legacy =
-        context.watch<ArenaProvider?>()?.unreadNotificationCount ?? 0;
-    final calls = context.watch<NotificationsProvider?>()?.unreadCount ?? 0;
-    final count = legacy + calls;
+    final count = context.watch<NotificationsProvider?>()?.unreadCount ?? 0;
     return IconButton(
       tooltip: count == 0 ? 'Activity' : '$count unread',
       onPressed: () {

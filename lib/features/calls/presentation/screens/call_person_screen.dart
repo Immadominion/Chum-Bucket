@@ -4,6 +4,8 @@ library;
 
 import 'dart:async';
 
+import 'package:chumbucket/features/trust/presentation/safety_actions_sheet.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -177,6 +179,34 @@ class _CallPersonScreenState extends State<CallPersonScreen> {
         elevation: 0,
         foregroundColor: AppColors.textPrimary,
         title: Text('Profile', style: AppTextStyles.textTheme.titleLarge),
+        actions: [
+          // Report, mute or block — never on your own profile.
+          Consumer<CallsProvider>(
+            builder: (context, provider, _) {
+              final person = provider.personDetail(widget.personRef)?.person;
+              if (person == null || person.id == provider.viewerUserId) {
+                return const SizedBox.shrink();
+              }
+              return IconButton(
+                tooltip: 'More',
+                constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                onPressed:
+                    () => showSafetyActions(
+                      context,
+                      SafetyTarget(
+                        personId: person.id,
+                        handle: person.handle,
+                        displayName: person.displayName,
+                      ),
+                    ),
+                icon: const BasilIcon(
+                  'other-1-outline',
+                  color: AppColors.textPrimary,
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: Consumer<CallsProvider>(
         builder: (context, provider, _) {

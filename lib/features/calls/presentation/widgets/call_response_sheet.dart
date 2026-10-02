@@ -81,7 +81,7 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
         (context, provider, _) => CallJourneySheet(
           title:
               _kind == CallResponseKind.challenge
-                  ? 'Invite a challenge'
+                  ? 'Dare them to call it'
                   : '${_kind.label} this call',
           busy: provider.isSubmitting,
           body:
@@ -158,7 +158,7 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
                 const SizedBox(height: 16),
                 if (closed)
                   CallJourneyNote(
-                    '${entry.market.status.label}. You can still send a challenge, but no new call can be locked here.',
+                    '${entry.market.status.label}. You can still send a dare, but no new call can be locked here.',
                   ),
                 if (_kind.createsOwnCall) ...[
                   CallJourneySides(
@@ -196,7 +196,7 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
                     ),
                 ] else
                   const CallJourneyNote(
-                    'No escrow. Nothing is locked up, nothing is staked, and no transaction is created. This sends a free invitation, not an accepted challenge or a call of your own.',
+                    'No escrow. Nothing is locked up, nothing is staked, and no transaction is created. This sends a free dare, not a bet or a call of your own.',
                   ),
                 const SizedBox(height: 16),
                 Text(
@@ -293,7 +293,7 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
           child: CallJourneyButton(
             label:
                 _kind == CallResponseKind.challenge
-                    ? 'Send the challenge'
+                    ? 'Send the dare'
                     : 'Lock my ${_side.wire} call',
             primary: true,
             busy: busy,

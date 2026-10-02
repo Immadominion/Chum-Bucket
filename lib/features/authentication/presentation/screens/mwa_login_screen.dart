@@ -8,6 +8,7 @@ import 'package:chumbucket/features/authentication/presentation/screens/widgets/
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
+import 'package:chumbucket/features/trust/data/legal_links.dart';
 
 /// The first screen for anyone not signed in.
 ///
@@ -146,9 +147,7 @@ class MwaLoginScreen extends StatelessWidget {
             ),
             recognizer:
                 TapGestureRecognizer()
-                  ..onTap = () {
-                    // Handle terms of use tap
-                  },
+                  ..onTap = () => openExternalLink(context, LegalLinks.terms),
           ),
           const TextSpan(text: ' and have read and agreed to our '),
           TextSpan(
@@ -159,9 +158,7 @@ class MwaLoginScreen extends StatelessWidget {
             ),
             recognizer:
                 TapGestureRecognizer()
-                  ..onTap = () {
-                    // Handle privacy policy tap
-                  },
+                  ..onTap = () => openExternalLink(context, LegalLinks.privacy),
           ),
         ],
       ),

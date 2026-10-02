@@ -2,15 +2,13 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:provider/provider.dart';
 import 'package:chumbucket/features/authentication/session/app_sign_out.dart';
-// MWA Wallet Provider for Pinocchio program integration
-import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/menu_tile.dart';
-import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_settings_sheet.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/identity_link_sheet.dart';
 import 'package:chumbucket/core/services/chat_service.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
+import 'package:chumbucket/features/trust/data/legal_links.dart';
+import 'package:chumbucket/features/trust/presentation/delete_account_screen.dart';
 
 class SettingsBottomSheet extends StatefulWidget {
   const SettingsBottomSheet({super.key});
@@ -30,25 +28,13 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Consumer<MwaWalletProvider>(
-              builder: (context, walletProvider, _) {
-                return MenuTile(
-                  basilIcon: 'share-box-outline',
-                  title: "Export Wallet",
-                  subtitle:
-                      walletProvider.walletAddress != null
-                          ? 'View your wallet details'
-                          : 'Loading...',
-                  onTap: () => _showWalletExportWarning(context),
-                );
-              },
-            ),
-
+            // No "Export Wallet": a connected wallet's keys live in that
+            // wallet app, and Chumbucket never holds them.
             MenuTile(
               basilIcon: 'star-solid',
-              title: "Rate Chum Bucket",
-              subtitle: "Share your experience",
-              onTap: () {},
+              title: "Rate Chumbucket",
+              subtitle: "Tell others what you think",
+              onTap: () => openStoreListing(context),
               iconColor: Colors.amber,
             ),
             MenuTile(
@@ -69,7 +55,15 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
               basilIcon: 'trash-solid',
               title: "Delete Account",
               subtitle: "Permanently remove your account",
-              onTap: () {},
+              onTap: () {
+                final navigator = Navigator.of(context);
+                navigator.pop();
+                navigator.push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const DeleteAccountScreen(),
+                  ),
+                );
+              },
               isDanger: true,
             ),
             SizedBox(height: 16.h),
@@ -85,23 +79,6 @@ class _SettingsBottomSheetState extends State<SettingsBottomSheet> {
       ),
     ),
   );
-
-  void _showWalletExportWarning(BuildContext context) {
-    // First close the settings sheet
-    Navigator.of(context).pop();
-
-    // Use a short delay to ensure the context is ready for the next modal
-    Future.delayed(const Duration(milliseconds: 100), () {
-      // Check if context is still mounted before showing new modal
-      if (context.mounted) {
-        // Show wallet export warning sheet
-        showChumbucketWavySheet<void>(
-          context: context,
-          builder: (_) => const WalletExportWarningSheet(),
-        );
-      }
-    });
-  }
 
   Future<void> _openSupport(BuildContext context) async {
     try {

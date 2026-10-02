@@ -220,17 +220,12 @@ void main() {
       // session the tab asks for sign-in instead of showing any figure.
       expect(find.text('Sign in to see your positions'), findsOneWidget);
       expect(find.textContaining('USDC'), findsNothing);
-      await tester.drag(
-        find.byType(SingleChildScrollView).first,
-        const Offset(-400, 0),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Challenges'));
-      await tester.pumpAndSettle();
-      await revealPeopleText(tester, 'Challenge history');
-      await tester.tap(find.text('Challenge history'));
-      expect(openedChallenges, isTrue);
-      expect(find.text('Prediction history'), findsOneWidget);
+      // Escrow challenges and Arena predictions are no longer profile tabs;
+      // they live in Settings → History, which keeps the escrow opener
+      // (covered in call_home_screen_test.dart).
+      expect(find.text('Challenges'), findsNothing);
+      expect(find.text('Prediction history'), findsNothing);
+      expect(openedChallenges, isFalse);
       expect(tester.takeException(), isNull);
     },
   );

@@ -28,6 +28,10 @@ const { PantaClaimExecution } = await fromBff("src/prediction/PantaClaims.ts");
 const { PantaClaimService } = await fromBff("src/prediction/PantaClaimService.ts");
 const { PantaPositionsService } = await fromBff("src/prediction/PantaPositions.ts");
 const { PantaFundingIndex } = await fromBff("src/prediction/PantaFunding.ts");
+// The BFF refuses a funded prepare until the 18+ / jurisdiction / venue-terms
+// attestation is on record (src/trust). Older API checkouts have no such gate.
+const trustModule = await fromBff("src/trust/runtime.ts").catch(() => null);
+const trustStoreModule = await fromBff("src/trust/store.ts").catch(() => null);
 
 // Public, deterministic fixture seed. This is not a user's key or MWA approval.
 const owner = Keypair.fromSeed(new Uint8Array(32).fill(9));
@@ -228,6 +232,14 @@ if (setPantaLifecycle) {
     } } });
   setPantaLifecycle(config, { trading: service, claims, positions, holdings: null, ledger: null, claimStore,
     funding: new PantaFundingIndex(null) });
+}
+if (trustModule && trustStoreModule) {
+  const trust = trustModule.buildTrustRuntime(config, {
+    store: new trustStoreModule.InMemoryTrustStore(),
+    authAdmin: new trustStoreModule.RecordingAuthUserAdmin(),
+  });
+  trustModule.setTrustRuntime(config, trust);
+  await trust.service.acceptFundedTrading(userId, trust.config.termsVersion);
 }
 const actualRouter = router({ pantaTrading: pantaTradingRouter });
 

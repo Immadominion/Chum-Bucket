@@ -12,82 +12,101 @@ import 'package:chumbucket/features/profile/presentation/screens/widgets/identit
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
+import 'package:chumbucket/features/trust/data/legal_links.dart';
+import 'package:chumbucket/features/trust/presentation/delete_account_screen.dart';
+import 'package:chumbucket/features/trust/presentation/legacy_history_screen.dart';
+import 'package:chumbucket/features/trust/presentation/privacy_data_screen.dart';
 
-/// Settings modal sheet following the app's design conventions
+/// Settings: support, privacy and data, legal, history and the account.
 class ProfileSettingsSheet extends StatelessWidget {
-  const ProfileSettingsSheet({super.key});
+  const ProfileSettingsSheet({super.key, this.onOpenChallenges});
+
+  /// Opens the escrow challenge list (owned by the home shell). Passed through
+  /// to Settings → History.
+  final VoidCallback? onOpenChallenges;
 
   @override
-  Widget build(BuildContext context) => ChumbucketWavySheet(
-    title: 'Account & Support',
-    body: SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Menu items - scrollable content
-          Column(
-            children: [
-              // Note: "My Wallet - Export private key" removed since
-              // wallet is connected via MWA (Mobile Wallet Adapter)
-              // Users manage their keys in their wallet app (Phantom, etc.)
+  Widget build(BuildContext context) {
+    return ChumbucketWavySheet(
+      title: 'Account & Support',
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ProfileMenuItem(
+              basilIcon: 'star-outline',
+              title: 'Rate Chumbucket',
+              subtitle: 'Tell others what you think',
+              iconColor: Colors.amber,
+              onTap: () => openStoreListing(context),
+            ),
+            ProfileMenuItem(
+              icon: Icons.help_outline,
+              title: 'Talk To Support',
+              subtitle: 'Get help when you need it',
+              iconColor: Colors.blue,
+              onTap: () => _openTawkToSupport(context),
+              iconSize: 30,
+            ),
+            // Linking Google carries a connected wallet's existing profile;
+            // with no wallet connected (a Google or X account) there is
+            // nothing to carry, so it is not offered.
+            if (context.watch<MwaAuthProvider?>()?.isAuthenticated == true)
               ProfileMenuItem(
-                basilIcon: 'star-outline',
-                title: 'Rate Chum Bucket',
-                subtitle: 'Share your experience',
-                iconColor: Colors.amber,
-                onTap: () {},
+                basilIcon: 'user-outline',
+                title: 'Link Google',
+                subtitle: 'Keep your existing profile and history',
+                iconColor: AppColors.primary,
+                onTap: () => _showIdentityLink(context),
               ),
 
-              ProfileMenuItem(
-                icon: Icons.help_outline,
-                title: 'Talk To Support',
-                subtitle: 'Get help when you need it',
-                iconColor: Colors.blue,
-                onTap: () => _openTawkToSupport(context),
-                iconSize: 30,
-              ),
-
-              // Linking Google carries a connected wallet's existing profile;
-              // with no wallet connected (a Google or X account) there is
-              // nothing to carry, so it is not offered.
-              if (context.watch<MwaAuthProvider?>()?.isAuthenticated == true)
-                ProfileMenuItem(
-                  basilIcon: 'user-outline',
-                  title: 'Link Google',
-                  subtitle: 'Keep your existing profile and history',
-                  iconColor: AppColors.primary,
-                  onTap: () => _showIdentityLink(context),
-                ),
-
-              ProfileMenuItem(
-                basilIcon: 'trash-outline',
-                title: 'Delete Your Account',
-                subtitle: 'Permanently remove your account',
-                isDanger: true,
-                onTap: () {
-                  Navigator.pop(context);
-                  SnackBarUtils.showInfo(
+            ProfileMenuItem(
+              basilIcon: 'shield-outline',
+              title: 'Privacy & data',
+              subtitle: 'Analytics, export, blocks, terms',
+              iconColor: AppColors.primary,
+              onTap: () => _push(context, (_) => const PrivacyDataScreen()),
+            ),
+            ProfileMenuItem(
+              basilIcon: 'history-outline',
+              title: 'History',
+              subtitle: 'Escrow challenges and Arena, read-only',
+              iconColor: AppColors.primary,
+              onTap:
+                  () => _push(
                     context,
-                    title: 'Coming Soon...',
-                    subtitle: 'You can open a ticket about that for now.',
-                  );
-                },
-              ),
+                    (_) => LegacyHistoryScreen(
+                      onOpenEscrowChallenges: onOpenChallenges,
+                    ),
+                  ),
+            ),
+            ProfileMenuItem(
+              basilIcon: 'trash-outline',
+              title: 'Delete account',
+              subtitle: 'Permanently remove your account',
+              isDanger: true,
+              onTap: () => _push(context, (_) => const DeleteAccountScreen()),
+            ),
 
-              SizedBox(height: 16.h),
-            ],
-          ),
-
-          // Actions follow the menu; no screen-height spacer or empty tail.
-          ChallengeButton(
-            createNewChallenge: () => signOutOfChumbucket(context),
-            label: 'Sign Out',
-          ),
-        ],
+            SizedBox(height: 16.h),
+            // Actions follow the menu; no screen-height spacer or empty tail.
+            ChallengeButton(
+              createNewChallenge: () => signOutOfChumbucket(context),
+              label: 'Sign Out',
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
+
+  /// Close the sheet, then open a full screen on the same navigator.
+  void _push(BuildContext context, WidgetBuilder builder) {
+    final navigator = Navigator.of(context);
+    navigator.pop();
+    navigator.push(MaterialPageRoute<void>(builder: builder));
+  }
 
   /// Open Tawk.to support chat in external browser
   void _openTawkToSupport(BuildContext context) {
@@ -177,65 +196,15 @@ class _WalletExportWarningSheetState extends State<WalletExportWarningSheet> {
   Future<void> _attemptWalletExport() async {
     if (_isLoading) return;
 
+    // A connected (MWA) wallet's keys live in that wallet app; Chumbucket
+    // never holds them. Device-wallet export belongs to the wallet itself.
     Navigator.pop(context);
     SnackBarUtils.showInfo(
       context,
-      title: 'Coming Soon...',
-      subtitle: 'This feature is under development.',
+      title: 'Use your wallet app',
+      subtitle:
+          'Chumbucket never holds your secret phrase. Export it from the wallet app you connected.',
     );
-
-    //TODO: Work on wallet export functionality
-    // setState(() {
-    //   _isLoading = true;
-    // });
-
-    // try {
-    //   final walletProvider = Provider.of<MwaWalletProvider>(
-    //     context,
-    //     listen: false,
-    //   );
-
-    //   final walletAddress = walletProvider.walletAddress;
-    //   if (walletAddress == null) {
-    //     throw Exception('No wallet address available');
-    //   }
-
-    //   // Simulate wallet export attempt (since Privy may not allow direct export)
-    //   await Future.delayed(const Duration(seconds: 2));
-
-    //   if (!mounted) return;
-
-    //   // For now, show that full export is not available but address can be copied
-    //   Navigator.pop(context);
-    //   await Future.delayed(const Duration(milliseconds: 100));
-
-    //   if (mounted) {
-    //     _showWalletCopyOptions(context);
-    //   }
-    // } catch (e) {
-    //   if (!mounted) return;
-
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     SnackBar(
-    //       content: Text('Export failed: $e'),
-    //       backgroundColor: Colors.red,
-    //     ),
-    //   );
-
-    //   // Close current sheet and show address copy as fallback
-    //   Navigator.pop(context);
-    //   await Future.delayed(const Duration(milliseconds: 100));
-
-    //   if (mounted) {
-    //     _showWalletCopyOptions(context);
-    //   }
-    // } finally {
-    //   if (mounted) {
-    //     setState(() {
-    //       _isLoading = false;
-    //     });
-    //   }
-    // }
   }
 }
 
@@ -330,7 +299,7 @@ class WalletExportNotAvailableSheet extends StatelessWidget {
         child: Column(
           children: [
             Text(
-              'Your holdings are held in cryptocurrency wallets in your custody.',
+              'Your keys stay in your wallet app.',
               style: TextStyle(
                 fontSize: 16.sp,
                 fontWeight: FontWeight.w600,
@@ -340,7 +309,7 @@ class WalletExportNotAvailableSheet extends StatelessWidget {
             ),
             SizedBox(height: 16.h),
             Text(
-              'You can directly control your wallets using your secret phrase, but wallet export is currently not available through the mobile app. Your wallet secrets are managed securely by Privy.',
+              'Chumbucket never holds your secret phrase. To back up or export your keys, use the wallet app you connected (for example Phantom or Solflare).',
               style: TextStyle(
                 fontSize: 14.sp,
                 color: Colors.grey.shade600,
@@ -365,8 +334,10 @@ class WalletExportNotAvailableSheet extends StatelessWidget {
 }
 
 /// Function to show the settings sheet with backdrop blur
-Future<void> showProfileSettingsSheet(BuildContext context) =>
-    showChumbucketWavySheet<void>(
-      context: context,
-      builder: (_) => const ProfileSettingsSheet(),
-    );
+Future<void> showProfileSettingsSheet(
+  BuildContext context, {
+  VoidCallback? onOpenChallenges,
+}) => showChumbucketWavySheet<void>(
+  context: context,
+  builder: (_) => ProfileSettingsSheet(onOpenChallenges: onOpenChallenges),
+);

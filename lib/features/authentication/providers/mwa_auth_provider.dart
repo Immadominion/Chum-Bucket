@@ -8,7 +8,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:chumbucket/shared/services/efficient_sync_service.dart';
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
 import 'package:chumbucket/features/profile/providers/profile_provider.dart';
-import 'package:chumbucket/core/services/analytics_service.dart';
 import 'package:chumbucket/core/config/network_config.dart';
 import '../session/mwa_auth_result.dart';
 import '../session/mwa_authorization_failure.dart';
@@ -661,16 +660,6 @@ class MwaAuthProvider extends ChangeNotifier {
     try {
       log('🔄 Syncing user with Supabase', name: 'MwaAuthProvider');
 
-      // Check if user exists first
-      final existingUser =
-          await _supabase!
-              .from('users')
-              .select('wallet_address')
-              .eq('wallet_address', walletAddress)
-              .maybeSingle();
-
-      final isNewUser = existingUser == null;
-
       // Call stored procedure to sync user by wallet address
       await _supabase!.rpc(
         'sync_user_by_wallet',
@@ -678,16 +667,6 @@ class MwaAuthProvider extends ChangeNotifier {
       );
 
       log('✅ User synced successfully', name: 'MwaAuthProvider');
-
-      // Track analytics (fire-and-forget)
-      AnalyticsService.trackUserAuth(
-        walletAddress: walletAddress,
-        displayName: snsDomain,
-        isNewUser: isNewUser,
-      ).catchError((_) {
-        log('⚠️ Analytics tracking failed', name: 'MwaAuthProvider');
-      });
-
       return true;
     } on PostgrestException {
       // No client fallback that writes users rows: they are server-only now

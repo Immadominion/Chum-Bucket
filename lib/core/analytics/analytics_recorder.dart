@@ -20,6 +20,7 @@ import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 
+import 'package:chumbucket/core/analytics/analytics_consent.dart';
 import 'package:chumbucket/core/analytics/analytics_event.dart';
 import 'package:chumbucket/core/analytics/analytics_privacy_guard.dart';
 import 'package:chumbucket/core/analytics/analytics_sink.dart';
@@ -73,8 +74,11 @@ class AnalyticsRecorder {
 
   /// Convenience for tests and for a debug screen. Null when the sink is not
   /// the in-memory one.
-  InMemoryAnalyticsSink? get memory =>
-      _sink is InMemoryAnalyticsSink ? _sink : null;
+  InMemoryAnalyticsSink? get memory => switch (_sink) {
+    final InMemoryAnalyticsSink sink => sink,
+    ConsentGatedAnalyticsSink(inner: final InMemoryAnalyticsSink sink) => sink,
+    _ => null,
+  };
 
   TreatmentAssignment get assignment => _assignment;
   FeedTreatment get treatment => _assignment.treatment;
@@ -162,8 +166,18 @@ class AnalyticsRecorder {
   /// switched on costs a few kilobytes and sends nothing anywhere. Swapping in
   /// a real destination is a deliberate, separately-approved change; see
   /// `docs/contracts/integration-requests/packet-h.md`.
-  static AnalyticsRecorder get instance =>
-      _instance ??= AnalyticsRecorder(sink: InMemoryAnalyticsSink());
+  ///
+  /// Nothing is recorded unless the person has switched analytics on
+  /// ([AnalyticsConsent], Settings → Privacy & data).
+  static AnalyticsRecorder get instance {
+    final existing = _instance;
+    if (existing != null) return existing;
+    // Read the stored choice; until it is read, nothing is recorded.
+    AnalyticsConsent.instance.ensureLoaded();
+    return _instance = AnalyticsRecorder(
+      sink: ConsentGatedAnalyticsSink(InMemoryAnalyticsSink()),
+    );
+  }
 
   /// Replaces the ambient recorder. Tests use this; production should inject a
   /// recorder rather than reassign the global.

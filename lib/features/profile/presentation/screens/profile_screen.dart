@@ -6,7 +6,6 @@ import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.d
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
 import 'package:chumbucket/features/authentication/presentation/widgets/claim_handle_sheet.dart';
-import 'package:chumbucket/features/arena/presentation/screens/my_pots_screen.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_detail_screen.dart';
@@ -198,7 +197,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       minWidth: 48,
                       minHeight: 48,
                     ),
-                    onPressed: () => showProfileSettingsSheet(context),
+                    onPressed:
+                        () => showProfileSettingsSheet(
+                          context,
+                          onOpenChallenges: widget.onOpenChallenges,
+                        ),
                     icon: const BasilIcon(
                       'settings-outline',
                       color: AppColors.textPrimary,
@@ -282,10 +285,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               if (challenges != null &&
                   challenges.pendingChallenges.isNotEmpty) ...[
                 const SizedBox(height: 16),
+                // Earlier SOL escrow challenges still holding funds stay
+                // one tap away until they are finished.
                 _ProfileActionRow(
                   icon: 'clock-outline',
-                  title: 'Active challenges',
-                  detail: 'Open your challenges to review outstanding actions.',
+                  title: 'Escrow challenges waiting',
+                  detail:
+                      'Earlier SOL escrow challenges to resolve, claim or refund.',
                   onTap: widget.onOpenChallenges,
                 ),
               ],
@@ -293,7 +299,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: ChumbucketTabs(
-                  labels: const ['Calls', 'Positions', 'Challenges'],
+                  labels: const ['Calls', 'Positions'],
                   selectedIndex: _selectedTab,
                   onSelected: (index) => setState(() => _selectedTab = index),
                 ),
@@ -318,28 +324,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ..._callRecord(calls, detail, userId, styles),
               // Real funded Panta positions, private to this account.
               if (_selectedTab == 1) const ProfilePositionsTab(),
-              if (_selectedTab == 2) ...[
-                _ProfileActionRow(
-                  icon: 'contacts-outline',
-                  title: 'Challenge history',
-                  detail:
-                      widget.onOpenChallenges == null
-                          ? 'Your challenge history is unavailable from this screen.'
-                          : 'Your original challenges, including active actions, claims and refunds.',
-                  onTap: widget.onOpenChallenges,
-                ),
-                const SizedBox(height: 12),
-                _ProfileActionRow(
-                  icon: 'hotspot-outline',
-                  title: 'Prediction history',
-                  detail:
-                      'Open your existing predictions and their original terms.',
-                  onTap:
-                      () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const MyPotsScreen()),
-                      ),
-                ),
-              ],
             ],
           ),
         ),

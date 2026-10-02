@@ -3,6 +3,7 @@ import 'package:chumbucket/features/authentication/session/chumbucket_session.da
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/features/profile/data/account_api.dart';
+import 'package:chumbucket/features/trust/data/content_policy.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenge_button.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:flutter/material.dart';
@@ -152,6 +153,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         context,
         title: 'Account changed',
         subtitle: 'Reload your profile before saving changes.',
+      );
+      return;
+    }
+    // Names and bios are public: no links, slurs or strong profanity. This
+    // is the app's copy of the server rule, for an instant answer; the BFF
+    // (account.updateProfile) enforces the same policy and its refusal shows
+    // below as the save error.
+    final problem =
+        contentPolicyProblem(_nameController.text, ContentField.name) ??
+        contentPolicyProblem(_bioController.text, ContentField.bio);
+    if (problem != null) {
+      SnackBarUtils.showError(
+        context,
+        title: 'Can\'t save that',
+        subtitle: problem,
       );
       return;
     }

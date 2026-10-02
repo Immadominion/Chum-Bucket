@@ -227,7 +227,7 @@ class _CallFeedScreenState extends State<CallFeedScreen>
           icon: 'fire-outline',
           color: AppColors.primary,
           message:
-              '${provider.invitations.length} open challenge'
+              '${provider.invitations.length} open dare'
               '${provider.invitations.length == 1 ? '' : 's'} waiting. '
               'No money involved — just go on record.',
         ),

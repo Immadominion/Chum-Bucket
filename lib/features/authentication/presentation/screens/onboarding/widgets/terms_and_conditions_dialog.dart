@@ -1,4 +1,5 @@
 import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/features/trust/data/legal_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
@@ -26,7 +27,7 @@ class TermsAndConditionsDialog extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "Terms and Conditions (Short and Simple)",
+                    "The short version",
                     style: TextStyle(
                       fontSize: 20.sp,
                       fontWeight: FontWeight.w700,
@@ -36,7 +37,7 @@ class TermsAndConditionsDialog extends StatelessWidget {
                   ),
                   SizedBox(height: 8.h),
                   Text(
-                    "Chum Bucket Terms and Conditions",
+                    "Chumbucket Terms (draft, pending legal review)",
                     style: TextStyle(
                       fontSize: 16.sp,
                       fontWeight: FontWeight.w600,
@@ -45,20 +46,33 @@ class TermsAndConditionsDialog extends StatelessWidget {
                   ),
                   SizedBox(height: 16.h),
                   Text(
-                    "By using Chum Bucket, you agree to these rules:\n"
-                    "• You're responsible for your bets and challenges. We're just the platform.\n\n"
-                    "• Challenges are made with friends using email or wallet addresses. Both must agree to release funds, or one party can sign if agreed.\n\n"
-                    "• We take a 1% fee on bets (max \$10). Fees go to a public wallet—50% for the team, 50% for airdrops to Solana users.\n\n"
-                    "• No illegal challenges allowed. We can remove content if needed.\n\n"
-                    "• We're not responsible for lost funds or disputes. Use at your own risk.\n\n"
-                    "• We can update these terms anytime. Check back often.",
+                    "• You must be 18 or older.\n\n"
+                    "• Calls are free, public and permanent once locked. Back, Fade and Dare never move money.\n\n"
+                    "• Funded positions are optional, use real USDC on Panta (Solana mainnet), and you can lose what you put in. You sign every transaction in your own wallet; we never hold your funds or keys.\n\n"
+                    "• No harassment, hate, scams or links in what you post. You can report, block and mute.\n\n"
+                    "• You can export or delete your account any time in Settings.",
                     style: TextStyle(
                       fontSize: 14.sp,
                       color: AppColors.glassmorphismSecondaryText,
                       height: 1.4,
                     ),
                   ),
-                  SizedBox(height: 24.h),
+                  SizedBox(height: 8.h),
+                  Wrap(
+                    children: [
+                      TextButton(
+                        onPressed:
+                            () => openExternalLink(context, LegalLinks.terms),
+                        child: const Text('Read the Terms'),
+                      ),
+                      TextButton(
+                        onPressed:
+                            () => openExternalLink(context, LegalLinks.privacy),
+                        child: const Text('Privacy Policy'),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 16.h),
                   Align(
                     alignment: Alignment.center,
                     child: GestureDetector(

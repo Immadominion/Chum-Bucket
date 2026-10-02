@@ -138,13 +138,13 @@ void main() {
 
     expect(find.text('Sign in'), findsOneWidget);
     expect(find.byType(NotificationRow), findsNothing);
-    // The wallet notices still show without a calls session.
-    expect(find.text('Earlier challenges'), findsOneWidget);
-    expect(find.byType(ArenaNotificationRow), findsOneWidget);
-    expect(find.text('Your winnings are ready to claim'), findsOneWidget);
+    // The earlier wallet notices moved to Settings → History (read-only);
+    // Activity is the calls inbox only, even with a wallet connected.
+    expect(find.text('Earlier challenges'), findsNothing);
+    expect(find.byType(ArenaNotificationRow), findsNothing);
   });
 
-  testWidgets('the bell adds both unread counts and opens Activity', (
+  testWidgets('the bell counts calls activity only and opens Activity', (
     tester,
   ) async {
     usePhoneSurface(tester);
@@ -164,11 +164,11 @@ void main() {
 
     final calls = inbox.unreadCount;
     expect(calls, greaterThan(0));
-    expect(arena.loads, 1);
-    final total = calls + 1;
-    expect(find.byTooltip('$total unread'), findsOneWidget);
+    // The Arena notices are not fetched for, or counted on, the bell.
+    expect(arena.loads, 0);
+    expect(find.byTooltip('$calls unread'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('$total unread'));
+    await tester.tap(find.byTooltip('$calls unread'));
     await tester.pumpAndSettle();
     expect(find.byType(ActivityScreen), findsOneWidget);
   });
