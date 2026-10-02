@@ -5,6 +5,7 @@ library;
 import 'dart:typed_data';
 
 import 'package:chumbucket/features/authentication/continuity/block_store.dart';
+import 'package:chumbucket/features/embedded_wallet/embedded_wallet_vault.dart';
 
 /// Block Store in memory: scriptable availability, encryption and failures.
 class MemoryBlockStore implements BlockStorePort {
@@ -53,6 +54,25 @@ class MemoryBlockStore implements BlockStorePort {
     deletes++;
     entries.remove(key);
     cloudBackup.remove(key);
+  }
+}
+
+/// The phone's secure storage, in memory.
+class MemorySecretStore implements EmbeddedWalletSecretStore {
+  final Map<String, String> values = {};
+  bool failWrites = false;
+
+  /// Models storage that accepts a write but reads back something else.
+  bool corruptReads = false;
+
+  @override
+  Future<String?> read(String key) async =>
+      corruptReads && values.containsKey(key) ? 'corrupt' : values[key];
+
+  @override
+  Future<void> write(String key, String value) async {
+    if (failWrites) throw StateError('keystore locked');
+    values[key] = value;
   }
 }
 
