@@ -50,6 +50,7 @@ import 'package:http/http.dart' as http;
 
 import 'package:chumbucket/features/authentication/session/session_state.dart';
 import 'existing_account_proof.dart';
+import 'wallet_link_proof.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_transport.dart'
     show normalizeCallsBffBaseUrl, resolveCallsBffBaseUrl;
 
@@ -176,6 +177,95 @@ class SessionBffClient {
     return _identityFrom(data);
   }
 
+  /// An existing account without a @username claims one: the caller's own
+  /// account only, and only while it has none (`auth.claimUsername`). The
+  /// answer is the identity with its new handle.
+  Future<SessionIdentity> claimUsername(
+    String accessToken, {
+    required String handle,
+  }) async {
+    final data = await _send(
+      'auth.claimUsername',
+      method: 'POST',
+      input: {
+        'supabaseAccessToken': accessToken,
+        'handle': handle.trim().toLowerCase(),
+      },
+      bearer: accessToken,
+    );
+    final identity = _identityFrom(data);
+    final claimed = data is Map ? data['handle'] : null;
+    if (claimed is! String || claimed.isEmpty) {
+      throw const SessionException(
+        SessionError.network(
+          'The server did not confirm your username.',
+          code: SessionErrorCode.unreadable,
+        ),
+      );
+    }
+    return identity.withHandle(claimed);
+  }
+
+  /// Asks for the exact message that links [address] to the signed-in
+  /// account (`auth.requestWalletNonce`, purpose `link_wallet`), checked
+  /// before anything may sign it.
+  Future<WalletLinkProof> requestWalletLink(
+    String accessToken, {
+    required String address,
+  }) async => WalletLinkProof.parse(
+    await _send(
+      'auth.requestWalletNonce',
+      method: 'POST',
+      bearer: accessToken,
+      input: {
+        'supabaseAccessToken': accessToken,
+        'address': address,
+        'domain': accountClaimDomain,
+        'uri': accountClaimUri,
+        'purpose': 'link_wallet',
+      },
+    ),
+    address: address,
+  );
+
+  /// Sends the signed link message back (`auth.linkWallet`). [signature] is
+  /// base58. [walletType] "embedded" labels a key this app made on the phone.
+  /// Answers "linked" or "reaffirmed".
+  Future<String> linkWallet(
+    String accessToken, {
+    required String address,
+    required WalletLinkProof proof,
+    required String signature,
+    String walletType = 'mwa',
+  }) async {
+    proof.checkFresh();
+    final data = await _send(
+      'auth.linkWallet',
+      method: 'POST',
+      bearer: accessToken,
+      input: {
+        'supabaseAccessToken': accessToken,
+        'address': address,
+        'message': proof.message,
+        'signature': signature,
+        'purpose': 'link_wallet',
+        'walletType': walletType,
+      },
+    );
+    final outcome = data is Map ? data['outcome'] : null;
+    if (data is! Map ||
+        data['address'] != address ||
+        (outcome != 'linked' && outcome != 'reaffirmed')) {
+      throw const SessionException(
+        SessionError.network(
+          'The server did not confirm the wallet link. Try again.',
+          code: SessionErrorCode.unreadable,
+        ),
+      );
+    }
+    return outcome as String;
+  }
+
   /// Whether [handle] can be claimed. Public and credential-free: usernames
   /// are public, and the answer carries no profile field.
   Future<UsernameStatus> usernameStatus(String handle) async {
@@ -212,11 +302,17 @@ class SessionBffClient {
         ),
       );
     }
+    // `handle` present (even null) means the server read the stored value;
+    // absent means it could not, which must never read as "no username".
+    final handle = map['handle'];
     return SessionIdentity(
       userId: userId,
       // Absent rather than wrong is survivable: the canonical id is the one
       // that matters, and authUserId is only ever used for diagnostics.
       authUserId: authUserId is String ? authUserId : '',
+      handle: handle is String && handle.isNotEmpty ? handle : null,
+      handleKnown:
+          map.containsKey('handle') && (handle == null || handle is String),
     );
   }
 
@@ -442,6 +538,35 @@ SessionError sessionErrorForTrpcError({
       return const SessionError.refused(
         'Use 3–20 letters, numbers or underscores.',
         code: 'USERNAME_INVALID',
+      );
+    case 'HANDLE_ALREADY_SET':
+      return const SessionError.refused(
+        'Your account already has a username.',
+        code: 'HANDLE_ALREADY_SET',
+      );
+    case 'WALLET_OWNED_BY_ANOTHER_USER':
+    case 'WALLET_REQUIRES_TRANSFER':
+      return SessionError.refused(
+        'That wallet already belongs to another Chumbucket account. Nothing '
+        'was linked.',
+        code: detail,
+      );
+    case 'WALLET_LINK_FAILED':
+      return const SessionError.network(
+        'We couldn’t link the wallet. Try again shortly.',
+        code: 'WALLET_LINK_FAILED',
+      );
+    case 'SIWS_BAD_SIGNATURE':
+    case 'SIWS_ADDRESS_MISMATCH':
+    case 'SIWS_MALFORMED_MESSAGE':
+    case 'SIWS_STATEMENT_MISMATCH':
+    case 'SIWS_DOMAIN_MISMATCH':
+    case 'SIWS_URI_MISMATCH':
+    case 'SIWS_NETWORK_MISMATCH':
+    case 'SIWS_PURPOSE_MISMATCH':
+      return SessionError.refused(
+        'The wallet signature wasn’t accepted. Nothing was linked.',
+        code: detail,
       );
     case 'PROFILE_NAME_INVALID':
       return const SessionError.refused(

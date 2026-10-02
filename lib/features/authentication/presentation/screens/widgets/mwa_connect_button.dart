@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:chumbucket/core/config/app_config.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
+import 'package:chumbucket/features/authentication/session/last_sign_in.dart';
 import 'package:chumbucket/features/authentication/session/solana_sign_in.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/shared/screens/home/home.dart';
@@ -33,116 +35,7 @@ class _MwaConnectButtonState extends State<MwaConnectButton> {
     setState(() => _isConnecting = true);
 
     try {
-      final authProvider = context.read<MwaAuthProvider>();
-
-      debugPrint('🔌 CONNECT: Starting wallet connection');
-      debugPrint(
-        '🔌 CONNECT: Current authProvider.state = ${authProvider.state}',
-      );
-
-      // Check if wallet app is available
-      final walletAvailable = await authProvider.isWalletAvailable();
-      if (!walletAvailable) {
-        if (context.mounted) {
-          SnackBarUtils.showError(
-            context,
-            title: 'Wallet Not Found',
-            subtitle:
-                'Please install a Solana wallet app like Phantom, Solflare, or Seeker',
-          );
-        }
-        return;
-      }
-
-      // Attempt to connect wallet via MWA
-      debugPrint('🔌 CONNECT: Calling authProvider.authorize()');
-      // One visit to the wallet: connect, then sign the Chumbucket sign-in.
-      final success = await authProvider.authorize(
-        signInMessageFor:
-            AppConfig.callReceiptExperienceEnabled
-                ? (address) => solanaSignInMessage(
-                  address: address,
-                  issuedAt: DateTime.now(),
-                )
-                : null,
-      );
-      debugPrint('🔌 CONNECT: authorize() returned: $success');
-
-      if (!context.mounted) return;
-
-      if (success) {
-        final walletAddress = authProvider.walletAddress;
-        debugPrint('🔌 CONNECT: Wallet authorized');
-        // Finish the account sign-in in the background; Home shows its state.
-        final signed = authProvider.takeSignedSignIn();
-        if (signed != null) {
-          context.read<ChumbucketSession>().signInWithSignedMessage(
-            signed.message,
-            base64Url.encode(signed.signature),
-          );
-        }
-
-        // Try to resolve any SNS domain (.sol, .skr, etc.) for this wallet
-        String? domainName;
-        if (walletAddress != null) {
-          domainName = await AddressNameResolver.resolveDisplayName(
-            walletAddress,
-          );
-          // If it's just a shortened address, it means no domain was found
-          if (domainName.contains('...')) {
-            domainName = null;
-          }
-        }
-        if (!context.mounted) return;
-
-        // Show welcome message with domain if available
-        final welcomeMessage =
-            domainName != null
-                ? 'Welcome, $domainName!'
-                : 'Welcome to Chumbucket!';
-
-        SnackBarUtils.showSuccess(
-          context,
-          title: 'Wallet Connected',
-          subtitle: welcomeMessage,
-        );
-
-        // Initialize wallet provider with auth provider
-        if (context.mounted) {
-          final walletProvider = context.read<MwaWalletProvider>();
-          debugPrint(
-            '🔌 CONNECT: walletProvider.isInitialized = ${walletProvider.isInitialized}',
-          );
-          debugPrint('🔌 CONNECT: Calling walletProvider.initializeFromAuth()');
-          await walletProvider.initializeFromAuth(authProvider);
-        }
-
-        // Navigate to HomeScreen after successful connection
-        if (context.mounted) {
-          debugPrint('🔌 CONNECT: Navigating to HomeScreen');
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-            (route) => false, // Remove all previous routes
-          );
-        }
-      } else {
-        final errorMsg =
-            authProvider.errorMessage ?? 'Failed to connect wallet';
-        SnackBarUtils.showError(
-          context,
-          title: 'Connection Failed',
-          subtitle: errorMsg,
-        );
-      }
-    } catch (_) {
-      debugPrint('🔌 CONNECT: Error after wallet authorization');
-      if (context.mounted) {
-        SnackBarUtils.showError(
-          context,
-          title: 'Connection Error',
-          subtitle: 'Could not finish connecting. Please try again.',
-        );
-      }
+      await connectWalletAndEnter(context);
     } finally {
       if (mounted) {
         setState(() => _isConnecting = false);
@@ -234,5 +127,197 @@ class MwaConnectButtonCompact extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+/// Connects a wallet app (Phantom, Solflare, Seeker) to an account that is
+/// already signed in — to trade with it. No sign-in message and no navigation:
+/// the account stays exactly as it is.
+///
+/// Who needs it: a wallet account whose session came back after a reinstall
+/// (Block Store restores the session, not the wallet app's authorization), and
+/// a Google or X account that would rather use a wallet app than a wallet made
+/// on this phone. Returns true when a wallet app is connected.
+Future<bool> reconnectWalletApp(BuildContext context) async {
+  final auth = context.read<MwaAuthProvider>();
+  final walletProvider = context.read<MwaWalletProvider>();
+  final signedInWith = context.read<ChumbucketSession?>()?.signInWallet;
+  try {
+    if (!await auth.isWalletAvailable()) {
+      if (context.mounted) {
+        SnackBarUtils.showError(
+          context,
+          title: 'Wallet Not Found',
+          subtitle:
+              'Install a Solana wallet app like Phantom, Solflare, or Seeker',
+        );
+      }
+      return false;
+    }
+    final connected = await auth.authorize();
+    if (!context.mounted) return false;
+    if (!connected) {
+      SnackBarUtils.showError(
+        context,
+        title: 'Not connected',
+        subtitle: auth.errorMessage ?? 'The wallet did not connect.',
+      );
+      return false;
+    }
+    await walletProvider.initializeFromAuth(auth);
+    if (!context.mounted) return true;
+    final address = auth.walletAddress;
+    if (signedInWith != null && address != null && address != signedInWith) {
+      // Allowed — a trade is signed by whichever wallet is connected — but
+      // never silently: it is not the wallet this account signed in with.
+      SnackBarUtils.showInfo(
+        context,
+        title: 'A different wallet',
+        subtitle:
+            'This isn’t the wallet you signed in with. Trades will use the one '
+            'now connected.',
+      );
+    } else {
+      SnackBarUtils.showSuccess(
+        context,
+        title: 'Wallet connected',
+        subtitle: 'Trades are signed in your wallet app.',
+      );
+    }
+    return true;
+  } catch (_) {
+    if (context.mounted) {
+      SnackBarUtils.showError(
+        context,
+        title: 'Connection Error',
+        subtitle: 'Could not connect the wallet. Please try again.',
+      );
+    }
+    return false;
+  }
+}
+
+/// The wallet door, shared by the legacy login button and the front door:
+/// one visit to the wallet (connect, then sign the Chumbucket sign-in
+/// message), then Home. The account sign-in finishes in the background and
+/// Home shows its state. Returns true when the wallet connected.
+Future<bool> connectWalletAndEnter(BuildContext context) async {
+  try {
+    final authProvider = context.read<MwaAuthProvider>();
+
+    debugPrint('🔌 CONNECT: Starting wallet connection');
+    debugPrint(
+      '🔌 CONNECT: Current authProvider.state = ${authProvider.state}',
+    );
+
+    // Check if wallet app is available
+    final walletAvailable = await authProvider.isWalletAvailable();
+    if (!walletAvailable) {
+      if (context.mounted) {
+        SnackBarUtils.showError(
+          context,
+          title: 'Wallet Not Found',
+          subtitle:
+              'Please install a Solana wallet app like Phantom, Solflare, or Seeker',
+        );
+      }
+      return false;
+    }
+
+    // Attempt to connect wallet via MWA
+    debugPrint('🔌 CONNECT: Calling authProvider.authorize()');
+    // One visit to the wallet: connect, then sign the Chumbucket sign-in.
+    final success = await authProvider.authorize(
+      signInMessageFor:
+          AppConfig.callReceiptExperienceEnabled
+              ? (address) => solanaSignInMessage(
+                address: address,
+                issuedAt: DateTime.now(),
+              )
+              : null,
+    );
+    debugPrint('🔌 CONNECT: authorize() returned: $success');
+
+    if (!context.mounted) return false;
+
+    if (success) {
+      final walletAddress = authProvider.walletAddress;
+      debugPrint('🔌 CONNECT: Wallet authorized');
+      // Finish the account sign-in in the background; Home shows its state.
+      final signed = authProvider.takeSignedSignIn();
+      final session = context.read<ChumbucketSession?>();
+      if (signed != null) {
+        session?.signInWithSignedMessage(
+          signed.message,
+          base64Url.encode(signed.signature),
+        );
+      } else {
+        // Connected without an account sign-in: still the way in last used.
+        unawaited(session?.rememberSignInMethod(SignInMethod.wallet));
+      }
+
+      // Try to resolve any SNS domain (.sol, .skr, etc.) for this wallet
+      String? domainName;
+      if (walletAddress != null) {
+        domainName = await AddressNameResolver.resolveDisplayName(
+          walletAddress,
+        );
+        // If it's just a shortened address, it means no domain was found
+        if (domainName.contains('...')) {
+          domainName = null;
+        }
+      }
+      if (!context.mounted) return false;
+
+      // Show welcome message with domain if available
+      final welcomeMessage =
+          domainName != null
+              ? 'Welcome, $domainName!'
+              : 'Welcome to Chumbucket!';
+
+      SnackBarUtils.showSuccess(
+        context,
+        title: 'Wallet Connected',
+        subtitle: welcomeMessage,
+      );
+
+      // Initialize wallet provider with auth provider
+      if (context.mounted) {
+        final walletProvider = context.read<MwaWalletProvider>();
+        debugPrint(
+          '🔌 CONNECT: walletProvider.isInitialized = ${walletProvider.isInitialized}',
+        );
+        debugPrint('🔌 CONNECT: Calling walletProvider.initializeFromAuth()');
+        await walletProvider.initializeFromAuth(authProvider);
+      }
+
+      // Navigate to HomeScreen after successful connection
+      if (context.mounted) {
+        debugPrint('🔌 CONNECT: Navigating to HomeScreen');
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (route) => false, // Remove all previous routes
+        );
+      }
+      return true;
+    } else {
+      final errorMsg = authProvider.errorMessage ?? 'Failed to connect wallet';
+      SnackBarUtils.showError(
+        context,
+        title: 'Connection Failed',
+        subtitle: errorMsg,
+      );
+      return false;
+    }
+  } catch (_) {
+    debugPrint('🔌 CONNECT: Error after wallet authorization');
+    if (context.mounted) {
+      SnackBarUtils.showError(
+        context,
+        title: 'Connection Error',
+        subtitle: 'Could not finish connecting. Please try again.',
+      );
+    }
+    return false;
   }
 }

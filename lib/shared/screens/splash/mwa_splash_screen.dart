@@ -16,11 +16,25 @@ import 'package:chumbucket/features/authentication/providers/onboarding_provider
 import 'package:chumbucket/features/profile/providers/profile_provider.dart';
 import 'package:chumbucket/shared/services/efficient_sync_service.dart';
 import 'package:chumbucket/core/utils/app_logger.dart';
+import 'package:chumbucket/core/config/app_config.dart';
+import 'package:chumbucket/features/authentication/continuity/session_continuity.dart';
+import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 
 /// MWA-compatible splash screen
-/// Uses MwaAuthProvider for wallet-based authentication instead of Privy
+/// Uses MwaAuthProvider for wallet-based authentication instead of Privy.
+///
+/// With the calls experience on, a Chumbucket account signed in with Google
+/// or X (no wallet at all) is signed in too: it goes Home, not to the front
+/// door. Before deciding, a session backed up to Block Store is restored once
+/// (`SessionContinuity`), so deleting and reinstalling the app comes back
+/// signed in.
 class MwaSplashScreen extends StatefulWidget {
-  const MwaSplashScreen({super.key});
+  const MwaSplashScreen({
+    super.key,
+    this.peopleFirst = AppConfig.callReceiptExperienceEnabled,
+  });
+
+  final bool peopleFirst;
 
   @override
   State<MwaSplashScreen> createState() => _MwaSplashScreenState();
@@ -88,6 +102,8 @@ class _MwaSplashScreenState extends State<MwaSplashScreen>
     }
 
     final isAuthenticated = authProvider.isAuthenticated;
+    final accountSignedIn = await _accountSignedIn();
+    if (!mounted) return;
     final hasCompletedOnboarding =
         await onboardingProvider.isOnboardingCompleted();
     if (!mounted) return;
@@ -138,6 +154,12 @@ class _MwaSplashScreenState extends State<MwaSplashScreen>
         // Trigger background sync for logged-in users to load challenges
         _triggerInitialSync(authProvider);
       }
+    } else if (accountSignedIn) {
+      // Signed in without a wallet (Google or X): the whole app works; the
+      // wallet-only screens say so where they need one.
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
+      );
     } else {
       // For new users, check if onboarding has been completed
       if (hasCompletedOnboarding) {
@@ -151,6 +173,17 @@ class _MwaSplashScreenState extends State<MwaSplashScreen>
         );
       }
     }
+  }
+
+  /// A Chumbucket account session exists (or was just restored from the Block
+  /// Store backup), whatever way it was signed in.
+  Future<bool> _accountSignedIn() async {
+    if (!widget.peopleFirst) return false;
+    final continuity = context.read<SessionContinuity?>();
+    final session = context.read<ChumbucketSession?>();
+    final restored = await continuity?.restoreOnLaunch() ?? false;
+    if (!mounted) return false;
+    return restored || session?.hasSupabaseSession == true;
   }
 
   // Trigger initial sync when user logs in to load challenges from blockchain

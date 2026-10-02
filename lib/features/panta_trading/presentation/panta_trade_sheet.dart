@@ -11,18 +11,25 @@ import 'package:flutter/services.dart';
 import '../data/panta_trading_models.dart';
 import '../panta_trade_controller.dart';
 
+/// Who signs: a wallet app over Mobile Wallet Adapter (which shows its own
+/// approval and simulation), or the wallet that lives on this phone (whose
+/// approval is this sheet's own button). Only the copy differs.
+enum PantaSigner { walletApp, thisPhone }
+
 /// The caller retains the controller, including after an uncertain submission.
 /// Dismissal before submit cancels locally; after submit it only closes the UI.
 Future<PantaVenueOrder?> showPantaTradeSheet({
   required BuildContext context,
   required PantaTradeController controller,
   required String marketQuestion,
+  PantaSigner signer = PantaSigner.walletApp,
 }) => showChumbucketWavySheet<PantaVenueOrder>(
   context: context,
   builder:
       (_) => PantaTradeSheet(
         controller: controller,
         marketQuestion: marketQuestion,
+        signer: signer,
       ),
 );
 
@@ -31,9 +38,11 @@ class PantaTradeSheet extends StatefulWidget {
     super.key,
     required this.controller,
     required this.marketQuestion,
+    this.signer = PantaSigner.walletApp,
   });
   final PantaTradeController controller;
   final String marketQuestion;
+  final PantaSigner signer;
 
   @override
   State<PantaTradeSheet> createState() => _PantaTradeSheetState();
@@ -44,6 +53,7 @@ class _PantaTradeSheetState extends State<PantaTradeSheet> {
     text: widget.controller.amountText,
   );
   PantaTradeController get controller => widget.controller;
+  bool get _onPhone => widget.signer == PantaSigner.thisPhone;
   final _scroll = ScrollController();
   late PantaTradePhase _lastPhase;
 
@@ -148,8 +158,14 @@ class _PantaTradeSheetState extends State<PantaTradeSheet> {
               PantaTradePhase.review =>
                 controller.quoteExpired
                     ? 'This quote expired. Cancel it or edit the amount to get a fresh quote.'
+                    : _onPhone
+                    ? 'Review these amounts. Signing with the wallet on this '
+                        'phone sends this exact buy — there is no second screen.'
                     : 'Review these amounts, then approve in your wallet.',
-              PantaTradePhase.approving => 'Waiting for your wallet approval…',
+              PantaTradePhase.approving =>
+                _onPhone
+                    ? 'Signing with the wallet on this phone…'
+                    : 'Waiting for your wallet approval…',
               PantaTradePhase.signed =>
                 'Signed · confirmation unknown. The server may have submitted this order. '
                     'Retry sends the same signed transaction.',
@@ -247,7 +263,7 @@ class _PantaTradeSheetState extends State<PantaTradeSheet> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Your connected wallet',
+          _onPhone ? 'Your wallet on this phone' : 'Your connected wallet',
           style: AppTextStyles.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w800,
           ),
@@ -350,11 +366,15 @@ class _PantaTradeSheetState extends State<PantaTradeSheet> {
               // Do not derive either from illustrative arithmetic.
               _reviewRow(
                 'Maximum total spend',
-                'Not supplied in this quote. Check the wallet request.',
+                _onPhone
+                    ? 'Not supplied in this quote.'
+                    : 'Not supplied in this quote. Check the wallet request.',
               ),
               _reviewRow(
                 'Network fee (SOL)',
-                'Estimate not supplied. Check the wallet request.',
+                _onPhone
+                    ? 'Estimate not supplied. Paid from this wallet’s SOL.'
+                    : 'Estimate not supplied. Check the wallet request.',
               ),
               _reviewRow('Quote created', timestamp(order.createdAt)),
               _reviewRow('Quote expires', timestamp(expiry)),
@@ -363,7 +383,9 @@ class _PantaTradeSheetState extends State<PantaTradeSheet> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Wallet approval is not a confirmed fill.',
+          _onPhone
+              ? 'Signing is not a confirmed fill.'
+              : 'Wallet approval is not a confirmed fill.',
           style: AppTextStyles.textTheme.bodySmall?.copyWith(
             color: AppColors.textSecondary,
           ),
@@ -445,12 +467,16 @@ class _PantaTradeSheetState extends State<PantaTradeSheet> {
     final phase = controller.phase;
     final label = switch (phase) {
       PantaTradePhase.review =>
-        controller.quoteExpired ? 'Cancel expired quote' : 'Approve in wallet',
+        controller.quoteExpired
+            ? 'Cancel expired quote'
+            : _onPhone
+            ? 'Sign and buy'
+            : 'Approve in wallet',
       PantaTradePhase.signed => 'Retry same signed transaction',
       PantaTradePhase.cancelled => 'Enter a new amount',
       PantaTradePhase.order => 'Done',
       PantaTradePhase.preparing => 'Preparing quote…',
-      PantaTradePhase.approving => 'Awaiting wallet…',
+      PantaTradePhase.approving => _onPhone ? 'Signing…' : 'Awaiting wallet…',
       PantaTradePhase.submitting => 'Submitting…',
       _ => 'Review order',
     };

@@ -2,6 +2,7 @@ import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/config/app_config.dart';
 import 'package:chumbucket/features/arena/presentation/screens/calls_screen.dart';
 import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
+import 'package:chumbucket/features/authentication/presentation/widgets/claim_handle_sheet.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_feed_screen.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_markets_screen.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/challenge_details_screen/challenge_details_screen.dart';
@@ -295,7 +296,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         systemNavigationBarColor: AppColors.background,
         systemNavigationBarIconBrightness: Brightness.dark,
       ),
-      child: shell,
+      // An account without a @username is asked, once, to claim one.
+      child:
+          widget.callReceiptExperienceEnabled
+              ? UsernameClaimPrompt(child: shell)
+              : shell,
     );
   }
 

@@ -4,10 +4,12 @@
         <exclude domain="sharedpref" path="chumbucket_wallet_secure.xml" />
         <exclude domain="sharedpref" path="FlutterSecureKeyStorage.xml" />
         <exclude domain="sharedpref" path="FlutterSharedPreferences.xml" />
+        <exclude domain="sharedpref" path="chumbucket_embedded_wallet.xml" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="chumbucket_wallet_secure.xml" />
         <exclude domain="sharedpref" path="FlutterSecureKeyStorage.xml" />
         <exclude domain="sharedpref" path="FlutterSharedPreferences.xml" />
+        <exclude domain="sharedpref" path="chumbucket_embedded_wallet.xml" />
     </device-transfer>
 </data-extraction-rules>

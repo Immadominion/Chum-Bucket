@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
+import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
+import 'package:chumbucket/features/embedded_wallet/embedded_wallet_controller.dart';
+import 'package:chumbucket/features/embedded_wallet/presentation/embedded_wallet_sheet.dart';
 import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/wallet_modal.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_settings_sheet.dart';
@@ -11,6 +14,10 @@ import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 /// A private entry row. Financial amounts stay inside the wallet sheet.
+///
+/// A connected wallet app (MWA) is shown as before. A Google or X account with
+/// no wallet app gets the wallet that lives on this phone instead: none yet,
+/// or its short address, and the sheet to make, fund, back up or export it.
 class ProfileWalletCard extends StatelessWidget {
   const ProfileWalletCard({super.key});
 
@@ -19,6 +26,42 @@ class ProfileWalletCard extends StatelessWidget {
     final wallet = context.watch<MwaWalletProvider?>();
     final connected = wallet?.walletAddress != null;
     final styles = AppTextStyles.textTheme;
+    final onPhone = context.watch<EmbeddedWalletController?>();
+    final account = context.watch<ChumbucketSession?>();
+    if (!connected && onPhone != null && account?.isReady == true) {
+      final address = onPhone.address;
+      // A wallet account back after a reinstall: its wallet app is the one to
+      // reconnect, not a reason to make a second wallet.
+      final signedInWith = account!.signInWallet;
+      return Material(
+        color: AppColors.surface,
+        child: ListTile(
+          key: const ValueKey('profile-embedded-wallet'),
+          contentPadding: EdgeInsets.zero,
+          minVerticalPadding: 12,
+          leading: const BasilIcon(
+            'wallet-outline',
+            color: AppColors.textPrimary,
+          ),
+          title: Text('My wallet', style: styles.titleSmall),
+          subtitle: Text(
+            address == null
+                ? signedInWith != null
+                    ? '${shortWalletAddress(signedInWith)} · reconnect to trade'
+                    : 'None yet · make one on this phone to trade'
+                : onPhone.linked
+                ? 'On this phone · ${shortWalletAddress(address)}'
+                : 'On this phone · not linked yet',
+            style: styles.bodySmall?.copyWith(color: AppColors.textSecondary),
+          ),
+          trailing: const BasilIcon(
+            'arrow-right-outline',
+            color: AppColors.textPrimary,
+          ),
+          onTap: () => showEmbeddedWalletSheet(context),
+        ),
+      );
+    }
     return Material(
       color: AppColors.surface,
       child: ListTile(

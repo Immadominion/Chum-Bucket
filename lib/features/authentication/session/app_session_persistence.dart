@@ -13,6 +13,28 @@ class AppSessionPersistence extends LocalStorage {
   /// Supabase is process-wide, unlike the disposed account tree. A browser
   /// callback after logout must be removed from its memory as well as disk.
   Future<void> Function()? discardLateAuthSession;
+
+  /// Told about every session actually written to disk, and every removal —
+  /// `SessionContinuity` mirrors them into Block Store so a reinstall can
+  /// come back signed in. Never told about a refused (locked) write or an
+  /// account-link candidate that has not been proven yet.
+  void Function(String value)? onPersisted;
+  void Function()? onRemoved;
+
+  void _announcePersisted(String value) {
+    try {
+      onPersisted?.call(value);
+    } catch (_) {
+      // A listener can never fail a write.
+    }
+  }
+
+  void _announceRemoved() {
+    try {
+      onRemoved?.call();
+    } catch (_) {}
+  }
+
   bool _acceptWrites = true;
   bool _accountLinkPending = false;
   String? _pendingAccountSession;
@@ -62,6 +84,7 @@ class AppSessionPersistence extends LocalStorage {
           _pendingAccountSession = value;
         } else {
           await delegate.persistSession(value);
+          _announcePersisted(value);
         }
       }
     });
@@ -77,8 +100,10 @@ class AppSessionPersistence extends LocalStorage {
   }
 
   @override
-  Future<void> removePersistedSession() =>
-      _enqueue(delegate.removePersistedSession);
+  Future<void> removePersistedSession() => _enqueue(() async {
+    await delegate.removePersistedSession();
+    _announceRemoved();
+  });
 
   Future<void> clearForSignOut() {
     _epoch++;
@@ -123,6 +148,7 @@ class AppSessionPersistence extends LocalStorage {
         throw StateError('Account session could not be confirmed');
       }
       await delegate.persistSession(value!);
+      _announcePersisted(value);
       if (_acceptWrites && epoch == _epoch) {
         _accountLinkPending = false;
         _pendingAccountSession = null;

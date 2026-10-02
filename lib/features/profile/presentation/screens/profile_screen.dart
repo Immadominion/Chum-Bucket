@@ -5,6 +5,7 @@ import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
+import 'package:chumbucket/features/authentication/presentation/widgets/claim_handle_sheet.dart';
 import 'package:chumbucket/features/arena/presentation/screens/my_pots_screen.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
@@ -141,6 +142,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         existing?['name']?.toString() ??
         'Your profile';
     final image = person?.avatarUrl ?? existing?['pfp_path']?.toString();
+    // The account's own stored @username wins over the calls directory's
+    // copy, which shows a `user-xxxxxxxx` placeholder for an account without
+    // one. No username yet: no handle line, and a row below to claim one.
+    final needsHandle = session?.needsHandleClaim == true;
+    final handle = session?.handle ?? (needsHandle ? null : person?.handle);
     final styles = AppTextStyles.textTheme;
     final canEdit = auth?.isAuthenticated == true && existing != null;
     final pending = session?.isBusy == true || _loadingProfile;
@@ -197,7 +203,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       ProfileHeader(
                         username: name,
-                        handle: person?.handle,
+                        handle: handle,
                         bio: existing?['bio']?.toString() ?? '',
                         profileImagePath: image,
                         canEdit: canEdit,
@@ -234,6 +240,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
               if (_profileError != null && person == null) ...[
                 const SizedBox(height: 12),
                 Text(_profileError!, style: styles.bodyMedium),
+              ],
+              if (needsHandle) ...[
+                const SizedBox(height: 16),
+                _ProfileActionRow(
+                  key: const ValueKey('profile-claim-handle'),
+                  icon: 'user-plus-outline',
+                  title: 'Claim your @username',
+                  detail:
+                      'Your calls show a placeholder name until you pick one.',
+                  onTap: () => showClaimHandleSheet(context),
+                ),
               ],
               if (challenges != null &&
                   challenges.pendingChallenges.isNotEmpty) ...[
@@ -370,6 +387,7 @@ class _ProfileActionRow extends StatelessWidget {
   final String detail;
   final VoidCallback? onTap;
   const _ProfileActionRow({
+    super.key,
     required this.icon,
     required this.title,
     required this.detail,

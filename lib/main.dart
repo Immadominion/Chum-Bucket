@@ -16,7 +16,12 @@ import 'package:chumbucket/shared/screens/splash/mwa_splash_screen.dart';
 import 'package:chumbucket/shared/services/unified_database_service.dart';
 import 'package:chumbucket/core/config/app_config.dart';
 import 'package:chumbucket/core/navigation/deep_link_host.dart';
+import 'package:chumbucket/features/authentication/continuity/session_continuity.dart';
+import 'package:chumbucket/features/authentication/continuity/supabase_session_adopter.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
+import 'package:chumbucket/features/authentication/session/session_bff_client.dart';
+import 'package:chumbucket/features/embedded_wallet/embedded_wallet_controller.dart';
+import 'package:chumbucket/features/embedded_wallet/embedded_wallet_vault.dart';
 import 'package:chumbucket/features/authentication/session/app_session_persistence.dart';
 import 'package:chumbucket/features/authentication/session/app_sign_out.dart';
 import 'package:chumbucket/features/authentication/presentation/widgets/account_session_host.dart';
@@ -41,6 +46,17 @@ void main() async {
   // every local secret inside the APK. See lib/core/config/app_config.dart.
   AppConfig.initialize();
 
+  // Staying signed in across reinstall (Android Block Store). Process-wide,
+  // like Supabase: it outlives the account tree that sign-out rebuilds.
+  final continuity = SessionContinuity(
+    adopt: adoptBackedUpSession,
+    localSession: () async {
+      final persistence = AppSessionPersistence.current;
+      if (persistence == null || persistence.isLocked) return null;
+      return persistence.accessToken();
+    },
+  );
+
   // Initialize Supabase
   try {
     final config = AppConfig.values;
@@ -59,6 +75,10 @@ void main() async {
 
     final persistence = AppSessionPersistence.forProject(supabaseUrl);
     AppSessionPersistence.current = persistence;
+    // Before initialize: every session the SDK saves, from the first, is
+    // mirrored into Block Store, and every removal clears it there.
+    persistence.onPersisted = continuity.sessionPersisted;
+    persistence.onRemoved = continuity.sessionRemoved;
     await Supabase.initialize(
       url: supabaseUrl,
       anonKey: supabaseAnonKey,
@@ -113,6 +133,7 @@ void main() async {
           (_) => MultiProvider(
             providers: [
               Provider(create: (_) => AppSignOutEffects()),
+              Provider<SessionContinuity>.value(value: continuity),
               // MWA Wallet Provider for Pinocchio escrow transactions
               ChangeNotifierProvider(create: (_) => MwaWalletProvider()),
               ChangeNotifierProvider(create: (_) => OnboardingProvider()),
@@ -130,6 +151,24 @@ void main() async {
                   final session = ChumbucketSession();
                   if (AppConfig.callReceiptExperienceEnabled) session.restore();
                   return session;
+                },
+              ),
+              // The account's on-phone wallet (Google/X accounts without a
+              // wallet app). Bound to the canonical account; signed out = none.
+              ChangeNotifierProxyProvider<
+                ChumbucketSession,
+                EmbeddedWalletController
+              >(
+                create:
+                    (context) => EmbeddedWalletController(
+                      vault: EmbeddedWalletVault(continuity: continuity),
+                      bff: SessionBffClient(),
+                      ownsBff: true,
+                      authToken: context.read<ChumbucketSession>().bffAuthToken,
+                    ),
+                update: (_, session, wallet) {
+                  wallet!.bind(session.isReady ? session.userId : null);
+                  return wallet;
                 },
               ),
               // The call/receipt slice. Which repository backs it is a build flag:

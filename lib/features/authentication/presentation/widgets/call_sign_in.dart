@@ -1,11 +1,10 @@
-import 'dart:async';
-
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/authentication/session/app_sign_out.dart';
 import 'package:chumbucket/features/authentication/session/session_state.dart';
 import 'package:chumbucket/features/authentication/session/solana_sign_in.dart';
+import 'package:chumbucket/features/authentication/presentation/widgets/username_availability.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
@@ -217,7 +216,10 @@ class _SecondarySignIn extends StatelessWidget {
 /// Name and @username for a new account, with the username checked as it is
 /// typed. The server decides; this only saves a round trip.
 class ClaimUsernameForm extends StatefulWidget {
-  const ClaimUsernameForm({super.key});
+  const ClaimUsernameForm({super.key, this.onUseDifferentSignIn});
+
+  /// "Use a different sign-in". Default: end this session.
+  final Future<void> Function()? onUseDifferentSignIn;
 
   @override
   State<ClaimUsernameForm> createState() => _ClaimUsernameFormState();
@@ -226,73 +228,30 @@ class ClaimUsernameForm extends StatefulWidget {
 class _ClaimUsernameFormState extends State<ClaimUsernameForm> {
   final _name = TextEditingController();
   final _handle = TextEditingController();
-  Timer? _debounce;
-  String _checked = '';
-  UsernameStatus? _status;
-  bool _checking = false;
+  late final _availability = UsernameAvailability(
+    context.read<ChumbucketSession>().usernameStatus,
+  )..addListener(_changed);
 
-  static final _format = RegExp(r'^[a-z0-9_]{3,20}$');
+  void _changed() {
+    if (mounted) setState(() {});
+  }
 
   @override
   void dispose() {
-    _debounce?.cancel();
+    _availability.dispose();
     _name.dispose();
     _handle.dispose();
     super.dispose();
   }
 
-  void _onHandleChanged(String value) {
-    _debounce?.cancel();
-    final handle = value.trim().toLowerCase();
-    setState(() {
-      _status = null;
-      _checking = _format.hasMatch(handle);
-    });
-    if (!_format.hasMatch(handle)) return;
-    _debounce = Timer(const Duration(milliseconds: 350), () async {
-      final status = await context.read<ChumbucketSession>().usernameStatus(
-        handle,
-      );
-      if (!mounted || _handle.text.trim().toLowerCase() != handle) return;
-      setState(() {
-        _checked = handle;
-        _status = status;
-        _checking = false;
-      });
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final session = context.watch<ChumbucketSession>();
-    final handle = _handle.text.trim().toLowerCase();
+    final handle = _availability.handle;
     final name = _name.text.trim();
-    final formatOk = _format.hasMatch(handle);
-    final checkedHere = _checked == handle;
-    final (hint, hintColor) = switch ((
-      formatOk,
-      checkedHere ? _status : null,
-    )) {
-      (false, _) when handle.isEmpty => (null, null),
-      (false, _) => ('3–20 letters, numbers or _', AppColors.textSecondary),
-      (true, UsernameStatus.available) => (
-        '@$handle is yours to claim',
-        AppColors.success,
-      ),
-      (true, UsernameStatus.taken) => ('@$handle is taken', AppColors.error),
-      (true, UsernameStatus.reserved) => (
-        '@$handle is reserved',
-        AppColors.error,
-      ),
-      (true, UsernameStatus.invalid) => (
-        '3–20 letters, numbers or _',
-        AppColors.error,
-      ),
-      _ => (_checking ? 'Checking @$handle…' : null, AppColors.textSecondary),
-    };
-    final unavailable =
-        checkedHere &&
-        (_status == UsernameStatus.taken || _status == UsernameStatus.reserved);
+    final formatOk = _availability.formatOk;
+    final (hint, hintColor) = _availability.hint;
+    final unavailable = _availability.unavailable;
     final canClaim =
         formatOk && !unavailable && name.isNotEmpty && name.length <= 60;
     final error = session.error;
@@ -337,7 +296,7 @@ class _ClaimUsernameFormState extends State<ClaimUsernameForm> {
           inputFormatters: [
             FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9_]')),
           ],
-          onChanged: _onHandleChanged,
+          onChanged: _availability.update,
           decoration: InputDecoration(
             labelText: 'Username',
             prefixText: '@',
@@ -376,7 +335,7 @@ class _ClaimUsernameFormState extends State<ClaimUsernameForm> {
                   : null,
         ),
         TextButton(
-          onPressed: session.signOut,
+          onPressed: widget.onUseDifferentSignIn ?? session.signOut,
           child: const Text('Use a different sign-in'),
         ),
       ],

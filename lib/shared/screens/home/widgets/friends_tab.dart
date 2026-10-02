@@ -12,6 +12,7 @@ import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_settings_sheet.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenges_preview.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
+import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/shared/services/unified_database_service.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
@@ -358,7 +359,14 @@ class _FriendsTabState extends State<FriendsTab>
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Connect your existing account to load your friends.',
+                            // A Google or X account has no wallet friends; say
+                            // where people show up instead of asking for one.
+                            context.watch<ChumbucketSession?>()?.isReady == true
+                                ? 'Friends from wallet challenges appear here '
+                                    'when a wallet is connected. People you '
+                                    'follow from their calls are under '
+                                    'Following.'
+                                : 'Connect your existing account to load your friends.',
                             style: styles.bodyMedium,
                           ),
                           const SizedBox(height: 12),

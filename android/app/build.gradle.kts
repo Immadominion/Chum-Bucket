@@ -66,6 +66,9 @@ android {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    // Block Store: keeps the session and the on-phone wallet key across
+    // reinstall (BlockStoreChannel.kt). End-to-end encrypted when backed up.
+    implementation("com.google.android.gms:play-services-auth-blockstore:16.4.0")
 }
 
 flutter {

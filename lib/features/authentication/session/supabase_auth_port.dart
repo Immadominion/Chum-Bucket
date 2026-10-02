@@ -28,6 +28,7 @@ import 'dart:convert';
 import 'package:chumbucket/core/config/app_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:solana/solana.dart' show isValidAddress;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// The app's OAuth callback. Declared in
@@ -47,6 +48,7 @@ class SupabaseSessionSnapshot {
     required this.accessToken,
     required this.authUserId,
     this.expiresAt,
+    this.solanaWallet,
   });
 
   /// The bearer the BFF verifies. Not identity — the canonical user is what
@@ -58,6 +60,15 @@ class SupabaseSessionSnapshot {
 
   /// When the access token stops being accepted, if the provider said.
   final DateTime? expiresAt;
+
+  /// For a wallet (Sign in with Solana) session: the address Supabase Auth
+  /// verified, read from the session's own `web3` identity — see
+  /// [verifiedSolanaWallet]. Null for Google and X. Public, not a credential.
+  ///
+  /// The app only uses it to know which wallet app to reconnect (after a
+  /// reinstall restores the session but not the wallet app's authorization).
+  /// The BFF never trusts a client's copy: it reads the same identity itself.
+  final String? solanaWallet;
 
   /// True inside [skew] of expiry, so a refresh happens *before* the BFF has
   /// to reject a request.
@@ -77,6 +88,48 @@ class SupabaseSessionSnapshot {
       'SupabaseSessionSnapshot(authUserId: $authUserId, '
       'accessToken: <redacted ${accessToken.length} chars>, '
       'expiresAt: $expiresAt)';
+}
+
+const _web3Solana = 'web3:solana:';
+final _solanaAddress = RegExp(r'^[1-9A-HJ-NP-Za-km-z]{32,44}$');
+
+/// The Solana address a Supabase Web3 sign-in verified, or null — the same
+/// rule as the BFF's `solanaWalletOf` (`src/auth/SupabaseJwt.ts`). GoTrue
+/// records the sign-in as a `web3` identity whose provider id is
+/// `web3:solana:<address>`, and also puts the address in its custom claims;
+/// when both are present they must agree, or neither is used.
+String? verifiedSolanaWallet(List<UserIdentity>? identities) {
+  for (final identity in identities ?? const <UserIdentity>[]) {
+    if (identity.provider != 'web3') continue;
+    final data = identity.identityData ?? const <String, dynamic>{};
+    final claims = data['custom_claims'];
+    final sub = data['sub'];
+    final providerId = sub is String ? sub : identity.id;
+    final fromProviderId =
+        providerId.startsWith(_web3Solana)
+            ? providerId.substring(_web3Solana.length)
+            : null;
+    final fromClaims =
+        claims is Map &&
+                claims['chain'] == 'solana' &&
+                claims['address'] is String
+            ? claims['address'] as String
+            : null;
+    if (fromProviderId != null &&
+        fromClaims != null &&
+        fromProviderId != fromClaims) {
+      continue;
+    }
+    final address = fromProviderId ?? fromClaims;
+    // A 32-byte key on the curve and not of small order: the BFF's
+    // `isUsableSolanaAddress` — an address someone can actually hold.
+    if (address != null &&
+        _solanaAddress.hasMatch(address) &&
+        isValidAddress(address)) {
+      return address;
+    }
+  }
+  return null;
 }
 
 /// The subset of `AuthChangeEvent` that changes what the session must do.
@@ -361,6 +414,7 @@ class SupabaseFlutterAuthPort implements SupabaseAuthPort {
     return SupabaseSessionSnapshot(
       accessToken: session.accessToken,
       authUserId: session.user.id,
+      solanaWallet: verifiedSolanaWallet(session.user.identities),
       // `Session.expiresAt` is unix **seconds**, not milliseconds.
       expiresAt:
           expiresAt == null

@@ -9,6 +9,8 @@ import 'package:chumbucket/features/profile/presentation/screens/widgets/profile
 import 'package:chumbucket/features/authentication/session/app_sign_out.dart';
 import 'package:chumbucket/core/services/chat_service.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/identity_link_sheet.dart';
+import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
+import 'package:provider/provider.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 
 /// Settings modal sheet following the app's design conventions
@@ -46,13 +48,17 @@ class ProfileSettingsSheet extends StatelessWidget {
                 iconSize: 30,
               ),
 
-              ProfileMenuItem(
-                basilIcon: 'user-outline',
-                title: 'Link Google',
-                subtitle: 'Keep your existing profile and history',
-                iconColor: AppColors.primary,
-                onTap: () => _showIdentityLink(context),
-              ),
+              // Linking Google carries a connected wallet's existing profile;
+              // with no wallet connected (a Google or X account) there is
+              // nothing to carry, so it is not offered.
+              if (context.watch<MwaAuthProvider?>()?.isAuthenticated == true)
+                ProfileMenuItem(
+                  basilIcon: 'user-outline',
+                  title: 'Link Google',
+                  subtitle: 'Keep your existing profile and history',
+                  iconColor: AppColors.primary,
+                  onTap: () => _showIdentityLink(context),
+                ),
 
               ProfileMenuItem(
                 basilIcon: 'trash-outline',
