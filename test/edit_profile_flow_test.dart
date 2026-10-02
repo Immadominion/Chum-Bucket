@@ -294,6 +294,34 @@ void main() {
     });
   }
 
+  testWidgets(
+    'the content policy answers at once and sends nothing; the server has the last word',
+    (tester) async {
+      final account = _Account();
+      await _openEditor(tester, account);
+      // The app's copy of the rule (trust): a link in a public name never
+      // leaves the phone, and the draft stays.
+      await tester.enterText(
+        find.byType(TextFormField).first,
+        'Ada at pump.fun',
+      );
+      await _save(tester);
+      await tester.pumpAndSettle();
+      expect(account.writes, isEmpty);
+      expect(find.byType(EditProfileScreen), findsOneWidget);
+      expect(find.text('Ada at pump.fun'), findsOneWidget);
+      // Whatever the server refuses (account.updateProfile runs the same
+      // policy) comes back in its own words through the same save.
+      account.saveSucceeds = false;
+      await tester.enterText(find.byType(TextFormField).first, 'Ada');
+      await _save(tester);
+      await tester.pumpAndSettle();
+      expect(account.writes.length, 1);
+      expect(find.byType(EditProfileScreen), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('signing out after load refuses the save', (tester) async {
     final account = _Account();
     final h = await _openEditor(tester, account);
