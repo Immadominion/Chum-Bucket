@@ -32,6 +32,7 @@ class _MarketPickerSheetState extends State<MarketPickerSheet> {
   String _query = '';
   String? _picking;
   MarketDiscoveryWindow _window = MarketDiscoveryWindow.all;
+  String? _category;
 
   @override
   void initState() {
@@ -67,10 +68,16 @@ class _MarketPickerSheetState extends State<MarketPickerSheet> {
     title: 'Choose a market',
     body: Consumer<CallsProvider>(
       builder: (context, provider, _) {
+        final categories = discoveryCategories(provider.openMarkets);
+        final category =
+            categories.any((entry) => entry.category == _category)
+                ? _category
+                : null;
         final rows = discoveryMarkets(
           provider.openMarkets,
           window: _window,
           query: _query,
+          category: category,
         );
         return ListView(
           shrinkWrap: true,
@@ -109,6 +116,14 @@ class _MarketPickerSheetState extends State<MarketPickerSheet> {
               selected: _window,
               onChanged: (value) => setState(() => _window = value),
             ),
+            if (categories.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              MarketCategoryFilters(
+                categories: categories,
+                selected: category,
+                onChanged: (value) => setState(() => _category = value),
+              ),
+            ],
             const SizedBox(height: 8),
             Text(switch (_window) {
               MarketDiscoveryWindow.all => 'All open Panta markets',

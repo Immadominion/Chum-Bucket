@@ -292,6 +292,13 @@ String _requireString(Object? value, String field) {
   );
 }
 
+final _decimal = RegExp(r'^(0|[1-9][0-9]{0,30})(\.[0-9]{1,18})?$');
+
+/// An optional, display-only venue figure: anything but a plain decimal
+/// string reads as unavailable rather than failing the whole catalog.
+String? _optionalDecimal(Object? value) =>
+    value is String && _decimal.hasMatch(value) ? value : null;
+
 /// Maximum length of [Call.thesis], per the contract.
 const int kThesisMaxLength = 280;
 
@@ -343,6 +350,11 @@ class VenueMarket {
   /// Bumped when the adapter's normalisation changes.
   final int payloadVersion;
 
+  /// The venue's own reported trading volume (Panta `volumeUsdc`), verbatim.
+  /// Catalog-only and display/sort-only: null when the venue did not report
+  /// it or an older server omits it — never estimated, never zero-filled.
+  final String? volumeUsdc;
+
   const VenueMarket({
     required this.id,
     required this.venue,
@@ -360,6 +372,7 @@ class VenueMarket {
     required this.resolutionSource,
     required this.lastSyncedAt,
     required this.payloadVersion,
+    this.volumeUsdc,
   });
 
   DateTime? get closesAtUtc =>
@@ -409,6 +422,7 @@ class VenueMarket {
       'VenueMarket.lastSyncedAt',
     ),
     payloadVersion: (json['payloadVersion'] as num?)?.toInt() ?? 1,
+    volumeUsdc: _optionalDecimal(json['volumeUsdc']),
   );
 
   Map<String, dynamic> toJson() => {
@@ -428,6 +442,7 @@ class VenueMarket {
     'resolutionSource': resolutionSource,
     'lastSyncedAt': lastSyncedAt,
     'payloadVersion': payloadVersion,
+    if (volumeUsdc != null) 'volumeUsdc': volumeUsdc,
   };
 
   VenueMarket copyWith({
@@ -451,6 +466,7 @@ class VenueMarket {
     resolutionSource: resolutionSource,
     lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
     payloadVersion: payloadVersion,
+    volumeUsdc: volumeUsdc,
   );
 }
 

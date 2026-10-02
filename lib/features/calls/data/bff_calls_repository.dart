@@ -122,19 +122,35 @@ class BffCallsRepository implements CallsRepository, CallsCatalogRepository {
     return venueMarketsFromJson(data, '$openMarketsProcedure result');
   }
 
+  static const String catalogProcedure = 'predictions.catalog';
+
+  /// The whole open Panta catalog, soonest to close first. Discovery only:
+  /// no price is required here, and call eligibility stays a server decision.
   @override
   Future<List<VenueMarket>> fetchMarketCatalog() async {
+    try {
+      return await _walkCatalog(const {'scope': 'open', 'sort': 'closing'});
+    } on CallsRejectedException {
+      // A BFF older than the open-scope catalog refuses unknown input keys
+      // (its schema is strict). Its legacy walk returns every mirrored row,
+      // which the provider still narrows to markets open right now.
+      return _walkCatalog(const {});
+    }
+  }
+
+  Future<List<VenueMarket>> _walkCatalog(Map<String, Object> options) async {
     final markets = <String, VenueMarket>{};
     final seen = <String>{};
     String? cursor;
     // Bounded traversal of cheap, cached BFF pages; no client provider key.
     for (var page = 0; page < 20; page++) {
       final data = requireJsonMap(
-        await _transport.query('predictions.catalog', {
+        await _transport.query(catalogProcedure, {
           'limit': 100,
+          ...options,
           if (cursor != null) 'cursor': cursor,
         }),
-        'predictions.catalog',
+        catalogProcedure,
       );
       if (data['markets'] is! List) {
         throw const CallVocabularyException(
