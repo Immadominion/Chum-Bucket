@@ -22,6 +22,8 @@ library;
 import 'dart:typed_data';
 
 import 'package:solana/encoder.dart' as encoder;
+import 'package:solana/solana.dart'
+    show Ed25519HDPublicKey, findAssociatedTokenAddress;
 
 import 'package:chumbucket/features/calls/data/call_models.dart' show Side;
 import 'package:chumbucket/features/panta_trading/panta_trading.dart';
@@ -33,6 +35,11 @@ const pantaMainnetProgramId = '6gM5afTQBq5VZCfgpGqcsqzfWd5maLSCKWtGjbEobZMp';
 const _computeBudgetProgram = 'ComputeBudget111111111111111111111111111111';
 const _associatedTokenProgram = 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL';
 const _memoProgram = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
+const _tokenProgram = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+const _systemProgram = '11111111111111111111111111111111';
+
+/// Mainnet USDC (`USDC_MINT` in the BFF): the only token a buy may spend.
+const _usdcMint = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 
 /// sha256("global:primary_order_usdc")[0..8] — the Anchor discriminator the
 /// BFF builds the buy with (`PRIMARY_BUY_DISCRIMINATOR`).
@@ -85,7 +92,7 @@ class PantaEmbeddedWallet implements PantaWalletPort {
     if (amount == null) {
       throw const PantaException(PantaErrorCode.signingFailed);
     }
-    final message = checkPantaBuyForEmbeddedSigning(
+    final message = await checkPantaBuyForEmbeddedSigning(
       unsigned,
       owner: _address,
       venueMarketId: reviewed.venueMarketId,
@@ -105,13 +112,13 @@ class PantaEmbeddedWallet implements PantaWalletPort {
 
 /// Returns the exact message bytes to sign, or throws
 /// [PantaErrorCode.invalidResponse] for anything but the reviewed buy.
-Uint8List checkPantaBuyForEmbeddedSigning(
+Future<Uint8List> checkPantaBuyForEmbeddedSigning(
   Uint8List bytes, {
   required String owner,
   required String venueMarketId,
   required Side side,
   required String amountBaseUnits,
-}) {
+}) async {
   void require(bool condition) {
     if (!condition) throw const PantaException(PantaErrorCode.invalidResponse);
   }
@@ -143,6 +150,19 @@ Uint8List checkPantaBuyForEmbeddedSigning(
   );
   final messageBytes = Uint8List.fromList(v0.toByteArray().toList());
   require(_sameBytes(messageBytes, bytes.sublist(65)));
+
+  // The wallet's own canonical USDC account: the only token account the buy
+  // may debit, and the only one the create-idempotent may make.
+  final String ownerUsdc;
+  try {
+    ownerUsdc =
+        (await findAssociatedTokenAddress(
+          owner: Ed25519HDPublicKey.fromBase58(owner),
+          mint: Ed25519HDPublicKey.fromBase58(_usdcMint),
+        )).toBase58();
+  } catch (_) {
+    throw const PantaException(PantaErrorCode.invalidResponse);
+  }
 
   final amount = BigInt.tryParse(amountBaseUnits);
   require(amount != null && amount > BigInt.zero);
@@ -183,14 +203,19 @@ Uint8List checkPantaBuyForEmbeddedSigning(
           require(false);
         }
       case _associatedTokenProgram:
-        // CreateIdempotent for the wallet's own account, paid by the wallet.
+        // CreateIdempotent for the wallet's own USDC account, paid by the
+        // wallet — the BFF's exact account list.
         require(
           stage == 0 &&
               data.length == 1 &&
               data[0] == 1 &&
               accounts.length == 6 &&
               accounts[0] == owner &&
-              accounts[2] == owner,
+              accounts[1] == ownerUsdc &&
+              accounts[2] == owner &&
+              accounts[3] == _usdcMint &&
+              accounts[4] == _systemProgram &&
+              accounts[5] == _tokenProgram,
         );
         stage = 1;
       case pantaMainnetProgramId:
@@ -200,7 +225,15 @@ Uint8List checkPantaBuyForEmbeddedSigning(
               _sameBytes(data, buyData) &&
               accounts.length == 12 &&
               accounts[0] == owner &&
-              accounts[1] == venueMarketId,
+              accounts[1] == venueMarketId &&
+              // USDC, debited from the wallet's own USDC account, through
+              // the real Token / ATA / System programs. The market's own
+              // PDAs (2–5, 8) are Panta's program's to check.
+              accounts[6] == _usdcMint &&
+              accounts[7] == ownerUsdc &&
+              accounts[9] == _tokenProgram &&
+              accounts[10] == _associatedTokenProgram &&
+              accounts[11] == _systemProgram,
         );
         buys++;
         stage = 2;
