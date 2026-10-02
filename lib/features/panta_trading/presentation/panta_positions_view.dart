@@ -439,6 +439,7 @@ class _PositionCard extends StatelessWidget {
           label: Text(pantaLabel),
           style: OutlinedButton.styleFrom(
             foregroundColor: AppColors.textPrimary,
+            side: const BorderSide(color: AppColors.outline),
             minimumSize: const Size(48, 44),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
