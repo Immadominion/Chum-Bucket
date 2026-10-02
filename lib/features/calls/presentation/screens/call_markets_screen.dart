@@ -192,8 +192,8 @@ class _CallMarketsScreenState extends State<CallMarketsScreen> {
                     const SizedBox(height: 2),
                     const MarketCatalogLegend(),
                   ],
-                  const SizedBox(height: 12),
-                  CreateMarketEntryCard(
+                  // Shown only while the server takes proposals.
+                  CreateMarketEntry(
                     onCreate: () => _openMarketCreation(create: true),
                     onOpenMine: () => _openMarketCreation(create: false),
                   ),

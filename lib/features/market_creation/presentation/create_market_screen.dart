@@ -270,10 +270,9 @@ class _CreateMarketScreenState extends State<CreateMarketScreen> {
                 onAction: _controller.loadStatus,
               )
             else if (status != null && !enabled)
-              _Notice(
-                text:
-                    'Market proposals aren’t open yet. ${status.reason ?? ''}'
-                        .trim(),
+              // The server's reason is operator copy; say what it means here.
+              const _Notice(
+                text: 'Market proposals aren’t open yet. Check back soon.',
               ),
             const SizedBox(height: 16),
             _Section(

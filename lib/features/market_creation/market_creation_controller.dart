@@ -6,6 +6,11 @@
 /// bytes in memory so an uncertain submit is retried with the IDENTICAL
 /// approval, never a new quote; they are not persisted across app restarts
 /// (the server already committed them before broadcasting).
+///
+/// A sent create only reaches Panta's catalog once a status check registers
+/// it, so both controllers check a `publishing` proposal on their own: the
+/// publish sheet a few times while it is open, and "Your markets" whenever
+/// it loads.
 library;
 
 import 'dart:async';
@@ -99,6 +104,13 @@ class MarketCreationController extends ChangeNotifier {
     } finally {
       loadingMine = false;
       _notify();
+    }
+    // A create that was sent but never confirmed (the app closed first) is
+    // registered by its status check. Best effort; the page shows the state.
+    for (final p in mine) {
+      if (p.status == ProposalStatus.publishing) {
+        unawaited(refresh(p.id, onError: (_) {}));
+      }
     }
   }
 
@@ -253,9 +265,16 @@ class PublishMarketController extends ChangeNotifier {
     required this.wallet,
     required PantaWalletPort walletPort,
     DateTime Function()? now,
+    this.confirmAttempts = 8,
+    this.confirmEvery = const Duration(seconds: 3),
   }) : _client = client,
        _walletPort = walletPort,
        _now = now ?? (() => DateTime.now().toUtc());
+
+  /// After a submit that is still `publishing`, how many status checks the
+  /// open sheet makes, and how far apart. Solana confirms in seconds.
+  final int confirmAttempts;
+  final Duration confirmEvery;
 
   final MarketCreationClient _client;
   final PantaWalletPort _walletPort;
@@ -268,9 +287,15 @@ class PublishMarketController extends ChangeNotifier {
   PublishReview? review;
   String? error;
   String? _signed; // base64; memory only
+  Timer? _confirmTimer;
+  int _confirmsLeft = 0;
+  bool _checking = false;
 
   /// True once signed bytes exist: the create may already be on its way.
   bool get submitted => _signed != null;
+
+  /// A sent create is being followed up while the sheet is open.
+  bool get confirming => _confirmTimer != null || _checking;
   bool get canDismiss =>
       phase != PublishPhase.signing && phase != PublishPhase.submitting;
   bool get reviewExpired =>
@@ -338,6 +363,8 @@ class PublishMarketController extends ChangeNotifier {
         sessionId: current.sessionId,
         signedTransaction: signed,
       );
+      _confirmsLeft = confirmAttempts;
+      _scheduleConfirm();
       _set(PublishPhase.done);
     } on CallsRejectedException catch (e) {
       // A definite refusal: the server will never broadcast these bytes (it
@@ -353,10 +380,40 @@ class PublishMarketController extends ChangeNotifier {
     }
   }
 
+  /// Re-check a sent create until it is live or released, a bounded number
+  /// of times. Each check is what registers it with Panta once it lands.
+  void _scheduleConfirm() {
+    _confirmTimer?.cancel();
+    _confirmTimer = null;
+    if (_disposed ||
+        _confirmsLeft <= 0 ||
+        proposal.status != ProposalStatus.publishing) {
+      return;
+    }
+    _confirmTimer = Timer(confirmEvery, () async {
+      _confirmTimer = null;
+      _confirmsLeft--;
+      _checking = true;
+      try {
+        final next = await _client.refreshPublish(proposal.id);
+        if (!_disposed) proposal = next;
+      } catch (_) {
+        // "Check status" on the market's page stays available.
+      } finally {
+        _checking = false;
+      }
+      if (_disposed) return;
+      _scheduleConfirm();
+      notifyListeners();
+    });
+  }
+
   @override
   void dispose() {
     _disposed = true;
     _signed = null;
+    _confirmTimer?.cancel();
+    _confirmTimer = null;
     super.dispose();
   }
 }

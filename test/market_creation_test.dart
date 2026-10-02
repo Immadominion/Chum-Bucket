@@ -444,17 +444,54 @@ void main() {
     });
 
     test('refresh re-checks a publishing proposal against the chain', () async {
-      bff.handlers['marketCreation.mine'] =
-          (_) => [proposalJson(status: 'publishing')];
+      bff.handlers['marketCreation.get'] =
+          (_) => proposalJson(status: 'publishing');
       bff.handlers['marketCreation.refreshPublish'] =
           (_) => proposalJson(status: 'publishing');
-      await controller.loadMine();
-      await controller.refresh(
-        '30000000-0000-4000-8000-000000000001',
-        onError: (_) {},
-      );
+      const id = '30000000-0000-4000-8000-000000000001';
+      await controller.refresh(id, onError: (_) {});
+      expect(bff.paths().last, 'marketCreation.get');
+      await controller.refresh(id, onError: (_) {});
       expect(bff.paths().last, 'marketCreation.refreshPublish');
     });
+
+    test(
+      'loading your markets re-checks sent creates, so they reach Panta',
+      () async {
+        const sent = '30000000-0000-4000-8000-000000000001';
+        bff.handlers['marketCreation.mine'] =
+            (_) => [
+              proposalJson(status: 'publishing'),
+              proposalJson(
+                id: '30000000-0000-4000-8000-000000000003',
+                status: 'approved',
+              ),
+            ];
+        bff.handlers['marketCreation.refreshPublish'] =
+            (_) => proposalJson(
+              status: 'live',
+              canWithdraw: false,
+              live: {
+                'venueMarketId': syntheticEvent,
+                'marketId': 'market-1',
+                'creatorWallet': syntheticWallet,
+                'liveAt': 1,
+              },
+            );
+        await controller.loadMine();
+        await pumpEventQueue();
+        final checks = [
+          for (final r in bff.requests)
+            if (r.path == 'marketCreation.refreshPublish') r.input,
+        ];
+        expect(checks, [
+          {'proposalId': sent},
+        ]);
+        expect(controller.find(sent)!.status, ProposalStatus.live);
+        expect(controller.mine.first.status, ProposalStatus.live);
+        expect(controller.isBusy(sent), isFalse);
+      },
+    );
 
     test(
       'an action error is reported and the proposal is not busy after',
@@ -647,6 +684,91 @@ void main() {
       expect(publish.phase, PublishPhase.failed);
       expect(publish.submitted, isTrue);
       expect(publish.error, 'Panta did not answer.');
+    });
+
+    test(
+      'a sent create is followed up until it is live, then checks stop',
+      () async {
+        final fast = PublishMarketController(
+          client: bff.marketClient(),
+          proposal: MarketProposal.fromJson(
+            proposalJson(status: 'approved', canPublish: true),
+          ),
+          wallet: syntheticWallet,
+          walletPort: wallet,
+          confirmEvery: const Duration(milliseconds: 1),
+        );
+        addTearDown(fast.dispose);
+        var checks = 0;
+        bff.handlers['marketCreation.refreshPublish'] =
+            (_) =>
+                ++checks < 2
+                    ? proposalJson(status: 'publishing', canWithdraw: false)
+                    : proposalJson(
+                      status: 'live',
+                      canWithdraw: false,
+                      live: {
+                        'venueMarketId': syntheticEvent,
+                        'marketId': 'market-1',
+                        'creatorWallet': syntheticWallet,
+                        'liveAt': 1,
+                      },
+                    );
+        await fast.prepare();
+        await fast.approveAndSubmit();
+        expect(fast.phase, PublishPhase.done);
+        expect(fast.confirming, isTrue);
+        for (var i = 0; i < 50 && fast.confirming; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        expect(fast.proposal.status, ProposalStatus.live);
+        expect(fast.confirming, isFalse);
+        expect(checks, 2);
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(checks, 2, reason: 'no checks after it is live');
+      },
+    );
+
+    test('follow-up checks are bounded and stop when the sheet goes', () async {
+      final bounded = PublishMarketController(
+        client: bff.marketClient(),
+        proposal: MarketProposal.fromJson(
+          proposalJson(status: 'approved', canPublish: true),
+        ),
+        wallet: syntheticWallet,
+        walletPort: wallet,
+        confirmAttempts: 3,
+        confirmEvery: const Duration(milliseconds: 1),
+      );
+      var checks = 0;
+      bff.handlers['marketCreation.refreshPublish'] = (_) {
+        checks++;
+        return proposalJson(status: 'publishing', canWithdraw: false);
+      };
+      await bounded.prepare();
+      await bounded.approveAndSubmit();
+      for (var i = 0; i < 50 && bounded.confirming; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      expect(checks, 3);
+      expect(bounded.confirming, isFalse);
+      expect(bounded.proposal.status, ProposalStatus.publishing);
+
+      final closed = PublishMarketController(
+        client: bff.marketClient(),
+        proposal: MarketProposal.fromJson(
+          proposalJson(status: 'approved', canPublish: true),
+        ),
+        wallet: syntheticWallet,
+        walletPort: wallet,
+        confirmEvery: const Duration(milliseconds: 1),
+      );
+      await closed.prepare();
+      await closed.approveAndSubmit();
+      expect(closed.confirming, isTrue);
+      closed.dispose();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(checks, 3, reason: 'a closed sheet makes no more checks');
     });
 
     test('a definite refusal drops the bytes and offers a fresh quote', () async {

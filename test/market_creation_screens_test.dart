@@ -351,10 +351,74 @@ void main() {
       await _tapText(tester, 'Approve in wallet');
       expect(wallet.signs, 1);
       expect(find.text('Market submitted'), findsOneWidget);
+      expect(find.textContaining('Confirming with Solana'), findsOneWidget);
       await _tapText(tester, 'Done');
       expect(find.text('Publishing on Panta'), findsOneWidget);
       expect(find.text('Check status'), findsOneWidget);
     });
+
+    testWidgets('publish: the open sheet follows the create until it is live', (
+      tester,
+    ) async {
+      final wallet = _Wallet();
+      bff.handlers['marketCreation.preparePublish'] = (_) => reviewJson();
+      bff.handlers['marketCreation.submitPublish'] =
+          (_) => proposalJson(status: 'publishing', canWithdraw: false);
+      await open(
+        tester,
+        proposalJson(status: 'approved', canPublish: true),
+        wallet: (_) => (address: syntheticWallet, port: wallet),
+      );
+      final live = proposalJson(
+        status: 'live',
+        canWithdraw: false,
+        live: {
+          'venueMarketId': syntheticEvent,
+          'marketId': 'market-1',
+          'creatorWallet': syntheticWallet,
+          'liveAt': 1,
+        },
+      );
+      bff.handlers['marketCreation.refreshPublish'] = (_) => live;
+      bff.handlers['marketCreation.get'] = (_) => live;
+      await _tapText(tester, 'Publish on Panta');
+      await _tapText(tester, 'Approve in wallet');
+      expect(find.text('Market submitted'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpAndSettle();
+      expect(find.text('Market is live'), findsOneWidget);
+      expect(find.textContaining('Anyone can now make a call'), findsOneWidget);
+      await _tapText(tester, 'Done');
+      expect(find.text('Live on Panta'), findsOneWidget);
+      expect(find.text('Open market'), findsOneWidget);
+    });
+
+    testWidgets(
+      'publish: a create released by the chain says no fee was taken',
+      (tester) async {
+        final wallet = _Wallet();
+        bff.handlers['marketCreation.preparePublish'] = (_) => reviewJson();
+        bff.handlers['marketCreation.submitPublish'] =
+            (_) => proposalJson(status: 'publishing', canWithdraw: false);
+        await open(
+          tester,
+          proposalJson(status: 'approved', canPublish: true),
+          wallet: (_) => (address: syntheticWallet, port: wallet),
+        );
+        final released = proposalJson(status: 'approved', canPublish: true);
+        bff.handlers['marketCreation.refreshPublish'] = (_) => released;
+        await _tapText(tester, 'Publish on Panta');
+        await _tapText(tester, 'Approve in wallet');
+        await tester.pump(const Duration(seconds: 3));
+        await tester.pumpAndSettle();
+        expect(
+          find.textContaining('no creation fee was taken'),
+          findsOneWidget,
+        );
+        await _tapText(tester, 'Done');
+        expect(find.text('Publish on Panta'), findsOneWidget);
+      },
+    );
 
     testWidgets('the fee review sheet fits 320dp at 2x text', (tester) async {
       bff.handlers['marketCreation.preparePublish'] = (_) => reviewJson();
@@ -523,6 +587,39 @@ void main() {
       MarketProposerCache.instance
         ..lookupOverride = null
         ..clear();
+      MarketCreationAvailability.instance
+        ..lookupOverride = null
+        ..clear();
+    });
+
+    testWidgets('the Markets entry shows only while proposals are open', (
+      tester,
+    ) async {
+      var open = false, asks = 0;
+      MarketCreationAvailability.instance.lookupOverride = () async {
+        asks++;
+        return open;
+      };
+      Widget entry() =>
+          Scaffold(body: CreateMarketEntry(onCreate: () {}, onOpenMine: () {}));
+      await mount(tester, entry());
+      expect(find.text('Create a market'), findsNothing);
+
+      // Switched on: a fresh read (the closed answer has aged out) shows it.
+      open = true;
+      MarketCreationAvailability.instance.clear();
+      await mount(tester, Scaffold(body: Container()));
+      await mount(tester, entry());
+      expect(find.text('Create a market'), findsOneWidget);
+      expect(asks, 2);
+
+      // Unreachable reads as closed for a first read.
+      MarketCreationAvailability.instance
+        ..clear()
+        ..lookupOverride = () async => throw Exception('offline');
+      await mount(tester, Scaffold(body: Container()));
+      await mount(tester, entry());
+      expect(find.text('Create a market'), findsNothing);
     });
 
     testWidgets('the Markets card opens create or yours', (tester) async {

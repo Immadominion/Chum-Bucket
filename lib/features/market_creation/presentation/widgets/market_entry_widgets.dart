@@ -1,6 +1,7 @@
 /// The two places market creation shows up outside its own screens: the
-/// Markets tab's "Create a market" card, and "Proposed by @handle" on a live
-/// market people proposed here.
+/// Markets tab's "Create a market" card (only while the server takes
+/// proposals), and "Proposed by @handle" on a live market people proposed
+/// here.
 library;
 
 import 'dart:async';
@@ -82,6 +83,104 @@ class CreateMarketEntryCard extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// Whether the server takes proposals, from the public `marketCreation.status`.
+///
+/// Cached for [ttl] so switching the feature on reaches open apps without a
+/// restart. Unknown or unreachable reads as closed: the Markets tab never
+/// offers a form that can only say "not open yet". Only a configured app
+/// (AppConfig loaded `dotenv`) reaches the network.
+class MarketCreationAvailability {
+  MarketCreationAvailability._();
+  static final instance = MarketCreationAvailability._();
+  static const ttl = Duration(minutes: 10);
+
+  bool? _open;
+  DateTime? _readAt;
+  Future<bool>? _inflight;
+  MarketCreationClient? _client;
+
+  /// Replaceable in tests.
+  Future<bool> Function()? lookupOverride;
+
+  /// The last answer, if any.
+  bool? get cached => _open;
+
+  Future<bool> load() {
+    final open = _open, readAt = _readAt;
+    if (open != null &&
+        readAt != null &&
+        DateTime.now().difference(readAt) < ttl) {
+      return Future.value(open);
+    }
+    return _inflight ??= () async {
+      try {
+        final answer = await (lookupOverride ?? _defaultLookup)();
+        _open = answer;
+        _readAt = DateTime.now();
+        return answer;
+      } catch (_) {
+        return _open ?? false;
+      } finally {
+        _inflight = null;
+      }
+    }();
+  }
+
+  Future<bool> _defaultLookup() async {
+    if (!dotenv.isInitialized) return false;
+    _client ??= MarketCreationClient.bff();
+    return (await _client!.status()).proposalsEnabled;
+  }
+
+  void clear() {
+    _open = null;
+    _readAt = null;
+    _inflight = null;
+  }
+}
+
+/// The Markets tab's "Create a market" card, shown only while the server
+/// takes proposals.
+class CreateMarketEntry extends StatefulWidget {
+  const CreateMarketEntry({
+    super.key,
+    required this.onCreate,
+    required this.onOpenMine,
+  });
+
+  final VoidCallback onCreate;
+  final VoidCallback onOpenMine;
+
+  @override
+  State<CreateMarketEntry> createState() => _CreateMarketEntryState();
+}
+
+class _CreateMarketEntryState extends State<CreateMarketEntry> {
+  bool _open = MarketCreationAvailability.instance.cached ?? false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(
+      MarketCreationAvailability.instance.load().then((open) {
+        if (mounted && open != _open) setState(() => _open = open);
+      }),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_open) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: CreateMarketEntryCard(
+        onCreate: widget.onCreate,
+        onOpenMine: widget.onOpenMine,
+      ),
+    );
+  }
 }
 
 typedef MarketProposerLookup =

@@ -70,7 +70,12 @@ class _PublishMarketSheetState extends State<PublishMarketSheet> {
             ? null
             : '${formatUsdcBaseUnits(review.feeBaseUnits)} USDC';
     return ChumbucketWavySheet(
-      title: c.phase == PublishPhase.done ? 'Market submitted' : 'Creation fee',
+      title:
+          c.phase != PublishPhase.done
+              ? 'Creation fee'
+              : c.proposal.status == ProposalStatus.live
+              ? 'Market is live'
+              : 'Market submitted',
       value: c.phase == PublishPhase.done ? null : fee,
       subtitle: c.proposal.question,
       canDismiss: c.canDismiss,
@@ -115,13 +120,18 @@ class _PublishMarketSheetState extends State<PublishMarketSheet> {
           ),
         ];
       case PublishPhase.done:
-        final live = c.proposal.status == ProposalStatus.live;
         return [
-          _statement(
-            live
-                ? 'Your market is live on Panta. Anyone can now make a call on it.'
-                : 'Your wallet approved the create and it was sent. Waiting for Solana and Panta to confirm. Check its status from the market’s page.',
-          ),
+          _statement(switch (c.proposal.status) {
+            ProposalStatus.live =>
+              'Your market is live on Panta. Anyone can now make a call on it.',
+            // Released only on chain evidence that the create failed or expired.
+            ProposalStatus.approved =>
+              'The create didn’t go through on Solana, so no creation fee was taken. You can publish it again from the market’s page.',
+            _ =>
+              c.confirming
+                  ? 'Your wallet approved the create and it was sent. Confirming with Solana and Panta…'
+                  : 'Your wallet approved the create and it was sent. Waiting for Solana and Panta to confirm. Check its status from the market’s page.',
+          }),
         ];
       case PublishPhase.review:
       case PublishPhase.signing:
