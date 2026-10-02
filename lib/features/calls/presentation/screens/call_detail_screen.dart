@@ -117,7 +117,15 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
       ),
     );
     if (choice == null) {
-      if (onPhone == null) return;
+      if (onPhone == null) {
+        // No wallet on this phone in this build: a wallet app is the way.
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(
+            content: Text('Connect your wallet app to trade on Panta.'),
+          ),
+        );
+        return;
+      }
       await showEmbeddedWalletSheet(context);
       return;
     }
@@ -716,7 +724,7 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Your call is already made. A trade is optional, private, and needs a separate wallet approval.',
+                        'Your call is already made. A trade is optional and private: real USDC on Panta, from your own wallet, approved by you separately.',
                         style: callJourneyBody(),
                       ),
                       // The latest order on this call, refreshing itself

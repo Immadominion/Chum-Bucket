@@ -14,6 +14,8 @@ import 'package:chumbucket/features/calls/presentation/widgets/call_composer_she
         CallJourneyNote,
         callJourneyBody,
         callJourneyHeading;
+import 'package:chumbucket/features/sol_topup/presentation/sol_topup_dependencies.dart';
+import 'package:chumbucket/features/sol_topup/presentation/sol_topup_prompt.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
@@ -132,11 +134,24 @@ class _AddFundsSheetState extends State<AddFundsSheet> {
   AddFundsController get c => widget.controller;
   bool get _forTrade => c.requiredUsdcBaseUnits != null;
 
+  /// Whether "Get SOL for fees" exists on this server, for the copy only.
+  bool _swapForSol = SolTopUpAvailability.cached?.available ?? false;
+
   @override
   void initState() {
     super.initState();
     _lastStage = c.stage;
     c.addListener(_changed);
+    final topUp = SolTopUpDependencies.of(context);
+    if (topUp != null && !_swapForSol) {
+      unawaited(
+        SolTopUpAvailability.read(topUp).then((status) {
+          if (mounted && (status?.available ?? false)) {
+            setState(() => _swapForSol = true);
+          }
+        }),
+      );
+    }
   }
 
   @override
@@ -384,11 +399,17 @@ class _AddFundsSheetState extends State<AddFundsSheet> {
       _balance(),
       if (c.needsSol) ...[
         const SizedBox(height: 12),
-        const CallJourneyNote(
-          'This wallet has no SOL, and every trade needs a little for network '
-          'fees. A card here buys USDC only, so send some SOL from another '
-          'wallet or an exchange. Your address is at the bottom.',
-          key: ValueKey('deposit-needs-sol'),
+        CallJourneyNote(
+          _swapForSol
+              ? 'This wallet has no SOL, and every trade needs a little for '
+                  'network fees. A card buys USDC only — once it lands, you '
+                  'can swap about \$1 of it for SOL right here, with the fee '
+                  'paid for you.'
+              : 'This wallet has no SOL, and every trade needs a little for '
+                  'network fees. A card here buys USDC only, so send some SOL '
+                  'from another wallet or an exchange. Your address is at the '
+                  'bottom.',
+          key: const ValueKey('deposit-needs-sol'),
           icon: 'info-circle-outline',
         ),
       ],
@@ -799,15 +820,27 @@ class _AddFundsSheetState extends State<AddFundsSheet> {
       ),
       const SizedBox(height: 16),
       _balance(),
-      if (c.needsSol && c.destination != null) ...[
-        const SizedBox(height: 12),
-        DepositReceivePanel(
-          address: c.destination!,
-          initiallyOpen: true,
-          title: 'Add SOL for network fees',
-          subtitle: 'Send a little SOL from another wallet or an exchange.',
+      // SOL for fees from the USDC that just landed (Jupiter pays the swap's
+      // network fee). Where swaps are off, the old path: send SOL in.
+      if (c.destination != null)
+        SolTopUpPrompt(
+          key: ValueKey('deposit-sol-topup-${c.destination}'),
+          wallet: c.destination,
+          onToppedUp: c.refreshBalance,
+          fallback:
+              c.needsSol
+                  ? Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: DepositReceivePanel(
+                      address: c.destination!,
+                      initiallyOpen: true,
+                      title: 'Add SOL for network fees',
+                      subtitle:
+                          'Send a little SOL from another wallet or an exchange.',
+                    ),
+                  )
+                  : null,
         ),
-      ],
       if (order?.isDevnet ?? false) ...[
         const SizedBox(height: 12),
         const CallJourneyNote(

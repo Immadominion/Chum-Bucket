@@ -38,6 +38,9 @@ versions and hashes are unchanged, and `flutter pub get --offline` resolves.
 
 ## 2. After fleet/identity merges — plug in the device wallet
 
+> **Applied in fleet/wallets** (`depositWalletSourceOf` and the on-phone
+> wallet sheet's **Add funds**). See `packet-wallets.md`.
+
 fleet/identity adds `EmbeddedWalletController` (provided above the app in its
 `main.dart`) whose `signer` is an `EmbeddedWalletKey` (`address`,
 `Future<Uint8List> sign(List<int>)`), non-null only once the server has linked

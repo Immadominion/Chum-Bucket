@@ -9,20 +9,7 @@ import '../domain/deposit_wallet_source.dart';
 /// it. Captured once, like the MWA source: if the account, the key or the
 /// wallet changes afterwards, [isCurrent] turns false and nothing is signed.
 ///
-/// Wiring, once fleet/identity's `EmbeddedWalletController` is in the tree
-/// (see `depositWalletSourceOf`):
-///
-/// ```dart
-/// final onPhone = context.read<EmbeddedWalletController?>();
-/// final key = onPhone?.signer;
-/// if (key != null) {
-///   return DeviceDepositWalletSource(
-///     address: key.address,
-///     currentAddress: () => onPhone!.signer?.address,
-///     sign: (message) => onPhone!.signer!.sign(message),
-///   );
-/// }
-/// ```
+/// Wired in `depositWalletSourceOf` from `EmbeddedWalletController.signer`.
 class DeviceDepositWalletSource implements DepositWalletSource {
   DeviceDepositWalletSource({
     required String this.address,

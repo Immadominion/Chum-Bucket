@@ -9,6 +9,8 @@ import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/authentication/session/panta_mwa_wallet.dart';
 import 'package:chumbucket/features/calls/presentation/screens/market_detail_screen.dart';
+import 'package:chumbucket/features/embedded_wallet/embedded_wallet_controller.dart';
+import 'package:chumbucket/features/embedded_wallet/panta_embedded_create.dart';
 import 'package:chumbucket/features/panta_trading/panta_trading.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
@@ -24,14 +26,32 @@ import 'reject_proposal_sheet.dart';
 import 'widgets/proposal_widgets.dart';
 
 /// The wallet that would pay for a publish, or null when none is connected.
+/// A [PantaEmbeddedCreateWallet] port means the wallet on this phone signs.
 typedef PublishWallet = ({String address, PantaWalletPort port});
 typedef PublishWalletResolver = PublishWallet? Function(BuildContext context);
 
 PublishWallet? connectedMwaWallet(BuildContext context) {
-  final auth = context.read<MwaAuthProvider>();
-  final address = auth.walletAddress;
-  if (!auth.isAuthenticated || address == null) return null;
+  final auth = context.read<MwaAuthProvider?>();
+  final address = auth?.walletAddress;
+  if (auth == null || !auth.isAuthenticated || address == null) return null;
   return (address: address, port: PantaMwaWallet(auth));
+}
+
+/// The same order as trades (`choosePantaSigner`): a connected wallet app,
+/// else the account's wallet on this phone once the server has linked it.
+PublishWallet? publishWalletOf(BuildContext context) {
+  final app = connectedMwaWallet(context);
+  if (app != null) return app;
+  final onPhone = context.read<EmbeddedWalletController?>();
+  final key = onPhone?.signer;
+  if (onPhone == null || key == null) return null;
+  return (
+    address: key.address,
+    port: PantaEmbeddedCreateWallet(
+      signer: () => onPhone.signer,
+      address: key.address,
+    ),
+  );
 }
 
 class ProposalDetailScreen extends StatefulWidget {
@@ -39,7 +59,7 @@ class ProposalDetailScreen extends StatefulWidget {
     super.key,
     required this.controller,
     required this.proposalId,
-    this.wallet = connectedMwaWallet,
+    this.wallet = publishWalletOf,
     this.openMarket,
   });
 
@@ -124,7 +144,9 @@ class _ProposalDetailScreenState extends State<ProposalDetailScreen> {
     final wallet = widget.wallet(context);
     if (wallet == null) {
       _fail(
-        'Connect a Solana wallet with USDC to publish. The wallet that publishes pays Panta’s creation fee.',
+        'Publishing needs a Solana wallet with USDC: connect your wallet app, '
+        'or make one on this phone in Profile → My wallet. The wallet that '
+        'publishes pays Panta’s creation fee.',
       );
       return;
     }
@@ -134,10 +156,16 @@ class _ProposalDetailScreenState extends State<ProposalDetailScreen> {
       wallet: wallet.address,
       walletPort: wallet.port,
     );
+    final port = wallet.port;
+    // The on-phone signer only signs the create for the market reviewed.
+    if (port is PantaEmbeddedCreateWallet) {
+      port.reviewedEvent = () => publish.review?.eventAddress;
+    }
     try {
       final result = await showPublishMarketSheet(
         context: context,
         controller: publish,
+        onPhone: port is PantaEmbeddedCreateWallet,
       );
       if (result != null) c.accept(result);
     } finally {

@@ -76,7 +76,7 @@ void main() {
   setUpAll(() => GoogleFonts.config.allowRuntimeFetching = false);
 
   testWidgets(
-    'connected private wallet preserves balance refresh and existing receive modal',
+    'connected private wallet never shows the devnet balance and keeps the receive modal',
     (tester) async {
       final wallet = ConnectedWallet();
       addTearDown(wallet.dispose);
@@ -105,10 +105,14 @@ void main() {
         find.text('Private · only you can see this balance'),
         findsOneWidget,
       );
-      expect(find.text('2.50 SOL'), findsOneWidget);
-      await tester.tap(find.text('Refresh balance'));
-      await tester.pumpAndSettle();
-      expect(wallet.refreshes, 1);
+      // The legacy provider's balance is the devnet RPC's: never shown. With
+      // no BFF in this tree the mainnet read says it isn't available.
+      expect(find.text('2.50 SOL'), findsNothing);
+      expect(
+        find.text('Balances aren\'t available right now.'),
+        findsOneWidget,
+      );
+      expect(wallet.refreshes, 0);
       // Add funds (Crossmint) leads; the QR receive modal stays one tap away.
       expect(find.text('Add funds'), findsOneWidget);
       await tester.tap(find.text('Receive from another wallet'));
@@ -116,7 +120,6 @@ void main() {
       expect(find.byType(WalletModal), findsOneWidget);
       final modalContext = tester.element(find.byType(WalletModal));
       expect(modalContext.read<MwaWalletProvider>(), same(wallet));
-      expect(wallet.refreshes, 2);
       expect(tester.takeException(), isNull);
     },
   );
