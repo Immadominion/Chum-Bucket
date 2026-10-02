@@ -141,15 +141,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
     final detail = userId == null ? null : calls?.personDetail(userId);
     final person = detail?.person;
-    // Do not merge data from unrelated linked credentials.
+    final own = _ownProfile?.userId == userId ? _ownProfile : null;
+    // Do not merge data from unrelated linked credentials. The account's own
+    // wallet comes from account.me: no social payload carries anybody's
+    // wallet any more (lockdown M2), the viewer's own included.
     final existing =
         _profileWallet == wallet &&
                 (person == null ||
                     _existingProfile?['id'] == person.id ||
-                    person.walletAddress == wallet)
+                    (wallet != null && own?.walletAddress == wallet))
             ? _existingProfile
             : null;
-    final own = _ownProfile?.userId == userId ? _ownProfile : null;
     final name =
         own?.displayName ??
         person?.displayName ??
