@@ -144,15 +144,26 @@ void main() {
   test('the version is above every build already handed out', () {
     final pubspec = loadYaml(File('pubspec.yaml').readAsStringSync()) as YamlMap;
     final version = pubspec['version'] as String;
+    final name = version.split('+').first;
     final code = int.parse(version.split('+').last);
-    // dApp Store version_code 2; sideloaded/local builds reached 33.
+    // dApp Store version_code 2 is on chain; sideloaded/local builds reached 33.
     expect(code, greaterThanOrEqualTo(34));
-    final publishing = File('publishing/config.yaml').readAsStringSync();
-    final published = RegExp(r'version_code:\s*(\d+)')
-        .allMatches(publishing)
-        .map((m) => int.parse(m.group(1)!));
-    for (final p in published) {
-      expect(code, greaterThan(p));
-    }
+
+    final publishing =
+        loadYaml(File('publishing/config.yaml').readAsStringSync()) as YamlMap;
+    final submitted =
+        (publishing['lastSubmittedVersionOnChain'] as YamlMap)['version_code']
+            as int;
+    expect(code, greaterThan(submitted));
+
+    // The listing being prepared describes this exact build.
+    final details =
+        (publishing['release'] as YamlMap)['android_details'] as YamlMap;
+    expect(details['version_code'], code);
+    expect(details['version'], name);
+    expect(
+      details['cert_fingerprint'],
+      '315b22c7fe1c285eae7a9915629037fc8ec3239fed347a734957dc250850e1c7',
+    );
   });
 }

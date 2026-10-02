@@ -1,0 +1,92 @@
+# Mobile CI: analyze, test, release-config gate and an R8 release compile.
+#
+# Nothing here signs a publishable build, uploads, or deploys. The release job
+# compiles the minified release with the throwaway debug key
+# (CHUMBUCKET_ALLOW_DEBUG_SIGNED_RELEASE=true) to prove R8 and the release
+# configuration build; scripts/build_release.sh, run by the owner with the real
+# upload key, is the only way to produce a store build.
+name: mobile-ci
+
+on:
+  push:
+    branches: [main, master, "product/**", "fleet/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: "3.44.2"
+
+jobs:
+  analyze-and-test:
+    # macOS: the golden images were rendered on macOS, and text rasterises
+    # differently on Linux.
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Release configuration gate
+        run: dart run tool/check_release_config.dart
+
+      - name: Test
+        # panta_trading_bff_contract_test drives the sibling BFF checkout with a
+        # local bun; it runs on developer machines next to that repo.
+        run: |
+          flutter test $(ls test/*_test.dart | grep -v panta_trading_bff_contract_test)
+
+  release-compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Dependencies
+        run: flutter pub get
+
+      - name: Release signing refuses to run without the upload key
+        # Gradle must stop with instructions, never sign with an empty password.
+        run: |
+          set +e
+          flutter build apk --release --target-platform android-arm64 \
+            --dart-define-from-file=env.release.json > refuse.log 2>&1
+          code=$?
+          set -e
+          if [ $code -eq 0 ]; then echo "release build without key.properties succeeded"; exit 1; fi
+          grep -q "Release signing is not configured" refuse.log
+
+      - name: R8 release compile (debug-signed, never published)
+        env:
+          CHUMBUCKET_ALLOW_DEBUG_SIGNED_RELEASE: "true"
+        run: |
+          flutter build apk --release --target-platform android-arm,android-arm64 \
+            --dart-define-from-file=env.release.json
+          ls -la build/app/outputs/flutter-apk/

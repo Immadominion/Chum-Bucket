@@ -1,6 +1,6 @@
 publisher:
   name: Cleva Labs
-  website: https://chum-bucket.vercel.app/
+  website: https://chumbucket.fun/
   email: immadotdev@gmail.com
 app:
   name: Chum Bucket
@@ -10,7 +10,7 @@ app:
     license_url: https://chum-bucket.vercel.app/license
     copyright_url: https://chum-bucket.vercel.app/copyright
     privacy_policy_url: https://chum-bucket.vercel.app/privacy
-    website: https://chum-bucket.vercel.app/
+    website: https://chumbucket.fun/
   media:
     - purpose: icon
       uri: media/icon.png
@@ -35,23 +35,45 @@ release:
   catalog:
     en-US:
       name: Chumbucket
-      short_description: Lock tokens, challenge friends
-      long_description: Lock tokens, set personal challenges with friends, and release funds based on your achievements.
-      new_in_version: '- Lock tokens securely in our escrow (Devnet) - Add friends to your bucket - Set personal challenges with friends - Release funds based on achievements - View challenge history'
-      saga_features: none yet.
+      # Copy for the calls product (1.0.34). Source of truth and limits:
+      # publishing/LISTING.md. Not submitted.
+      short_description: Follow the calls. Back or fade
+      long_description: |-
+        Chumbucket is a people-first feed of calls on real prediction markets. See what named people call on live Panta markets, the price they called it at, and how often they have been right.
+
+        Back a call, fade it, or challenge a friend to go on record. Calls are free and carry no money.
+
+        Every call locks who made it, which side, when and at what price. When the market resolves on Panta, the call becomes a receipt nobody can edit, and you can share it as a chumbucket.fun link anyone can open.
+
+        Want skin in the game? Take the position on Panta with USDC on Solana mainnet, approved in your own wallet. Chumbucket never holds your funds.
+
+        Funded positions are real money: prices move and you can lose what you put in. Check that prediction markets are legal where you live.
+      new_in_version: |-
+        A new Chumbucket, built around people and their calls.
+        - Follow what people call on live Panta prediction markets
+        - Back, fade or challenge any call, free
+        - Every call becomes a receipt you can share at chumbucket.fun
+        - Optionally take the position on Panta with USDC from your own wallet
+        - Crash reports are now opt-in (Settings)
+      saga_features: Sign in and approve trades with Mobile Wallet Adapter, including Seed Vault on Seeker.
   android_details:
     cert_fingerprint: 315b22c7fe1c285eae7a9915629037fc8ec3239fed347a734957dc250850e1c7
     min_sdk: 27
-    version: 1.0.2
-    version_code: 2
+    version: 1.0.34
+    version_code: 34
     locales:
       - en-US
 solana_mobile_dapp_publisher_portal:
   testing_instructions: |-
-    What to test: Thank you for taking your time to check this out. You'd want to test out all of these features:
-    - Login - Fund your wallet (Devnet Sol for now - till live) - Add friends (Use either Wallet address base58 strings or .sol domains) - Challenge these friends with a simple stake - When you have met your challenge, you can choose who won
-    Example challenges can be ("I'd pass the class test", or "No fap")—literally anything.
-    Thanks once again, and catch you where the formulas at!
+    Chumbucket 1.0.34 is a feed of people's calls on live Panta prediction markets. Calls are free; no funds are needed to review the app.
+    1. Open the app and sign in with your wallet (Mobile Wallet Adapter / Seed Vault).
+    2. Home shows what people are calling. Tap any call to see its receipt: who, which side, when, the entry price, and the result once Panta resolves the market.
+    3. Markets: open any market, pick Yes or No, optionally add a reason, and lock your call. It appears on your profile.
+    4. On someone else's call, tap Back, Fade or Challenge. All are free.
+    5. Share a receipt. The link (https://chumbucket.fun/c/...) opens in the app on a phone that has it, and as a web page anywhere else.
+    6. Optional, real money: a funded position is a real trade on Panta in USDC on Solana mainnet, approved in your wallet and capped at 100 USDC per approval. Reviewing it does not require placing one.
+    7. Settings > Share crash reports is off by default; turning it on is the only way reports are sent.
+    Full notes: publishing/LISTING.md in the app repository.
 lastSubmittedVersionOnChain:
   address: 74Ra239BnAaenFndMB91Hx1mvUZu7XSn3dQ5khF5xwda
   version_code: 2
