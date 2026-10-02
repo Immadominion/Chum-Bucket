@@ -82,7 +82,7 @@ void main() {
       final printed = <String?>[];
       debugPrint = (m, {wrapWidth}) => printed.add(m);
       AppLogger.installReleaseLogPolicy(releaseMode: true);
-      debugPrint('wallet 479yvcq7yibHaVKAGLEWu89G7G3KnmWSaDZHNXphd1Mu');
+      debugPrint('wallet So11111111111111111111111111111111111111112');
       expect(printed, isEmpty);
     });
 
