@@ -51,7 +51,7 @@ class LegacyHistoryScreen extends StatelessWidget {
             title: 'Escrow challenges',
             detail:
                 onOpenEscrowChallenges == null
-                    ? 'Open History from your Profile to see your SOL escrow challenges.'
+                    ? 'Open this from the Profile tab (Settings → History) to see and resolve your SOL escrow challenges.'
                     : 'Your SOL escrow challenges with friends, including any '
                         'still waiting to be resolved, claimed or refunded.',
             onTap: onOpenEscrowChallenges,
