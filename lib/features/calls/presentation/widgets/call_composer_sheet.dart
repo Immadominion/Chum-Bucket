@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:chumbucket/core/analytics/analytics_event.dart';
 import 'package:chumbucket/core/services/push_registration.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
@@ -29,6 +30,13 @@ Future<CallFeedEntry?> showCallComposer({
   Side? initialSide,
   String? parentCallId,
   String? headline,
+  CallComposerDraft? initialDraft,
+  ValueChanged<CallComposerDraft>? onSignInRequired,
+  Future<SharePriceSnapshot?> Function()? refreshPrice,
+  VoidCallback? onAlreadyCalled,
+  String? note,
+  AnalyticsSurface? surface,
+  bool askForNotifications = true,
 }) => showChumbucketWavySheet<CallFeedEntry>(
   context: context,
   builder:
@@ -39,8 +47,34 @@ Future<CallFeedEntry?> showCallComposer({
         initialSide: initialSide,
         parentCallId: parentCallId,
         headline: headline,
+        initialDraft: initialDraft,
+        onSignInRequired: onSignInRequired,
+        refreshPrice: refreshPrice,
+        onAlreadyCalled: onAlreadyCalled,
+        note: note,
+        surface: surface,
+        askForNotifications: askForNotifications,
       ),
 );
+
+/// What the composer holds before it is locked: kept on the phone when the
+/// person must sign in first, and handed back to reopen the composer after.
+/// Never locked on its own.
+class CallComposerDraft {
+  const CallComposerDraft({
+    required this.marketId,
+    required this.side,
+    this.thesis,
+    this.visibility = CallVisibility.public,
+    this.confidence,
+  });
+
+  final String marketId;
+  final Side side;
+  final String? thesis;
+  final CallVisibility visibility;
+  final double? confidence;
+}
 
 class CallComposerSheet extends StatefulWidget {
   final VenueMarket market;
@@ -49,6 +83,30 @@ class CallComposerSheet extends StatefulWidget {
   final Side? initialSide;
   final String? parentCallId;
   final String? headline;
+
+  /// Restores a draft composed before sign-in (side, reason, visibility).
+  final CallComposerDraft? initialDraft;
+
+  /// Signed out: instead of the sign-in prompt, the form is shown and Lock
+  /// hands the draft here (the sheet closes). Onboarding saves it and asks
+  /// for sign-in at that moment.
+  final ValueChanged<CallComposerDraft>? onSignInRequired;
+
+  /// Re-reads the venue price once when it is missing or stale at Lock.
+  final Future<SharePriceSnapshot?> Function()? refreshPrice;
+
+  /// The server says this person already has a live call on this market.
+  final VoidCallback? onAlreadyCalled;
+
+  /// A note above the form ("Signed in as @ada. Lock it when you're ready.").
+  final String? note;
+
+  /// Where the call was made, for analytics.
+  final AnalyticsSurface? surface;
+
+  /// After a lock, explain-then-ask for notifications (lockdown's in-context
+  /// ask). Onboarding passes false: its "You're on record" step asks there.
+  final bool askForNotifications;
   const CallComposerSheet({
     super.key,
     required this.market,
@@ -57,42 +115,100 @@ class CallComposerSheet extends StatefulWidget {
     this.initialSide,
     this.parentCallId,
     this.headline,
+    this.initialDraft,
+    this.onSignInRequired,
+    this.refreshPrice,
+    this.onAlreadyCalled,
+    this.note,
+    this.surface,
+    this.askForNotifications = true,
   });
   @override
   State<CallComposerSheet> createState() => _CallComposerSheetState();
 }
 
 class _CallComposerSheetState extends State<CallComposerSheet> {
-  late Side? _side = widget.initialSide;
-  final _thesis = TextEditingController();
-  bool _useConfidence = false;
-  double _confidence = .6;
-  CallVisibility _visibility = CallVisibility.public;
+  late Side? _side = widget.initialDraft?.side ?? widget.initialSide;
+  late final _thesis = TextEditingController(text: widget.initialDraft?.thesis);
+  late bool _useConfidence = widget.initialDraft?.confidence != null;
+  late double _confidence = widget.initialDraft?.confidence ?? .6;
+  late CallVisibility _visibility =
+      widget.initialDraft?.visibility ?? CallVisibility.public;
+  late SharePriceSnapshot? _sharePrice = widget.sharePrice;
+  bool _priceRefreshed = false;
+  bool _refreshing = false;
   String? _error;
+  String? _notice;
+  /// Offer "Pick another market" (onboarding): stale price or a refusal.
+  bool _offerAnother = false;
   @override
   void dispose() {
     _thesis.dispose();
     super.dispose();
   }
 
+  CallComposerDraft _draft(Side side) => CallComposerDraft(
+    marketId: widget.market.id,
+    side: side,
+    thesis: _thesis.text.trim().isEmpty ? null : _thesis.text.trim(),
+    visibility: _visibility,
+    confidence: _useConfidence ? _confidence : null,
+  );
+
   Future<void> _submit() async {
     final provider = context.read<CallsProvider>();
-    if (provider.isSubmitting) return;
-    if (widget.market.venue == MarketVenue.panta &&
-        !(widget.sharePrice?.isUsableAt(DateTime.now()) ?? false)) {
-      setState(
-        () =>
-            _error =
-                'Panta prices are missing or stale. Refresh this market before calling.',
-      );
-      return;
-    }
+    if (provider.isSubmitting || _refreshing) return;
     final side = _side;
     if (side == null) {
       setState(() => _error = 'Pick a side first.');
       return;
     }
-    setState(() => _error = null);
+    final signIn = widget.onSignInRequired;
+    if (!provider.isSignedIn && signIn != null) {
+      // The draft stays on this phone; the price is read again after sign-in.
+      final draft = _draft(side);
+      Navigator.of(context).pop();
+      signIn(draft);
+      return;
+    }
+    if (widget.market.venue == MarketVenue.panta &&
+        !(_sharePrice?.isUsableAt(DateTime.now()) ?? false)) {
+      final refresh = widget.refreshPrice;
+      if (refresh != null && !_priceRefreshed) {
+        // Once, automatically. A fresh price is shown before any lock: the
+        // person locks it with a fresh tap.
+        setState(() {
+          _refreshing = true;
+          _error = null;
+        });
+        final fresh = await refresh();
+        if (!mounted) return;
+        final usable = fresh?.isUsableAt(DateTime.now()) ?? false;
+        setState(() {
+          _refreshing = false;
+          _priceRefreshed = true;
+          if (fresh != null) _sharePrice = fresh;
+          _offerAnother = !usable;
+          _notice = usable ? 'Panta sent a fresh price. Check it, then lock.' : null;
+          _error =
+              usable
+                  ? null
+                  : 'Panta hasn’t sent a fresh price for this market. Pick '
+                      'another one, or try again in a minute.';
+        });
+        return;
+      }
+      setState(() {
+        _offerAnother = true;
+        _error =
+            'Panta prices are missing or stale. Refresh this market before calling.';
+      });
+      return;
+    }
+    setState(() {
+      _error = null;
+      _notice = null;
+    });
     try {
       final entry = await provider.createCall(
         CreateCallInput(
@@ -104,14 +220,29 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
           snapshotId: widget.snapshot?.id,
           parentCallId: widget.parentCallId,
         ),
+        surface: widget.surface,
       );
       if (!mounted) return;
       // Outlives this sheet: the in-context notification ask comes after it.
       final root = Navigator.of(context, rootNavigator: true).context;
       Navigator.of(context).pop(entry);
-      if (root.mounted) unawaited(PushRegistration.afterSocialAction(root));
+      if (widget.askForNotifications && root.mounted) {
+        unawaited(PushRegistration.afterSocialAction(root));
+      }
     } on CallsException catch (e) {
-      if (mounted) setState(() => _error = e.message);
+      if (!mounted) return;
+      final already = widget.onAlreadyCalled;
+      if (already != null &&
+          e is CallsRejectedException &&
+          e.message.toLowerCase().contains('already have a live call')) {
+        Navigator.of(context).pop();
+        already();
+        return;
+      }
+      setState(() {
+        _error = e.message;
+        _offerAnother = e is CallsRejectedException;
+      });
     }
   }
 
@@ -122,7 +253,7 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
           title: widget.headline ?? 'Make your call',
           busy: provider.isSubmitting,
           body:
-              !provider.isSignedIn
+              !provider.isSignedIn && widget.onSignInRequired == null
                   ? SingleChildScrollView(
                     child: CallsSignedOutView(
                       onSignIn: () => requestCallSignIn(context),
@@ -148,6 +279,8 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
                   const CallJourneyNote(
                     'DEMO DATA · Sample market, not a live call.',
                   ),
+                if (widget.note != null)
+                  CallJourneyNote(widget.note!, icon: 'user-outline'),
                 Text(
                   'Your opinion. On the record.',
                   style: callJourneyBody(12),
@@ -218,8 +351,8 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
                 ),
                 Text(
                   market.venue == MarketVenue.panta
-                      ? '${CallsFormat.nativePrices(widget.sharePrice)} · ${SharePriceSnapshot.attribution}'
-                          '${widget.sharePrice == null ? '' : ' · Observed ${CallsFormat.timestampUtc(widget.sharePrice!.observedAtUtc)}'} · Indicative, not a trade quote'
+                      ? '${CallsFormat.nativePrices(_sharePrice)} · ${SharePriceSnapshot.attribution}'
+                          '${_sharePrice == null ? '' : ' · Observed ${CallsFormat.timestampUtc(_sharePrice!.observedAtUtc)}'} · Indicative, not a trade quote'
                       : widget.snapshot == null
                       ? 'No venue price published — your call locks without one.'
                       : 'Venue price: Yes ${CallsFormat.probability(widget.snapshot!.yesProbability)} · No ${CallsFormat.probability(widget.snapshot!.noProbability)} · ${CallsFormat.dataAge(widget.snapshot!.ageAt(DateTime.now()))}',
@@ -259,6 +392,11 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
                   'This is a free call. No money, no wallet, nothing to fund.',
                   style: callJourneyBody(12),
                 ),
+                if (_notice != null)
+                  Semantics(
+                    liveRegion: true,
+                    child: CallJourneyNote(_notice!, quiet: true),
+                  ),
                 if (_error != null)
                   Semantics(
                     liveRegion: true,
@@ -271,15 +409,29 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
         if (open)
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-            child: CallJourneyButton(
-              label:
-                  _side == null
-                      ? 'Lock my call'
-                      : 'Lock my ${_side!.wire} call',
-              primary: true,
-              busy: provider.isSubmitting,
-              onPressed:
-                  _side == null || provider.isSubmitting ? null : _submit,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                CallJourneyButton(
+                  label:
+                      _side == null
+                          ? 'Lock my call'
+                          : 'Lock my ${_side!.wire} call',
+                  primary: true,
+                  busy: provider.isSubmitting || _refreshing,
+                  onPressed:
+                      _side == null || provider.isSubmitting || _refreshing
+                          ? null
+                          : _submit,
+                ),
+                if (_offerAnother && widget.refreshPrice != null)
+                  ChumbucketTextAction(
+                    label: 'Pick another market',
+                    color: AppColors.pinkInk,
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  ),
+              ],
             ),
           ),
       ],

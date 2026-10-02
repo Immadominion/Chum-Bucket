@@ -46,6 +46,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'package:chumbucket/features/authentication/session/last_sign_in.dart';
+import 'package:chumbucket/features/authentication/session/profile_hints.dart';
 import 'package:chumbucket/features/authentication/session/session_bff_client.dart';
 import 'package:chumbucket/features/authentication/session/session_state.dart';
 import 'package:chumbucket/features/authentication/session/solana_sign_in.dart';
@@ -173,6 +174,10 @@ class ChumbucketSession extends ChangeNotifier {
   bool get isWalletSession =>
       _session != null && (_walletSession || _session!.solanaWallet != null);
   bool _walletSession = false;
+
+  /// What the sign-in provider said about the person (an X username, a
+  /// Google name), for prefilling a new @username. Null when signed out.
+  ProfileHints? get profileHints => _session?.profileHints;
 
   /// The wallet this account signed in with, when it signed in with one: the
   /// address Supabase Auth verified. After a reinstall the session comes back

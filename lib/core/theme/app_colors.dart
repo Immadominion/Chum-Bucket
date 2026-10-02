@@ -71,6 +71,19 @@ class AppColors {
   /// Text colors
   static const Color textPrimary = Color(0xFF111827);
   static const Color textSecondary = Color(0xFF6B7280);
+
+  /// Secondary text on the #F4F4F4 canvas: 5.2:1 there, 5.6:1 on white
+  /// ([textSecondary] is 4.4:1 on the canvas, just under AA). The approved
+  /// prototype's `--muted`.
+  static const Color textMuted = Color(0xFF606775);
+
+  /// Pink text and links on light backgrounds: 5.9:1 on the canvas, 6.4:1 on
+  /// white. Brand [primary] as text is only 3.3:1. The prototype's
+  /// `--pink-ink`.
+  static const Color pinkInk = Color(0xFFB8173B);
+
+  /// Selected chip and follow fill. Same as [primaryContainer].
+  static const Color pinkWash = primaryContainer;
   static const Color textTertiary = Color(0xFF9CA3AF);
   static const Color textDisabled = Color(0xFFD1D5DB);
 

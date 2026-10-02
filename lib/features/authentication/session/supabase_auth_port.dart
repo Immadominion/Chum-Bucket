@@ -22,6 +22,7 @@ library;
 
 import 'dart:async';
 import 'package:chumbucket/features/authentication/session/app_session_persistence.dart';
+import 'package:chumbucket/features/authentication/session/profile_hints.dart';
 
 import 'dart:convert';
 
@@ -49,7 +50,13 @@ class SupabaseSessionSnapshot {
     required this.authUserId,
     this.expiresAt,
     this.solanaWallet,
+    this.profileHints,
   });
+
+  /// The provider's own profile fields (an X username, a Google name), for
+  /// prefilling a new account's @username and name. Display hints only:
+  /// never identity, never sent anywhere. Null when the SDK had none.
+  final ProfileHints? profileHints;
 
   /// The bearer the BFF verifies. Not identity — the canonical user is what
   /// `auth.whoami` returns for it.
@@ -415,6 +422,10 @@ class SupabaseFlutterAuthPort implements SupabaseAuthPort {
       accessToken: session.accessToken,
       authUserId: session.user.id,
       solanaWallet: verifiedSolanaWallet(session.user.identities),
+      profileHints: ProfileHints.fromMetadata(
+        userMetadata: session.user.userMetadata,
+        appMetadata: session.user.appMetadata,
+      ),
       // `Session.expiresAt` is unix **seconds**, not milliseconds.
       expiresAt:
           expiresAt == null

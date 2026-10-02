@@ -12,7 +12,6 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/shared/screens/home/home.dart';
-import 'package:chumbucket/features/authentication/providers/onboarding_provider.dart';
 
 /// Edit your own name and bio.
 ///
@@ -172,7 +171,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       return;
     }
     final calls = context.read<CallsProvider?>();
-    final onboarding = context.read<OnboardingProvider?>();
     setState(() => _isLoading = true);
 
     try {
@@ -190,8 +188,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       );
 
       if (widget.isRequired) {
-        await onboarding?.completeOnboarding();
-        if (!mounted || _currentAccount() != account) return;
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const HomeScreen()),
         );

@@ -20,7 +20,8 @@
 /// text. See [AnalyticsPrivacyGuard].
 library;
 
-/// The complete, closed set of event names from the roadmap's §9.
+/// The complete, closed set of event names: the roadmap's §9 sixteen, then the
+/// onboarding funnel's (onboarding spec §13.4).
 ///
 /// Adding a name here is a deliberate act that must be matched by a typed
 /// constructor and a test; nothing else can mint one.
@@ -40,7 +41,26 @@ enum AnalyticsEventName {
   fundOrderSigned('fund_order_signed'),
   fundOrderConfirmed('fund_order_confirmed'),
   receiptViewed('receipt_viewed'),
-  receiptShared('receipt_shared');
+  receiptShared('receipt_shared'),
+
+  // The onboarding funnel (onboarding spec §13.4). Built only by the typed
+  // constructors in `onboarding_analytics_events.dart`, guarded like the rest.
+  onboardingStarted('onboarding_started'),
+  onboardingStepViewed('onboarding_step_viewed'),
+  onboardingStepCompleted('onboarding_step_completed'),
+  onboardingWelcomeLive('onboarding_welcome_live'),
+  onboardingTopicToggled('onboarding_topic_toggled'),
+  onboardingFollowToggled('onboarding_follow_toggled'),
+  onboardingFollowsApplied('onboarding_follows_applied'),
+  onboardingFirstCallOpened('onboarding_first_call_opened'),
+  onboardingCompleted('onboarding_completed'),
+  signInStarted('sign_in_started'),
+  signInCompleted('sign_in_completed'),
+  signInFailed('sign_in_failed'),
+  usernameClaimed('username_claimed'),
+  notificationPromptShown('notification_prompt_shown'),
+  notificationPermissionResult('notification_permission_result'),
+  sessionRestore('session_restore');
 
   const AnalyticsEventName(this.wire);
 
@@ -67,7 +87,10 @@ enum AnalyticsSurface {
   callDetail('call_detail'),
   receiptSheet('receipt_sheet'),
   deepLink('deep_link'),
-  notification('notification');
+  notification('notification'),
+
+  /// The first-run flow: its first call, Back/Fade and follows.
+  onboarding('onboarding');
 
   const AnalyticsSurface(this.wire);
   final String wire;

@@ -4,7 +4,7 @@ import 'package:chumbucket/core/services/notification_service.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/widgets/receipt_action_buttons.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/widgets/receipt_modal.dart';
 import 'package:chumbucket/shared/models/models.dart';
-import 'package:chumbucket/shared/screens/splash/splash_screen.dart';
+import 'package:chumbucket/shared/screens/splash/mwa_splash_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -31,7 +31,15 @@ void main() {
     testWidgets('splash disposal during delay $stage stops the sequence', (
       tester,
     ) async {
-      await tester.pumpWidget(_host(const SplashScreen()));
+      await tester.pumpWidget(
+        _host(
+          MwaSplashScreen(
+            peopleFirst: false,
+            minimumDuration: const Duration(seconds: 30),
+            deepLinkPending: () async => false,
+          ),
+        ),
+      );
       if (stage >= 1) {
         await tester.pump(const Duration(milliseconds: 100));
         await tester.pump();

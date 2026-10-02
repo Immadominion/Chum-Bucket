@@ -28,3 +28,4 @@ export 'package:chumbucket/core/analytics/analytics_recorder.dart';
 export 'package:chumbucket/core/analytics/analytics_sink.dart';
 export 'package:chumbucket/core/analytics/analytics_treatment.dart';
 export 'package:chumbucket/core/analytics/call_impression_reporter.dart';
+export 'package:chumbucket/core/analytics/onboarding_analytics_events.dart';

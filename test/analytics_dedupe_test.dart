@@ -13,6 +13,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:chumbucket/core/analytics/analytics.dart';
 
+import 'onboarding_analytics_fixtures.dart';
+
 void main() {
   late InMemoryAnalyticsSink sink;
   late AnalyticsRecorder recorder;
@@ -195,6 +197,7 @@ void main() {
           channel: AnalyticsShareChannel.image,
           occurredAtMs: at,
         ),
+        ...onboardingAnalyticsSamples(at: at).values,
       ];
 
       expect(

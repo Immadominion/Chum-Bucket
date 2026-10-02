@@ -2,30 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:lottie/lottie.dart';
-import 'package:chumbucket/core/config/app_config.dart';
-import 'package:chumbucket/features/authentication/presentation/screens/widgets/front_door_options.dart';
 import 'package:chumbucket/features/authentication/presentation/screens/widgets/mwa_connect_button.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
-import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:chumbucket/features/trust/data/legal_links.dart';
 
-/// The first screen for anyone not signed in.
-///
-/// With the calls experience on (the people-first product), it is the one
-/// account front door: Continue with wallet, Google or X — X only when the
-/// project has it switched on — with the method this device last used marked
-/// "Last used". A Google or X account needs no wallet to use the app.
-///
-/// Without it (the legacy challenge build), it stays the original wallet-only
-/// door, unchanged.
+/// The legacy challenge build's wallet-only door (`CALL_RECEIPT_EXPERIENCE`
+/// off), unchanged. The calls product signs in from onboarding instead —
+/// "Welcome back" and the sign-in step (`features/onboarding/`), where the
+/// wallet / Google / X doors appear at the moment they are needed.
 class MwaLoginScreen extends StatelessWidget {
-  const MwaLoginScreen({
-    super.key,
-    this.peopleFirst = AppConfig.callReceiptExperienceEnabled,
-  });
-
-  final bool peopleFirst;
+  const MwaLoginScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -44,11 +31,11 @@ class MwaLoginScreen extends StatelessWidget {
                 children: [
                   // Animation section - flexible height
                   Flexible(
-                    flex: peopleFirst ? 4 : 5,
+                    flex: 5,
                     child: Container(
                       constraints: BoxConstraints(
-                        maxHeight: media.size.height * (peopleFirst ? .3 : .4),
-                        minHeight: peopleFirst ? 140 : 200.h,
+                        maxHeight: media.size.height * .4,
+                        minHeight: 200.h,
                       ),
                       child: Lottie.asset(
                         'assets/animations/lottie/lottie.json',
@@ -62,25 +49,20 @@ class MwaLoginScreen extends StatelessWidget {
 
                   // Content section - takes remaining space
                   Flexible(
-                    flex: peopleFirst ? 6 : 5,
+                    flex: 5,
                     child: Padding(
                       padding: EdgeInsets.symmetric(horizontal: 16.w),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          peopleFirst
-                              ? const _PeopleFirstHeadline()
-                              : _legacyHeadline(context),
+                          _legacyHeadline(context),
                           Padding(
-                            padding: EdgeInsets.all(peopleFirst ? 4 : 16.w),
+                            padding: EdgeInsets.all(16.w),
                             child: Column(
                               children: [
-                                if (peopleFirst)
-                                  const FrontDoorOptions()
-                                else
-                                  const MwaConnectButton(),
-                                SizedBox(height: peopleFirst ? 8 : 16.h),
+                                const MwaConnectButton(),
+                                SizedBox(height: 16.h),
                                 _terms(context),
                                 _buildSolanaMobileBadge(context),
                               ],
@@ -200,44 +182,4 @@ class MwaLoginScreen extends StatelessWidget {
       ),
     );
   }
-}
-
-class _PeopleFirstHeadline extends StatelessWidget {
-  const _PeopleFirstHeadline();
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 8),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Image.asset(
-          'assets/images/ai_gen/logo/chum_transparent_bg_logo.png',
-          height: 72,
-          fit: BoxFit.contain,
-          semanticLabel: 'Chumbucket',
-        ),
-        const SizedBox(height: 12),
-        Text(
-          'See who called it.',
-          style: AppTextStyles.pageTitle.copyWith(
-            fontSize: 30,
-            height: 1.15,
-            letterSpacing: -.5,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Follow the people making calls on real prediction markets. Back '
-          'them, fade them, or make your own — calls are free, and every one '
-          'gets a receipt when the market settles.',
-          style: AppTextStyles.textTheme.bodyMedium?.copyWith(
-            fontSize: 15,
-            height: 1.45,
-            color: AppColors.textSecondary,
-          ),
-        ),
-      ],
-    ),
-  );
 }

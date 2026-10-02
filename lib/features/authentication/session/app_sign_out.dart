@@ -6,6 +6,7 @@ import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.d
 import 'package:chumbucket/features/authentication/session/app_session_persistence.dart';
 import 'package:chumbucket/features/authentication/session/app_sign_out_controller.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
+import 'package:chumbucket/features/onboarding/data/onboarding_store.dart';
 import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
 import 'package:chumbucket/shared/services/efficient_sync_service.dart';
 import 'package:flutter/widgets.dart';
@@ -61,5 +62,8 @@ Future<void> signOutOfChumbucket(BuildContext context) {
     },
     effects.detachRealtime,
     effects.forgetNotifications,
+    // The draft call and follows chosen before sign-in belonged to that
+    // sign-in; topics and onboarding progress stay with the phone.
+    const OnboardingStore().clearForSignOut,
   ]);
 }

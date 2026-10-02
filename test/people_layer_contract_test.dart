@@ -16,6 +16,7 @@ import 'dart:io';
 import 'package:chumbucket/features/calls/data/bff_calls_repository.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/people/data/people_models.dart';
+import 'package:chumbucket/features/people/data/people_suggestions.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 
@@ -236,6 +237,38 @@ void main() {
           ),
         ),
       );
+    },
+    skip: skip,
+  );
+
+  test(
+    'people.suggested: real callers, the server\'s own order, self and '
+    'followed left out, parsed by the client',
+    () async {
+      final anon = await as(null).fetchSuggestedPeople();
+      expect(anon.friends, isEmpty);
+      expect(anon.people.map((p) => p.id), [
+        'user-ann',
+        'user-cid',
+        'user-bob',
+      ]);
+      expect(anon.people.map((p) => p.reason), [
+        SuggestionReason.ranked,
+        SuggestionReason.topCall,
+        SuggestionReason.building,
+      ]);
+      // Ann's record arrives with its accuracy; Bob's without one.
+      expect(anon.people.first.person.record.hasAccuracy, isTrue);
+      expect(anon.people.last.person.record.hasAccuracy, isFalse);
+      // Cid's open call is live; it comes with its question and side.
+      final cid = anon.people[1];
+      expect(cid.latestLiveCall?.callId, openCallId);
+      expect(cid.latestLiveCall?.question, '[DEMO] Will open-1 happen?');
+
+      // Cid follows Ann: Ann is not suggested to Cid, nor Cid to himself.
+      final mine = await as('synthetic-cid').fetchSuggestedPeople();
+      expect(mine.people.map((p) => p.id), isNot(contains('user-ann')));
+      expect(mine.people.map((p) => p.id), isNot(contains('user-cid')));
     },
     skip: skip,
   );

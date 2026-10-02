@@ -158,7 +158,7 @@ class _FrontDoorOptionsState extends State<FrontDoorOptions> {
           const SizedBox(height: 12),
         ],
         for (final method in shown) ...[
-          _DoorOption(
+          FrontDoorButton(
             method: method,
             primary: method == primary,
             lastUsed: method == last,
@@ -191,13 +191,19 @@ class _FrontDoorOptionsState extends State<FrontDoorOptions> {
   }
 }
 
-class _DoorOption extends StatelessWidget {
-  const _DoorOption({
+/// One way in: the primary (filled) style for the method this phone used
+/// last, outlined otherwise, with the "Last used" pill straddling its top
+/// edge. Shared by the front door and onboarding's sign-in steps.
+class FrontDoorButton extends StatelessWidget {
+  const FrontDoorButton({
+    super.key,
     required this.method,
     required this.primary,
     required this.lastUsed,
     required this.busy,
     required this.onPressed,
+    this.busyLabel,
+    this.subtitle,
   });
 
   final SignInMethod method;
@@ -205,6 +211,12 @@ class _DoorOption extends StatelessWidget {
   final bool lastUsed;
   final bool busy;
   final VoidCallback? onPressed;
+
+  /// What the button says while busy. Default: "Opening your wallet…".
+  final String? busyLabel;
+
+  /// A line under the button (e.g. why the wallet door needs a wallet app).
+  final String? subtitle;
 
   /// How far the "Last used" pill reaches into the button: less than either
   /// button style's 12dp vertical padding.
@@ -232,22 +244,45 @@ class _DoorOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final button =
+    final core =
         primary
             ? ChumbucketPrimaryButton(
               key: ValueKey('front-door-${method.wire}'),
               label: label,
               busy: busy,
-              busyLabel: 'Opening your wallet…',
+              busyLabel: busyLabel ?? 'Opening your wallet…',
               leading: _icon(Colors.white),
               onPressed: onPressed,
             )
             : _OutlinedOption(
               key: ValueKey('front-door-${method.wire}'),
               label: label,
+              busyLabel: busyLabel,
               icon: _icon(AppColors.textPrimary),
               busy: busy,
               onPressed: onPressed,
+            );
+    final note = subtitle;
+    final button =
+        note == null
+            ? core
+            : Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                core,
+                const SizedBox(height: 6),
+                Text(
+                  note,
+                  key: ValueKey('front-door-${method.wire}-note'),
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.textTheme.bodySmall?.copyWith(
+                    fontSize: 12,
+                    height: 1.4,
+                    color: AppColors.textMuted,
+                  ),
+                ),
+              ],
             );
     if (!lastUsed) return button;
     // The pill straddles the button's top edge, as on web sign-in pages. Its
@@ -305,9 +340,11 @@ class _OutlinedOption extends StatelessWidget {
     required this.icon,
     required this.busy,
     required this.onPressed,
+    this.busyLabel,
   });
 
   final String label;
+  final String? busyLabel;
   final Widget icon;
   final bool busy;
   final VoidCallback? onPressed;
@@ -316,7 +353,7 @@ class _OutlinedOption extends StatelessWidget {
   Widget build(BuildContext context) => Semantics(
     button: true,
     enabled: onPressed != null,
-    label: label,
+    label: busy ? (busyLabel ?? label) : label,
     excludeSemantics: true,
     child: Opacity(
       opacity: onPressed == null && !busy ? .5 : 1,
@@ -349,7 +386,7 @@ class _OutlinedOption extends StatelessWidget {
                   const SizedBox(width: 10),
                   Flexible(
                     child: Text(
-                      label,
+                      busy ? (busyLabel ?? label) : label,
                       textAlign: TextAlign.center,
                       style: AppTextStyles.sheetAction.copyWith(
                         color: AppColors.textPrimary,

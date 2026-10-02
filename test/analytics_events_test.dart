@@ -11,6 +11,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:chumbucket/core/analytics/analytics.dart';
 
+import 'onboarding_analytics_fixtures.dart';
+
 void main() {
   late InMemoryAnalyticsSink sink;
   late AnalyticsRecorder recorder;
@@ -140,10 +142,12 @@ void main() {
       outcome: 'VOID',
       marketId: 'market_cancelled_listing',
     ),
+    ...onboardingAnalyticsSamples(),
   };
 
   group('the roadmap vocabulary', () {
-    test('has exactly the sixteen §9 names and nothing else', () {
+    test('has exactly the sixteen §9 names, the onboarding funnel, and '
+        'nothing else', () {
       // Copied from CHUMBUCKET_CALL_RECEIPT_ROADMAP.md §9 "Minimum event
       // names". If this list and the enum ever disagree, one of them drifted.
       const roadmap = <String>{
@@ -164,11 +168,11 @@ void main() {
         'receipt_viewed',
         'receipt_shared',
       };
-      expect(
-        AnalyticsEventName.values.map((n) => n.wire).toSet(),
-        roadmap,
-      );
-      expect(AnalyticsEventName.values, hasLength(16));
+      expect(AnalyticsEventName.values.map((n) => n.wire).toSet(), {
+        ...roadmap,
+        ...kOnboardingEventWires,
+      });
+      expect(AnalyticsEventName.values, hasLength(16 + 16));
     });
 
     test('every name has a typed constructor', () {
@@ -233,10 +237,7 @@ void main() {
         personId: 'user_ada',
         surface: AnalyticsSurface.feedGlobal,
       );
-      expect(
-        () => event.props['wallet'] = 'anything',
-        throwsUnsupportedError,
-      );
+      expect(() => event.props['wallet'] = 'anything', throwsUnsupportedError);
     });
   });
 
@@ -244,8 +245,10 @@ void main() {
     test('reduces text to one of four buckets and keeps none of it', () {
       expect(ThesisLengthBucket.of(null), ThesisLengthBucket.none);
       expect(ThesisLengthBucket.of('   '), ThesisLengthBucket.none);
-      expect(ThesisLengthBucket.of('ETF flows are front-running the halving.'),
-          ThesisLengthBucket.short);
+      expect(
+        ThesisLengthBucket.of('ETF flows are front-running the halving.'),
+        ThesisLengthBucket.short,
+      );
       expect(ThesisLengthBucket.of('x' * 120), ThesisLengthBucket.medium);
       expect(ThesisLengthBucket.of('x' * 260), ThesisLengthBucket.long);
       // Over the contract's 280 limit: still buckets, never throws. Analytics

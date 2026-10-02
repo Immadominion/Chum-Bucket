@@ -11,6 +11,7 @@ import 'package:chumbucket/features/authentication/session/app_sign_out.dart';
 import 'package:chumbucket/core/services/chat_service.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/identity_link_sheet.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
+import 'package:chumbucket/features/onboarding/presentation/onboarding_settings.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/features/trust/data/legal_links.dart';
@@ -62,6 +63,10 @@ class ProfileSettingsSheet extends StatelessWidget {
                 onTap: () => _showIdentityLink(context),
               ),
 
+            // The topics chosen in onboarding, and where notifications stand
+            // (asked for in context, never from here unprompted).
+            const TopicsSettingsItem(),
+            const NotificationsSettingsItem(),
             const CrashReportsSettingTile(),
             ProfileMenuItem(
               basilIcon: 'shield-outline',

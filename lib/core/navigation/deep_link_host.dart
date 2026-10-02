@@ -21,6 +21,23 @@ import 'package:provider/provider.dart';
 /// among them — and a link this widget does not own is left alone so the
 /// Supabase OAuth handler keeps receiving it exactly as before. Nothing is
 /// swallowed.
+/// Whether the app was cold-started by a link this app owns (a shared call,
+/// person or market). The splash asks so it never puts Welcome in front of a
+/// shared link (onboarding spec §3 row 1). Reported once, by [DeepLinkHost].
+abstract final class ColdStartLink {
+  static Completer<bool> _owned = Completer<bool>();
+
+  /// Completes with true when the launch link is one the call slice opens.
+  static Future<bool> get ownedLinkPending => _owned.future;
+
+  static void report(bool owned) {
+    if (!_owned.isCompleted) _owned.complete(owned);
+  }
+
+  @visibleForTesting
+  static void reset() => _owned = Completer<bool>();
+}
+
 class DeepLinkHost extends StatefulWidget {
   const DeepLinkHost({
     super.key,
@@ -69,8 +86,12 @@ class _DeepLinkHostState extends State<DeepLinkHost> {
           widget.initialLink != null
               ? await widget.initialLink!()
               : await links!.getInitialLink();
+      ColdStartLink.report(
+        initial != null && CallDeepLinkRouter.owns(initial),
+      );
       if (initial != null) await _handle(initial);
     } catch (e) {
+      ColdStartLink.report(false);
       // A missing platform channel (tests, desktop) must not take the app down.
       if (kDebugMode) debugPrint('DeepLinkHost: no initial link ($e)');
     }
