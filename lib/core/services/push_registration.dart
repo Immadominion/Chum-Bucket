@@ -120,12 +120,13 @@ class PushRationaleSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ChumbucketWavySheet(
     title: 'Know when it lands',
-    subtitle: 'Notifications about your own calls, and nothing else.',
+    subtitle: 'Only about your calls and the people you’ve faced.',
     body: const Padding(
       padding: EdgeInsets.fromLTRB(20, 8, 20, 8),
       child: Text(
         'We’ll tell you when someone backs or fades your call, when the market '
-        'resolves, and when someone challenges you to a rematch.',
+        'resolves, when someone wants a rematch, and when someone you faded '
+        'makes a new call.',
         style: TextStyle(fontSize: 16, height: 1.45),
       ),
     ),

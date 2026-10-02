@@ -87,8 +87,9 @@ abstract interface class AccountApi {
     int? avatarId,
   });
 
-  /// [nickname] is the caller's private label for the friend — it never
-  /// becomes the friend's name.
+  /// [nickname] is the caller's own label for the friend, kept on the caller's
+  /// friendship edge — it never becomes the friend's name. It is not secret:
+  /// the legacy friends table it lives on is readable.
   Future<AddWalletFriendResult> addWalletFriend({
     required String walletAddress,
     String? nickname,

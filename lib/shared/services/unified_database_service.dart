@@ -394,7 +394,7 @@ class UnifiedDatabaseService {
       final userId = userResponse['id'];
 
       // Get friends with their details
-      // `nickname` arrives with 20261002170000; until that migration is
+      // `nickname` arrives with 20261002171000; until that migration is
       // applied the column does not exist, so ask again without it rather
       // than show an empty friends list.
       Future<List<Map<String, dynamic>>> friendsWith(String extra) => _client

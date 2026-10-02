@@ -691,7 +691,7 @@ class MwaAuthProvider extends ChangeNotifier {
       return true;
     } on PostgrestException {
       // No client fallback that writes users rows: they are server-only now
-      // (20261002170000). The account is created or carried over by the BFF
+      // (20261002171000). The account is created or carried over by the BFF
       // at sign-in.
       log('⚠️ Supabase sync refused', name: 'MwaAuthProvider');
       return false;

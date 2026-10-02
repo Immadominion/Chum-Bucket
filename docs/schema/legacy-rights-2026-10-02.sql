@@ -3,7 +3,7 @@
 -- ============================================================================
 --
 -- What this is: the policies, grants and function signatures on the LEGACY
--- tables that 20261002170000_lockdown_profiles_push_privacy.sql relies on,
+-- tables that 20261002171000_lockdown_profiles_push_privacy.sql relies on,
 -- written down because none of them are in version control (prod readiness
 -- M19: the eight *_remote_baseline.sql files are two-line placeholders).
 --
@@ -24,7 +24,7 @@
 -- builds exactly this state, then applies the real migrations.
 --
 -- OWNER: replace this file with the real thing and diff it against the above
--- before applying 20261002170000:
+-- before applying 20261002171000:
 --   supabase db dump --linked --schema-only --schema public > docs/schema/live-public-schema.sql
 --   (and, for the edge functions: supabase functions download send-challenge-notification
 --    / analytics-telegram, then review their auth)
@@ -72,7 +72,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.linked_wallets TO anon, authentic
 ALTER TABLE public.friends ENABLE ROW LEVEL SECURITY;
 CREATE POLICY friends_all ON public.friends FOR ALL USING (true) WITH CHECK (true); -- [repo 001][client]
 GRANT ALL ON public.friends TO anon, authenticated;                                  -- [repo 001][client]
--- Unchanged by the lockdown except the new nullable column `nickname`.
+-- The lockdown adds the nullable column `nickname` and turns these roles'
+-- table-level INSERT/UPDATE into the same grant on every column EXCEPT
+-- nickname (only add_wallet_friend_v1 writes it). Reads, DELETE and the legacy
+-- edge writes keep exactly these rights.
 
 -- ── public.fcm_tokens ───────────────────────────────────────────────────────
 -- Not defined in any SQL file [repo]. Columns from the client upsert

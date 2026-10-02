@@ -99,7 +99,7 @@ class ProfileProvider extends BaseChangeNotifier {
   // the BFF (`AccountApi.updateProfile`), keyed by the signed-in session: the
   // old `update_user_profile*` RPCs took any wallet string, so anyone could
   // rewrite anyone's profile (prod readiness B1), and they are revoked by
-  // supabase/migrations/20261002170000_lockdown_profiles_push_privacy.sql.
+  // supabase/migrations/20261002171000_lockdown_profiles_push_privacy.sql.
 
   Future<void> saveUserProfileLocally(Map<String, dynamic> profile) async {
     try {

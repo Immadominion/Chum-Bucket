@@ -5,7 +5,7 @@
 // person's own account through the BFF (`AccountApi.updateProfile(avatarId:)`),
 // keyed by the signed-in session — never by a wallet string through the anon
 // client, which let anyone re-picture anyone (prod readiness B1/M9) and is
-// revoked by 20261002170000_lockdown_profiles_push_privacy.sql.
+// revoked by 20261002171000_lockdown_profiles_push_privacy.sql.
 
 import 'dart:developer' as dev;
 

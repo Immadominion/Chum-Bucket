@@ -31,9 +31,10 @@
 --     handle, no SNS) or touches last_seen_at, so it can no longer label a
 --     wallet;
 --   * fetch_user_profile(wallet) for the splash "has a name" check;
---   * the legacy friends table (reads, and the insert of an edge between two
---     rows that already exist), the challenges tables, notification_outbox
---     realtime — none are touched here.
+--   * the legacy friends table: reads, and the insert, update and delete of an
+--     edge between two rows that already exist (every column but the new
+--     nickname keeps exactly the client rights it had);
+--   * the challenges tables and notification_outbox realtime — not touched.
 --
 -- Legacy client paths that STOP working (each has a replacement above, and the
 -- current app no longer uses them):
@@ -51,9 +52,10 @@
 -- 'wallet_xxxxxxxx' / '@temp.com' pattern, never bound to a sign-in) are
 -- flagged below.
 --
--- Additive in shape: one column on users, one on friends, one new table, three
--- new service-role functions, two functions replaced with the same signature.
--- No table, column, row or legacy function is dropped.
+-- Additive in shape: one column on users, one on friends (writable by the
+-- service role only), one new table, two new service-role functions, two
+-- functions replaced with the same signature. No table, column, row or legacy
+-- function is dropped.
 --
 -- Proven on a throwaway PostgreSQL 15 that reproduces the live rights
 -- (chumbucket-social-calls-api tests/lockdown.postgres.test.ts). The rights it
@@ -62,6 +64,9 @@
 -- Apply AFTER: 20261002090000_wallet_sign_in_and_usernames.sql,
 -- 20261002120000_lock_profile_identity_columns.sql, and only once the BFF that
 -- serves account.* is deployed (otherwise profile edits have nowhere to go).
+-- Its version is 20261002171000 because 20261002170000 is already taken by
+-- the Panta claim ledger (20261002170000_panta_claim_sessions.sql); the two
+-- are independent of each other.
 
 DO $$
 BEGIN
@@ -197,7 +202,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.sync_user_by_wallet(TEXT, TEXT) IS
-  'Legacy wallet-connect hook, kept for installed apps. Creates an empty placeholder row for an unseen wallet or stamps last_seen_at. Writes no name, handle, SNS domain or wallet link: it proves nothing about who holds the wallet (20261002170000).';
+  'Legacy wallet-connect hook, kept for installed apps. Creates an empty placeholder row for an unseen wallet or stamps last_seen_at. Writes no name, handle, SNS domain or wallet link: it proves nothing about who holds the wallet (20261002171000).';
 
 -- ── 4. carry-over never carries a stranger's words ─────────────────────────
 
@@ -353,7 +358,41 @@ BEGIN
 END;
 $$;
 COMMENT ON COLUMN public.friends.nickname IS
-  'What user_id calls friend_id. Private label written by add_wallet_friend_v1; never copied onto the friend''s profile.';
+  'What user_id calls friend_id. Written only by add_wallet_friend_v1 (service role); never copied onto the friend''s profile. NOT secret: anyone who can read the legacy friends table can read it.';
+
+-- Only the adder, through the BFF, sets that label. The legacy friends table
+-- is still client-writable (friends_all, M10), and its table-level INSERT and
+-- UPDATE grants cover every column, this new one included. Left alone, anyone
+-- could rewrite the name a person sees for each of their friends, which the
+-- app shows ahead of the friend's own name: B1's vandalism by another door.
+-- So every table-level INSERT/UPDATE a client role holds becomes the same
+-- grant on every OTHER column. The legacy edge writes (user_id, friend_id,
+-- status, created_at, ...) keep exactly the rights they had.
+DO $$
+DECLARE
+  v_cols TEXT;
+  g      RECORD;
+BEGIN
+  SELECT string_agg(quote_ident(attname), ', ' ORDER BY attnum) INTO v_cols
+    FROM pg_attribute
+   WHERE attrelid = 'public.friends'::regclass AND attnum > 0 AND NOT attisdropped
+     AND attname <> 'nickname';
+  FOR g IN
+    SELECT CASE WHEN a.grantee = 0 THEN 'PUBLIC' ELSE quote_ident(r.rolname) END AS who,
+           a.privilege_type AS priv
+      FROM pg_class c
+      CROSS JOIN LATERAL aclexplode(c.relacl) a
+      LEFT JOIN pg_roles r ON r.oid = a.grantee
+     WHERE c.oid = 'public.friends'::regclass
+       AND a.privilege_type IN ('INSERT', 'UPDATE')
+       AND (a.grantee = 0 OR r.rolname IN ('anon', 'authenticated'))
+  LOOP
+    EXECUTE format('REVOKE %s ON public.friends FROM %s', g.priv, g.who);
+    EXECUTE format('GRANT %s (%s) ON public.friends TO %s', g.priv, v_cols, g.who);
+  END LOOP;
+END;
+$$;
+REVOKE INSERT (nickname), UPDATE (nickname) ON public.friends FROM PUBLIC, anon, authenticated;
 
 CREATE FUNCTION public.add_wallet_friend_v1(
   p_user_id       UUID,
@@ -428,7 +467,7 @@ $$;
 REVOKE ALL ON FUNCTION public.add_wallet_friend_v1(UUID, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.add_wallet_friend_v1(UUID, TEXT, TEXT) TO service_role;
 COMMENT ON FUNCTION public.add_wallet_friend_v1(UUID, TEXT, TEXT) IS
-  'Service-only: the signed-in person adds a friend by wallet. Creates at most an empty, flagged placeholder for an unknown wallet; the typed name is stored as the adder''s private nickname on their own edge.';
+  'Service-only: the signed-in person adds a friend by wallet. Creates at most an empty, flagged placeholder for an unknown wallet; the typed name is stored as the adder''s nickname for the friend on their own edge (friends.nickname), never on the friend''s profile.';
 
 -- ── 7. push tokens, keyed by the canonical person ──────────────────────────
 
@@ -456,7 +495,7 @@ BEGIN
     REVOKE ALL ON public.fcm_tokens FROM PUBLIC, anon, authenticated;
     GRANT ALL ON public.fcm_tokens TO service_role;
     COMMENT ON TABLE public.fcm_tokens IS
-      'LEGACY wallet-keyed push tokens. Service role only since 20261002170000; the app registers in public.push_tokens through the BFF.';
+      'LEGACY wallet-keyed push tokens. Service role only since 20261002171000; the app registers in public.push_tokens through the BFF.';
   ELSE
     RAISE NOTICE 'public.fcm_tokens not present; nothing to lock';
   END IF;
