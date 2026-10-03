@@ -13,7 +13,7 @@ import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 
 import 'package:chumbucket/core/analytics/analytics.dart';
-import 'package:chumbucket/core/services/notification_permission_coordinator.dart';
+import 'package:chumbucket/core/services/push_registration.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_badges.dart';
@@ -42,8 +42,10 @@ class OnRecordScreen extends StatefulWidget {
 
 class _OnRecordScreenState extends State<OnRecordScreen> {
   _Ask _ask = _Ask.checking;
-  bool _pushLive = false;
-  String? _askNote;
+
+  /// Where the in-context ask stood when this screen opened (§8).
+  PushAskState _push = PushAskState.unavailable;
+  PushAskResult? _result;
   bool _requesting = false;
 
   @override
@@ -53,14 +55,14 @@ class _OnRecordScreenState extends State<OnRecordScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final flow = context.read<OnboardingFlowController>();
-      final coordinator = flow.notifications;
-      final live = await coordinator.isPushLive();
-      final ask = live && await coordinator.canAsk();
+      final push = await PushRegistration.stateFor(context);
       if (!mounted) return;
+      final ask = push == PushAskState.mayAsk;
       setState(() {
-        _pushLive = live;
+        _push = push;
         _ask = ask ? _Ask.card : _Ask.none;
       });
+      flow.notePushState(live: push != PushAskState.unavailable);
       if (ask) {
         flow.app.track(
           OnboardingAnalyticsEvents.notificationPromptShown(
@@ -74,7 +76,7 @@ class _OnRecordScreenState extends State<OnRecordScreen> {
   Future<void> _notifyMe() async {
     final flow = context.read<OnboardingFlowController>();
     setState(() => _requesting = true);
-    final result = await flow.notifications.requestFromPrePrompt();
+    final result = await PushRegistration.askNow(context);
     if (!mounted) return;
     flow.app.track(
       OnboardingAnalyticsEvents.notificationPermissionResult(
@@ -85,23 +87,40 @@ class _OnRecordScreenState extends State<OnRecordScreen> {
     setState(() {
       _requesting = false;
       _ask = _Ask.decided;
-      _askNote =
-          result == NotificationAskResult.granted
-              ? null
-              : OnboardingCopy.notifyDenied;
+      _result = result;
     });
   }
 
   Future<void> _notNow() async {
     final flow = context.read<OnboardingFlowController>();
-    await flow.notifications.recordNotNow();
+    await PushRegistration.declined();
     flow.app.track(
       OnboardingAnalyticsEvents.notificationPermissionResult(
-        result: NotificationAskResult.notNow.wire,
+        result: PushAskResult.notNow.wire,
         stage: 'pre_prompt',
       ),
     );
-    if (mounted) setState(() => _ask = _Ask.decided);
+    if (mounted) {
+      setState(() {
+        _ask = _Ask.decided;
+        _result = PushAskResult.notNow;
+      });
+    }
+  }
+
+  /// The one line under the call about how the receipt will reach them.
+  /// Never a promise of a push this server does not send.
+  String? get _pushLine {
+    if (_ask == _Ask.checking || _ask == _Ask.card) return null;
+    final result = _result;
+    if (result == PushAskResult.granted || _push == PushAskState.allowed) {
+      return OnboardingCopy.recordPushOn;
+    }
+    if (result == PushAskResult.denied ||
+        result == PushAskResult.permanentlyDenied) {
+      return OnboardingCopy.notifyDenied;
+    }
+    return OnboardingCopy.recordNoPush;
   }
 
   Future<void> _share(CallFeedEntry entry) async {
@@ -212,11 +231,18 @@ class _OnRecordScreenState extends State<OnRecordScreen> {
           child: _OwnCallCard(entry: entry),
         ),
         const SizedBox(height: 16),
-        if (_ask == _Ask.none && !_pushLive)
-          const OnbIconLine(
-            key: ValueKey('record-no-push'),
-            icon: 'notification-outline',
-            text: OnboardingCopy.recordNoPush,
+        if (_pushLine != null)
+          Semantics(
+            liveRegion: _ask == _Ask.decided,
+            child: OnbIconLine(
+              key: ValueKey(
+                _pushLine == OnboardingCopy.recordNoPush
+                    ? 'record-no-push'
+                    : 'record-push-line',
+              ),
+              icon: 'notification-outline',
+              text: _pushLine!,
+            ),
           ),
         if (cardShown)
           OnbReveal(
@@ -249,11 +275,6 @@ class _OnRecordScreenState extends State<OnRecordScreen> {
                 ],
               ),
             ),
-          ),
-        if (_askNote != null)
-          Semantics(
-            liveRegion: true,
-            child: OnbIconLine(icon: 'info-circle-outline', text: _askNote!),
           ),
       ],
     );

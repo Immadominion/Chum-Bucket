@@ -56,32 +56,48 @@ class SuggestedPersonRow extends StatelessWidget {
         if (handle != null) Text('@$handle', style: OnbText.small),
         const SizedBox(height: 2),
         Text(record, style: OnbText.small),
-        if (latest != null) ...[
-          const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SidePill(side: latest.side),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  latest.question,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: OnbText.small.copyWith(color: AppColors.textPrimary),
-                ),
-              ),
-            ],
-          ),
-        ],
       ],
     );
+
+    // The latest call runs under the name and the button, the full width of
+    // the text column: a question needs the room more than the button does.
+    final latestLine =
+        latest == null
+            ? null
+            : Padding(
+              padding: const EdgeInsets.only(left: _textInset, top: 10),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SidePill(side: latest.side),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 1),
+                      child: Text(
+                        latest.question,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: OnbText.small.copyWith(
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
 
     final button = FollowToggleButton(
       key: ValueKey('follow-${person.id}'),
       following: following,
       onPressed: onToggle,
       name: name,
+    );
+    final avatar = OnbAvatar(
+      name: name,
+      imageUrl: person.avatarUrl,
+      size: _avatar,
     );
 
     return MergeSemantics(
@@ -95,47 +111,38 @@ class SuggestedPersonRow extends StatelessWidget {
           constraints: const BoxConstraints(minHeight: 72),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 14),
-            child:
-                stacked
-                    ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            OnbAvatar(
-                              personId: person.id,
-                              imageUrl: person.avatarUrl,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(child: _plain(identity)),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Padding(
-                          padding: const EdgeInsets.only(left: 56),
-                          child: button,
-                        ),
-                      ],
-                    )
-                    : Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        OnbAvatar(
-                          personId: person.id,
-                          imageUrl: person.avatarUrl,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(child: _plain(identity)),
-                        const SizedBox(width: 8),
-                        button,
-                      ],
-                    ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment:
+                      stacked
+                          ? CrossAxisAlignment.start
+                          : CrossAxisAlignment.center,
+                  children: [
+                    avatar,
+                    const SizedBox(width: _gap),
+                    Expanded(child: _plain(identity)),
+                    if (!stacked) ...[const SizedBox(width: 8), button],
+                  ],
+                ),
+                if (latestLine != null) _plain(latestLine),
+                if (stacked)
+                  Padding(
+                    padding: const EdgeInsets.only(left: _textInset, top: 10),
+                    child: Align(alignment: Alignment.centerLeft, child: button),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+
+  static const double _avatar = 44;
+  static const double _gap = 12;
+  static const double _textInset = _avatar + _gap;
 
   /// The visible lines are summarised by the row's label; reading them again
   /// would say everything twice.

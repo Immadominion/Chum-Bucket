@@ -13,6 +13,7 @@ import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/onboarding/domain/onboarding_steps.dart';
 import 'package:chumbucket/features/onboarding/onboarding_copy.dart';
 import 'package:chumbucket/features/onboarding/onboarding_flow_controller.dart';
+import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_motion.dart';
 import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_parts.dart';
 import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_scaffold.dart';
 import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_styles.dart';
@@ -71,8 +72,16 @@ class PeopleScreen extends StatelessWidget {
                       minimumSize: const Size(48, 48),
                       foregroundColor: AppColors.pinkInk,
                     ),
-                    onPressed:
-                        () => flow.setAllPeople(!allChosen, friend: friends),
+                    onPressed: () {
+                      flow.setAllPeople(!allChosen, friend: friends);
+                      // A state change, said out loud (§11).
+                      onbAnnounce(
+                        context,
+                        allChosen
+                            ? OnboardingCopy.unfollowedAllA11y
+                            : OnboardingCopy.followedAllA11y(rows.length),
+                      );
+                    },
                     child: Text(
                       allChosen
                           ? OnboardingCopy.unfollowAll

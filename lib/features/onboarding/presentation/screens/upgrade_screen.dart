@@ -146,6 +146,8 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
           textAlign: TextAlign.center,
           style: OnbText.meta,
         ),
+        const SizedBox(height: 4),
+        const OnbConsentLine(),
         if (_error != null || closed != null) ...[
           const SizedBox(height: 16),
           Semantics(

@@ -9,7 +9,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'package:chumbucket/core/services/notification_permission_coordinator.dart';
+import 'package:chumbucket/core/services/push_registration.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/onboarding/onboarding_controller.dart';
 import 'package:chumbucket/features/onboarding/onboarding_copy.dart';
@@ -42,47 +42,55 @@ class TopicsSettingsItem extends StatelessWidget {
 }
 
 class NotificationsSettingsItem extends StatefulWidget {
-  const NotificationsSettingsItem({super.key, this.coordinator});
-
-  final NotificationPermissionCoordinator? coordinator;
+  const NotificationsSettingsItem({super.key});
 
   @override
   State<NotificationsSettingsItem> createState() =>
       _NotificationsSettingsItemState();
 }
 
-class _NotificationsSettingsItemState extends State<NotificationsSettingsItem> {
-  late final NotificationPermissionCoordinator _coordinator =
-      widget.coordinator ?? NotificationPermissionCoordinator();
-  NotificationSettingsState? _state;
-  bool _live = false;
+class _NotificationsSettingsItemState extends State<NotificationsSettingsItem>
+    with WidgetsBindingObserver {
+  PushSettingsState? _state;
 
   @override
   void initState() {
     super.initState();
-    unawaited(_read());
-  }
-
-  Future<void> _read() async {
-    final live = await _coordinator.isPushLive();
-    final state = await _coordinator.settingsState();
-    if (!mounted) return;
-    setState(() {
-      _live = live;
-      _state = state;
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_read());
     });
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Back from Android Settings: read the permission again.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) unawaited(_read());
+  }
+
+  Future<void> _read() async {
+    final state = await PushRegistration.settingsState(context);
+    if (mounted) setState(() => _state = state);
+  }
+
+  /// Only ever on a tap: off asks the OS once; refused for good opens
+  /// Android's settings for Chumbucket.
   Future<void> _tap() async {
     switch (_state) {
-      case NotificationSettingsState.blocked:
-        await _coordinator.openSystemSettings();
-      case NotificationSettingsState.off when _live:
-        await _coordinator.requestFromPrePrompt();
+      case PushSettingsState.blocked:
+        await PushRegistration.openSystemSettings();
+      case PushSettingsState.off:
+        await PushRegistration.askNow(context);
       default:
-        break;
+        return;
     }
-    await _read();
+    if (mounted) await _read();
   }
 
   @override
@@ -90,11 +98,12 @@ class _NotificationsSettingsItemState extends State<NotificationsSettingsItem> {
     final state = _state;
     if (state == null) return const SizedBox.shrink();
     final subtitle = switch (state) {
-      NotificationSettingsState.on => OnboardingCopy.settingsNotificationsOn,
-      NotificationSettingsState.blocked =>
-        OnboardingCopy.settingsNotificationsOff,
-      NotificationSettingsState.off =>
-        _live ? 'Off' : OnboardingCopy.settingsNotificationsNotLive,
+      PushSettingsState.on => OnboardingCopy.settingsNotificationsOn,
+      PushSettingsState.off =>
+        OnboardingCopy.settingsNotificationsTapToTurnOn,
+      PushSettingsState.blocked => OnboardingCopy.settingsNotificationsOff,
+      PushSettingsState.unavailable =>
+        OnboardingCopy.settingsNotificationsNotLive,
     };
     return ProfileMenuItem(
       key: const ValueKey('settings-notifications'),

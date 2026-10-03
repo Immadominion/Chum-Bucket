@@ -29,6 +29,7 @@ import 'package:chumbucket/features/onboarding/onboarding_flow_controller.dart';
 import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_parts.dart';
 import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_scaffold.dart';
 import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_styles.dart';
+import 'package:chumbucket/features/trust/data/content_policy.dart';
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
@@ -159,6 +160,17 @@ class _UsernameScreenState extends State<UsernameScreen> {
     final session = context.read<ChumbucketSession>();
     final flow = context.read<OnboardingFlowController>();
     final handle = _availability.handle;
+    // Trust's content policy, answered at once; the server applies the same
+    // rule and has the last word.
+    final problem =
+        contentPolicyProblem(handle, ContentField.handle) ??
+        (_newAccount
+            ? contentPolicyProblem(_name.text, ContentField.name)
+            : null);
+    if (problem != null) {
+      setState(() => _error = problem);
+      return;
+    }
     setState(() {
       _claiming = true;
       _error = null;

@@ -6,13 +6,14 @@ library;
 import 'package:flutter/material.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
-import 'package:chumbucket/features/onboarding/data/onboarding_links.dart';
 import 'package:chumbucket/features/onboarding/onboarding_copy.dart';
 import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_motion.dart';
 import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_styles.dart';
 import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
+import 'package:chumbucket/shared/widgets/app_components/app_avatar.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
+import 'package:chumbucket/features/trust/data/legal_links.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 /// The coral band from the sheets' header, ending in the same scallop, with
@@ -155,56 +156,75 @@ class ChumbucketBandWave extends StatelessWidget {
   );
 }
 
-/// A person's picture, always a circle. Without one, a bundled illustrated
-/// avatar picked steadily from their id (decoration, not data).
+/// A person's picture, always a circle, drawn the way people rows draw it
+/// elsewhere in the app: their own picture or the avatar they chose, else
+/// their initials on pink wash. Never a picture they did not choose.
 class OnbAvatar extends StatelessWidget {
   const OnbAvatar({
     super.key,
-    required this.personId,
+    required this.name,
     this.imageUrl,
     this.size = 44,
   });
 
-  final String personId;
+  /// The name shown beside it (display name, else the @handle).
+  final String name;
   final String? imageUrl;
   final double size;
 
-  static String fallbackAsset(String personId) {
-    final bucket = personId.codeUnits.fold<int>(0, (sum, c) => sum + c);
-    return 'assets/images/ai_gen/profile_images/${(bucket % 5) + 1}.png';
+  static String initialsOf(String name) {
+    final words =
+        name
+            .replaceFirst(RegExp(r'^@'), '')
+            .trim()
+            .split(RegExp(r'\s+'))
+            .where((w) => w.isNotEmpty)
+            .toList();
+    if (words.isEmpty) return '?';
+    String first(String w) => String.fromCharCode(w.runes.first);
+    return (words.length == 1
+            ? first(words.first)
+            : '${first(words.first)}${first(words.last)}')
+        .toUpperCase();
   }
 
   @override
   Widget build(BuildContext context) {
+    final url = imageUrl?.trim();
     final dpr = MediaQuery.maybeDevicePixelRatioOf(context) ?? 3;
-    final px = (size * dpr).ceil().clamp(1, 512);
-    final url = imageUrl;
-    final ImageProvider image =
-        url == null || url.isEmpty
-            ? ResizeImage(AssetImage(fallbackAsset(personId)), width: px)
-            : url.startsWith('assets/')
-            ? ResizeImage(AssetImage(url), width: px)
-            : ResizeImage(NetworkImage(url), width: px);
     return ExcludeSemantics(
-      child: SizedBox.square(
-        dimension: size,
-        child: ClipOval(
-          child: ColoredBox(
-            color: AppColors.pinkWash,
-            child: Image(
-              image: image,
-              fit: BoxFit.cover,
-              errorBuilder:
-                  (_, __, ___) => Image(
-                    image: ResizeImage(
-                      AssetImage(fallbackAsset(personId)),
-                      width: px,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: AppColors.pinkWash,
+          image:
+              url == null || url.isEmpty
+                  ? null
+                  : DecorationImage(
+                    image: avatarImageProvider(
+                      url,
+                      logicalSize: size,
+                      devicePixelRatio: dpr,
                     ),
                     fit: BoxFit.cover,
+                    onError: (_, __) {},
                   ),
-            ),
-          ),
         ),
+        alignment: Alignment.center,
+        child:
+            url == null || url.isEmpty
+                ? Text(
+                  initialsOf(name),
+                  textScaler: TextScaler.noScaling,
+                  style: OnbText.name.copyWith(
+                    fontSize: size * .38,
+                    height: 1,
+                    color: AppColors.onPrimaryContainer,
+                  ),
+                )
+                : null,
       ),
     );
   }
@@ -361,11 +381,12 @@ class OnbIconLine extends StatelessWidget {
 }
 
 /// "By continuing, you agree to the Terms of Use and Privacy Policy." Each
-/// link is its own 48dp target.
+/// link is its own 48dp target and opens trust's [LegalLinks] (the same pages
+/// Settings → Privacy & data and the website link to).
 class OnbConsentLine extends StatelessWidget {
   const OnbConsentLine({super.key, this.opener});
 
-  final LinkOpener? opener;
+  final UrlOpener? opener;
 
   @override
   Widget build(BuildContext context) {
@@ -383,7 +404,7 @@ class OnbConsentLine extends StatelessWidget {
       excludeSemantics: true,
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
-        onTap: () => openOnboardingLink(context, uri, opener: opener),
+        onTap: () => openExternalLink(context, uri, opener: opener),
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 48, minWidth: 48),
           child: Padding(
@@ -405,9 +426,9 @@ class OnbConsentLine extends StatelessWidget {
           alignment: WrapAlignment.center,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            target(OnboardingCopy.signInTerms, OnboardingLinks.terms),
+            target(OnboardingCopy.signInTerms, LegalLinks.terms),
             Text(OnboardingCopy.signInConsentJoin.trim(), style: style),
-            target(OnboardingCopy.signInPrivacy, OnboardingLinks.privacy),
+            target(OnboardingCopy.signInPrivacy, LegalLinks.privacy),
           ],
         ),
       ],

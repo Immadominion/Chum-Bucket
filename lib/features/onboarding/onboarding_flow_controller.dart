@@ -12,7 +12,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'package:chumbucket/core/analytics/analytics.dart';
-import 'package:chumbucket/core/services/notification_permission_coordinator.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/authentication/session/last_sign_in.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
@@ -56,7 +55,6 @@ class OnboardingFlowController extends ChangeNotifier {
     required this.calls,
     this.session,
     PeopleSuggestionsRepository? suggestions,
-    NotificationPermissionCoordinator? notifications,
     OnboardingStep? resumeAt,
     this.sessionEnded = false,
     this.onExit,
@@ -69,7 +67,6 @@ class OnboardingFlowController extends ChangeNotifier {
            (calls.repository is PeopleSuggestionsRepository
                ? calls.repository as PeopleSuggestionsRepository
                : null),
-       notifications = notifications ?? NotificationPermissionCoordinator(),
        _clock = clock ?? DateTime.now,
        _resumeAt = resumeAt,
        _startRun = run;
@@ -83,7 +80,6 @@ class OnboardingFlowController extends ChangeNotifier {
   final CallsProvider calls;
   final ChumbucketSession? session;
   final PeopleSuggestionsRepository? _suggestions;
-  final NotificationPermissionCoordinator notifications;
   final OnboardingStep? _resumeAt;
 
   /// B1 arrived from a failed or expired restore.
@@ -125,6 +121,7 @@ class OnboardingFlowController extends ChangeNotifier {
 
   CallFeedEntry? _lockedEntry;
   bool _alreadyMode = false;
+  bool? _pushLive;
   bool _handleClaimLater = false;
   String? _accountKind;
   FollowsApplied? _applied;
@@ -401,6 +398,21 @@ class OnboardingFlowController extends ChangeNotifier {
     unawaited(app.setStage(step));
     if (!revisit && _offered.add(step)) _stepsShown++;
     final p = progressOf(step, steps);
+    // R's view is recorded once it knows whether pushes are live
+    // ([notePushState]).
+    if (step != OnboardingStep.onRecord) {
+      _recordStepViewed(step, p);
+    }
+    if (step == OnboardingStep.firstCall || step == OnboardingStep.resumeCall) {
+      unawaited(refreshFirstCall());
+    }
+    _skipIfUnavailable();
+  }
+
+  void _recordStepViewed(
+    OnboardingStep step,
+    ({int index, int total})? p,
+  ) {
     _analytics.record(
       OnboardingAnalyticsEvents.stepViewed(
         step: step.wire,
@@ -423,16 +435,8 @@ class OnboardingFlowController extends ChangeNotifier {
             step == OnboardingStep.username
                 ? (session?.needsUsername == true ? 'new' : 'carried_over')
                 : null,
-        mode:
-            step == OnboardingStep.onRecord
-                ? (_alreadyMode ? 'already' : 'new')
-                : null,
       ),
     );
-    if (step == OnboardingStep.firstCall || step == OnboardingStep.resumeCall) {
-      unawaited(refreshFirstCall());
-    }
-    _skipIfUnavailable();
   }
 
   /// When the step on screen has turned out to have nothing real to show.
@@ -590,7 +594,9 @@ class OnboardingFlowController extends ChangeNotifier {
   }
 
   /// After sign-in: the account's friends from the old app, for the friends
-  /// variant of P. Not preselected (see `docs/onboarding.md`).
+  /// variant of P. Never preselected (a deliberate change from spec §6 P):
+  /// the old client wrote those rows and accepted them both ways without
+  /// asking (prod readiness M10), so they are not consent to follow anyone.
   Future<void> _loadFriends() async {
     if (_friendsLoaded) return;
     _friendsLoaded = true;
@@ -771,6 +777,20 @@ class OnboardingFlowController extends ChangeNotifier {
       );
     }
     goTo(OnboardingStep.onRecord);
+  }
+
+  /// R found out whether this server sends pushes (for its step_viewed).
+  void notePushState({required bool live}) {
+    if (_pushLive != null) return;
+    _pushLive = live;
+    if (current != OnboardingStep.onRecord) return;
+    _analytics.record(
+      OnboardingAnalyticsEvents.stepViewed(
+        step: OnboardingStep.onRecord.wire,
+        mode: _alreadyMode ? 'already' : 'new',
+        pushLive: live,
+      ),
+    );
   }
 
   /// "I'll do this later" on C.

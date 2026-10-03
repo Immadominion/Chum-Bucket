@@ -6,7 +6,7 @@ library;
 import 'dart:async';
 
 import 'package:chumbucket/core/analytics/analytics.dart';
-import 'package:chumbucket/core/services/notification_permission_coordinator.dart';
+import 'package:chumbucket/core/services/push_registration.dart';
 import 'package:chumbucket/core/theme/app_theme.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
@@ -22,6 +22,7 @@ import 'package:chumbucket/features/onboarding/presentation/onboarding_flow.dart
 import 'package:chumbucket/features/people/data/people_models.dart';
 import 'package:chumbucket/features/people/data/people_repository.dart';
 import 'package:chumbucket/features/people/data/people_suggestions.dart';
+import 'package:chumbucket/features/profile/data/account_api.dart';
 import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -443,37 +444,47 @@ class FakeOnboardingRepository
   }
 }
 
-/// Push is live or not, as a test says.
-class FakePush implements PushCapability {
-  FakePush(this.live);
-  bool live;
-  @override
-  Future<bool> isPushLive() async => live;
-}
-
 /// The OS side of notifications, counting every dialog it would show.
-class FakePermissionPlatform implements NotificationPermissionPlatform {
-  FakePermissionPlatform({this.granted = false, this.answer = true});
+class FakePushPlatform implements PushPlatform {
+  FakePushPlatform({this.granted = false, this.answer = true});
   bool granted;
   bool answer;
   int requests = 0;
-  int settingsOpened = 0;
+  final List<String> registered = [];
 
   @override
-  Future<bool> isGranted() async => granted;
+  bool get available => true;
 
   @override
-  Future<bool> request() async {
+  Future<bool> hasPermission() async => granted;
+
+  @override
+  Future<bool> requestPermission() async {
     requests++;
     granted = answer;
     return answer;
   }
 
   @override
-  Future<bool> openSettings() async {
-    settingsOpened++;
-    return true;
+  Future<void> register(AccountApi api, {required String accountKey}) async =>
+      registered.add(accountKey);
+}
+
+/// The signed-in account's own API, as far as notifications need it: does
+/// this server send pushes (`account.pushStatus`)?
+class FakeAccountApi implements AccountApi {
+  FakeAccountApi({this.pushLive = false});
+  bool pushLive;
+  int statusReads = 0;
+
+  @override
+  Future<bool> pushStatus() async {
+    statusReads++;
+    return pushLive;
   }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 /// A BFF for the session: whoami (with a handle or not), username checks and
@@ -562,12 +573,12 @@ class OnboardingRig {
     SignInMethod? lastUsed,
     Set<String> providers = const {'google'},
     bool pushLive = false,
-    FakePermissionPlatform? permission,
+    FakePushPlatform? permission,
   }) : repo = repo ?? FakeOnboardingRepository(),
        bff = bff ?? OnboardingBff(handle: 'ada'),
        lastSignIn = MemoryLastSignInStore(lastUsed),
-       push = FakePush(pushLive),
-       permission = permission ?? FakePermissionPlatform() {
+       account = FakeAccountApi(pushLive: pushLive),
+       permission = permission ?? FakePushPlatform() {
     auth = FakeSupabaseAuthPort(restored: signedIn ? snapshot() : null)
       ..providers = providers;
     session = ChumbucketSession(
@@ -585,27 +596,20 @@ class OnboardingRig {
       clock: () => clockNow,
     );
     app = OnboardingController(clock: () => clockNow, analytics: analytics);
-    notifications = NotificationPermissionCoordinator(
-      push: push,
-      platform: this.permission,
-      store: MemoryNotificationPromptStore(),
-      clock: () => clockNow,
-    );
   }
 
   final FakeOnboardingRepository repo;
   final OnboardingBff bff;
   final bool signedIn;
   final MemoryLastSignInStore lastSignIn;
-  final FakePush push;
-  final FakePermissionPlatform permission;
+  final FakeAccountApi account;
+  final FakePushPlatform permission;
   final sink = InMemoryAnalyticsSink();
   late final FakeSupabaseAuthPort auth;
   late final ChumbucketSession session;
   late final AnalyticsRecorder analytics;
   late final CallsProvider calls;
   late final OnboardingController app;
-  late final NotificationPermissionCoordinator notifications;
   DateTime clockNow = kNow;
   final List<FlowExit> exits = [];
 
@@ -614,6 +618,8 @@ class OnboardingRig {
   ];
 
   Future<void> start() async {
+    PushRegistration.platform = permission;
+    PushRegistration.clock = () => clockNow;
     await session.restore();
     calls.setViewer(session.userId);
     session.addListener(() => calls.setViewer(session.userId));
@@ -621,6 +627,8 @@ class OnboardingRig {
   }
 
   Future<void> dispose() async {
+    PushRegistration.platform = const FcmPushPlatform();
+    PushRegistration.clock = DateTime.now;
     session.dispose();
     calls.dispose();
     app.dispose();
@@ -634,6 +642,7 @@ class OnboardingRig {
       ChangeNotifierProvider<ChumbucketSession>.value(value: session),
       ChangeNotifierProvider<CallsProvider>.value(value: calls),
       ChangeNotifierProvider<OnboardingController>.value(value: app),
+      Provider<AccountApi>.value(value: account),
     ],
     child: child,
   );
@@ -647,7 +656,6 @@ class OnboardingRig {
     run: run,
     resumeAt: resumeAt,
     sessionEnded: sessionEnded,
-    notifications: notifications,
     clock: () => clockNow,
     stepBuilder: stepBuilder,
     onExit: (_, exit) => exits.add(exit),

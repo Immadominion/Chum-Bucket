@@ -47,10 +47,9 @@
 # --- Rive (rive_common): native runtime loaded over JNI.
 -keep class app.rive.** { *; }
 
-# --- audioplayers, webview_flutter, url_launcher, share_plus, app_links,
+# --- webview_flutter, url_launcher, share_plus, app_links,
 # sqflite, path_provider, shared_preferences, connectivity_plus: plugin entry
 # points are registered by name from GeneratedPluginRegistrant.
--keep class xyz.luan.audioplayers.** { *; }
 -keep class io.flutter.plugins.** { *; }
 -keep class dev.fluttercommunity.plus.** { *; }
 -keep class com.llfbandit.app_links.** { *; }

@@ -111,6 +111,8 @@ class _FirstCallScreenState extends State<FirstCallScreen> {
       sharePrice: sharePrice,
       snapshot: snapshot,
       surface: AnalyticsSurface.onboarding,
+      // "You're on record" asks about notifications, once.
+      askForNotifications: false,
       note: draft != null ? _signedInNote : null,
       initialDraft:
           draft == null
@@ -187,6 +189,7 @@ class _FirstCallScreenState extends State<FirstCallScreen> {
       entry: entry,
       initialKind: kind,
       surface: AnalyticsSurface.onboarding,
+      askForNotifications: false,
       note: resumed ? _signedInNote : null,
     );
     final own = result?.resultingCall;
@@ -458,7 +461,7 @@ class _AnswerCard extends StatelessWidget {
                     Row(
                       children: [
                         OnbAvatar(
-                          personId: author.id,
+                          name: name,
                           imageUrl: author.avatarUrl,
                           size: 36,
                         ),

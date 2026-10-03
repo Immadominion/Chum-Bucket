@@ -103,6 +103,11 @@ abstract interface class AccountApi {
   });
 
   Future<void> unregisterPushToken(String token);
+
+  /// Whether this server delivers pushes at all (`account.pushStatus`): a
+  /// token store, a configured sender and the scheduler that sends them.
+  /// The app asks for notification permission only when it does.
+  Future<bool> pushStatus();
 }
 
 class BffAccountApi implements AccountApi {
@@ -118,6 +123,7 @@ class BffAccountApi implements AccountApi {
   static const String addWalletFriendPath = 'account.addWalletFriend';
   static const String registerPushTokenPath = 'account.registerPushToken';
   static const String unregisterPushTokenPath = 'account.unregisterPushToken';
+  static const String pushStatusPath = 'account.pushStatus';
 
   @override
   Future<AccountProfile> me() async =>
@@ -178,6 +184,12 @@ class BffAccountApi implements AccountApi {
   @override
   Future<void> unregisterPushToken(String token) async {
     await _transport.mutate(unregisterPushTokenPath, {'token': token});
+  }
+
+  @override
+  Future<bool> pushStatus() async {
+    final raw = await _transport.query(pushStatusPath);
+    return raw is Map && raw['pushEnabled'] == true;
   }
 }
 

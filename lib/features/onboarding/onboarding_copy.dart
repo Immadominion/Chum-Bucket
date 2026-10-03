@@ -85,6 +85,8 @@ abstract final class OnboardingCopy {
   static const followAll = 'Follow all';
   static const unfollowAll = 'Unfollow all';
   static const pendingNote = 'You’ll follow them when you sign in.';
+  static String followedAllA11y(int n) => 'Following all $n';
+  static const unfollowedAllA11y = 'Following no one';
   static String followingApplied(int n, String? name) =>
       n == 1 && name != null ? 'Following $name.' : 'Following $n people.';
   static String followApplyFailed(int n) =>
@@ -206,9 +208,14 @@ abstract final class OnboardingCopy {
       'Your receipt will show up in Activity (the bell on Home) when Panta '
       'settles it.';
   static const notifyTitle = 'Know when it settles';
+  /// Exactly what the server pushes (BACKED, FADED, RESOLVED and the two
+  /// rematch kinds in the API's `notifications/copy.ts`), nothing more.
   static const notifyBody =
-      'Get a notification when Panta settles your call, or when someone '
-      'backs or fades it. Nothing else.';
+      'Get a notification when Panta settles your call, when someone backs, '
+      'fades or dares you, or when someone you faded calls again. Nothing '
+      'else.';
+  static const recordPushOn =
+      'You’ll get a notification when Panta settles it.';
   static const notifyCta = 'Notify me';
   static const notifyLater = 'Not now';
   static const notifyDenied =
@@ -224,7 +231,8 @@ abstract final class OnboardingCopy {
       'See what people call on real prediction markets. Back them, fade them, '
       'or make your own call, and build a record.';
   static const upgradeSafe =
-      'Your profile, friends and challenge history are all still here.';
+      'Your profile and friends came with you. Your old challenges are in '
+      'Settings → History.';
   static const upgradeCta = 'Continue with wallet';
   static const upgradeLater = 'Not now';
 
@@ -251,6 +259,7 @@ abstract final class OnboardingCopy {
       'Settings.';
   static const settingsNotificationsOpen = 'Open Android Settings';
   static const settingsNotificationsOn = 'On';
+  static const settingsNotificationsTapToTurnOn = 'Off. Tap to turn them on.';
   static const settingsNotificationsNotLive =
       'Chumbucket doesn’t send push notifications yet. Your receipts and '
       'replies show up in Activity.';

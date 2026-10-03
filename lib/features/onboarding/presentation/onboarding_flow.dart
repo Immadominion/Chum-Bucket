@@ -6,7 +6,6 @@ library;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'package:chumbucket/core/services/notification_permission_coordinator.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/features/onboarding/domain/onboarding_steps.dart';
@@ -34,7 +33,6 @@ class OnboardingFlow extends StatefulWidget {
     required this.onExit,
     this.resumeAt,
     this.sessionEnded = false,
-    this.notifications,
     this.suggestions,
     this.clock,
     this.stepBuilder,
@@ -44,7 +42,6 @@ class OnboardingFlow extends StatefulWidget {
   final OnboardingStep? resumeAt;
   final bool sessionEnded;
   final OnboardingExitHandler onExit;
-  final NotificationPermissionCoordinator? notifications;
   final PeopleSuggestionsRepository? suggestions;
   final DateTime Function()? clock;
 
@@ -68,7 +65,6 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
       app: context.read<OnboardingController>(),
       calls: context.read<CallsProvider>(),
       session: context.read<ChumbucketSession?>(),
-      notifications: widget.notifications,
       suggestions: widget.suggestions,
       clock: widget.clock,
       onExit: (exit) {
