@@ -96,14 +96,16 @@ class _NotificationsSettingsItemState extends State<NotificationsSettingsItem>
   @override
   Widget build(BuildContext context) {
     final state = _state;
-    if (state == null) return const SizedBox.shrink();
+    // Nothing to turn on (no pushes from this server, nobody signed in, no
+    // Firebase in this build): no row, rather than one that does nothing.
+    if (state == null || state == PushSettingsState.unavailable) {
+      return const SizedBox.shrink();
+    }
     final subtitle = switch (state) {
       PushSettingsState.on => OnboardingCopy.settingsNotificationsOn,
-      PushSettingsState.off =>
-        OnboardingCopy.settingsNotificationsTapToTurnOn,
+      PushSettingsState.off => OnboardingCopy.settingsNotificationsTapToTurnOn,
       PushSettingsState.blocked => OnboardingCopy.settingsNotificationsOff,
-      PushSettingsState.unavailable =>
-        OnboardingCopy.settingsNotificationsNotLive,
+      PushSettingsState.unavailable => '',
     };
     return ProfileMenuItem(
       key: const ValueKey('settings-notifications'),

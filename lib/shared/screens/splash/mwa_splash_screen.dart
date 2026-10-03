@@ -175,7 +175,7 @@ class _MwaSplashScreenState extends State<MwaSplashScreen>
         );
 
     await Future.wait(<Future<void>>[
-      if (onboarding != null) onboarding.load(),
+      if (onboarding != null && !onboarding.loaded) onboarding.load(),
       if (auth != null && auth.state == MwaAuthState.initial) auth.initialize(),
     ]);
     if (!mounted) return;

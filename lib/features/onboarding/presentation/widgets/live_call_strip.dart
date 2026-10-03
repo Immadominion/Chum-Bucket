@@ -148,11 +148,7 @@ class LiveCallCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              OnbAvatar(
-                name: name,
-                imageUrl: author.avatarUrl,
-                size: 32,
-              ),
+              OnbAvatar(name: name, imageUrl: author.avatarUrl, size: 32),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(

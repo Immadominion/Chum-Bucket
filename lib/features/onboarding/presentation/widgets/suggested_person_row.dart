@@ -130,7 +130,10 @@ class SuggestedPersonRow extends StatelessWidget {
                 if (stacked)
                   Padding(
                     padding: const EdgeInsets.only(left: _textInset, top: 10),
-                    child: Align(alignment: Alignment.centerLeft, child: button),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: button,
+                    ),
                   ),
               ],
             ),

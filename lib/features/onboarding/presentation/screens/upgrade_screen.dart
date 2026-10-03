@@ -11,7 +11,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
-import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/authentication/session/last_sign_in.dart';
 import 'package:chumbucket/features/onboarding/onboarding_copy.dart';
@@ -57,7 +56,7 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
       if (status == null ||
           !status.walletSignIn ||
           !status.walletProfileCarry) {
-        setState(() => _closed = kExistingAccountLinkClosed);
+        setState(() => _closed = OnboardingCopy.upgradeClosed);
         return;
       }
       final failure = await widget.walletDoor(context, onSigned: () {});
@@ -70,7 +69,7 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
       if (session.needsUsername) {
         // No profile came across for this wallet: never make one here.
         await session.signOut();
-        if (mounted) setState(() => _closed = kExistingAccountLinkClosed);
+        if (mounted) setState(() => _closed = OnboardingCopy.upgradeClosed);
         return;
       }
       final error = session.error;

@@ -208,6 +208,7 @@ abstract final class OnboardingCopy {
       'Your receipt will show up in Activity (the bell on Home) when Panta '
       'settles it.';
   static const notifyTitle = 'Know when it settles';
+
   /// Exactly what the server pushes (BACKED, FADED, RESOLVED and the two
   /// rematch kinds in the API's `notifications/copy.ts`), nothing more.
   static const notifyBody =
@@ -234,6 +235,12 @@ abstract final class OnboardingCopy {
       'Your profile and friends came with you. Your old challenges are in '
       'Settings → History.';
   static const upgradeCta = 'Continue with wallet';
+
+  /// When the server is not carrying wallet profiles over (carry off, or no
+  /// profile came across): never a path to a second account here.
+  static const upgradeClosed =
+      'Bringing wallet profiles into the new app isn’t open yet. Your '
+      'profile, friends and challenges are unchanged.';
   static const upgradeLater = 'Not now';
 
   // ── K1 Make Home yours ───────────────────────────────────────────────────
@@ -260,9 +267,6 @@ abstract final class OnboardingCopy {
   static const settingsNotificationsOpen = 'Open Android Settings';
   static const settingsNotificationsOn = 'On';
   static const settingsNotificationsTapToTurnOn = 'Off. Tap to turn them on.';
-  static const settingsNotificationsNotLive =
-      'Chumbucket doesn’t send push notifications yet. Your receipts and '
-      'replies show up in Activity.';
 
   // ── Progress ─────────────────────────────────────────────────────────────
   static String stepOf(int i, int n) => 'Step $i of $n';

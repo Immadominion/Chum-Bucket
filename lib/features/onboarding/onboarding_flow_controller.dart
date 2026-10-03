@@ -409,10 +409,7 @@ class OnboardingFlowController extends ChangeNotifier {
     _skipIfUnavailable();
   }
 
-  void _recordStepViewed(
-    OnboardingStep step,
-    ({int index, int total})? p,
-  ) {
+  void _recordStepViewed(OnboardingStep step, ({int index, int total})? p) {
     _analytics.record(
       OnboardingAnalyticsEvents.stepViewed(
         step: step.wire,

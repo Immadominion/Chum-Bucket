@@ -663,6 +663,8 @@ class OnboardingRig {
 }
 
 /// Mounts [child] at a phone size and text scale, with the app's theme.
+/// [around] wraps the whole app, the way main.dart puts providers above
+/// MaterialApp so routes pushed later can read them (`rig.wrap`).
 Future<void> mountAt(
   WidgetTester tester,
   Widget child, {
@@ -670,29 +672,33 @@ Future<void> mountAt(
   double height = 844,
   double scale = 1,
   bool reduceMotion = false,
+  Widget Function(Widget app)? around,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = Size(width, height);
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
+  final wrap = around ?? (Widget app) => app;
   await tester.pumpWidget(
-    ScreenUtilInit(
-      designSize: const Size(390, 844),
-      minTextAdapt: true,
-      builder:
-          (_, __) => MaterialApp(
-            theme: AppTheme.lightTheme,
-            debugShowCheckedModeBanner: false,
-            builder:
-                (context, appChild) => MediaQuery(
-                  data: MediaQuery.of(context).copyWith(
-                    textScaler: TextScaler.linear(scale),
-                    disableAnimations: reduceMotion,
+    wrap(
+      ScreenUtilInit(
+        designSize: const Size(390, 844),
+        minTextAdapt: true,
+        builder:
+            (_, __) => MaterialApp(
+              theme: AppTheme.lightTheme,
+              debugShowCheckedModeBanner: false,
+              builder:
+                  (context, appChild) => MediaQuery(
+                    data: MediaQuery.of(context).copyWith(
+                      textScaler: TextScaler.linear(scale),
+                      disableAnimations: reduceMotion,
+                    ),
+                    child: appChild!,
                   ),
-                  child: appChild!,
-                ),
-            home: child,
-          ),
+              home: child,
+            ),
+      ),
     ),
   );
 }
