@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12's splash icon: the bucket inset inside the system's circle
+     mask (the icon area is 240dp with a 160dp safe circle). -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/ic_launcher_foreground"
+    android:inset="18%" />

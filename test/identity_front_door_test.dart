@@ -10,6 +10,7 @@ import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.d
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/authentication/session/last_sign_in.dart';
 import 'package:chumbucket/features/authentication/session/session_bff_client.dart';
+import 'package:chumbucket/features/onboarding/presentation/widgets/sign_in_panel.dart';
 import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -213,29 +214,24 @@ void main() {
 
   for (final (width, scale) in [(320.0, 2.0), (390.0, 1.0)]) {
     testWidgets(
-      'the whole first screen fits at ${width}dp and ${scale}x text',
+      'the ways in fit at ${width}dp and ${scale}x text, pill clear of label',
       (tester) async {
         await _size(tester, width);
         final door = _Door(last: SignInMethod.google);
         addTearDown(door.dispose);
         await tester.pumpWidget(
           door.app(
-            const SizedBox(
-              height: 1400,
-              child: MwaLoginScreen(peopleFirst: true),
+            OnboardingSignInPanel(
+              isOnline: () async => true,
+              walletAvailable: () async => true,
             ),
             width: width,
             scale: scale,
           ),
         );
         await tester.pump(const Duration(milliseconds: 500));
-        expect(find.text('See who called it.'), findsOneWidget);
         expect(find.text('Continue with Google'), findsOneWidget);
         expect(find.text('Last used'), findsOneWidget);
-        expect(
-          find.text('Challenge Your Friends, \nMake It Count'),
-          findsNothing,
-        );
         for (final option in ['wallet', 'google', 'x']) {
           final size = tester.getSize(
             find.byKey(ValueKey('front-door-$option')),
@@ -269,7 +265,7 @@ void main() {
     addTearDown(door.dispose);
     await tester.pumpWidget(
       door.app(
-        const SizedBox(height: 1200, child: MwaLoginScreen(peopleFirst: false)),
+        const SizedBox(height: 1200, child: MwaLoginScreen()),
         withSession: false,
       ),
     );

@@ -39,6 +39,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show ValueNotifier;
+
 import 'package:chumbucket/features/authentication/session/last_sign_in.dart';
 
 import 'block_store.dart';
@@ -56,6 +58,28 @@ enum SessionAdoption {
 }
 
 typedef SessionAdopter = Future<SessionAdoption> Function(String refreshToken);
+
+/// What a launch restore came to.
+enum SessionRestoreResult {
+  /// Nothing to restore (a local session, no backup, or no Block Store).
+  none,
+
+  /// A backed-up session was adopted: signed in.
+  restored,
+
+  /// The backed-up session was refused (expired, revoked, used elsewhere).
+  failed,
+
+  /// The server could not be reached; the backup is kept for next launch.
+  unreachable;
+
+  String get wire => switch (this) {
+    SessionRestoreResult.none => 'none',
+    SessionRestoreResult.restored => 'restored',
+    SessionRestoreResult.failed => 'failed',
+    SessionRestoreResult.unreachable => 'timeout',
+  };
+}
 
 /// How a wallet-key backup went, so the wallet screen can say so honestly.
 enum WalletBackupOutcome {
@@ -188,6 +212,15 @@ class SessionContinuity {
 
   Future<bool>? _launch;
   bool _settled = false;
+
+  /// True while a backed-up session is being adopted on launch — what the
+  /// splash shows "Restoring your account…" for. False otherwise, including
+  /// when there was nothing to restore.
+  final ValueNotifier<bool> restoring = ValueNotifier<bool>(false);
+
+  /// What the launch restore came to, once settled. Null before.
+  SessionRestoreResult? get lastRestore => _lastRestore;
+  SessionRestoreResult? _lastRestore;
   Future<void> _tail = Future.value();
   String? _mirroredToken;
   SignInMethod? _mirroredMethod;
@@ -206,6 +239,7 @@ class SessionContinuity {
   Future<bool> restoreOnLaunch() => _launch ??= _restore();
 
   Future<bool> _restore() async {
+    var result = SessionRestoreResult.none;
     try {
       final local = await _localSession();
       if (local != null) {
@@ -216,28 +250,38 @@ class SessionContinuity {
       }
       final backup = SessionBackup.decode(await _store.read(sessionKey));
       if (backup == null) return false;
+      restoring.value = true;
       final SessionAdoption outcome;
       try {
         outcome = await _adopt(backup.refreshToken).timeout(_restoreTimeout);
       } on TimeoutException {
+        result = SessionRestoreResult.unreachable;
         return false;
       }
       switch (outcome) {
         case SessionAdoption.adopted:
           final method = backup.method;
           if (method != null) await _lastSignIn.write(method);
+          result = SessionRestoreResult.restored;
           return true;
         case SessionAdoption.rejected:
+          // The Last used badge still comes back: the way in is not secret.
+          final method = backup.method;
+          if (method != null) await _lastSignIn.write(method);
           await _enqueue(_deleteSessionQuietly);
+          result = SessionRestoreResult.failed;
           return false;
         case SessionAdoption.unreachable:
+          result = SessionRestoreResult.unreachable;
           return false;
       }
     } catch (_) {
       // Unavailable, unreadable, or a failure: sign in as usual.
       return false;
     } finally {
+      _lastRestore = result;
       _settled = true;
+      restoring.value = false;
     }
   }
 

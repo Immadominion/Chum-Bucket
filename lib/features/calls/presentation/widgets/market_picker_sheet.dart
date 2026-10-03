@@ -21,8 +21,21 @@ Future<CallFeedEntry?> showMarketPickerSheet({required BuildContext context}) =>
       builder: (_) => const MarketPickerSheet(),
     );
 
+/// The same list, returning the chosen market instead of composing — for a
+/// caller that opens its own composer (onboarding, which also lets a
+/// signed-out person pick and sign in at Lock).
+Future<VenueMarket?> showMarketChooser({required BuildContext context}) =>
+    showChumbucketWavySheet<VenueMarket>(
+      context: context,
+      builder: (_) => const MarketPickerSheet(pickOnly: true),
+    );
+
 class MarketPickerSheet extends StatefulWidget {
-  const MarketPickerSheet({super.key});
+  const MarketPickerSheet({super.key, this.pickOnly = false});
+
+  /// Return the market rather than open the composer; reading needs no
+  /// account.
+  final bool pickOnly;
 
   @override
   State<MarketPickerSheet> createState() => _MarketPickerSheetState();
@@ -44,6 +57,10 @@ class _MarketPickerSheetState extends State<MarketPickerSheet> {
 
   Future<void> _pick(VenueMarket market) async {
     if (_picking != null) return;
+    if (widget.pickOnly) {
+      Navigator.of(context).pop(market);
+      return;
+    }
     setState(() => _picking = market.id);
     try {
       final provider = context.read<CallsProvider>();
@@ -135,7 +152,7 @@ class _MarketPickerSheetState extends State<MarketPickerSheet> {
               const MarketCatalogLegend(),
             ],
             const SizedBox(height: 16),
-            if (!provider.isSignedIn)
+            if (!provider.isSignedIn && !widget.pickOnly)
               const CallsSignedOutView()
             else if (provider.isLoadingOpenMarkets &&
                 provider.openMarkets.isEmpty)

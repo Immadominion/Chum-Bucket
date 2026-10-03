@@ -53,7 +53,6 @@ dependencies:
   share_plus: ^11.1.0
   path_provider: ^2.1.5
   pdf: ^3.11.3
-  audioplayers: ^6.1.0 # Audio player for background music
   url_launcher: ^6.2.2 # For opening URLs in browser
   webview_flutter: ^4.13.0 # For in-app web browser
   # Already resolved transitively (pubspec.lock pins both). Promoted so the
@@ -100,14 +99,11 @@ flutter:
     - assets/images/ai_gen/
     - assets/images/ai_gen/logo/
     - assets/images/ai_gen/profile_images/
-    - assets/images/ai_gen/whisk_animation_fallback/
     # Only 3d-texture.JPG is used at runtime from here. The irfan/ design
     # references are cited in comments and stay in the repo, unbundled.
     - assets/images/open_sourced_design_inspiration/
     - assets/animations/
-    - assets/animations/whisk_ai_generate/
     - assets/animations/lottie/
-    - assets/audio/
     - assets/icons/basil/
     - shorebird.yaml
   fonts:

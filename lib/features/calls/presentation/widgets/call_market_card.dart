@@ -190,6 +190,8 @@ class MarketCategoryFilters extends StatelessWidget {
     required this.selected,
     required this.onChanged,
     this.padding = EdgeInsets.zero,
+    this.forYouSelected,
+    this.onForYou,
   });
 
   final List<MarketCategoryCount> categories;
@@ -197,6 +199,11 @@ class MarketCategoryFilters extends StatelessWidget {
   /// The selected category slug, or null for every category.
   final String? selected;
   final ValueChanged<String?> onChanged;
+
+  /// "For you" (the person's chosen topics first) leads the row when given.
+  /// While it is on, no other chip is selected.
+  final bool? forYouSelected;
+  final VoidCallback? onForYou;
 
   /// Lets the row scroll edge to edge while its first chip aligns with the
   /// page gutter.
@@ -221,11 +228,17 @@ class MarketCategoryFilters extends StatelessWidget {
     padding: padding,
     child: Row(
       children: [
-        _chip('All categories', selected == null, () => onChanged(null)),
+        if (forYouSelected != null && onForYou != null)
+          _chip('For you', forYouSelected!, onForYou!),
+        _chip(
+          'All categories',
+          selected == null && forYouSelected != true,
+          () => onChanged(null),
+        ),
         for (final entry in categories)
           _chip(
             '${marketCategoryLabel(entry.category)} · ${entry.count}',
-            selected == entry.category,
+            selected == entry.category && forYouSelected != true,
             () => onChanged(selected == entry.category ? null : entry.category),
           ),
       ],
@@ -418,7 +431,7 @@ class MarketGlyph extends StatelessWidget {
         _neutralFill,
         _neutralInk,
       ),
-      _ => (null, _categoryIcon(market.category), _neutralFill, _neutralInk),
+      _ => (null, categoryIcon(market.category), _neutralFill, _neutralInk),
     };
     return ExcludeSemantics(
       child: Container(
@@ -447,9 +460,11 @@ class MarketGlyph extends StatelessWidget {
     );
   }
 
-  // Panta's catalog carries categories beyond its documented create list
-  // (pop-culture, gaming, commodities, …); each gets a fitting mark.
-  static String _categoryIcon(String category) => switch (category
+  /// The Basil icon for a venue category slug — shared with onboarding's
+  /// topic chips so a category looks the same everywhere. Panta's catalog
+  /// carries categories beyond its documented create list (pop-culture,
+  /// gaming, commodities, …); each gets a fitting mark.
+  static String categoryIcon(String category) => switch (category
       .toLowerCase()) {
     'crypto' => 'lightning-outline',
     'meme-coins' => 'fire-outline',

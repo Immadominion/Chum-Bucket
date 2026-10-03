@@ -25,6 +25,8 @@ import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.
 import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/market_picker_sheet.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
+import 'package:chumbucket/features/onboarding/domain/onboarding_data.dart';
+import 'package:chumbucket/features/onboarding/onboarding_controller.dart';
 import 'package:chumbucket/features/people/data/people_models.dart';
 import 'package:chumbucket/features/people/presentation/search_screen.dart';
 import 'package:chumbucket/features/people/presentation/widgets/top_calls_strip.dart';
@@ -44,11 +46,18 @@ class CallFeedScreen extends StatefulWidget {
   final VoidCallback? onSignInRequested;
   final VoidCallback? onBrowseMarkets;
 
+  /// Onboarding's "Make Home yours" card, at the top of the feed. It is laid
+  /// out only while onboarding offers it ([OnboardingController
+  /// .homeCardEligible]), so for everyone else the feed starts exactly where
+  /// it always did — no empty slot, no extra gap.
+  final Widget? topBanner;
+
   const CallFeedScreen({
     super.key,
     this.showHeader = true,
     this.onSignInRequested,
     this.onBrowseMarkets,
+    this.topBanner,
   });
 
   @override
@@ -114,11 +123,22 @@ class _CallFeedScreenState extends State<CallFeedScreen>
 
   /// The strip, or nothing: shown only with real entries, never a skeleton
   /// that could read as activity.
+  /// [CallFeedScreen.topBanner], while onboarding offers it; else nothing.
+  Widget? _shownBanner() {
+    final banner = widget.topBanner;
+    if (banner == null) return null;
+    final offered =
+        context.watch<OnboardingController?>()?.homeCardEligible ?? false;
+    return offered ? banner : null;
+  }
+
   Widget? _topCallsStrip(CallsProvider provider) {
     final calls = provider.topCalls;
     if (calls == null || calls.isEmpty) return null;
+    // Chosen topics first, otherwise the server's order (a stable sort).
+    final topics = context.watch<OnboardingController?>()?.topics ?? const {};
     return TopCallsStrip(
-      calls: calls,
+      calls: topCallsForTopics(calls, topics),
       onOpen: (TopCall call) => _openCall(call.call.id),
     );
   }
@@ -251,13 +271,24 @@ class _CallFeedScreenState extends State<CallFeedScreen>
       case CallsLoadState.empty:
         if (provider.feedMode == CallFeedMode.global &&
             widget.onBrowseMarkets != null) {
-          return CallsEmptyView(
+          final empty = CallsEmptyView(
             title: 'The first call could be yours',
             message:
                 'Pick a real market. Put your view on record. '
                 'Invite someone to Back or Fade it.',
             actionLabel: 'Explore markets',
             onAction: widget.onBrowseMarkets,
+          );
+          final banner = _shownBanner();
+          if (banner == null) return empty;
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: banner,
+              ),
+              Expanded(child: empty),
+            ],
           );
         }
         if (!provider.isSignedIn) {
@@ -318,7 +349,9 @@ class _CallFeedScreenState extends State<CallFeedScreen>
               ..sort((a, b) => b.call.createdAt.compareTo(a.call.createdAt));
         final receipt = receipts.firstOrNull;
         final strip = _topCallsStrip(provider);
+        final banner = _shownBanner();
         final headers = <Widget>[
+          if (banner != null) banner,
           if (receipt != null)
             _ReceiptNudge(entry: receipt, onTap: () => _shareReceipt(receipt)),
           if (strip != null) strip,

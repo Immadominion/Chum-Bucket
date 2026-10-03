@@ -5,6 +5,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:chumbucket/core/analytics/analytics_event.dart';
 import 'package:chumbucket/core/services/push_registration.dart';
 import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
@@ -20,15 +21,43 @@ Future<CallResponseResult?> showCallResponseSheet({
   required BuildContext context,
   required CallFeedEntry entry,
   CallResponseKind? initialKind,
+  String? note,
+  AnalyticsSurface? surface,
+  bool askForNotifications = true,
 }) => showChumbucketWavySheet<CallResponseResult>(
   context: context,
-  builder: (_) => CallResponseSheet(entry: entry, initialKind: initialKind),
+  builder:
+      (_) => CallResponseSheet(
+        entry: entry,
+        initialKind: initialKind,
+        note: note,
+        surface: surface,
+        askForNotifications: askForNotifications,
+      ),
 );
 
 class CallResponseSheet extends StatefulWidget {
   final CallFeedEntry entry;
   final CallResponseKind? initialKind;
-  const CallResponseSheet({super.key, required this.entry, this.initialKind});
+
+  /// A note above the form (after an onboarding sign-in).
+  final String? note;
+
+  /// Where the response was made, for analytics.
+  final AnalyticsSurface? surface;
+
+  /// After a Back/Fade/Challenge, explain-then-ask for notifications
+  /// (lockdown's in-context ask). Onboarding passes false: its "You're on
+  /// record" step asks there.
+  final bool askForNotifications;
+  const CallResponseSheet({
+    super.key,
+    required this.entry,
+    this.initialKind,
+    this.note,
+    this.surface,
+    this.askForNotifications = true,
+  });
   @override
   State<CallResponseSheet> createState() => _CallResponseSheetState();
 }
@@ -65,11 +94,14 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
           thesis: _note.text.trim().isEmpty ? null : _note.text.trim(),
           visibility: _visibility,
         ),
+        surface: widget.surface,
       );
       if (!mounted) return;
       final root = Navigator.of(context, rootNavigator: true).context;
       Navigator.of(context).pop(result);
-      if (root.mounted) unawaited(PushRegistration.afterSocialAction(root));
+      if (widget.askForNotifications && root.mounted) {
+        unawaited(PushRegistration.afterSocialAction(root));
+      }
     } on CallsException catch (e) {
       if (mounted) setState(() => _error = e.message);
     }
@@ -118,6 +150,8 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
                   const CallJourneyNote(
                     'DEMO DATA · Sample market, not a live call.',
                   ),
+                if (widget.note != null)
+                  CallJourneyNote(widget.note!, icon: 'user-outline'),
                 CallJourneyPerson(
                   person: entry.author,
                   subtitle:

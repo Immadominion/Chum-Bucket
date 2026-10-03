@@ -81,6 +81,12 @@ class _RecordingAccount implements AccountApi {
 
   @override
   Future<void> unregisterPushToken(String token) async {}
+
+  /// Whether this fake server sends pushes (`account.pushStatus`).
+  bool serverSendsPushes = true;
+
+  @override
+  Future<bool> pushStatus() async => serverSendsPushes;
 }
 
 class _FakePush implements PushPlatform {
@@ -331,7 +337,10 @@ void main() {
     });
     tearDown(() => PushRegistration.platform = const FcmPushPlatform());
 
-    Future<BuildContext> mount(WidgetTester tester) async {
+    Future<BuildContext> mount(
+      WidgetTester tester, {
+      _RecordingAccount? account,
+    }) async {
       late BuildContext ctx;
       await tester.pumpWidget(
         _app(
@@ -341,11 +350,51 @@ void main() {
               return const SizedBox();
             },
           ),
-          account: _RecordingAccount(),
+          account: account ?? _RecordingAccount(),
         ),
       );
       return ctx;
     }
+
+    testWidgets('a server that sends no pushes is never asked for one', (
+      tester,
+    ) async {
+      final ctx = await mount(
+        tester,
+        account: _RecordingAccount()..serverSendsPushes = false,
+      );
+      await PushRegistration.afterSocialAction(ctx);
+      await tester.pumpAndSettle();
+      expect(find.text('Know when it lands'), findsNothing);
+      expect(push.prompts, 0);
+    });
+
+    testWidgets('three asks, or two refusals, and it never asks again', (
+      tester,
+    ) async {
+      final ctx = await mount(tester);
+      var at = DateTime.utc(2026, 10, 3);
+      PushRegistration.clock = () => at;
+      addTearDown(() => PushRegistration.clock = DateTime.now);
+      push.grant = false;
+      for (var i = 0; i < 2; i++) {
+        final done = PushRegistration.afterSocialAction(ctx);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Turn on notifications'));
+        await tester.pumpAndSettle();
+        await done;
+        at = at.add(const Duration(days: 15));
+      }
+      expect(push.prompts, 2);
+      expect(
+        (await PushRegistration.readRecord()).permanentlyDenied,
+        isTrue,
+      );
+      await PushRegistration.afterSocialAction(ctx);
+      await tester.pumpAndSettle();
+      expect(find.text('Know when it lands'), findsNothing);
+      expect(push.prompts, 2);
+    });
 
     testWidgets('explains first; "Not now" never shows the OS prompt', (
       tester,

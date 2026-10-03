@@ -80,6 +80,9 @@ class _Account implements AccountApi {
 
   @override
   Future<void> unregisterPushToken(String token) => throw UnimplementedError();
+
+  @override
+  Future<bool> pushStatus() async => false;
 }
 
 class _Harness {

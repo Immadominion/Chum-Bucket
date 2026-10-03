@@ -107,11 +107,15 @@ class FcmTokenService {
       debugPrint('🔔 FCM Permission status: ${settings.authorizationStatus}');
     }
 
-    // Also request local notification permission for displaying notifications
-    // when app is in foreground
-    final localNotifGranted = await NotificationService.requestPermission();
-    if (kDebugMode) {
-      debugPrint('🔔 Local notification permission: $localNotifGranted');
+    // The local-notifications plugin (foreground display) asks for the same
+    // permission. Only once it is granted: on Android 13+ asking again after
+    // a refusal shows the OS dialog a second time, back to back — two
+    // dialogs for one "Notify me", and the second refusal makes it final.
+    if (granted) {
+      final localNotifGranted = await NotificationService.requestPermission();
+      if (kDebugMode) {
+        debugPrint('🔔 Local notification permission: $localNotifGranted');
+      }
     }
 
     return granted;

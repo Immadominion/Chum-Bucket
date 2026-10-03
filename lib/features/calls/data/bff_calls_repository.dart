@@ -61,9 +61,14 @@ import 'package:chumbucket/features/calls/data/calls_bff_transport.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/people/data/people_models.dart';
 import 'package:chumbucket/features/people/data/people_repository.dart';
+import 'package:chumbucket/features/people/data/people_suggestions.dart';
 
 class BffCallsRepository
-    implements CallsRepository, CallsCatalogRepository, PeopleRepository {
+    implements
+        CallsRepository,
+        CallsCatalogRepository,
+        PeopleRepository,
+        PeopleSuggestionsRepository {
   /// [httpClient] is the test seam: inject one and no socket is ever opened.
   /// [authToken] supplies the session; returning null simply means signed out.
   BffCallsRepository({
@@ -104,6 +109,7 @@ class BffCallsRepository
   static const String searchPeopleProcedure = 'people.search';
   static const String followingProcedure = 'people.following';
   static const String topCallsProcedure = 'calls.top';
+  static const String suggestedPeopleProcedure = 'people.suggested';
   static const String addUpdateProcedure = 'calls.addUpdate';
 
   /// Where this repository is pointed. Useful in a debug screen; never a
@@ -401,6 +407,25 @@ class BffCallsRepository
     final data = await _transport.query(topCallsProcedure, {'limit': limit});
     return topCallsFromJson(requireJsonMap(data, '$topCallsProcedure result'));
   });
+
+  /// `people.suggested`. A server without it raises
+  /// [PeopleSuggestionsUnavailable]: the caller composes from deployed reads.
+  @override
+  Future<PeopleSuggestions> fetchSuggestedPeople({int limit = 10}) async {
+    try {
+      final data = await _transport.query(suggestedPeopleProcedure, {
+        'limit': limit.clamp(1, 20),
+      });
+      return PeopleSuggestions.fromJson(
+        requireJsonMap(data, '$suggestedPeopleProcedure result'),
+      );
+    } on CallsRejectedException catch (e) {
+      if (_missingProcedure.hasMatch(e.message)) {
+        throw const PeopleSuggestionsUnavailable();
+      }
+      rethrow;
+    }
+  }
 
   @override
   Future<ThesisUpdate> appendThesisUpdate({

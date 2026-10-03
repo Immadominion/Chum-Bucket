@@ -54,19 +54,30 @@ void main() {
     }
   });
 
-  test('no single bundled file over 3 MB, except the onboarding animations', () {
-    // The onboarding GIFs (~25 MB) belong to the onboarding rewrite (B6),
-    // which replaces them with lightweight art; they are allowed here until
-    // then and nothing else is.
-    const pendingOnboarding = 'assets/animations/whisk_ai_generate/';
+  test('no single bundled file over 3 MB', () {
     for (final p in bundled) {
-      if (p.startsWith(pendingOnboarding)) continue;
       expect(File(p).lengthSync(), lessThan(3 * 1024 * 1024), reason: p);
     }
   });
 
-  test('total bundled assets stay under 45 MB', () {
+  test('the old onboarding GIFs, fallback stills and music are gone (B6)', () {
+    // The onboarding rewrite replaced them with brand art and Lottie that
+    // were already in the app; nothing references them any more.
+    for (final gone in const [
+      'assets/animations/whisk_ai_generate/',
+      'assets/images/ai_gen/whisk_animation_fallback/',
+      'assets/audio/',
+    ]) {
+      expect(entries, isNot(contains(gone)), reason: gone);
+      expect(Directory(gone).existsSync(), isFalse, reason: gone);
+    }
+    expect(bundled.where((p) => p.endsWith('.gif')), isEmpty);
+    expect(bundled.where((p) => p.endsWith('.mp3')), isEmpty);
+  });
+
+  test('total bundled assets stay under 15 MB', () {
+    // About 10 MB once the onboarding GIFs went (was 37 MB with them).
     final total = bundled.fold<int>(0, (s, p) => s + File(p).lengthSync());
-    expect(total, lessThan(45 * 1024 * 1024));
+    expect(total, lessThan(15 * 1024 * 1024));
   });
 }

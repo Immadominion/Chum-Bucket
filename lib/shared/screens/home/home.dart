@@ -6,6 +6,8 @@ import 'package:chumbucket/features/authentication/presentation/widgets/claim_ha
 import 'package:chumbucket/features/calls/presentation/screens/call_feed_screen.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_markets_screen.dart';
 import 'package:chumbucket/features/challenges/presentation/screens/challenge_history_screen.dart';
+import 'package:chumbucket/features/onboarding/domain/onboarding_steps.dart';
+import 'package:chumbucket/features/onboarding/presentation/onboarding_home.dart';
 import 'package:chumbucket/features/profile/presentation/screens/profile_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -235,6 +237,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   CallFeedScreen(
                     onSignInRequested: () => requestCallSignIn(context),
                     onBrowseMarkets: _openCallMarkets,
+                    topBanner: const HomeSetupCard(),
                   )
                 else
                   PredictionsHomeTab(
@@ -294,10 +297,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         systemNavigationBarColor: AppColors.background,
         systemNavigationBarIconBrightness: Brightness.dark,
       ),
-      // An account without a @username is asked, once, to claim one.
+      // An account without a @username is asked, once, to claim one — on
+      // onboarding's full-screen step. Onboarding's arrival (Following when it
+      // has calls, follows applied, a waiting draft offered again) runs here.
       child:
           widget.callReceiptExperienceEnabled
-              ? UsernameClaimPrompt(child: shell)
+              ? OnboardingHomeEffects(
+                child: UsernameClaimPrompt(
+                  present:
+                      (context) => presentOnboardingOverlay(
+                        context,
+                        OnboardingRun.claimOnly,
+                      ),
+                  child: shell,
+                ),
+              )
               : shell,
     );
   }

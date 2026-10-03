@@ -7,6 +7,8 @@ import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
 import 'package:chumbucket/features/market_creation/market_creation.dart';
+import 'package:chumbucket/features/onboarding/domain/onboarding_data.dart';
+import 'package:chumbucket/features/onboarding/onboarding_controller.dart';
 import 'package:chumbucket/shared/screens/home/widgets/header.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:flutter/material.dart';
@@ -44,12 +46,29 @@ class _CallMarketsScreenState extends State<CallMarketsScreen> {
   final _requestedPrices = <String>{};
   String? _priceViewer;
 
+  /// "For you": the topics chosen in onboarding (or Settings) first, then the
+  /// rest under "More on Panta". On by default the first time after topics
+  /// were chosen; afterwards it is whatever was last picked here.
+  bool _forYou = false;
+  bool _forYouDecided = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<CallsProvider>().loadOpenMarkets();
     });
+  }
+
+  void _decideForYou(OnboardingController? app) {
+    if (_forYouDecided || app == null || !app.loaded) return;
+    _forYouDecided = true;
+    if (app.record.forYouPending && app.topics.isNotEmpty) {
+      _forYou = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) app.consumeForYou();
+      });
+    }
   }
 
   Future<void> _refresh() async {
@@ -83,6 +102,17 @@ class _CallMarketsScreenState extends State<CallMarketsScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<CallsProvider>();
+    final app = context.watch<OnboardingController?>();
+    _decideForYou(app);
+    final topics = app?.topics ?? const <String>{};
+    if (app != null && app.record.forYouPending && topics.isNotEmpty) {
+      // Topics were (re)chosen while this tab was alive: show them first.
+      if (!_forYou) _forYou = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) app.consumeForYou();
+      });
+    }
+    final forYou = _forYou && topics.isNotEmpty;
     if (_priceViewer != provider.viewerUserId) {
       _priceViewer = provider.viewerUserId;
       _requestedPrices.clear();
@@ -98,13 +128,20 @@ class _CallMarketsScreenState extends State<CallMarketsScreen> {
     final sort = hasActivity ? _sort : MarketDiscoverySort.closingSoon;
     final openCount = categories.fold(0, (sum, entry) => sum + entry.count);
     final filtered = _window != MarketDiscoveryWindow.all || category != null;
-    final rows = discoveryMarkets(
+    final listed = discoveryMarkets(
       open,
       window: _window,
       query: _query,
-      category: category,
+      category: forYou ? null : category,
       sort: sort,
     );
+    final split = forYou ? forYouOrder(listed, topics) : null;
+    final rows = split == null ? listed : [...split.chosen, ...split.more];
+    // Where "More on Panta" begins, when For you splits the list.
+    final moreAt =
+        split != null && split.chosen.isNotEmpty && split.more.isNotEmpty
+            ? split.chosen.length
+            : null;
     final bottomPadding = widget.embedded ? 128.0 : 24.0;
     final content = RefreshIndicator(
       onRefresh: _refresh,
@@ -188,8 +225,14 @@ class _CallMarketsScreenState extends State<CallMarketsScreen> {
                 child: MarketCategoryFilters(
                   categories: categories,
                   selected: category,
-                  onChanged: (value) => setState(() => _category = value),
+                  onChanged:
+                      (value) => setState(() {
+                        _category = value;
+                        _forYou = false;
+                      }),
                   padding: const EdgeInsets.symmetric(horizontal: 16),
+                  forYouSelected: topics.isEmpty ? null : forYou,
+                  onForYou: () => setState(() => _forYou = !_forYou),
                 ),
               ),
             ),
@@ -330,11 +373,15 @@ class _CallMarketsScreenState extends State<CallMarketsScreen> {
                 itemBuilder: (context, index) {
                   final market = rows[index];
                   _requestPrice(market.id);
-                  return ClipRRect(
+                  final row = ClipRRect(
                     borderRadius: BorderRadius.vertical(
-                      top: index == 0 ? const Radius.circular(22) : Radius.zero,
+                      top:
+                          index == 0 || index == moreAt
+                              ? const Radius.circular(22)
+                              : Radius.zero,
                       bottom:
-                          index == rows.length - 1
+                          index == rows.length - 1 ||
+                                  (moreAt != null && index == moreAt - 1)
                               ? const Radius.circular(22)
                               : Radius.zero,
                     ),
@@ -354,7 +401,8 @@ class _CallMarketsScreenState extends State<CallMarketsScreen> {
                                 ),
                               ),
                         ),
-                        if (index < rows.length - 1)
+                        if (index < rows.length - 1 &&
+                            (moreAt == null || index != moreAt - 1))
                           const ColoredBox(
                             color: AppColors.surface,
                             child: Padding(
@@ -367,6 +415,26 @@ class _CallMarketsScreenState extends State<CallMarketsScreen> {
                           ),
                       ],
                     ),
+                  );
+                  if (index != moreAt) return row;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(2, 18, 2, 10),
+                        child: Semantics(
+                          header: true,
+                          child: Text(
+                            'More on Panta',
+                            style: AppTextStyles.questionTitle.copyWith(
+                              fontSize: 15,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                        ),
+                      ),
+                      row,
+                    ],
                   );
                 },
               ),

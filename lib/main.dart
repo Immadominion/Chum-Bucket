@@ -6,7 +6,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/core/theme/app_theme.dart';
 import 'package:chumbucket/features/arena/providers/arena_provider.dart';
-import 'package:chumbucket/features/authentication/providers/onboarding_provider.dart';
+import 'package:chumbucket/features/onboarding/onboarding_controller.dart';
 // MWA Auth replaces Privy Auth for Solana Mobile compatibility
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/profile/providers/profile_provider.dart';
@@ -132,7 +132,9 @@ void main() async {
               Provider<SessionContinuity>.value(value: continuity),
               // MWA Wallet Provider for Pinocchio escrow transactions
               ChangeNotifierProvider(create: (_) => MwaWalletProvider()),
-              ChangeNotifierProvider(create: (_) => OnboardingProvider()),
+              // Onboarding's per-install memory: status, topics, and the
+              // follows and draft call waiting on a sign-in.
+              ChangeNotifierProvider(create: (_) => OnboardingController()),
               // MWA Auth Provider for wallet-based authentication (replaces Privy)
               ChangeNotifierProvider(create: (_) => MwaAuthProvider()),
               ChangeNotifierProvider(create: (_) => ProfileProvider()),

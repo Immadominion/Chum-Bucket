@@ -638,6 +638,54 @@ class CallsProvider extends ChangeNotifier {
     }
   }
 
+  /// Follow one canonical person by id, for a person who is not on screen
+  /// (follows chosen during onboarding, applied after sign-in). Idempotent on
+  /// the server: following someone already followed changes nothing. Returns
+  /// the server's confirmed state; throws as [setFollowing] does.
+  Future<bool> followPersonById(String personId) async {
+    final viewer = _viewerUserId;
+    if (viewer == null || viewer.isEmpty) throw const CallsSignedOutException();
+    if (personId == viewer) {
+      throw const CallsRejectedException("You can't follow yourself.");
+    }
+    if (_followsInFlight.contains(personId)) return true;
+    final key = 'follow:$personId';
+    final request = _beginRequest(key);
+    _followsInFlight.add(personId);
+    _notify();
+    try {
+      final confirmed = await _repository.setFollowing(
+        personId: personId,
+        following: true,
+        viewerUserId: viewer,
+      );
+      if (!_isCurrent(key, request)) throw _accountChanged;
+      _analytics.record(
+        AnalyticsEvents.followCreated(
+          personId: personId,
+          surface: AnalyticsSurface.onboarding,
+        ),
+      );
+      for (final ref in _personDetails.keys.toList()) {
+        final cached = _personDetails[ref];
+        if (cached?.person.id != personId) continue;
+        _personDetails[ref] = cached!.copyWith(viewerIsFollowing: confirmed);
+      }
+      // The follow list and the Following feed are read again when next
+      // shown, never edited here.
+      _requests.remove('following');
+      _isLoadingFollowing = false;
+      _following = null;
+      return confirmed;
+    } finally {
+      if (_isCurrent(key, request)) {
+        _requests.remove(key);
+        _followsInFlight.remove(personId);
+        _notify();
+      }
+    }
+  }
+
   // -------------------------------------------------------------------------
   // Writes
   // -------------------------------------------------------------------------

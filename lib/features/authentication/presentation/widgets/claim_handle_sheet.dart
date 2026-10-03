@@ -196,10 +196,15 @@ class UsernameClaimPrompt extends StatefulWidget {
     super.key,
     required this.child,
     this.memory = const PreferencesHandlePromptMemory(),
+    this.present,
   });
 
   final Widget child;
   final HandlePromptMemory memory;
+
+  /// How the claim is offered. Default: the claim sheet. The calls app
+  /// pushes onboarding's full-screen "Pick your @username" instead.
+  final Future<void> Function(BuildContext context)? present;
 
   @override
   State<UsernameClaimPrompt> createState() => _UsernameClaimPromptState();
@@ -236,7 +241,7 @@ class _UsernameClaimPromptState extends State<UsernameClaimPrompt> {
     }
     await widget.memory.markOffered(userId);
     if (!mounted) return;
-    await showClaimHandleSheet(context);
+    await (widget.present ?? showClaimHandleSheet)(context);
   }
 
   @override

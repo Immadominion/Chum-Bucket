@@ -18,6 +18,7 @@ library;
 
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_payloads.dart';
+import 'package:chumbucket/features/profile/data/avatar_catalog.dart';
 
 // ---------------------------------------------------------------------------
 // The public record
@@ -156,7 +157,12 @@ class PersonCard {
       json['displayName'],
       'PersonCard.displayName',
     ),
-    avatarUrl: json['avatarUrl'] as String?,
+    // The person's own picture, else the avatar they chose (1..5), as call
+    // authors render it (`personFromJson`).
+    avatarUrl: avatarImageFor(
+      avatarUrl: json['avatarUrl'] as String?,
+      avatarId: json['avatarId'],
+    ),
     record: PublicRecord.fromJson(
       recordJson ?? requireJsonMap(json['record'], 'PersonCard.record'),
     ),
