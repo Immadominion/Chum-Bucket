@@ -175,34 +175,42 @@ class _UsernameScreenState extends State<UsernameScreen> {
       setState(() => _error = problem);
       return;
     }
+    final calls = context.read<CallsProvider>();
     setState(() {
       _claiming = true;
       _error = null;
     });
+    // Back (system or arrow) waits while the claim is in flight: on A2 it
+    // would otherwise abandon the sign-in mid-claim.
+    flow.setBusy(true);
     _attempts++;
     String? error;
-    if (_newAccount) {
-      await session.completeProfile(_name.text.trim(), handle: handle);
-      if (!session.isReady) {
-        final failure = session.error;
-        error =
-            failure == null
-                ? OnboardingCopy.usernameNetwork
-                : failure.isNetwork
-                ? OnboardingCopy.usernameNetwork
-                : failure.message;
+    try {
+      if (_newAccount) {
+        await session.completeProfile(_name.text.trim(), handle: handle);
+        if (!session.isReady) {
+          final failure = session.error;
+          error =
+              failure == null
+                  ? OnboardingCopy.usernameNetwork
+                  : failure.isNetwork
+                  ? OnboardingCopy.usernameNetwork
+                  : failure.message;
+        }
+      } else {
+        final failure = await session.claimUsername(handle);
+        if (failure != null && failure.code != 'HANDLE_ALREADY_SET') {
+          error =
+              failure.isNetwork
+                  ? OnboardingCopy.usernameNetwork
+                  : failure.message;
+        }
       }
-    } else {
-      final failure = await session.claimUsername(handle);
-      if (failure != null && failure.code != 'HANDLE_ALREADY_SET') {
-        error =
-            failure.isNetwork
-                ? OnboardingCopy.usernameNetwork
-                : failure.message;
-      }
+    } finally {
+      flow.setBusy(false);
     }
-    if (!mounted) return;
     if (error == null) {
+      // Recorded even if the run has already moved on from this screen.
       final used = _suggestion != null && _suggestion!.handle == handle;
       flow.app.track(
         OnboardingAnalyticsEvents.usernameClaimed(
@@ -214,12 +222,9 @@ class _UsernameScreenState extends State<UsernameScreen> {
       );
       // The person's name and @handle show on their calls straight away.
       final userId = session.userId;
-      if (userId != null) {
-        unawaited(
-          context.read<CallsProvider>().loadPerson(userId, force: true),
-        );
-      }
+      if (userId != null) unawaited(calls.loadPerson(userId, force: true));
     }
+    if (!mounted) return;
     setState(() {
       _claiming = false;
       _error = error;
