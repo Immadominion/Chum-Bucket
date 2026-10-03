@@ -147,7 +147,12 @@ void main() async {
               ChangeNotifierProvider<ChumbucketSession>(
                 create: (_) {
                   final session = ChumbucketSession();
-                  if (AppConfig.callReceiptExperienceEnabled) session.restore();
+                  if (AppConfig.callReceiptExperienceEnabled) {
+                    session.restore();
+                    // Read which sign-ins are on before any sign-in screen
+                    // opens, so X does not pop in seconds after Google.
+                    session.loadEnabledProviders();
+                  }
                   return session;
                 },
               ),

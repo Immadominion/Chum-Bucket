@@ -360,6 +360,10 @@ class ChumbucketSession extends ChangeNotifier {
     if (_providers != null) return;
     final providers = await _auth.enabledProviders();
     if (_disposed) return;
+    // An empty answer means the read failed (offline at launch, a timeout):
+    // this project always has sign-ins on. Stay unknown so the next sign-in
+    // screen asks again instead of hiding Google and X for the session.
+    if (providers.isEmpty) return;
     _providers = providers;
     _notify();
   }

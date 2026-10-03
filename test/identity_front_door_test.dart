@@ -96,6 +96,18 @@ Future<void> _size(WidgetTester tester, double width) async {
 void main() {
   setUpAll(() => GoogleFonts.config.allowRuntimeFetching = false);
 
+  test('a failed providers read stays unknown, and a later read fills it', () async {
+    // Launch prefetches the providers; offline, the port answers {}. That must
+    // not hide Google and X for the rest of the session.
+    final door = _Door(providers: const {});
+    await door.session.loadEnabledProviders();
+    expect(door.session.enabledProviders, isNull);
+
+    door.auth.providers = const {'google', 'x'};
+    await door.session.loadEnabledProviders();
+    expect(door.session.enabledProviders, {'google', 'x'});
+  });
+
   testWidgets('offers wallet, Google and X; X only when it is switched on', (
     tester,
   ) async {
