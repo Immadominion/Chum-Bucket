@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
@@ -43,6 +44,12 @@ import 'package:chumbucket/core/services/fcm_token_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Every screen is designed for a phone held upright; sideways, W1's phone
+  // and the docked actions have no room.
+  await SystemChrome.setPreferredOrientations(const [
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
   // Release builds drop debugPrint output: it carried wallet and challenge
   // details into logcat. Errors still reach crash reporting (opt-in).
   AppLogger.installReleaseLogPolicy();
