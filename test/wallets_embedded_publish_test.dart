@@ -1,7 +1,9 @@
 /// Publishing a market with the wallet that lives on this phone: the signer
 /// refuses anything but a create shaped as the BFF builds and checks it
 /// (`PantaMarketCreator`, policy panta-create/docs-v1), for the market that
-/// was reviewed. Transactions are synthetic v0 creates in that shape.
+/// was reviewed, and only for Panta's USDC create instructions (mainnet makes
+/// markets with `CreateBreakingEventUsdc`). Transactions are synthetic v0
+/// creates in that shape.
 library;
 
 import 'dart:convert';
@@ -9,8 +11,10 @@ import 'dart:typed_data';
 
 import 'package:chumbucket/features/embedded_wallet/embedded_wallet_key.dart';
 import 'package:chumbucket/features/embedded_wallet/panta_embedded_create.dart';
+import 'package:chumbucket/features/embedded_wallet/panta_embedded_claim.dart'
+    show pantaClaimWinDiscriminator;
 import 'package:chumbucket/features/embedded_wallet/panta_embedded_wallet.dart'
-    show pantaMainnetProgramId;
+    show pantaMainnetProgramId, pantaPrimaryBuyDiscriminator;
 import 'package:chumbucket/features/panta_trading/panta_trading.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:solana/encoder.dart';
@@ -43,12 +47,21 @@ Future<Uint8List> _create(
   String program = pantaMainnetProgramId,
   bool transferOut = false,
   int computePrice = 5000,
+  List<int>? computePriceBytes,
   bool signed = false,
+  List<int>? discriminator,
+  String? ataFor,
 }) async {
   final roles = [for (var i = 1; i <= 3; i++) await _account(i)];
   final ownerUsdc =
       (await findAssociatedTokenAddress(
         owner: _pk(owner),
+        mint: _pk(_usdc),
+      )).toBase58();
+  final ataOwner = ataFor ?? owner;
+  final ataAccount =
+      (await findAssociatedTokenAddress(
+        owner: _pk(ataOwner),
         mint: _pk(_usdc),
       )).toBase58();
   AccountMeta w(String k, {bool signer = false}) =>
@@ -67,16 +80,20 @@ Future<Uint8List> _create(
         accounts: const [],
         data: ByteArray([
           3,
-          ...(ByteData(8)
-            ..setUint64(0, computePrice, Endian.little)).buffer.asUint8List(),
+          ...computePriceBytes ??
+              (ByteData(8)..setUint64(
+                0,
+                computePrice,
+                Endian.little,
+              )).buffer.asUint8List(),
         ]),
       ),
       Instruction(
         programId: _pk(_ata),
         accounts: [
           w(owner, signer: true),
-          w(ownerUsdc),
-          r(owner),
+          w(ataAccount),
+          r(ataOwner),
           r(_usdc),
           r(_system),
           r(_token),
@@ -95,7 +112,13 @@ Future<Uint8List> _create(
           r(_token),
           r(_system),
         ],
-        data: ByteArray([7, 1, 2, 3]),
+        data: ByteArray([
+          ...discriminator ?? pantaCreateDiscriminators.last,
+          7,
+          1,
+          2,
+          3,
+        ]),
       ),
       if (transferOut)
         Instruction(
@@ -165,6 +188,42 @@ void main() {
       await refuses(_create(key.address, event, signed: true));
       // Paid by someone else.
       await refuses(_create(await _account(5), event));
+      // A u64 price with its top bit set must not wrap under the ceiling.
+      await refuses(
+        _create(key.address, event, computePriceBytes: List.filled(8, 0xff)),
+      );
+    },
+  );
+
+  test(
+    'signs either USDC create; refuses a buy or a claim dressed as one',
+    () async {
+      for (final create in pantaCreateDiscriminators) {
+        await port(reviewedEvent: event).signTransaction(
+          await _create(key.address, event, discriminator: create),
+        );
+      }
+      await refuses(
+        _create(
+          key.address,
+          event,
+          discriminator: pantaPrimaryBuyDiscriminator,
+        ),
+      );
+      await refuses(
+        _create(key.address, event, discriminator: pantaClaimWinDiscriminator),
+      );
+    },
+  );
+
+  test(
+    'a USDC account is made only for this wallet or one the create names',
+    () async {
+      // roles[0] is an account the create instruction names (like `derived`).
+      await port(reviewedEvent: event).signTransaction(
+        await _create(key.address, event, ataFor: await _account(1)),
+      );
+      await refuses(_create(key.address, event, ataFor: await _account(77)));
     },
   );
 

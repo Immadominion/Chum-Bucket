@@ -2,10 +2,10 @@
 ///
 /// The positions themselves come from the BFF, keyed by the canonical
 /// session. Claim signing is resolved per wallet through
-/// [PantaSignerResolver]: today a connected wallet app over Mobile Wallet
-/// Adapter signs for its own address. fleet/identity adds the wallet that
-/// lives on this phone by extending [profilePantaSigners] — the flows here do
-/// not change.
+/// [PantaSignerResolver] ([profilePantaSigners]): a connected wallet app over
+/// Mobile Wallet Adapter signs for its own address; otherwise the account's
+/// linked wallet on this phone signs a win claim for its own address, and only
+/// the reviewed claim (`PantaEmbeddedClaimWallet`).
 library;
 
 import 'package:flutter/material.dart';
@@ -17,14 +17,35 @@ import 'package:chumbucket/features/authentication/session/chumbucket_session.da
 import 'package:chumbucket/features/authentication/session/panta_mwa_wallet.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_transport.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_detail_screen.dart';
+import 'package:chumbucket/features/embedded_wallet/embedded_wallet_controller.dart';
+import 'package:chumbucket/features/embedded_wallet/panta_embedded_claim.dart';
 import 'package:chumbucket/features/panta_trading/panta_trading.dart';
 
-/// The signers this device can offer for a Panta approval on [wallet].
-PantaSignerResolver profilePantaSigners(MwaAuthProvider? auth) =>
-    (wallet, intent) =>
-        auth != null && auth.isAuthenticated && auth.walletAddress == wallet
-            ? PantaMwaWallet(auth)
-            : null;
+/// The signers this device can offer for a Panta approval on [wallet], in
+/// `choosePantaSigner`'s order: a connected wallet app for its own address,
+/// else the linked wallet on this phone (its `signer` is null until the
+/// server confirmed it is the account's) for a win claim on its own address.
+PantaSignerResolver profilePantaSigners(
+  MwaAuthProvider? auth, [
+  EmbeddedWalletController? onPhone,
+]) => (wallet, intent) {
+  if (auth != null && auth.isAuthenticated && auth.walletAddress == wallet) {
+    return PantaMwaWallet(auth);
+  }
+  final key = onPhone?.signer;
+  if (onPhone != null &&
+      key != null &&
+      key.address == wallet &&
+      intent is PantaClaimSigningIntent &&
+      intent.owner == wallet) {
+    return PantaEmbeddedClaimWallet(
+      // Re-read at signing: signed out or another account means no key.
+      signer: () => onPhone.signer,
+      intent: intent,
+    );
+  }
+  return null;
+};
 
 class ProfilePositionsTab extends StatefulWidget {
   const ProfilePositionsTab({super.key, this.controllerOverride});
@@ -51,6 +72,7 @@ class _ProfilePositionsTabState extends State<ProfilePositionsTab> {
     final session = context.read<ChumbucketSession?>();
     if (session == null) return;
     final auth = context.read<MwaAuthProvider?>();
+    final onPhone = context.read<EmbeddedWalletController?>();
     try {
       _client = PantaTradingClient(
         baseUri: Uri.parse(resolveCallsBffBaseUrl()),
@@ -64,7 +86,7 @@ class _ProfilePositionsTabState extends State<ProfilePositionsTab> {
       );
       _controller = PantaPositionsController(
         client: _client!,
-        signerFor: profilePantaSigners(auth),
+        signerFor: profilePantaSigners(auth, onPhone),
       );
     } on ArgumentError {
       // A build without an HTTPS calls server cannot reach funded positions.
