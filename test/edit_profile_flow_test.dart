@@ -67,12 +67,6 @@ class _Account implements AccountApi {
   }
 
   @override
-  Future<AddWalletFriendResult> addWalletFriend({
-    required String walletAddress,
-    String? nickname,
-  }) => throw UnimplementedError();
-
-  @override
   Future<bool> registerPushToken({
     required String token,
     required String platform,

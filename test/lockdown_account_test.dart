@@ -1,7 +1,8 @@
 // Lockdown, app side (prod readiness B1, M1, M2, M3, M7, M9, B3):
 //
-// * every profile, avatar and add-friend write goes to the BFF with the
-//   session, never through the anon client keyed by a wallet;
+// * every profile and avatar write goes to the BFF with the session, never
+//   through the anon client keyed by a wallet (adding a friend is a follow,
+//   people.follow, tested in add_friend_sheet_test.dart);
 // * other people's avatars render from their chosen avatar id;
 // * the notification permission is asked in context, once, and the device is
 //   registered for the ACCOUNT;
@@ -22,8 +23,6 @@ import 'package:chumbucket/features/notifications/data/notification_models.dart'
 import 'package:chumbucket/features/profile/data/account_api.dart';
 import 'package:chumbucket/features/profile/data/avatar_catalog.dart';
 import 'package:chumbucket/features/profile/providers/profile_provider.dart';
-import 'package:chumbucket/shared/services/friend_connection_service.dart';
-import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/widgets/profile_picture_selection_modal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -36,7 +35,6 @@ import 'bff_calls_fixtures.dart';
 class _RecordingAccount implements AccountApi {
   final calls = <String>[];
   int? savedAvatar;
-  ({String wallet, String? nickname})? friend;
   bool pushEnabled = true;
   final tokens = <String>[];
 
@@ -55,19 +53,6 @@ class _RecordingAccount implements AccountApi {
     calls.add('updateProfile');
     savedAvatar = avatarId;
     return AccountProfile(userId: 'usr_google_only', avatarId: avatarId);
-  }
-
-  @override
-  Future<AddWalletFriendResult> addWalletFriend({
-    required String walletAddress,
-    String? nickname,
-  }) async {
-    calls.add('addWalletFriend');
-    friend = (wallet: walletAddress, nickname: nickname);
-    return const AddWalletFriendResult(
-      friendUserId: 'usr_friend',
-      alreadyFriends: false,
-    );
   }
 
   @override
@@ -294,39 +279,6 @@ void main() {
       expect(find.byType(ProfilePictureSelectionModal), findsNothing);
     },
   );
-
-  group('add a friend by wallet goes to the BFF (M1)', () {
-    test('the typed name travels as the adder\'s nickname', () async {
-      final account = _RecordingAccount();
-      final service = ExistingFriendConnectionService(
-        MwaAuthProvider(),
-        () => throw UnimplementedError(),
-        account: () => account,
-      );
-      final ok = await service.addWallet(
-        owner: '11111111111111111111111111111111',
-        name: 'Bob from work',
-        address: '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
-      );
-      expect(ok, isTrue);
-      expect(account.friend, (
-        wallet: '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
-        nickname: 'Bob from work',
-      ));
-    });
-
-    test('with no Chumbucket account it asks for sign-in', () async {
-      final service = ExistingFriendConnectionService(
-        MwaAuthProvider(),
-        () => throw UnimplementedError(),
-        account: () => null,
-      );
-      await expectLater(
-        service.addWallet(owner: 'o', name: 'n', address: 'a'),
-        throwsA(isA<CallsSignedOutException>()),
-      );
-    });
-  });
 
   group('notification permission is asked in context (M7)', () {
     late _FakePush push;

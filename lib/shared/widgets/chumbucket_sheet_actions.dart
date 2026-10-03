@@ -55,6 +55,9 @@ class ChumbucketPrimaryButton extends StatelessWidget {
       button: true,
       enabled: enabled,
       label: busy ? (busyLabel ?? label) : label,
+      // The label stands in for the subtree, so the tap has to as well, or a
+      // screen reader could announce the button but not press it.
+      onTap: enabled ? onPressed : null,
       excludeSemantics: true,
       child: Opacity(
         // A disabled action keeps its shape and colour, at half strength.
