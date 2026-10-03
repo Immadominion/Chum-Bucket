@@ -32,22 +32,29 @@ class TopicsScreen extends StatelessWidget {
         flow.selectedTopics
             .where((s) => flow.topics.any((t) => t.slug == s))
             .length;
+    // The tiles dock above Continue, where a thumb reaches. At large text
+    // they would fill the screen there, so they move into the page (one to
+    // a row) and the sticky area keeps only Continue.
+    final docked = MediaQuery.textScalerOf(context).scale(10) <= 13;
+    final tiles = [
+      Center(child: Text(OnboardingCopy.topicsNote, style: OnbText.small)),
+      const SizedBox(height: 12),
+      if (loading)
+        const TopicChipsSkeleton()
+      else
+        TopicTiles(
+          topics: flow.topics,
+          selected: flow.selectedTopics,
+          onToggle: flow.toggleTopic,
+          columns: docked ? 2 : 1,
+        ),
+    ];
     return OnboardingScaffold(
       onBack: flow.canGoBack ? flow.back : null,
       progress: flow.progress,
       announce: OnboardingCopy.topicsTitle,
       actions: [
-        Center(child: Text(OnboardingCopy.topicsNote, style: OnbText.small)),
-        const SizedBox(height: 12),
-        if (loading)
-          const TopicChipsSkeleton()
-        else
-          TopicTiles(
-            topics: flow.topics,
-            selected: flow.selectedTopics,
-            onToggle: flow.toggleTopic,
-          ),
-        const SizedBox(height: 16),
+        if (docked) ...[...tiles, const SizedBox(height: 16)],
         ChumbucketPrimaryButton(
           key: const ValueKey('topics-continue'),
           label:
@@ -63,6 +70,7 @@ class TopicsScreen extends StatelessWidget {
         const Center(
           child: ChumbucketStateArt(ChumbucketStateArtwork.search, size: 190),
         ),
+        if (!docked) ...[const SizedBox(height: 24), ...tiles],
       ],
     );
   }

@@ -307,6 +307,8 @@ WelcomeFeed chooseWelcomeFeed({
     ...?feed,
   ]) {
     if (e.call.visibility != CallVisibility.public ||
+        // Never a demo row, live or settled (a fixture result is not real).
+        e.market.venue.isDemo ||
         !isShowablePerson(
           displayName: e.author.displayName,
           handle: e.author.handle,

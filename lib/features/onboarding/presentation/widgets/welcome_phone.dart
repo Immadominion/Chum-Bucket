@@ -54,84 +54,90 @@ class WelcomePhone extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final still = !onbAmbient(context);
-    return LayoutBuilder(
-      builder: (context, box) {
-        final width = math.min(box.maxWidth * 0.74, 340.0);
-        // Taller than the stage: the phone runs past the bottom and dissolves
-        // there, so no bottom edge ever shows.
-        final height = math.max(width * 2.18, box.maxHeight * 1.35);
-        final people = _people(feed);
-        return ShaderMask(
-          // The phone dissolves into the page instead of ending on an edge.
-          blendMode: BlendMode.dstIn,
-          shaderCallback: (rect) {
-            final end =
-                rect.height <= 0
-                    ? 1.0
-                    : (1 - (clearBottom + 12) / rect.height).clamp(.4, 1.0);
-            return LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: const [Colors.white, Colors.white, Colors.transparent],
-              stops: [0, (end - .36).clamp(0.0, end), end],
-            ).createShader(rect);
-          },
-          child: ClipRect(
-            child: OverflowBox(
-              alignment: Alignment.topCenter,
-              minHeight: 0,
-              maxHeight: double.infinity,
-              child: _PeekHint(
-                enabled: !still,
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 18),
-                  child: Transform(
-                    alignment: Alignment.topCenter,
-                    transform:
-                        Matrix4.identity()
-                          ..setEntry(3, 2, 0.0013)
-                          ..rotateX(tilt),
-                    child: SizedBox(
-                      width: width + 72,
-                      height: height,
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Positioned(
-                            left: 36,
-                            top: 0,
-                            width: width,
-                            height: height,
-                            child: _PhoneFrame(
-                              child: _PreviewFeed(
-                                feed: feed,
-                                offline: offline,
-                                now: now,
-                                animate: !still,
-                                onOpenCall: onOpenCall,
-                                onOpenMarket: onOpenMarket,
+    // A miniature of the app, drawn at a fixed card size: its text does not
+    // grow with the system text size (large text would only clip it). Each
+    // card is still one labelled button, and opens the full, scalable view.
+    return MediaQuery.withClampedTextScaling(
+      maxScaleFactor: 1,
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final width = math.min(box.maxWidth * 0.74, 340.0);
+          // Taller than the stage: the phone runs past the bottom and dissolves
+          // there, so no bottom edge ever shows.
+          final height = math.max(width * 2.18, box.maxHeight * 1.35);
+          final people = _people(feed);
+          return ShaderMask(
+            // The phone dissolves into the page instead of ending on an edge.
+            blendMode: BlendMode.dstIn,
+            shaderCallback: (rect) {
+              final end =
+                  rect.height <= 0
+                      ? 1.0
+                      : (1 - (clearBottom + 12) / rect.height).clamp(.4, 1.0);
+              return LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: const [Colors.white, Colors.white, Colors.transparent],
+                stops: [0, (end - .36).clamp(0.0, end), end],
+              ).createShader(rect);
+            },
+            child: ClipRect(
+              child: OverflowBox(
+                alignment: Alignment.topCenter,
+                minHeight: 0,
+                maxHeight: double.infinity,
+                child: _PeekHint(
+                  enabled: !still,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 18),
+                    child: Transform(
+                      alignment: Alignment.topCenter,
+                      transform:
+                          Matrix4.identity()
+                            ..setEntry(3, 2, 0.0013)
+                            ..rotateX(tilt),
+                      child: SizedBox(
+                        width: width + 72,
+                        height: height,
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Positioned(
+                              left: 36,
+                              top: 0,
+                              width: width,
+                              height: height,
+                              child: _PhoneFrame(
+                                child: _PreviewFeed(
+                                  feed: feed,
+                                  offline: offline,
+                                  now: now,
+                                  animate: !still,
+                                  onOpenCall: onOpenCall,
+                                  onOpenMarket: onOpenMarket,
+                                ),
                               ),
                             ),
-                          ),
-                          for (var i = 0; i < people.length; i++)
-                            _FloatingPerson(
-                              person: people[i].$1,
-                              side: people[i].$2,
-                              index: i,
-                              animate: !still,
-                              left: 36 + width - 30 - (i.isOdd ? 22 : 0),
-                              top: 120.0 + i * 78,
-                            ),
-                        ],
+                            for (var i = 0; i < people.length; i++)
+                              _FloatingPerson(
+                                person: people[i].$1,
+                                side: people[i].$2,
+                                index: i,
+                                animate: !still,
+                                left: 36 + width - 30 - (i.isOdd ? 22 : 0),
+                                top: 120.0 + i * 78,
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
@@ -285,16 +291,20 @@ class _PreviewFeedState extends State<_PreviewFeed> {
             children: [
               const _LiveDot(),
               const SizedBox(width: 7),
-              Text(
-                markets ? 'Open on Panta' : 'On Chumbucket',
-                style: const TextStyle(
-                  fontFamily: 'PPNeueMachina',
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
+              Expanded(
+                child: Text(
+                  markets ? 'Open on Panta' : 'On Chumbucket',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'PPNeueMachina',
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 6),
               const Text(
                 'USDC/share',
                 style: TextStyle(
@@ -411,7 +421,7 @@ class _MiniCallCard extends StatelessWidget {
             children: [
               AppAvatar(
                 imageUrl: author.avatarUrl,
-                initials: author.displayName,
+                initials: author.initials,
                 size: 22,
               ),
               const SizedBox(width: 7),
@@ -525,15 +535,18 @@ class _PriceCell extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Text(
-            side.wire,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: yes ? const Color(0xFF07644C) : const Color(0xFF334155),
+          Expanded(
+            child: Text(
+              side.wire,
+              maxLines: 1,
+              overflow: TextOverflow.clip,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: yes ? const Color(0xFF07644C) : const Color(0xFF334155),
+              ),
             ),
           ),
-          const Spacer(),
           Text(
             value == null ? '—' : CallsFormat.displayPrice(value!),
             style: TextStyle(
@@ -712,7 +725,7 @@ class _FloatingPersonState extends State<_FloatingPerson>
                 ),
                 child: AppAvatar(
                   imageUrl: widget.person.avatarUrl,
-                  initials: widget.person.displayName,
+                  initials: widget.person.initials,
                   size: size,
                 ),
               ),

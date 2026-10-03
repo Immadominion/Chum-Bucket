@@ -186,17 +186,24 @@ class TopicTiles extends StatelessWidget {
     required this.topics,
     required this.selected,
     required this.onToggle,
+    this.columns = 2,
   });
 
   final List<TopicCount> topics;
   final Set<String> selected;
   final void Function(String slug) onToggle;
 
+  /// Tiles per row: two, or one at large text (no label breaks mid-word).
+  final int columns;
+
   @override
   Widget build(BuildContext context) {
     final rows = <List<TopicCount>>[
-      for (var i = 0; i < topics.length; i += 2)
-        topics.sublist(i, i + 2 > topics.length ? topics.length : i + 2),
+      for (var i = 0; i < topics.length; i += columns)
+        topics.sublist(
+          i,
+          i + columns > topics.length ? topics.length : i + columns,
+        ),
     ];
     return Column(
       children: [
@@ -204,13 +211,15 @@ class TopicTiles extends StatelessWidget {
           if (r > 0) const SizedBox(height: 10),
           Row(
             children: [
-              for (var c = 0; c < 2; c++) ...[
+              for (var c = 0; c < columns; c++) ...[
                 if (c > 0) const SizedBox(width: 10),
                 Expanded(
                   child:
                       c < rows[r].length
                           ? OnbReveal(
-                            delay: Duration(milliseconds: 40 * (r * 2 + c)),
+                            delay: Duration(
+                              milliseconds: 40 * (r * columns + c),
+                            ),
                             child: _TopicTile(
                               topic: rows[r][c],
                               selected: selected.contains(rows[r][c].slug),

@@ -22,6 +22,7 @@ import 'package:chumbucket/features/onboarding/presentation/widgets/welcome_phon
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_motion.dart';
 import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_parts.dart';
+import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_scaffold.dart';
 import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_styles.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 
@@ -51,12 +52,24 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   static const _retryEvery = Duration(seconds: 15);
   Timer? _retry;
 
-  @override
-  void initState() {
-    super.initState();
+  /// A retry is in flight: the empty state stays up while the sources answer
+  /// again (inside a fresh budget), and what comes back then reaches the
+  /// phone. Deciding at once would read the sources mid-request and settle
+  /// on empty again, every time.
+  bool _retrying = false;
+
+  void _startBudget() {
+    _budget?.cancel();
+    _budgetSpent = false;
     _budget = Timer(widget.stripBudget, () {
       if (mounted) setState(() => _budgetSpent = true);
     });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _startBudget();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final calls = context.read<CallsProvider>();
@@ -71,11 +84,14 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   }
 
   void _scheduleRetry() {
-    if (_retry?.isActive ?? false) return;
+    if (_retrying || (_retry?.isActive ?? false)) return;
     _retry = Timer(_retryEvery, () {
       if (!mounted) return;
       final calls = context.read<CallsProvider>();
-      setState(() => _resolved = null);
+      setState(() {
+        _retrying = true;
+        _startBudget();
+      });
       unawaited(calls.loadTopCalls(force: true));
       if (calls.feedMode == CallFeedMode.global) {
         unawaited(calls.loadFeed(force: true));
@@ -115,13 +131,14 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   /// reader; resolved empty, it is asked again on [_retryEvery].
   WelcomeFeed? _feed(CallsProvider c, DateTime now) {
     final done = _resolved;
-    if (done != null) return done;
+    if (done != null && !_retrying) return done;
     final top = _topSettled(c) ? (c.topCalls ?? const <TopCall>[]) : null;
     final feed =
         _feedSettled(c) && c.feedMode == CallFeedMode.global ? c.feed : null;
     final markets = _marketsSettled(c) ? c.openMarkets : null;
     final all = top != null && feed != null && markets != null;
-    if (!all && !_budgetSpent) return null;
+    if (!all && !_budgetSpent) return done;
+    _retrying = false;
     final chosen = chooseWelcomeFeed(
       top: top,
       feed: feed,
@@ -196,9 +213,17 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(OnbSpace.gutter, 10, 6, 0),
                   child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const ExcludeSemantics(child: OnbWordmark()),
-                      const Spacer(),
+                      // The wordmark gives way (scales down) before Sign in
+                      // does: at 320dp and large text both no longer fit.
+                      const Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: ExcludeSemantics(child: OnbWordmark()),
+                        ),
+                      ),
                       TextButton(
                         key: const ValueKey('welcome-have-account'),
                         onPressed: flow.haveAccount,
@@ -251,18 +276,28 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const OnbReveal(
-                                delay: Duration(milliseconds: 120),
-                                child: Text(
-                                  OnboardingCopy.welcomeTitle,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontFamily: 'PPNeueMachina',
-                                    fontSize: 32,
-                                    fontWeight: FontWeight.w800,
-                                    height: 1.12,
-                                    letterSpacing: -.8,
-                                    color: AppColors.textPrimary,
+                              OnbReveal(
+                                delay: const Duration(milliseconds: 120),
+                                // A heading, read first; clamped like every
+                                // onboarding title so no word breaks mid-word.
+                                child: Semantics(
+                                  header: true,
+                                  child: Text(
+                                    OnboardingCopy.welcomeTitle,
+                                    textAlign: TextAlign.center,
+                                    textScaler: MediaQuery.textScalerOf(
+                                      context,
+                                    ).clamp(
+                                      maxScaleFactor: OnbTitle.maxTitleScale,
+                                    ),
+                                    style: const TextStyle(
+                                      fontFamily: 'PPNeueMachina',
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.w800,
+                                      height: 1.12,
+                                      letterSpacing: -.8,
+                                      color: AppColors.textPrimary,
+                                    ),
                                   ),
                                 ),
                               ),

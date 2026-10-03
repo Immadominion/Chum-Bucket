@@ -835,8 +835,9 @@ class _AnswerButton extends StatelessWidget {
           key: ValueKey('deck-${side.wire.toLowerCase()}'),
           borderRadius: BorderRadius.circular(18),
           onTap: enabled ? onTap : null,
-          child: SizedBox(
-            height: 68,
+          // 68dp, taller when large text needs it.
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 68),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
