@@ -397,6 +397,16 @@ void main() {
       expect(feed.source, 'calls');
     });
 
+    test('a market someone called is not offered again as a bare card', () {
+      final feed = chooseWelcomeFeed(
+        top: [s.adaBtc],
+        feed: const [],
+        markets: [s.btc, s.eth],
+        now: kNow,
+      );
+      expect(ids(feed), [s.adaBtc.call.id, s.eth.id]);
+    });
+
     test('only public calls, by people with a real name or handle', () {
       // What the BFF sends for an account with no name and no handle.
       final nameless = personCard(
@@ -443,7 +453,9 @@ void main() {
       );
       expect(withCalls.items, hasLength(kWelcomeFeedTarget));
       expect(ids(withCalls).take(2), [s.adaBtc.call.id, s.kemiAlbum.call.id]);
-      expect(ids(withCalls).skip(2), [s.soon.id, s.lakers.id, s.btc.id]);
+      // Bitcoin and the album are already on the phone through Ada's and
+      // Kemi's calls, so the fillers are the next soonest-closing markets.
+      expect(ids(withCalls).skip(2), [s.soon.id, s.lakers.id, s.stale.id]);
 
       final marketsOnly = chooseWelcomeFeed(
         top: const [],

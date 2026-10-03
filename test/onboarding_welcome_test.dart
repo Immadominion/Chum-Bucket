@@ -75,13 +75,15 @@ void main() {
       final rig = await mountWelcome(tester, repo: scene.repository());
       expect(find.byType(WelcomeScreen), findsOneWidget);
       expect(find.byType(WelcomePhone), findsOneWidget);
-      // The three live calls, then the two markets closing soonest. (The
-      // phone's feed loops, so a card can appear more than once.)
+      // The three live calls, then the two soonest-closing markets nobody on
+      // the phone has called yet (Lakers is Tunde's call, so it is not
+      // repeated as a bare market). The feed loops, so a card can repeat.
       for (final t in rig.repo.top) {
         expect(inPhone(find.text(t.market.question)), findsWidgets);
       }
       expect(inPhone(find.text(scene.soon.question)), findsWidgets);
-      for (final unused in [scene.eth, scene.gta, scene.stale]) {
+      expect(inPhone(find.text(scene.stale.question)), findsWidgets);
+      for (final unused in [scene.eth, scene.gta]) {
         expect(inPhone(find.text(unused.question)), findsNothing);
       }
       // Kemi only has a placeholder handle: her name shows, the handle never.

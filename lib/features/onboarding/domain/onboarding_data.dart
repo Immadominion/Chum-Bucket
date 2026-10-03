@@ -323,9 +323,15 @@ WelcomeFeed chooseWelcomeFeed({
     }
   }
   final calls = [...live, ...settled].take(kLiveStripCalls).toList();
+  // A market someone already called is on the phone through their card;
+  // it is not offered again as a bare market.
+  final called = {
+    for (final c in calls)
+      if (c is LiveCallItem) c.entry.market.id,
+  };
   final open =
       (markets ?? const <VenueMarket>[])
-          .where((m) => isLiveOpenMarket(m, now))
+          .where((m) => isLiveOpenMarket(m, now) && !called.contains(m.id))
           .toList()
         ..sort((a, b) => a.closesAt!.compareTo(b.closesAt!));
   final fill = kWelcomeFeedTarget - calls.length;
