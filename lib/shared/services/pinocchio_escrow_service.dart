@@ -4,11 +4,19 @@ import 'package:solana/base58.dart';
 import 'package:solana/solana.dart' as solana;
 import 'package:solana/dto.dart' show BinaryAccountData;
 
-/// Pinocchio Escrow Service
-/// Lightweight service for interacting with the Pinocchio escrow program
-/// Works with MWA wallet provider for transaction signing
+/// Pinocchio Escrow Service: read-only access to earlier SOL escrow
+/// challenges. Creating one is retired; nothing in the app builds the create
+/// instruction any more (see MwaWalletProvider / PinocchioInstructions).
+///
+/// Not wired into any screen. Before relying on [getChallengeData], check its
+/// layout against the program source (chumbucket-pinocchio `src/lib.rs`), which
+/// stores amount_staked, platform_fee, winner_amount, deadline, is_resolved,
+/// initiator_won and bump at these offsets, so `originalAmount`,
+/// `platformFee` and `isCancelled` below do not mean what their names say. A
+/// resolved or cancelled escrow's account is closed, so "the account exists"
+/// is the reliable open check (MwaWalletProvider.escrowIsOpen).
 class PinocchioEscrowService {
-  // Pinocchio program ID (deployed to devnet)
+  // Pinocchio program ID (deployed on devnet and mainnet)
   static const String programId =
       'D6mjMGW1fX8oH3UcwZDh3teWcHEWvghUqaR2aeWD9sF1';
 
@@ -33,8 +41,8 @@ class PinocchioEscrowService {
     0x31,
   ]; // "CHALL001"
 
-  // Instruction discriminators
-  static const int createChallenge = 0x01;
+  // Instruction discriminators. Create (0x01) is retired and deliberately
+  // absent.
   static const int resolveChallenge = 0x02;
   static const int cancelChallenge = 0x03;
 

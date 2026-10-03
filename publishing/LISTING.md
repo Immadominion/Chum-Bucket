@@ -20,14 +20,18 @@ Status: **draft, not submitted.** `config.yaml` already carries this copy for th
    share a receipt link (opens in the app once `assetlinks.json` is live), push,
    and Settings > Share crash reports.
 5. `media/banner.png` ("Chumbucket mobile app") and `media/icon.png` can stay.
-6. **Decide the legacy friend challenges before submitting.** A release build is on
-   mainnet, and People > Friends > (a friend) still opens the old SOL-staked
-   challenge, which locks real SOL in the escrow program
-   `D6mjMGW1fX8oH3UcwZDh3teWcHEWvghUqaR2aeWD9sF1`. That program is deployed on
-   mainnet (checked read-only on 2 Oct 2026), so those stakes are real money,
-   resolved by a witness rather than a venue. The copy below does not describe
-   that flow. Either archive it into read-only history (prod-readiness audit
-   M13) or add it to the copy and the Terms.
+6. **Legacy friend challenges: retired (owner decision, 3 Oct 2026).** This build
+   cannot start a SOL escrow challenge from anywhere: the Friends tab, a friend, a
+   person's profile, Home, links and notifications all lead to calls, and the code
+   that built the escrow program's create instruction is gone (guarded by
+   `test/escrow_retire_test.dart`). The program,
+   `D6mjMGW1fX8oH3UcwZDh3teWcHEWvghUqaR2aeWD9sF1`, is live on mainnet, so the
+   earlier challenges stay in **Settings > History**: an open one still holds SOL
+   until its witness settles it there with their wallet (the only action the old
+   flow ever offered). A read-only check on 3 Oct 2026 found two escrows still
+   open on mainnet (0.05 and 0.01 SOL, both past their own deadlines, which the
+   program does not enforce). "What's new" says so in one line. Builds older than
+   1.0.34 that are still installed can still create one until they update.
 
 ## Catalog copy (en-US)
 
@@ -41,7 +45,7 @@ Status: **draft, not submitted.** `config.yaml` already carries this copy for th
 > named people call on live Panta markets, the price they called it at, and how
 > often they have been right.
 >
-> Back a call, fade it, or challenge a friend to go on record. Calls are free and
+> Back a call, fade it, or dare a friend to go on record. Calls are free and
 > carry no money.
 >
 > Every call locks who made it, which side, when and at what price. When the market
@@ -58,9 +62,11 @@ Status: **draft, not submitted.** `config.yaml` already carries this copy for th
 
 > A new Chumbucket, built around people and their calls.
 > - Follow what people call on live Panta prediction markets
-> - Back, fade or challenge any call, free
+> - Back, fade or dare any call, free
 > - Every call becomes a receipt you can share at chumbucket.fun
 > - Optionally take the position on Panta with USDC from your own wallet
+> - Friends lead to their calls. SOL escrow challenges are retired; earlier
+>   ones stay in Settings > History, where an open one can still be settled
 > - Crash reports are now opt-in (Settings)
 
 **Saga/Seeker features**: Sign in and approve trades with Mobile Wallet Adapter,
@@ -80,13 +86,16 @@ Calls are free. A reviewer needs a wallet on the device but no funds.
    which side, when, the entry price, and the result once Panta resolves it.
 3. **Markets**: open a market, pick Yes or No, optionally add a reason, and lock
    your call. It appears on your profile.
-4. On someone else's call, tap **Back**, **Fade** or **Challenge**. All are free.
-5. **Share** a receipt. The link (`https://chumbucket.fun/c/…`) opens in the app on
+4. On someone else's call, tap **Back**, **Fade** or **Dare**. All are free.
+5. **Friends**: tapping a friend opens their profile and calls. Nothing in the app
+   starts a SOL escrow; **Settings > History** lists earlier escrow challenges
+   (a new account has none).
+6. **Share** a receipt. The link (`https://chumbucket.fun/c/…`) opens in the app on
    a phone that has it installed and as a web page anywhere else.
-6. Optional, real money: a funded position is a real trade on Panta in USDC on
+7. Optional, real money: a funded position is a real trade on Panta in USDC on
    Solana mainnet, approved in your wallet, capped at 100 USDC per approval.
    Reviewing the app does not require placing one.
-7. **Settings > Share crash reports** is off by default; nothing is sent unless it
+8. **Settings > Share crash reports** is off by default; nothing is sent unless it
    is turned on.
 
 No test account or credentials are needed.

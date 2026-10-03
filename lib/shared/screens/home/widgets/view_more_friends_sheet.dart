@@ -8,7 +8,7 @@ import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 /// Modal bottom sheet for viewing all friends with iOS circular picker-style animation
 class ViewMoreFriendsSheet extends StatefulWidget {
   final List<Map<String, String>> friends;
-  final Function(String) onFriendSelected;
+  final void Function(Map<String, String> friend) onFriendSelected;
 
   const ViewMoreFriendsSheet({
     super.key,
@@ -51,7 +51,7 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
     super.dispose();
   }
 
-  void _onFriendTap(String friendName) {
+  void _onFriendTap(Map<String, String> friend) {
     // Quick haptic feedback for iOS-style interaction
     _animationController.forward().then((_) {
       _animationController.reverse();
@@ -62,14 +62,14 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
 
     // Small delay to ensure modal is fully closed before navigation
     Future.delayed(const Duration(milliseconds: 100), () {
-      widget.onFriendSelected(friendName);
+      widget.onFriendSelected(friend);
     });
   }
 
   @override
   Widget build(BuildContext context) => ChumbucketWavySheet(
     title: 'All Friends',
-    subtitle: 'Select a friend to challenge',
+    subtitle: 'Open a friend to see their calls',
     body: Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
@@ -129,7 +129,7 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
 
   Widget _buildWheelFriendItem(Map<String, String> friend, int index) {
     return GestureDetector(
-      onTap: () => _onFriendTap(friend['name'] ?? ''),
+      onTap: () => _onFriendTap(friend),
       child: Container(
         margin: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
         padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 12.h),
@@ -208,35 +208,6 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-
-                  SizedBox(height: 2.h),
-
-                  // Status with online indicator
-                  Row(
-                    children: [
-                      Container(
-                        width: 8.w,
-                        height: 8.w,
-                        decoration: BoxDecoration(
-                          color: Colors.green.shade400,
-                          borderRadius: BorderRadius.circular(4.r),
-                        ),
-                      ),
-                      SizedBox(width: 6.w),
-                      Flexible(
-                        child: Text(
-                          'Available',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12.sp,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),
@@ -258,7 +229,7 @@ class _ViewMoreFriendsSheetState extends State<ViewMoreFriendsSheet>
 Future<void> showViewMoreFriendsSheet(
   BuildContext context, {
   required List<Map<String, String>> friends,
-  required Function(String) onFriendSelected,
+  required void Function(Map<String, String> friend) onFriendSelected,
 }) => showChumbucketWavySheet<void>(
   context: context,
   builder:

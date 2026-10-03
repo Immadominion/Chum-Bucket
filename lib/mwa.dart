@@ -55,20 +55,10 @@
 /// }
 /// ```
 ///
-/// ### 3. Create Challenge
-/// ```dart
-/// final walletProvider = MwaWalletProvider();
-/// await walletProvider.initializeFromAuth(authProvider);
-///
-/// final challenge = await walletProvider.createChallenge(
-///   friendEmail: 'friend@example.com',
-///   friendAddress: 'FriendWalletAddress...',
-///   amount: 1.0, // 1 SOL
-///   challengeDescription: 'Complete 10 pushups',
-///   durationDays: 30,
-///   context: context,
-/// );
-/// ```
+/// ### 3. Earlier escrow challenges
+/// Creating a SOL escrow challenge is retired. The provider keeps only what an
+/// existing escrow needs (Settings → History): `escrowIsOpen`, the witness's
+/// `resolveChallenge`, and the challenger's `cancelChallenge`.
 ///
 /// ### 4. Sign Transactions
 /// ```dart
@@ -100,7 +90,6 @@
 /// - `mwa_auth_provider.dart` - Authentication and session management
 /// - `mwa_wallet_provider.dart` - Transaction building and signing
 /// - `pinocchio_escrow_service.dart` - On-chain data parsing
-/// - `mwa_challenge_service.dart` - Database operations with wallet-based identity
 
 library;
 
@@ -112,6 +101,3 @@ export 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 
 // Escrow
 export 'package:chumbucket/shared/services/pinocchio_escrow_service.dart';
-
-// Challenge Service
-export 'package:chumbucket/features/challenges/data/mwa_challenge_service.dart';

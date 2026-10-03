@@ -256,7 +256,7 @@ void main() {
           .artwork,
       ChumbucketStateArtwork.challenges,
     );
-    expect(find.text('No challenges yet'), findsOneWidget);
+    expect(find.text('No escrow challenges'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

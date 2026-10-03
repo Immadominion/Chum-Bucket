@@ -91,8 +91,8 @@ Widget hub(CallsProvider calls, QuietArena arena, Widget child) =>
 Widget friendsScreen() => Scaffold(
   body: FriendsHubTab(
     refreshKey: 0,
-    createNewChallenge: () {},
-    onFriendSelected: (_, __) {},
+    onAddFriend: () {},
+    onFriendSelected: (_) {},
     buildViewMoreItem: (_, count) => Text('View $count more'),
     onViewAllChallenges: () {},
     onMarkChallengeCompleted: (_, __) async {},
@@ -122,7 +122,7 @@ void main() {
             padding: const EdgeInsets.all(16),
             child: FriendsGrid(
               friends: friends,
-              onFriendSelected: (name) => selected = name,
+              onFriendSelected: (friend) => selected = friend['name'],
               buildViewMoreItem:
                   (_, count) =>
                       Text('View $count more', textAlign: TextAlign.center),

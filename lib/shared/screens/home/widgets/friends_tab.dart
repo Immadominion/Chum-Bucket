@@ -32,9 +32,12 @@ List<Map<String, String>> _withXLabels(
 }
 
 class FriendsTab extends StatefulWidget {
-  final VoidCallback createNewChallenge;
-  final Function(String, String)
-  onFriendSelected; // Now passes name and wallet address
+  /// Opens Add a friend.
+  final VoidCallback onAddFriend;
+
+  /// A tapped friend's row: `name`, `walletAddress` and `userId` (their
+  /// canonical person id, empty when unknown).
+  final void Function(Map<String, String> friend) onFriendSelected;
   final Widget Function(BuildContext context, int remainingCount)
   buildViewMoreItem;
   final VoidCallback
@@ -46,7 +49,7 @@ class FriendsTab extends StatefulWidget {
 
   const FriendsTab({
     super.key,
-    required this.createNewChallenge,
+    required this.onAddFriend,
     required this.onFriendSelected,
     required this.buildViewMoreItem,
     required this.onViewAllChallenges,
@@ -88,7 +91,8 @@ class _FriendsTabState extends State<FriendsTab>
       _loadFriendsWhenReady();
     });
 
-    // Also refresh the preview list as soon as a challenge is created by listening to WalletProvider
+    // Rebuild the (legacy) escrow preview when the wallet changes, e.g. after
+    // a witness settles one.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _walletProvider = Provider.of<MwaWalletProvider>(context, listen: false);
@@ -223,6 +227,7 @@ class _FriendsTabState extends State<FriendsTab>
       uiFriends.add({
         'name': friend['name'] as String,
         'walletAddress': friend['walletAddress'] as String,
+        'userId': friend['userId'] ?? '',
         'avatarColor': avatarColors[colorIndex],
         'imagePath': 'assets/images/ai_gen/profile_images/$imageId.png',
       });
@@ -241,14 +246,7 @@ class _FriendsTabState extends State<FriendsTab>
     showViewMoreFriendsSheet(
       context,
       friends: _withXLabels(friends, arena),
-      onFriendSelected: (friendName) {
-        final friend = friends.firstWhere(
-          (f) => f['name'] == friendName,
-          orElse: () => {'walletAddress': ''},
-        );
-        // Pass raw wallet address; resolution will happen where displayed
-        widget.onFriendSelected(friendName, friend['walletAddress'] ?? '');
-      },
+      onFriendSelected: widget.onFriendSelected,
     );
   }
 
@@ -362,10 +360,9 @@ class _FriendsTabState extends State<FriendsTab>
                             // A Google or X account has no wallet friends; say
                             // where people show up instead of asking for one.
                             context.watch<ChumbucketSession?>()?.isReady == true
-                                ? 'Friends from wallet challenges appear here '
-                                    'when a wallet is connected. People you '
-                                    'follow from their calls are under '
-                                    'Following.'
+                                ? 'Friends you added with a wallet appear '
+                                    'here when that wallet is connected. '
+                                    'People you follow are under Following.'
                                 : 'Connect your existing account to load your friends.',
                             style: styles.bodyMedium,
                           ),
@@ -416,16 +413,7 @@ class _FriendsTabState extends State<FriendsTab>
                               builder:
                                   (context, arena, _) => FriendsGrid(
                                     friends: _withXLabels(friends, arena),
-                                    onFriendSelected: (friendName) {
-                                      final friend = friends.firstWhere(
-                                        (f) => f['name'] == friendName,
-                                        orElse: () => {'walletAddress': ''},
-                                      );
-                                      widget.onFriendSelected(
-                                        friendName,
-                                        friend['walletAddress'] ?? '',
-                                      );
-                                    },
+                                    onFriendSelected: widget.onFriendSelected,
                                     buildViewMoreItem: widget.buildViewMoreItem,
                                     onViewMorePressed: _showAllFriends,
                                     maxVisibleFriends: 5,
@@ -445,7 +433,7 @@ class _FriendsTabState extends State<FriendsTab>
               // white label on the vertical gradient, shared with the sheets.
               ChumbucketPrimaryButton(
                 label: 'Add a friend',
-                onPressed: widget.createNewChallenge,
+                onPressed: widget.onAddFriend,
                 leading: const BasilIcon(
                   'plus-outline',
                   size: 20,
@@ -456,7 +444,8 @@ class _FriendsTabState extends State<FriendsTab>
             ],
             const SizedBox(height: 16),
             Text(
-              'Friends are mutual connections. Following adds people’s calls to Home.',
+              'Friends are mutual connections. Tap one to see their calls and '
+              'back, fade or dare them. Following adds people’s calls to Home.',
               style: styles.bodySmall?.copyWith(
                 color: AppColors.textSecondary,
                 height: 1.6,

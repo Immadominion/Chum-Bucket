@@ -5,7 +5,8 @@ import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
 import 'package:chumbucket/shared/utils/challenge_status_utils.dart';
 
-/// Modal bottom sheet for resolving challenges with wave design and overlapping avatars
+/// An earlier SOL escrow challenge (Settings → History), with its settle
+/// actions for the witness. Wave design and overlapping avatars.
 class ResolveChallengeSheet extends StatefulWidget {
   final Map<String, dynamic> challenge;
   final Function(Map<String, dynamic>, bool) onMarkCompleted;
@@ -21,14 +22,6 @@ class ResolveChallengeSheet extends StatefulWidget {
 }
 
 class _ResolveChallengeSheetState extends State<ResolveChallengeSheet> {
-  /// Helper method to shorten wallet address in the same format used elsewhere
-  String _shortenAddress(String address) {
-    if (address.length <= 14) return address;
-    final start = address.substring(0, 6);
-    final end = address.substring(address.length - 4);
-    return '$start...$end';
-  }
-
   /// Format amount to display nicely (avoid rounding errors like 0.05 -> 0.1)
   String _formatAmount(dynamic amount) {
     if (amount == null) return '0';
@@ -46,51 +39,13 @@ class _ResolveChallengeSheetState extends State<ResolveChallengeSheet> {
         .replaceAll(RegExp(r'\.$'), '');
   }
 
-  /// Safe wrapper for the completion callback that shows success feedback
-  void _safeMarkCompleted(
-    Map<String, dynamic> challenge,
-    bool completed,
-  ) async {
+  /// Close the sheet, then hand the verdict to the settle flow. The flow
+  /// reports the real outcome (wallet approval, then Solana); nothing here
+  /// claims success before the transaction exists.
+  void _safeMarkCompleted(Map<String, dynamic> challenge, bool completed) {
     if (!mounted) return;
-
-    try {
-      // Close the modal first
-      Navigator.of(context).pop();
-
-      // Execute the completion callback
-      widget.onMarkCompleted(challenge, completed);
-
-      // Show success feedback after a short delay to ensure modal is closed
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                completed
-                    ? 'Challenge completed successfully!'
-                    : 'Challenge marked as failed',
-                style: const TextStyle(color: Colors.white),
-              ),
-              backgroundColor: completed ? Colors.green : Colors.orange,
-              duration: const Duration(seconds: 3),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
-      });
-    } catch (e) {
-      // Show error feedback if something goes wrong
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update challenge: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
+    Navigator.of(context).pop();
+    widget.onMarkCompleted(challenge, completed);
   }
 
   @override
@@ -108,11 +63,12 @@ class _ResolveChallengeSheetState extends State<ResolveChallengeSheet> {
     final amount = widget.challenge['amount'];
     final amountText = _formatAmount(amount);
 
-    // This is the reference sheet itself (irfan/img2.jpeg): a muted "Bet
-    // Amount" caption over the amount as the hero, and the two avatars
-    // straddling the wave rather than sitting below it in the body.
+    // This is the reference sheet itself (irfan/img2.jpeg): a muted caption
+    // over the amount as the hero, and the two avatars straddling the wave
+    // rather than sitting below it in the body. An earlier escrow challenge:
+    // the caption says what the amount is, SOL locked in escrow.
     return ChumbucketWavySheet(
-      title: 'Bet Amount',
+      title: isResolvable ? 'In escrow' : 'Staked',
       value: '$amountText SOL',
       headerLeading: FutureBuilder<String>(
         future: AddressNameResolver.resolveDisplayName(friendRaw),
@@ -120,8 +76,7 @@ class _ResolveChallengeSheetState extends State<ResolveChallengeSheet> {
             (context, snapshot) => OverlappingProfileAvatars(
               userImagePath: 'assets/images/ai_gen/profile_images/1.png',
               friendImagePath: 'assets/images/ai_gen/profile_images/2.png',
-              friendDisplayName:
-                  snapshot.data ?? _shortenAddress(friendRaw),
+              friendDisplayName: compactWalletName(snapshot.data ?? friendRaw),
             ),
       ),
       body: SingleChildScrollView(
@@ -139,6 +94,20 @@ class _ResolveChallengeSheetState extends State<ResolveChallengeSheet> {
       ),
     );
   }
+}
+
+/// A wallet as a name under a 92dp avatar: `AbCd…WxYz`. The resolver's
+/// `AbCdEf...WxYz` (or a raw address) does not fit there and loses its
+/// tail to the ellipsis; names and domains pass through.
+String compactWalletName(String name) {
+  final shortened = RegExp(
+    r'^([1-9A-HJ-NP-Za-km-z]{4})[1-9A-HJ-NP-Za-km-z]*\.\.\.([1-9A-HJ-NP-Za-km-z]{4})$',
+  ).firstMatch(name);
+  if (shortened != null) return '${shortened[1]}…${shortened[2]}';
+  if (RegExp(r'^[1-9A-HJ-NP-Za-km-z]{32,44}$').hasMatch(name)) {
+    return '${name.substring(0, 4)}…${name.substring(name.length - 4)}';
+  }
+  return name;
 }
 
 Future<void> showResolveChallengeSheet(
