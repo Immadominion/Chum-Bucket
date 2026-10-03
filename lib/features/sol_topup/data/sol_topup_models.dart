@@ -72,6 +72,9 @@ T _as<T>(Object? value) => value is T ? value : _bad();
 
 final _base58 = RegExp(r'^[1-9A-HJ-NP-Za-km-z]{32,44}$');
 final _integer = RegExp(r'^[0-9]{1,20}$');
+final _base64 = RegExp(
+  r'^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$',
+);
 
 String _address(Object? value) {
   final s = _as<String>(value);
@@ -259,7 +262,11 @@ class TopUpOrder {
     final requestId = _as<String>(json['requestId']);
     if (!RegExp(r'^[A-Za-z0-9_.:-]{1,128}$').hasMatch(requestId)) _bad();
     final transaction = _as<String>(json['transaction']);
-    if (transaction.isEmpty || transaction.length > 1644) _bad();
+    if (transaction.isEmpty ||
+        transaction.length > 1644 ||
+        !_base64.hasMatch(transaction)) {
+      _bad();
+    }
     return TopUpOrder(
       requestId: requestId,
       transaction: transaction,

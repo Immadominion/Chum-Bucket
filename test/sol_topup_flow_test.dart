@@ -371,6 +371,59 @@ void main() {
       expect(c.unknown, isTrue);
       expect(c.message, contains('Check your balance'));
     });
+
+    test(
+      'anything the phone can\'t decode is refused, never left spinning',
+      () async {
+        final bff = FakeTopUpBff();
+        final c = SolTopUpController(
+          client: bff.newClient(),
+          signerFor: onPhone,
+          now: _atMetis,
+        );
+        addTearDown(c.dispose);
+        await c.load();
+        // Valid base64 that isn't a transaction: the phone's own check.
+        bff.order = {
+          ...metisOrderJson(),
+          'transaction': base64Encode(List<int>.filled(40, 7)),
+        };
+        await c.prepare();
+        expect(c.stage, SolTopUpStage.choose);
+        expect(c.busy, isFalse);
+        expect(c.order, isNull);
+        expect(c.message, contains('Nothing was signed'));
+        // Not base64 at all: refused as a malformed answer.
+        bff.order = {...metisOrderJson(), 'transaction': 'not*base64*at*all'};
+        await c.prepare();
+        expect(c.stage, SolTopUpStage.choose);
+        expect(c.busy, isFalse);
+        expect(c.order, isNull);
+        expect(bff.inputs('execute'), isEmpty);
+      },
+    );
+
+    test(
+      'after signing, an unreadable reply is "unknown" — never "nothing was signed"',
+      () async {
+        final bff = FakeTopUpBff();
+        final c = SolTopUpController(
+          client: bff.newClient(),
+          signerFor: onPhone,
+          now: _atMetis,
+        );
+        addTearDown(c.dispose);
+        await c.load();
+        await c.prepare();
+        bff.handlers['solTopUp.execute'] =
+            (_) => http.Response('<html>502 Bad Gateway</html>', 502);
+        await c.approve();
+        expect(c.stage, SolTopUpStage.failed);
+        expect(c.unknown, isTrue);
+        expect(c.message, contains('Check your balance'));
+        expect(c.message, isNot(contains('Nothing was signed')));
+      },
+    );
   });
 
   group('the sheet', () {
@@ -378,8 +431,9 @@ void main() {
       WidgetTester tester, {
       double width = 390,
       double scale = 1,
+      FakeTopUpBff? fake,
     }) async {
-      final bff = FakeTopUpBff();
+      final bff = fake ?? FakeTopUpBff();
       final controller = SolTopUpController(
         client: bff.newClient(),
         signerFor: onPhone,
@@ -449,6 +503,49 @@ void main() {
         expect(find.byKey(const ValueKey('sol-topup-done')), findsOneWidget);
         expect(find.text('0.1061 SOL landed in your wallet.'), findsOneWidget);
         expect(bff.inputs('execute'), hasLength(1));
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'when Jupiter reports no amount, "landed" says only the signed minimum',
+      (tester) async {
+        final bff = await openSheet(tester);
+        bff.execute = {'status': 'SUCCESS', 'signature': '5' * 88};
+        for (final key in ['sol-topup-get-quote', 'sol-topup-approve']) {
+          await tester.ensureVisible(find.byKey(ValueKey(key)));
+          await tester.pumpAndSettle();
+          await tester.tap(find.byKey(ValueKey(key)));
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 50)),
+          );
+          await tester.pumpAndSettle();
+        }
+        expect(
+          find.text('At least 0.1056 SOL landed in your wallet.'),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'swaps off: "send SOL yourself" still shows the wallet\'s address',
+      (tester) async {
+        await openSheet(
+          tester,
+          fake:
+              FakeTopUpBff()
+                ..status = topUpStatusJson(
+                  available: false,
+                  reason: 'Swapping USDC for SOL isn\'t set up yet.',
+                ),
+        );
+        expect(
+          find.byKey(const ValueKey('sol-topup-unavailable')),
+          findsOneWidget,
+        );
+        expect(find.text('Or send SOL yourself'), findsOneWidget);
         expect(tester.takeException(), isNull);
       },
     );
