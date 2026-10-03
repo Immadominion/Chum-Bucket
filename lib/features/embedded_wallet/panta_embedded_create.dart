@@ -10,10 +10,17 @@
 ///    this wallet, also the fee payer — with an empty signature slot;
 ///  * only Panta's mainnet program (1–2 instructions, signed by this wallet,
 ///    writing the reviewed market's address), bounded ComputeBudget before it,
-///    create-idempotent of USDC accounts paid by this wallet, and at most one
-///    memo;
+///    create-idempotent of USDC accounts paid by this wallet — for this wallet
+///    or an account the create itself names, like the BFF's `derived` rule —
+///    and at most one memo;
+///  * every Panta instruction is a USDC market create: `create_event_usdc` or
+///    `create_breaking_event_usdc` (the only creates seen on mainnet, where
+///    real Panta markets are made by `CreateBreakingEventUsdc`, read 3 October
+///    2026). A buy, a claim or any other Panta instruction dressed up as a
+///    create is refused, so this key can't be steered into spending USDC on
+///    something that wasn't reviewed;
 ///  * no System or Token instruction at the top level, so nothing can move
-///    SOL or USDC except inside Panta's program for the fee that was reviewed.
+///    SOL or USDC except inside Panta's create for the fee that was reviewed.
 ///
 /// It signs only; the BFF broadcasts and verifies the exact debit on-chain.
 library;
@@ -39,6 +46,14 @@ const _usdc = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 /// The BFF's ceilings for a create (`PantaMarketCreator`).
 const _maxComputeUnits = 1400000;
 const _maxComputePrice = 1000000;
+
+/// `sha256("global:<name>")[0..8]` of Panta's USDC market creates.
+const pantaCreateDiscriminators = [
+  // create_event_usdc
+  [0x50, 0x09, 0xcc, 0xd5, 0x96, 0xdb, 0x57, 0xa2],
+  // create_breaking_event_usdc (mainnet's `CreateBreakingEventUsdc`)
+  [0x19, 0x67, 0x4b, 0xc6, 0xe0, 0x49, 0x2c, 0x45],
+];
 
 class PantaEmbeddedCreateWallet implements PantaWalletPort {
   PantaEmbeddedCreateWallet({
@@ -122,6 +137,14 @@ Future<Uint8List> checkPantaCreateForEmbeddedSigning(
   bool writable(int index) =>
       index == 0 || (index >= 1 && index < readonlyFrom);
 
+  // Accounts the create names: the only others an ATA here may belong to.
+  final named = <String>{
+    for (final ix in message.instructions)
+      if (ix.programIdIndex < keys.length &&
+          keys[ix.programIdIndex] == pantaMainnetProgramId)
+        for (final index in ix.accountKeyIndexes)
+          if (index < keys.length) keys[index],
+  };
   var panta = 0, memo = 0, ata = 0;
   var limit = false, price = false, eventWritten = false;
   for (final ix in message.instructions) {
@@ -139,8 +162,12 @@ Future<Uint8List> checkPantaCreateForEmbeddedSigning(
     switch (program) {
       case pantaMainnetProgramId:
         panta++;
-        // This wallet signs it, and it writes the reviewed market.
-        require(ix.accountKeyIndexes.contains(0));
+        // A USDC market create, signed by this wallet, writing the reviewed
+        // market.
+        require(
+          pantaCreateDiscriminators.any((d) => _starts(data, d)) &&
+              ix.accountKeyIndexes.contains(0),
+        );
         if (ix.accountKeyIndexes.any(
           (index) => keys[index] == eventAddress && writable(index),
         )) {
@@ -151,22 +178,26 @@ Future<Uint8List> checkPantaCreateForEmbeddedSigning(
         if (data.length == 5 && data[0] == 2 && !limit) {
           limit = true;
           final units = _le(data, 1, 4);
-          require(units > 0 && units <= _maxComputeUnits);
+          require(
+            units > BigInt.zero && units <= BigInt.from(_maxComputeUnits),
+          );
         } else if (data.length == 9 && data[0] == 3 && !price) {
           price = true;
-          require(_le(data, 1, 8) <= _maxComputePrice);
+          require(_le(data, 1, 8) <= BigInt.from(_maxComputePrice));
         } else {
           require(false);
         }
       case _ata:
-        // Create-idempotent of a USDC account, paid by this wallet. Moves no
-        // USDC; costs only that account's rent.
+        // Create-idempotent of a USDC account, paid by this wallet, for this
+        // wallet or an account the create names. Moves no USDC; costs only
+        // that account's rent.
         require(
           ++ata <= 3 &&
               data.length == 1 &&
               data[0] == 1 &&
               accounts.length == 6 &&
               accounts[0] == owner &&
+              (accounts[2] == owner || named.contains(accounts[2])) &&
               accounts[3] == _usdc &&
               accounts[4] == _system &&
               accounts[5] == _token,
@@ -188,10 +219,20 @@ Future<Uint8List> checkPantaCreateForEmbeddedSigning(
   return messageBytes;
 }
 
-int _le(List<int> data, int offset, int length) {
-  var value = 0;
+/// Unsigned little-endian, as a BigInt: a u64 compute price with its top bit
+/// set never wraps negative and slips under the ceiling.
+BigInt _le(List<int> data, int offset, int length) {
+  var value = BigInt.zero;
   for (var i = length - 1; i >= 0; i--) {
-    value = (value << 8) | data[offset + i];
+    value = (value << 8) | BigInt.from(data[offset + i]);
   }
   return value;
+}
+
+bool _starts(List<int> data, List<int> prefix) {
+  if (data.length < prefix.length) return false;
+  for (var i = 0; i < prefix.length; i++) {
+    if (data[i] != prefix[i]) return false;
+  }
+  return true;
 }

@@ -3,6 +3,8 @@
 // flutter test --no-pub --update-goldens \
 //   --dart-define=CAPTURE_SOL_TOPUP=/abs/output/dir test/sol_topup_visual_capture_test.dart
 import 'package:chumbucket/core/theme/app_theme.dart';
+import 'package:chumbucket/features/sol_topup/domain/gasless_swap_check.dart'
+    show CheckedSwap;
 import 'package:chumbucket/features/embedded_wallet/embedded_wallet_key.dart';
 import 'package:chumbucket/features/sol_topup/domain/sol_topup_signer.dart';
 import 'package:chumbucket/features/sol_topup/presentation/sol_topup_dependencies.dart';
@@ -64,6 +66,8 @@ void main() {
 
   SolTopUpSigner? signerFor(String wallet) =>
       EmbeddedSolTopUpSigner(signer: () => owner, address: wallet);
+  SolTopUpSigner? walletApp(String wallet) => _WalletAppSigner(wallet);
+  SolTopUpSigner? noSigner(String wallet) => null;
 
   Future<void> mount(
     WidgetTester tester,
@@ -124,10 +128,11 @@ void main() {
     FakeTopUpBff bff, {
     bool review = false,
     bool done = false,
+    SolTopUpSigner? Function(String wallet)? signer,
   }) async {
     final c = SolTopUpController(
       client: bff.newClient(),
-      signerFor: signerFor,
+      signerFor: signer ?? signerFor,
       wallet: kSwapOwner,
       now:
           () => DateTime.fromMillisecondsSinceEpoch(
@@ -193,6 +198,43 @@ void main() {
             );
       await mount(tester, sheet(await controller(tester, bff)), bff: bff);
     },
+    'review-wallet-app': (tester) async {
+      final bff = FakeTopUpBff();
+      await mount(
+        tester,
+        sheet(await controller(tester, bff, review: true, signer: walletApp)),
+        bff: bff,
+      );
+    },
+    'needs-usdc': (tester) async {
+      final bff =
+          FakeTopUpBff()
+            ..plan = topUpPlanJson(usdc: '400000', blocker: 'NEEDS_USDC');
+      await mount(tester, sheet(await controller(tester, bff)), bff: bff);
+    },
+    'no-signer': (tester) async {
+      final bff = FakeTopUpBff();
+      await mount(
+        tester,
+        sheet(await controller(tester, bff, signer: noSigner)),
+        bff: bff,
+      );
+    },
+    'failed-unknown': (tester) async {
+      final bff =
+          FakeTopUpBff()
+            ..execute = {
+              'status': 'UNKNOWN',
+              'message':
+                  'We couldn\'t hear back from Jupiter. Check your balance in '
+                  'a moment before trying again.',
+            };
+      await mount(
+        tester,
+        sheet(await controller(tester, bff, done: true)),
+        bff: bff,
+      );
+    },
     'prompt': (tester) async {
       SolTopUpAvailability.reset();
       final bff = FakeTopUpBff()..plan = topUpPlanJson();
@@ -214,4 +256,16 @@ void main() {
       await capture(tester, scene.key);
     }, skip: outDir.isEmpty);
   }
+}
+
+/// A wallet app's signer, for the copy only: captures never sign with it.
+class _WalletAppSigner implements SolTopUpSigner {
+  _WalletAppSigner(this.address);
+  @override
+  final String address;
+  @override
+  TopUpSignerKind get kind => TopUpSignerKind.walletApp;
+  @override
+  Future<Uint8List> sign(Uint8List unsigned, CheckedSwap checked) =>
+      throw const TopUpSignCancelled();
 }

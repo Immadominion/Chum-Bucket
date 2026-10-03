@@ -289,6 +289,12 @@ Future<CheckedSwap> checkGaslessSwap(
               staticOrLoaded(accounts[8], wsolMint),
           'fill mints',
         );
+        need(
+          staticOrLoaded(accounts[7], tokenProgram) &&
+              staticOrLoaded(accounts[9], tokenProgram) &&
+              staticOrLoaded(accounts[10], systemProgram),
+          'fill programs',
+        );
         final out = _le(data, 16, 8);
         final expireAt = _le(data, 24, 8).toInt();
         need(out > BigInt.zero, 'pays nothing');

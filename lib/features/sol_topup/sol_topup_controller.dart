@@ -225,14 +225,6 @@ class SolTopUpController extends ChangeNotifier {
       _checked = checked;
       _belowMinimum = false;
       _set(SolTopUpStage.review);
-    } on SwapCheckException {
-      if (_stale(revision)) return;
-      _set(
-        SolTopUpStage.choose,
-        message:
-            'The swap Jupiter offered didn’t pass this phone’s checks. '
-            'Nothing was signed. Try again in a moment.',
-      );
     } on TopUpException catch (e) {
       if (_stale(revision)) return;
       switch (e.kind) {
@@ -257,6 +249,16 @@ class SolTopUpController extends ChangeNotifier {
         default:
           _set(SolTopUpStage.choose, message: e.message);
       }
+    } catch (_) {
+      // SwapCheckException, or anything this phone couldn't even decode (a
+      // malformed transaction or address): never left spinning, never signed.
+      if (_stale(revision)) return;
+      _set(
+        SolTopUpStage.choose,
+        message:
+            'The swap Jupiter offered didn’t pass this phone’s checks. '
+            'Nothing was signed. Try again in a moment.',
+      );
     }
   }
 
@@ -321,17 +323,23 @@ class SolTopUpController extends ChangeNotifier {
           _unknown = true;
           _set(SolTopUpStage.failed, message: result.message);
       }
-    } on TopUpException catch (e) {
+    } catch (error) {
       if (_stale(revision)) return;
-      // The reply never came, or the server refused before sending.
-      _unknown = e.kind == TopUpErrorKind.connection;
+      // The reply never came (or couldn't be read), or the server refused
+      // before sending. Only a refusal is known not to have been sent.
+      final e = error is TopUpException ? error : null;
+      _unknown =
+          e == null ||
+          e.kind == TopUpErrorKind.connection ||
+          e.kind == TopUpErrorKind.invalidResponse ||
+          e.kind == TopUpErrorKind.provider;
       _set(
         SolTopUpStage.failed,
         message:
             _unknown
                 ? 'We couldn’t hear back. Check your balance in a moment '
                     'before trying again.'
-                : e.message,
+                : e!.message,
       );
     }
   }

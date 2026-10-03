@@ -64,3 +64,46 @@ the "send SOL yourself" path. No migration: pending swaps live in memory for
 `deposits_wiring_test`, `market_creation_screens_test`,
 `ui_people_layout_continuity_test` (the devnet balance is gone by design).
 API: `tests/solTopUp.test.ts` (42).
+
+## 6. Review (fleet/wallets-review, 3 October 2026)
+
+Independent review of this packet against the merged tree (mobile `09aaff0`,
+API `6ed8a4a`). What changed:
+
+- **Claims from the wallet on this phone** (deferred here by the money
+  packet). `profilePantaSigners(auth, onPhone)` now returns
+  `PantaEmbeddedClaimWallet` for the linked phone wallet's own positions (a
+  wallet app still comes first). It signs only the reviewed
+  `claim_win_usdc`: one v0 signer = the intent's owner, bounded ComputeBudget,
+  the owner's own USDC create-idempotent, ONE claim whose data is the
+  discriminator + the owner and whose accounts are Panta's mainnet layout
+  (read from real `ClaimWinUsdc` transactions: owner, config, **the reviewed
+  market**, vault authority, vault, position, win-claim, **the owner's USDC
+  account**, USDC, Token, ATA, System), an optional owner-signed text memo,
+  and nothing else. The review itself must be a YES/NO win of positive
+  shares. Tested against claims compiled by the BFF's own
+  `PantaClaimExecution` (`test/wallets_embedded_claim_test.dart`).
+- **Publishing from the phone wallet** (`PantaEmbeddedCreateWallet`): every
+  Panta instruction must be a USDC market create (`create_event_usdc` or
+  `create_breaking_event_usdc`; mainnet makes markets with
+  `CreateBreakingEventUsdc`), so the key can't be steered into signing a buy
+  or a claim dressed as a create; USDC accounts may be made only for the
+  creator or an account the create names (the BFF's `derived` rule); and the
+  ComputeBudget price is read as an unsigned u64 (a top-bit price used to wrap
+  negative in a Dart `int` and pass the ceiling). If Panta's live create turns
+  out to use another instruction, the phone refuses before signing (owner
+  action 4 above exercises it).
+- **SOL for fees**: the server bounds the rent repayment by today's live
+  165-byte rent and refuses it when the person already had a WSOL account
+  (API `docs/gasless-sol-topup.md` rule 8). On the phone, anything it can't
+  decode now ends in "didn't pass this phone's checks — nothing was signed"
+  instead of a spinner that never stops; after signing, an unreadable or 5xx
+  reply is "unknown — check your balance", never "nothing was signed"; "landed"
+  says "at least" when Jupiter didn't report the exact amount; "send SOL
+  yourself" keeps the wallet's address when swaps are off; the sheet's
+  subtitle fits one line at 390dp.
+- **Attestation**: the funded-trading attestation does **not** gate the swap;
+  it stays on `pantaTrading.prepare`, where a stake is placed (reasons in the
+  API doc).
+
+Integration-owned files: none changed.

@@ -155,7 +155,7 @@ class _SolTopUpSheetState extends State<SolTopUpSheet> {
       subtitle:
           c.stage == SolTopUpStage.done || c.stage == SolTopUpStage.failed
               ? null
-              : 'From your own USDC · swapped by Jupiter',
+              : 'Your own USDC, swapped by Jupiter',
       canDismiss: c.canDismiss,
       onClose: _close,
       body: SingleChildScrollView(
@@ -247,7 +247,9 @@ class _SolTopUpSheetState extends State<SolTopUpSheet> {
           );
 
   Widget _receive() {
-    final wallet = c.plan?.wallet ?? c.order?.review.wallet;
+    // The server's read first; before any read (swaps off), the wallet this
+    // sheet was opened for, so "send SOL yourself" always has an address.
+    final wallet = c.plan?.wallet ?? c.order?.review.wallet ?? c.wallet;
     if (wallet == null) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(top: 12),
@@ -505,7 +507,10 @@ class _SolTopUpSheetState extends State<SolTopUpSheet> {
   List<Widget> _done() {
     final result = c.result;
     final explorer = result?.explorerUri;
-    final got = result?.solReceivedLamports ?? c.checked?.minOutLamports;
+    // Jupiter's reported amount when it sent one; otherwise only what the
+    // signed swap guaranteed, said as a minimum.
+    final exact = result?.solReceivedLamports;
+    final atLeast = exact == null ? c.checked?.minOutLamports : null;
     return [
       const Center(
         child: ChumbucketStateArt.compact(ChumbucketStateArtwork.success),
@@ -513,9 +518,11 @@ class _SolTopUpSheetState extends State<SolTopUpSheet> {
       Semantics(
         liveRegion: true,
         child: Text(
-          got == null
-              ? 'SOL landed in your wallet.'
-              : '${solLabel(got)} SOL landed in your wallet.',
+          exact != null
+              ? '${solLabel(exact)} SOL landed in your wallet.'
+              : atLeast != null
+              ? 'At least ${solLabel(atLeast)} SOL landed in your wallet.'
+              : 'SOL landed in your wallet.',
           key: const ValueKey('sol-topup-done'),
           textAlign: TextAlign.center,
           style: callJourneyHeading(context, 18),
