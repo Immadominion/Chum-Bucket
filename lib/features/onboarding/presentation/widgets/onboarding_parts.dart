@@ -424,24 +424,29 @@ class OnbConsentLine extends StatelessWidget {
           textAlign: TextAlign.center,
           style: style,
         ),
-        Wrap(
-          alignment: WrapAlignment.center,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            target(OnboardingCopy.signInTerms, LegalLinks.terms),
-            Text(OnboardingCopy.signInConsentJoin.trim(), style: style),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                target(
-                  OnboardingCopy.signInPrivacy,
-                  LegalLinks.privacy,
-                  padding: const EdgeInsets.only(left: 4),
-                ),
-                Text('.', style: style),
-              ],
-            ),
-          ],
+        // The links keep 48dp targets; lifting the row closes the gap their
+        // padding leaves under the lead, so the sentence reads as one.
+        Transform.translate(
+          offset: const Offset(0, -10),
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              target(OnboardingCopy.signInTerms, LegalLinks.terms),
+              Text(OnboardingCopy.signInConsentJoin.trim(), style: style),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  target(
+                    OnboardingCopy.signInPrivacy,
+                    LegalLinks.privacy,
+                    padding: const EdgeInsets.only(left: 4),
+                  ),
+                  Text('.', style: style),
+                ],
+              ),
+            ],
+          ),
         ),
       ],
     );
