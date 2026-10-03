@@ -306,8 +306,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ? OnboardingHomeEffects(
                 child: UsernameClaimPrompt(
                   present:
-                      (context) => Navigator.of(context).push(
-                        onboardingOverlayRoute(OnboardingRun.claimOnly),
+                      (context) => presentOnboardingOverlay(
+                        context,
+                        OnboardingRun.claimOnly,
                       ),
                   child: shell,
                 ),

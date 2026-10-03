@@ -246,7 +246,8 @@ class OnboardingFlowController extends ChangeNotifier {
     _wasReady = session?.isReady ?? false;
     _wasNeedsUsername = session?.needsUsername ?? false;
     scheduleMicrotask(() {
-      if (_disposed) return;
+      // A run that ended before it began shows nothing and records nothing.
+      if (_disposed || _endedAtStart) return;
       unawaited(app.startRun(_entryToken()));
       _onEnter(first);
       switch (run) {
@@ -277,27 +278,39 @@ class OnboardingFlowController extends ChangeNotifier {
     OnboardingRun.claimOnly => 'claim',
   };
 
+  /// The run had nothing left to show when it started (it is finishing).
+  /// The host draws the bare canvas rather than flash a step on the way out.
+  bool get endedAtStart => _endedAtStart;
+  bool _endedAtStart = false;
+
+  OnboardingStep _endAtStart(OnboardingStep placeholder) {
+    _endedAtStart = true;
+    scheduleMicrotask(() {
+      if (!_disposed) unawaited(finish());
+    });
+    return placeholder;
+  }
+
   OnboardingStep _firstStep() {
     final resume = _resumeAt;
     if (resume != null && run == OnboardingRun.newUser) {
       // A stage that no longer applies (e.g. sign-in, now signed in) resumes
-      // at the next one that does.
+      // at the next one that does. Nothing after it — the run was cut short
+      // on "You're on record", or its draft has gone — means the run is over:
+      // Home, never Welcome again for someone already signed in.
       final list = computeSteps(_inputs);
       if (list.contains(resume)) return resume;
-      return nextStep(resume, list) ?? list.first;
+      return nextStep(resume, list) ?? _endAtStart(resume);
     }
     final list = computeSteps(_inputs);
     if (list.isEmpty) {
       // Nothing left to ask (e.g. the username was claimed meanwhile).
-      scheduleMicrotask(() {
-        if (!_disposed) unawaited(finish());
-      });
-      return switch (run) {
+      return _endAtStart(switch (run) {
         OnboardingRun.welcomeBack => OnboardingStep.welcomeBack,
         OnboardingRun.upgrade => OnboardingStep.upgrade,
         OnboardingRun.newUser => OnboardingStep.welcome,
         _ => OnboardingStep.username,
-      };
+      });
     }
     return list.first;
   }
@@ -684,12 +697,16 @@ class OnboardingFlowController extends ChangeNotifier {
   /// Loads fresh prices for the best-ranked candidates and keeps the first
   /// three whose Panta price is under ten minutes old.
   Future<void> _priceCandidates(Duration budget) async {
+    // After sign-in the waiting draft has its own card: its market is not
+    // offered a second time beside it (one call per market). Before sign-in
+    // (Back from A1 to change the pick) everything stays on offer.
+    final draftMarket = signedIn ? app.pendingCall?.marketId : null;
     final candidates =
         firstCallCandidates(
           calls.openMarkets,
           topics: _selectedTopics,
           now: now,
-        ).take(6).toList();
+        ).where((m) => m.id != draftMarket).take(6).toList();
     final details = await Future.wait([
       for (final market in candidates)
         calls
@@ -715,7 +732,9 @@ class OnboardingFlowController extends ChangeNotifier {
     }
     _firstCallMarkets = kept;
     _answerable = answerableCalls(
-      calls.topCalls ?? const [],
+      (calls.topCalls ?? const <TopCall>[]).where(
+        (t) => t.market.id != draftMarket,
+      ),
       viewerUserId: calls.viewerUserId,
       preferredAuthors: {..._selectedPeople, ...app.pendingFollowIds},
       now: now,

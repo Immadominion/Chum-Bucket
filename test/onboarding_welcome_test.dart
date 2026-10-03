@@ -64,6 +64,37 @@ void main() {
     );
   });
 
+  testWidgets(
+    'the hairline over the actions means the page scrolls under them — not '
+    'that the live strip has another card to the right',
+    (tester) async {
+      Color hairline() {
+        final sticky = tester.widget<DecoratedBox>(
+          find.byWidgetPredicate(
+            (w) =>
+                w is DecoratedBox &&
+                w.decoration is BoxDecoration &&
+                (w.decoration as BoxDecoration).border is Border &&
+                (w.decoration as BoxDecoration).color ==
+                    const Color(0xFFF4F4F4),
+          ),
+        );
+        return ((sticky.decoration as BoxDecoration).border! as Border)
+            .top
+            .color;
+      }
+
+      // Tall enough that the whole page fits: nothing is under the actions,
+      // although the strip itself scrolls sideways.
+      await mountWelcome(tester, height: 2000);
+      expect(find.byType(LiveCallCard), findsWidgets);
+      expect(hairline(), Colors.transparent);
+      await tester.drag(find.byType(LiveCallStrip), const Offset(-120, 0));
+      await settle(tester, const Duration(milliseconds: 300));
+      expect(hairline(), Colors.transparent);
+    },
+  );
+
   testWidgets('no live calls: the strip falls back to open Panta markets', (
     tester,
   ) async {

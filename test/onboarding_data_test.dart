@@ -63,6 +63,16 @@ void main() {
         isShowablePerson(displayName: '', handle: 'user-80d78065'),
         isFalse,
       );
+      // The BFF's own fallback for a name-less, handle-less account
+      // (`personFromRow`: displayName = full_name ?? handle): the "name" is
+      // the placeholder, which is no name at all.
+      expect(
+        isShowablePerson(displayName: 'user-80d78065', handle: 'user-80d78065'),
+        isFalse,
+      );
+      expect(visibleDisplayName('user-80d78065'), isNull);
+      expect(visibleDisplayName(' Kemi '), 'Kemi');
+      expect(shownName(displayName: 'user-80d78065', handle: 'ada'), '@ada');
       expect(
         isShowablePerson(displayName: 'Kemi', handle: 'user-80d78065'),
         isTrue,
@@ -289,6 +299,22 @@ void main() {
         top: [demoCall],
         feed: [_entry(demoCall)],
         markets: [demoMarket],
+        now: kNow,
+      );
+      expect(strip.isEmpty, isTrue);
+    });
+
+    test('a caller known only by a placeholder never reaches the strip', () {
+      // What the BFF sends for an account with no name and no handle.
+      final nameless = personCard(
+        'u-nameless',
+        name: 'user-80d78065',
+        handle: 'user-80d78065',
+      );
+      final strip = chooseLiveStrip(
+        top: [topCall(s.btc, nameless)],
+        feed: const [],
+        markets: const [],
         now: kNow,
       );
       expect(strip.isEmpty, isTrue);

@@ -145,6 +145,40 @@ void main() {
       expect(find.text(OnboardingCopy.usernameTitle), findsOneWidget);
     });
 
+    testWidgets('…and once it is claimed, Home (the run was the root route)', (
+      tester,
+    ) async {
+      final rig = await _splash(
+        tester,
+        rig: OnboardingRig(
+          repo: OnboardingScene().repository(),
+          signedIn: true,
+          bff: OnboardingBff(unlinked: true),
+        ),
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('username-field')),
+        'ada_calls',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('username-name')),
+        'Ada Okafor',
+      );
+      await settle(tester, const Duration(milliseconds: 900));
+      await tester.tap(find.byKey(const ValueKey('username-claim')));
+      for (var i = 0; i < 10; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 5)),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await settle(tester, const Duration(milliseconds: 600));
+      expect(rig.bff.profiles, hasLength(1));
+      expect(rig.session.isReady, isTrue);
+      expect(find.byKey(_home), findsOneWidget);
+      expect(find.text(OnboardingCopy.usernameTitle), findsNothing);
+    });
+
     test('entrySessionStateOf reads the session as the table needs it', () {
       expect(entrySessionStateOf(null), EntrySessionState.none);
     });
@@ -233,6 +267,28 @@ void main() {
       await _splash(tester, rig: rig);
       expect(find.byType(TopicsScreen), findsOneWidget);
     });
+
+    testWidgets(
+      'cut short on "You\'re on record" (nothing left to show): Home, never '
+      'Welcome for someone signed in',
+      (tester) async {
+        final rig = OnboardingRig(
+          repo: OnboardingScene().repository(),
+          signedIn: true,
+          bff: OnboardingBff(handle: 'ada'),
+        );
+        SharedPreferences.setMockInitialValues({
+          OnboardingStore.recordKey:
+              '{"v":2,"status":"in_progress","stage":"on_record",'
+              '"stageAt":${kNowMs - 60000}}',
+        });
+        await _splash(tester, rig: rig);
+        await settle(tester, const Duration(milliseconds: 600));
+        expect(find.byType(WelcomeScreen), findsNothing);
+        expect(find.byKey(_home), findsOneWidget);
+        expect(rig.app.status, OnboardingStatus.completed);
+      },
+    );
   });
 
   group('K1 Make Home yours', () {
@@ -315,6 +371,18 @@ void main() {
       );
       expect(rig.permission.requests, 0);
     });
+
+    testWidgets(
+      'already allowed by Android but this server sends nothing: still no '
+      'row — "On" would promise pushes nobody sends',
+      (tester) async {
+        await mountRow(tester, pushLive: false, granted: true);
+        expect(
+          find.byKey(const ValueKey('settings-notifications')),
+          findsNothing,
+        );
+      },
+    );
 
     testWidgets('off: a tap asks the OS once and reads it again', (
       tester,

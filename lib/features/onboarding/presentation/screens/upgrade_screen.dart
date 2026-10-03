@@ -69,7 +69,7 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
       if (session.needsUsername) {
         // No profile came across for this wallet: never make one here.
         await session.signOut();
-        if (mounted) setState(() => _closed = OnboardingCopy.upgradeClosed);
+        if (mounted) setState(() => _closed = OnboardingCopy.upgradeNoProfile);
         return;
       }
       final error = session.error;
@@ -145,7 +145,8 @@ class _UpgradeScreenState extends State<UpgradeScreen> {
           textAlign: TextAlign.center,
           style: OnbText.meta,
         ),
-        const SizedBox(height: 4),
+        // The same rhythm as the sign-in panel's wallet line and consent.
+        const SizedBox(height: 12),
         const OnbConsentLine(),
         if (_error != null || closed != null) ...[
           const SizedBox(height: 16),

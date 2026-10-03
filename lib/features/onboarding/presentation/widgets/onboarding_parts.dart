@@ -392,7 +392,11 @@ class OnbConsentLine extends StatelessWidget {
       decoration: TextDecoration.underline,
       decorationColor: AppColors.pinkInk,
     );
-    Widget target(String label, Uri uri) => Semantics(
+    Widget target(
+      String label,
+      Uri uri, {
+      EdgeInsets padding = const EdgeInsets.symmetric(horizontal: 4),
+    }) => Semantics(
       link: true,
       button: true,
       label: label,
@@ -403,12 +407,15 @@ class OnbConsentLine extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 48, minWidth: 48),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
+            padding: padding,
             child: Center(widthFactor: 1, child: Text(label, style: link)),
           ),
         ),
       ),
     );
+    // The lead on one line and the two links on the next: balanced at any
+    // width (the whole sentence is just too long for one phone line), with
+    // the full stop kept on the last link rather than left off.
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -423,7 +430,17 @@ class OnbConsentLine extends StatelessWidget {
           children: [
             target(OnboardingCopy.signInTerms, LegalLinks.terms),
             Text(OnboardingCopy.signInConsentJoin.trim(), style: style),
-            target(OnboardingCopy.signInPrivacy, LegalLinks.privacy),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                target(
+                  OnboardingCopy.signInPrivacy,
+                  LegalLinks.privacy,
+                  padding: const EdgeInsets.only(left: 4),
+                ),
+                Text('.', style: style),
+              ],
+            ),
           ],
         ),
       ],

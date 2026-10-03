@@ -6,6 +6,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/features/onboarding/domain/onboarding_steps.dart';
@@ -102,6 +103,10 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     value: _flow,
     child: Consumer<OnboardingFlowController>(
       builder: (context, flow, _) {
+        if (flow.endedAtStart) {
+          // Finishing before anything was shown: the canvas, not a step.
+          return const ColoredBox(color: AppColors.background);
+        }
         final step = flow.current;
         final reduce = onbReduceMotion(context);
         return PopScope(

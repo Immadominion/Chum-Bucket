@@ -23,6 +23,7 @@ import 'package:chumbucket/features/authentication/session/chumbucket_session.da
 import 'package:chumbucket/features/authentication/session/session_state.dart';
 import 'package:chumbucket/features/authentication/session/solana_sign_in.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
+import 'package:chumbucket/features/onboarding/domain/onboarding_data.dart';
 import 'package:chumbucket/features/onboarding/domain/username_suggestions.dart';
 import 'package:chumbucket/features/onboarding/onboarding_copy.dart';
 import 'package:chumbucket/features/onboarding/onboarding_flow_controller.dart';
@@ -105,8 +106,11 @@ class _UsernameScreenState extends State<UsernameScreen> {
     if (userId == null) return;
     final person = await calls.loadPerson(userId);
     if (!mounted) return;
-    final name = person?.person.displayName.trim();
-    setState(() => _displayName = name == null || name.isEmpty ? null : name);
+    final name = person?.person.displayName;
+    // A placeholder (`user-80d78065`) is never shown as anyone's name.
+    setState(
+      () => _displayName = name == null ? null : visibleDisplayName(name),
+    );
   }
 
   Future<void> _prefill() async {

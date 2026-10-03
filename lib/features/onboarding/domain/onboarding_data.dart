@@ -20,17 +20,24 @@ String? visibleHandle(String? handle) {
   return h;
 }
 
-/// A person onboarding may show: the server gave a display name. Someone with
-/// neither a name nor a real handle is left out rather than invented.
+/// The display name to show, or null when there is none. The server falls
+/// back to the handle — and so to the placeholder — when an account has no
+/// name (`personFromRow`: `full_name ?? handle`), so a "name" that is only a
+/// placeholder is no name at all.
+String? visibleDisplayName(String displayName) {
+  final name = displayName.trim();
+  if (name.isEmpty || kPlaceholderHandle.hasMatch(name)) return null;
+  return name;
+}
+
+/// A person onboarding may show: the server gave a real display name or a
+/// real handle. Someone with neither is left out rather than invented.
 bool isShowablePerson({required String displayName, String? handle}) =>
-    displayName.trim().isNotEmpty || visibleHandle(handle) != null;
+    visibleDisplayName(displayName) != null || visibleHandle(handle) != null;
 
 /// The name to show: the display name, else the real handle.
-String shownName({required String displayName, String? handle}) {
-  final name = displayName.trim();
-  if (name.isNotEmpty) return name;
-  return '@${visibleHandle(handle) ?? ''}';
-}
+String shownName({required String displayName, String? handle}) =>
+    visibleDisplayName(displayName) ?? '@${visibleHandle(handle) ?? ''}';
 
 /// A market a call can be made on right now: OPEN, already open, closing in
 /// the future, and from the live venue — never a demo fixture.

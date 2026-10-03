@@ -46,8 +46,10 @@ class CallFeedScreen extends StatefulWidget {
   final VoidCallback? onSignInRequested;
   final VoidCallback? onBrowseMarkets;
 
-  /// A card at the top of the feed (onboarding's "Make Home yours"). It
-  /// decides itself whether to show; an empty one takes no space.
+  /// Onboarding's "Make Home yours" card, at the top of the feed. It is laid
+  /// out only while onboarding offers it ([OnboardingController
+  /// .homeCardEligible]), so for everyone else the feed starts exactly where
+  /// it always did — no empty slot, no extra gap.
   final Widget? topBanner;
 
   const CallFeedScreen({
@@ -121,6 +123,15 @@ class _CallFeedScreenState extends State<CallFeedScreen>
 
   /// The strip, or nothing: shown only with real entries, never a skeleton
   /// that could read as activity.
+  /// [CallFeedScreen.topBanner], while onboarding offers it; else nothing.
+  Widget? _shownBanner() {
+    final banner = widget.topBanner;
+    if (banner == null) return null;
+    final offered =
+        context.watch<OnboardingController?>()?.homeCardEligible ?? false;
+    return offered ? banner : null;
+  }
+
   Widget? _topCallsStrip(CallsProvider provider) {
     final calls = provider.topCalls;
     if (calls == null || calls.isEmpty) return null;
@@ -268,12 +279,13 @@ class _CallFeedScreenState extends State<CallFeedScreen>
             actionLabel: 'Explore markets',
             onAction: widget.onBrowseMarkets,
           );
-          if (widget.topBanner == null) return empty;
+          final banner = _shownBanner();
+          if (banner == null) return empty;
           return Column(
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: widget.topBanner!,
+                child: banner,
               ),
               Expanded(child: empty),
             ],
@@ -337,8 +349,9 @@ class _CallFeedScreenState extends State<CallFeedScreen>
               ..sort((a, b) => b.call.createdAt.compareTo(a.call.createdAt));
         final receipt = receipts.firstOrNull;
         final strip = _topCallsStrip(provider);
+        final banner = _shownBanner();
         final headers = <Widget>[
-          if (widget.topBanner != null) widget.topBanner!,
+          if (banner != null) banner,
           if (receipt != null)
             _ReceiptNudge(entry: receipt, onTap: () => _shareReceipt(receipt)),
           if (strip != null) strip,

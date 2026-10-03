@@ -143,6 +143,7 @@ final List<String> _all = [
   OnboardingCopy.upgradeCta,
   OnboardingCopy.upgradeLater,
   OnboardingCopy.upgradeClosed,
+  OnboardingCopy.upgradeNoProfile,
   OnboardingCopy.cardTitle,
   OnboardingCopy.cardBody,
   OnboardingCopy.cardCta,

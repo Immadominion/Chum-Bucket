@@ -271,6 +271,49 @@ void main() {
     },
   );
 
+  testWidgets(
+    'the reopened composer put away without locking is one tap from coming '
+    'back, draft and all',
+    (tester) async {
+      final live = _live();
+      final rig = await _atFirstCall(tester, repo: live.repo, now: live.now);
+      final btc = live.repo.catalog.firstWhere(
+        (m) => m.id == live.scene.btc.id,
+      );
+      await _scrollTo(tester, find.byKey(ValueKey('first-call-${btc.id}')));
+      await tester.tap(find.byKey(ValueKey('first-call-${btc.id}')));
+      await settle(tester);
+      await tester.tap(_inComposer(find.text('NO')));
+      await settle(tester, const Duration(milliseconds: 200));
+      await tester.tap(_inComposer(find.text('Lock my NO call')));
+      await settle(tester);
+      rig.auth.deliverOnSignIn = snapshot();
+      await tester.tap(find.byKey(const ValueKey('front-door-google')));
+      await settle(tester, const Duration(milliseconds: 1500));
+      expect(find.byType(CallComposerSheet), findsOneWidget);
+
+      // Swiped away, nothing locked.
+      Navigator.of(tester.element(find.byType(CallComposerSheet))).pop();
+      await settle(tester);
+      expect(find.byType(CallComposerSheet), findsNothing);
+      expect(rig.repo.created, isEmpty);
+      // The draft's market has its own card; it is not offered again beside
+      // it, as a market row or as someone's call to answer.
+      final flow = _flow(tester);
+      expect(
+        flow.firstCallMarkets.map((m) => m.market.id),
+        isNot(contains(btc.id)),
+      );
+      expect(flow.answerable.map((t) => t.market.id), isNot(contains(btc.id)));
+
+      await tester.tap(find.byKey(const ValueKey('draft-review')));
+      await settle(tester);
+      expect(find.byType(CallComposerSheet), findsOneWidget);
+      expect(_inComposer(find.text('Lock my NO call')), findsOneWidget);
+      expect(rig.repo.created, isEmpty, reason: 'still a fresh tap to lock');
+    },
+  );
+
   testWidgets('Back and Fade answer the named person\'s call (parentCallId)', (
     tester,
   ) async {

@@ -47,6 +47,40 @@ Route<void> onboardingOverlayRoute(OnboardingRun run) =>
           ),
     );
 
+/// Pushes [run] over Home and, once it closes, says what became of any
+/// follows it applied (the friends step after "Pick your @username", People
+/// in "Make Home yours"). Returns what the run left for Home.
+Future<HomeArrival?> presentOnboardingOverlay(
+  BuildContext context,
+  OnboardingRun run,
+) async {
+  final app = context.read<OnboardingController?>();
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  await Navigator.of(context).push(onboardingOverlayRoute(run));
+  final arrival = app?.takeArrival();
+  if (arrival != null && messenger != null) {
+    _announceFollows(messenger, arrival.followed, arrival.failed);
+  }
+  return arrival;
+}
+
+void _announceFollows(
+  ScaffoldMessengerState messenger,
+  int followed,
+  int failed,
+) {
+  if (followed > 0) {
+    messenger.showSnackBar(
+      SnackBar(content: Text(OnboardingCopy.followingApplied(followed, null))),
+    );
+  }
+  if (failed > 0) {
+    messenger.showSnackBar(
+      SnackBar(content: Text(OnboardingCopy.followApplyFailed(failed))),
+    );
+  }
+}
+
 /// Wraps Home's shell.
 class OnboardingHomeEffects extends StatefulWidget {
   const OnboardingHomeEffects({super.key, required this.child});
@@ -122,7 +156,7 @@ class _OnboardingHomeEffectsState extends State<OnboardingHomeEffects> {
         }
       }
       if (!mounted) return;
-      _sayFollows(arrival.followed, arrival.failed, null);
+      _sayFollows(arrival.followed, arrival.failed);
     }
     // Signed in already, with something still waiting from before.
     if (_session?.isReady == true) await _afterSignIn();
@@ -147,7 +181,7 @@ class _OnboardingHomeEffectsState extends State<OnboardingHomeEffects> {
     if (app.pendingFollowIds.isNotEmpty) {
       final result = await app.applyPendingFollows(calls);
       if (!mounted || result == null) return;
-      _sayFollows(result.succeeded.length, result.failed.length, null);
+      _sayFollows(result.succeeded.length, result.failed.length);
     }
     final draft = app.pendingCall;
     if (draft != null && !_offeredDraft) {
@@ -156,21 +190,10 @@ class _OnboardingHomeEffectsState extends State<OnboardingHomeEffects> {
     }
   }
 
-  void _sayFollows(int followed, int failed, String? name) {
+  void _sayFollows(int followed, int failed) {
     final messenger = ScaffoldMessenger.maybeOf(context);
     if (messenger == null) return;
-    if (followed > 0) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(OnboardingCopy.followingApplied(followed, name)),
-        ),
-      );
-    }
-    if (failed > 0) {
-      messenger.showSnackBar(
-        SnackBar(content: Text(OnboardingCopy.followApplyFailed(failed))),
-      );
-    }
+    _announceFollows(messenger, followed, failed);
   }
 
   void _offerDraft(PendingCall draft) {
@@ -281,15 +304,13 @@ class _HomeSetupCardState extends State<HomeSetupCard> {
   bool _closing = false;
 
   Future<void> _setUp() async {
-    final app = context.read<OnboardingController>();
-    await Navigator.of(
-      context,
-    ).push(onboardingOverlayRoute(OnboardingRun.homeSetup));
-    if (!mounted) return;
-    // Topics or follows may have changed what Home and Markets show.
     final calls = context.read<CallsProvider>();
+    final arrival = await presentOnboardingOverlay(
+      context,
+      OnboardingRun.homeSetup,
+    );
+    // Topics or follows may have changed what Home and Markets show.
     unawaited(calls.loadTopCalls(force: true));
-    final arrival = app.takeArrival();
     if (arrival != null && arrival.followed > 0) {
       unawaited(calls.loadFeed(force: true));
     }
@@ -451,13 +472,17 @@ class _CompactPrimary extends StatelessWidget {
   );
 }
 
-/// Where a finished first run lands: Home, replacing everything.
+/// Where a finished first run lands: Home, replacing everything. A run that
+/// would close itself (A2 claimed, A2c) but is the app's root route — the
+/// splash put it there — has nothing under it to close back to, so it goes
+/// Home too.
 void exitToHome(BuildContext context, FlowExit exit, WidgetBuilder home) {
-  if (exit == FlowExit.pop) {
-    Navigator.of(context).maybePop();
+  final navigator = Navigator.of(context);
+  if (exit == FlowExit.pop && navigator.canPop()) {
+    navigator.pop();
     return;
   }
-  Navigator.of(context).pushAndRemoveUntil(
+  navigator.pushAndRemoveUntil(
     FadeThroughRoute<void>(
       builder: home,
       duration: const Duration(milliseconds: 300),

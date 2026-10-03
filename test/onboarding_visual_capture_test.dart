@@ -73,9 +73,14 @@ void main() {
     return rig;
   }
 
+  // 390: a common phone. 320-2x: tall, so the whole page shows at a small
+  // width and twice the text. 320x640-2x: the same at a real small phone's
+  // height, to see the sticky actions against what scrolls under them.
   final sizes = <String, (double, double, double)>{
     '390': (390, 844, 1),
+    '390-full': (390, 1700, 1),
     '320-2x': (320, 1800, 2),
+    '320x640-2x': (320, 640, 2),
   };
 
   testWidgets('splash', (tester) async {
@@ -178,6 +183,39 @@ void main() {
       flowOf(tester).goTo(OnboardingStep.signIn);
       await settle(tester, const Duration(milliseconds: 1500));
       await shot(tester, 'a1-sign-in-$size');
+    }, skip: outDir.isEmpty);
+
+    testWidgets('first call, after sign-in, with the draft $size', (
+      tester,
+    ) async {
+      final rig = await rigFor(tester, signedIn: true);
+      final scene = OnboardingScene();
+      await rig.app.saveDraft(
+        PendingCall(
+          kind: PendingCallKind.call,
+          marketId: scene.btc.id,
+          side: Side.yes,
+          question: scene.btc.question,
+          savedAt: kNowMs,
+        ),
+      );
+      await mountAt(
+        tester,
+        rig.flow(OnboardingRun.newUser, resumeAt: OnboardingStep.resumeCall),
+        // Above the app, so the composer's own route reads them too.
+        around: rig.wrap,
+        width: w,
+        height: h,
+        scale: scale,
+      );
+      await settle(tester, const Duration(milliseconds: 1500));
+      // The composer reopened on its own; put it away to see the step.
+      final sheet = find.byType(BottomSheet);
+      if (sheet.evaluate().isNotEmpty) {
+        Navigator.of(tester.element(sheet.first)).pop();
+        await settle(tester, const Duration(milliseconds: 600));
+      }
+      await shot(tester, 'c2-resume-call-$size');
     }, skip: outDir.isEmpty);
 
     testWidgets('welcome back $size', (tester) async {

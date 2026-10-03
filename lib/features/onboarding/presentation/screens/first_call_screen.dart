@@ -29,6 +29,7 @@ import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_p
 import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_scaffold.dart';
 import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_styles.dart';
 import 'package:chumbucket/features/people/data/people_models.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class FirstCallScreen extends StatefulWidget {
@@ -276,6 +277,12 @@ class _FirstCallScreenState extends State<FirstCallScreen> {
       progress: widget.resume ? null : flow.progress,
       busy: _opening,
       announce: OnboardingCopy.callTitle,
+      // After sign-in there is no Back/progress row above the title: give it
+      // the air that row gives every other step.
+      contentPadding:
+          widget.resume
+              ? const EdgeInsets.fromLTRB(16, 32, 16, 24)
+              : const EdgeInsets.fromLTRB(16, 8, 16, 24),
       actions: [
         OnbTextAction(
           key: const ValueKey('first-call-later'),
@@ -300,7 +307,11 @@ class _FirstCallScreenState extends State<FirstCallScreen> {
         ],
         if (draft != null) ...[
           const SizedBox(height: 16),
-          DraftCallCard(draft: draft),
+          DraftCallCard(
+            draft: draft,
+            // Put away without locking? It is one tap from the composer.
+            onOpen: _opening ? null : _resumeDraft,
+          ),
         ],
         if (loading) ...[
           const SizedBox(height: 24),
@@ -375,6 +386,8 @@ class _FirstCallScreenState extends State<FirstCallScreen> {
               onPressed: _opening ? null : _seeAll,
               style: TextButton.styleFrom(
                 minimumSize: const Size(48, 48),
+                // The icon on the gutter, in line with the list above it.
+                padding: const EdgeInsets.only(right: 8),
                 foregroundColor: AppColors.pinkInk,
               ),
               icon: const BasilIcon(
@@ -558,8 +571,12 @@ class _ResponseButton extends StatelessWidget {
 
 /// The call saved on this phone, waiting for a signed-in Lock.
 class DraftCallCard extends StatelessWidget {
-  const DraftCallCard({super.key, required this.draft});
+  const DraftCallCard({super.key, required this.draft, this.onOpen});
   final PendingCall draft;
+
+  /// After sign-in: reopens the draft in the composer (it may have been put
+  /// away without locking). Null on the sign-in screen.
+  final VoidCallback? onOpen;
 
   @override
   Widget build(BuildContext context) => OnbSurface(
@@ -573,6 +590,14 @@ class DraftCallCard extends StatelessWidget {
         ],
         const SizedBox(height: 10),
         OnbIconLine(icon: 'lock-outline', text: OnboardingCopy.signInDraftNote),
+        if (onOpen != null) ...[
+          const SizedBox(height: 8),
+          ChumbucketPrimaryButton(
+            key: const ValueKey('draft-review'),
+            label: OnboardingCopy.pendingCallCta,
+            onPressed: onOpen,
+          ),
+        ],
       ],
     ),
   );

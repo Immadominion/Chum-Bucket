@@ -233,9 +233,11 @@ abstract final class OnboardingCopy {
   static const upgradeBody =
       'See what people call on real prediction markets. Back them, fade them, '
       'or make your own call, and build a record.';
+  // Said before the wallet is asked anything, so it claims nothing that the
+  // signature has yet to do: the profile is kept either way.
   static const upgradeSafe =
-      'Your profile and friends came with you. Your old challenges are in '
-      'Settings → History.';
+      'Your profile and friends are still here. Your old challenges are in '
+      'Settings → History.';
   static const upgradeCta = 'Continue with wallet';
 
   /// When the server is not carrying wallet profiles over (carry off, or no
@@ -243,6 +245,13 @@ abstract final class OnboardingCopy {
   static const upgradeClosed =
       'Bringing wallet profiles into the new app isn’t open yet. Your '
       'profile, friends and challenges are unchanged.';
+
+  /// Carry-over is open, but the server found no profile behind this wallet:
+  /// the sign-in is undone and nothing is created.
+  static const upgradeNoProfile =
+      'There’s no Chumbucket profile on this wallet to bring across, so '
+      'nothing was created. You can still look around, and sign in from any '
+      'call.';
   static const upgradeLater = 'Not now';
 
   // ── K1 Make Home yours ───────────────────────────────────────────────────

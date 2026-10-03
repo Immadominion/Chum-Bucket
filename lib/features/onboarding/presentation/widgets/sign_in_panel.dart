@@ -64,6 +64,8 @@ Future<WalletDoorFailure?> mwaWalletDoor(
   final session = context.read<ChumbucketSession>();
   final wallets = context.read<MwaWalletProvider?>();
   if (!await auth.isWalletAvailable()) return WalletDoorFailure.noWallet;
+  // An old app's wallet session (U1) is kept whatever happens here.
+  final heldBefore = auth.isAuthenticated;
   final connected = await auth.authorize(
     signInMessageFor:
         (address) =>
@@ -75,7 +77,13 @@ Future<WalletDoorFailure?> mwaWalletDoor(
         : WalletDoorFailure.noAnswer;
   }
   final signed = auth.takeSignedSignIn();
-  if (signed == null) return WalletDoorFailure.declined;
+  if (signed == null) {
+    // Connected, but the sign-in message was not signed: "Nothing was
+    // signed", so nothing is kept either. A wallet connection left behind
+    // would read as an old app's profile on the next launch (U1).
+    if (!heldBefore) await auth.forgetSession();
+    return WalletDoorFailure.declined;
+  }
   onSigned();
   unawaited(wallets?.initializeFromAuth(auth));
   await session.signInWithSignedMessage(

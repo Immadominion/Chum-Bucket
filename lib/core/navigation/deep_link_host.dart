@@ -8,19 +8,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-/// The only thing missing from the shared-link loop: something that hands a
-/// live `Uri` to the router.
-///
-/// Parsing, resolution and routing already live in `lib/features/calls/deeplink/`
-/// and are unit-tested without any package. This widget is the delivery edge —
-/// it listens for the cold-start link and the warm-resume stream, and passes
-/// each one to [CallDeepLinkRouter].
-///
-/// It deliberately does not own navigation policy. `handle` returns false for
-/// any link the call slice does not own — `dev.cleva.chumbucket://login-callback`
-/// among them — and a link this widget does not own is left alone so the
-/// Supabase OAuth handler keeps receiving it exactly as before. Nothing is
-/// swallowed.
 /// Whether the app was cold-started by a link this app owns (a shared call,
 /// person or market). The splash asks so it never puts Welcome in front of a
 /// shared link (onboarding spec §3 row 1). Reported once, by [DeepLinkHost].
@@ -38,6 +25,19 @@ abstract final class ColdStartLink {
   static void reset() => _owned = Completer<bool>();
 }
 
+/// The only thing missing from the shared-link loop: something that hands a
+/// live `Uri` to the router.
+///
+/// Parsing, resolution and routing already live in `lib/features/calls/deeplink/`
+/// and are unit-tested without any package. This widget is the delivery edge —
+/// it listens for the cold-start link and the warm-resume stream, and passes
+/// each one to [CallDeepLinkRouter].
+///
+/// It deliberately does not own navigation policy. `handle` returns false for
+/// any link the call slice does not own — `dev.cleva.chumbucket://login-callback`
+/// among them — and a link this widget does not own is left alone so the
+/// Supabase OAuth handler keeps receiving it exactly as before. Nothing is
+/// swallowed.
 class DeepLinkHost extends StatefulWidget {
   const DeepLinkHost({
     super.key,
@@ -86,9 +86,7 @@ class _DeepLinkHostState extends State<DeepLinkHost> {
           widget.initialLink != null
               ? await widget.initialLink!()
               : await links!.getInitialLink();
-      ColdStartLink.report(
-        initial != null && CallDeepLinkRouter.owns(initial),
-      );
+      ColdStartLink.report(initial != null && CallDeepLinkRouter.owns(initial));
       if (initial != null) await _handle(initial);
     } catch (e) {
       ColdStartLink.report(false);

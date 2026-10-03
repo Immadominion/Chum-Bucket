@@ -80,7 +80,11 @@ class _OnboardingScaffoldState extends State<OnboardingScaffold> {
     });
   }
 
-  bool _onMetrics(ScrollMetrics metrics) {
+  /// Only the page's own scroll decides the hairline: a horizontal strip
+  /// inside the page (W1's live calls) reports its own metrics too, and its
+  /// next card is not content under the actions.
+  bool _onMetrics(ScrollMetrics metrics, int depth) {
+    if (depth != 0 || metrics.axis != Axis.vertical) return false;
     final under = metrics.extentAfter > 0.5;
     if (under != _contentUnder) setState(() => _contentUnder = under);
     return false;
@@ -162,9 +166,9 @@ class _OnboardingScaffoldState extends State<OnboardingScaffold> {
               ),
             Expanded(
               child: NotificationListener<ScrollMetricsNotification>(
-                onNotification: (n) => _onMetrics(n.metrics),
+                onNotification: (n) => _onMetrics(n.metrics, n.depth),
                 child: NotificationListener<ScrollNotification>(
-                  onNotification: (n) => _onMetrics(n.metrics),
+                  onNotification: (n) => _onMetrics(n.metrics, n.depth),
                   child: SingleChildScrollView(
                     controller: widget.controller,
                     child: content,

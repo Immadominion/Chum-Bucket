@@ -6,7 +6,9 @@ import 'dart:convert';
 
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
+import 'package:chumbucket/features/calls/presentation/screens/call_feed_screen.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_markets_screen.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/call_card.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_market_card.dart';
 import 'package:chumbucket/features/onboarding/data/onboarding_store.dart';
 import 'package:chumbucket/features/onboarding/onboarding_controller.dart';
@@ -142,6 +144,41 @@ void main() {
     expect(rig.repo.created, isEmpty);
     expect(rig.app.pendingCall?.side, Side.yes);
   });
+
+  for (final offered in [false, true]) {
+    testWidgets(
+      offered
+          ? 'Home\'s feed leads with "Make Home yours" while it is offered'
+          : 'Home\'s feed takes no slot (and no gap) for a card nobody is offered',
+      (tester) async {
+        SharedPreferences.setMockInitialValues({
+          if (offered) OnboardingStore.recordKey: '{"status":"lookedAround"}',
+        });
+        final scene = OnboardingScene();
+        final repo = scene.repository()..feed = [scene.feedEntry(scene.adaBtc)];
+        final rig = OnboardingRig(repo: repo);
+        await tester.runAsync(rig.start);
+        addTearDown(rig.dispose);
+        await mountAt(
+          tester,
+          const Scaffold(
+            body: CallFeedScreen(showHeader: false, topBanner: HomeSetupCard()),
+          ),
+          around: rig.wrap,
+        );
+        await settle(tester, const Duration(milliseconds: 900));
+        expect(find.byType(CallCard), findsWidgets);
+        expect(
+          find.byType(HomeSetupCard),
+          offered ? findsOneWidget : findsNothing,
+        );
+        expect(
+          find.byKey(const ValueKey('home-setup-card')),
+          offered ? findsOneWidget : findsNothing,
+        );
+      },
+    );
+  }
 
   testWidgets(
     'Markets opens on "For you" once: chosen topics first, the rest after',

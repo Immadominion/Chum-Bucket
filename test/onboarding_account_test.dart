@@ -1,6 +1,11 @@
 // A1 sign-in, A2/A2c usernames, B1 Welcome back and U1 What's new
 // (onboarding spec §6, §7), acceptance as tests.
+import 'dart:typed_data';
+
 import 'package:chumbucket/core/analytics/analytics.dart';
+import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
+import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
+import 'package:chumbucket/features/onboarding/presentation/widgets/sign_in_panel.dart';
 import 'package:chumbucket/features/authentication/session/last_sign_in.dart';
 import 'package:chumbucket/features/authentication/session/profile_hints.dart';
 import 'package:chumbucket/features/authentication/session/supabase_auth_port.dart';
@@ -415,4 +420,84 @@ void main() {
       expect(stored!.upgradeIntroSeen, isTrue);
     });
   });
+
+  group('the wallet door: connected, but the message was not signed', () {
+    Future<WalletDoorFailure?> knock(
+      WidgetTester tester,
+      _ConnectsWithoutSigning wallet,
+    ) async {
+      final rig = OnboardingRig(repo: OnboardingScene().repository());
+      await tester.runAsync(rig.start);
+      addTearDown(rig.dispose);
+      late BuildContext ctx;
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<MwaAuthProvider>.value(value: wallet),
+            ChangeNotifierProvider<ChumbucketSession>.value(value: rig.session),
+          ],
+          child: Builder(
+            builder: (context) {
+              ctx = context;
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+      var signed = false;
+      final failure = await mwaWalletDoor(ctx, onSigned: () => signed = true);
+      expect(signed, isFalse);
+      return failure;
+    }
+
+    testWidgets('a new person: nothing is kept (no U1 on the next launch)', (
+      tester,
+    ) async {
+      final wallet = _ConnectsWithoutSigning(heldBefore: false);
+      expect(await knock(tester, wallet), WalletDoorFailure.declined);
+      expect(wallet.forgotten, 1);
+      expect(wallet.isAuthenticated, isFalse);
+    });
+
+    testWidgets('an old app\'s wallet session (U1) is left as it was', (
+      tester,
+    ) async {
+      final wallet = _ConnectsWithoutSigning(heldBefore: true);
+      expect(await knock(tester, wallet), WalletDoorFailure.declined);
+      expect(wallet.forgotten, 0);
+      expect(wallet.isAuthenticated, isTrue);
+    });
+  });
+}
+
+/// A wallet app that approves the connection and then declines to sign the
+/// Chumbucket sign-in message.
+class _ConnectsWithoutSigning extends MwaAuthProvider {
+  _ConnectsWithoutSigning({required bool heldBefore}) : _held = heldBefore;
+
+  bool _held;
+  int forgotten = 0;
+
+  @override
+  bool get isAuthenticated => _held;
+
+  @override
+  Future<bool> isWalletAvailable() async => true;
+
+  @override
+  Future<bool> authorize({
+    String Function(String address)? signInMessageFor,
+  }) async {
+    _held = true;
+    return true;
+  }
+
+  @override
+  ({String message, Uint8List signature})? takeSignedSignIn() => null;
+
+  @override
+  Future<void> forgetSession() async {
+    forgotten++;
+    _held = false;
+  }
 }

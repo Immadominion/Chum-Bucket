@@ -70,6 +70,10 @@ class PeopleScreen extends StatelessWidget {
                     key: const ValueKey('people-follow-all'),
                     style: TextButton.styleFrom(
                       minimumSize: const Size(48, 48),
+                      // Flush with the list's edge below it (right, or left
+                      // when it moves under the title at large text); the
+                      // 48dp target is kept by the minimum size.
+                      padding: EdgeInsets.zero,
                       foregroundColor: AppColors.pinkInk,
                     ),
                     onPressed: () {

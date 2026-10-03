@@ -356,15 +356,17 @@ class PushRegistration {
     }
   }
 
-  /// Settings → Notifications.
+  /// Settings → Notifications. A server that sends no pushes has no row at
+  /// all — not even "On" because Android allows them (it always does on 12
+  /// and older): that would promise notifications nobody sends.
   static Future<PushSettingsState> settingsState(BuildContext context) async {
     if (!platform.available) return PushSettingsState.unavailable;
     final target = _target(context);
     if (target == null) return PushSettingsState.unavailable;
-    if (await platform.hasPermission()) return PushSettingsState.on;
     if (!await serverSendsPushes(target.api)) {
       return PushSettingsState.unavailable;
     }
+    if (await platform.hasPermission()) return PushSettingsState.on;
     return (await readRecord()).permanentlyDenied
         ? PushSettingsState.blocked
         : PushSettingsState.off;

@@ -14,12 +14,20 @@ its terms dialog, its music and the multi-MB GIFs are gone. New code is under
 | File | Change | Why unavoidable |
 | --- | --- | --- |
 | `lib/main.dart` | `OnboardingProvider` → `OnboardingController` (one provider line + import) | The old provider drove the deleted carousel; the new one is read by the splash, Home, Markets and Settings. |
-| `lib/shared/screens/home/home.dart` | `CallFeedScreen(topBanner: HomeSetupCard())`; the shell wrapped in `OnboardingHomeEffects`; `UsernameClaimPrompt(present: …)` opens onboarding's full-screen "Pick your @username" | Home is where a run lands (Following/Global choice, follow and restore snackbars, the waiting draft offered after a later sign-in) and where "Make Home yours" sits. |
+| `lib/shared/screens/home/home.dart` | `CallFeedScreen(topBanner: HomeSetupCard())`; the shell wrapped in `OnboardingHomeEffects`; `UsernameClaimPrompt(present: (c) => presentOnboardingOverlay(c, OnboardingRun.claimOnly))` opens onboarding's full-screen "Pick your @username" and says what became of the follows its friends step applied | Home is where a run lands (Following/Global choice, follow and restore snackbars, the waiting draft offered after a later sign-in) and where "Make Home yours" sits. The feed lays the card out only while it is offered, so everyone else's Home starts exactly where it did. |
 | `pubspec.yaml` | removed `audioplayers` and the asset folders `assets/animations/whisk_ai_generate/`, `assets/images/ai_gen/whisk_animation_fallback/`, `assets/audio/` | Only the deleted carousel used them (checked by grep across lib/, test/, android/, ios/ and docs). |
 | `pubspec.lock` | `audioplayers*` entries removed (by `flutter pub get --offline`) | Follows the pubspec. |
 
 Not touched: `src/app.ts`, `src/api/router.ts` (the new procedures live in the
 already-mounted `calls`/`people` and `account` routers).
+
+Outside the onboarding feature, also changed (review, 3 Oct):
+`lib/core/services/fcm_token_service.dart` asks the local-notifications
+plugin for permission only after the OS granted it — asking again after a
+refusal put a second OS dialog straight after the first on Android 13+ (two
+dialogs for one "Notify me", the second refusal final);
+`lib/core/services/push_registration.dart` shows no Settings → Notifications
+row ("On") when this server sends no pushes, even where Android allows them.
 
 `ios/Podfile.lock` still lists `audioplayers_darwin`; the next `pod install`
 drops it (iOS is not built today).
@@ -57,7 +65,7 @@ No migration.
 ## 4. Tests
 
 Mobile: `test/onboarding_{routing,data,store,copy,welcome,topics_people,first_call,account,entry,home}_test.dart`
-(150 tests), `test/lockdown_account_test.dart` (the one notification policy),
+(160 tests), `test/lockdown_account_test.dart` (the one notification policy),
 `test/asset_budget_test.dart`. Opt-in captures for design review:
 `flutter test --update-goldens --dart-define=CAPTURE_ONBOARDING=/abs/dir test/onboarding_visual_capture_test.dart`.
 API: `tests/peopleSuggested.test.ts`, `tests/lockdownAccount.test.ts`.
