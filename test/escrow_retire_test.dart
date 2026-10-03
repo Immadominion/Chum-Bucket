@@ -10,13 +10,15 @@
 //     offered), including after its own deadline, which the program ignores.
 //   - Friends and People offer the call-based actions instead.
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'package:solana/dto.dart' show Account;
+import 'package:solana/dto.dart' show Account, BinaryAccountData;
+import 'package:solana/solana.dart' show Ed25519HDPublicKey;
 
 import 'package:chumbucket/core/config/app_config.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
@@ -30,6 +32,7 @@ import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:chumbucket/shared/models/models.dart';
 import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenges_tab.dart';
+import 'package:chumbucket/shared/screens/home/widgets/escrow_settle.dart';
 import 'package:chumbucket/shared/screens/home/widgets/friend_actions.dart';
 import 'package:chumbucket/shared/screens/home/widgets/resolve_challenge_sheet.dart';
 import 'package:chumbucket/shared/screens/home/widgets/view_more_friends_sheet.dart';
@@ -157,7 +160,7 @@ void main() {
   });
 
   group('an earlier escrow that still holds SOL stays settleable', () {
-    test('open means pending, active or past due; not settled ones', () async {
+    test('open means anything not settled, past due included', () async {
       final state = ChallengeStateProvider(
         loadChallenges:
             (_) async => [
@@ -170,9 +173,18 @@ void main() {
       expect(state.openChallenges.map((c) => c.status).toSet(), {
         ChallengeStatus.pending,
         ChallengeStatus.active,
+        // Older open states: the chain is asked before any wallet opens.
+        ChallengeStatus.accepted,
+        ChallengeStatus.funded,
         ChallengeStatus.expired,
       });
-      for (final status in ['pending', 'active', 'expired']) {
+      for (final status in [
+        'pending',
+        'active',
+        'accepted',
+        'funded',
+        'expired',
+      ]) {
         expect(ChallengeStatusUtils.isResolvable(status), isTrue);
       }
       for (final status in ['completed', 'failed', 'cancelled']) {
@@ -214,6 +226,175 @@ void main() {
       );
       // The network could not say: the wallet's own checks still apply.
       expect(await check((_) async => throw Exception('rpc down')), isNull);
+    });
+
+    // The program's own layout (chumbucket-pinocchio src/lib.rs
+    // process_create_challenge), as the mainnet escrows hold it.
+    Account escrowAccount({
+      String initiator = _challenger,
+      String witness = walletFixture,
+      int stake = 50000000,
+      int resolved = 0,
+      String owner = _program,
+    }) {
+      final fee = stake * 250 ~/ 10000;
+      final bytes = Uint8List(146);
+      bytes.setAll(0, 'CHALL001'.codeUnits);
+      bytes.setAll(8, Ed25519HDPublicKey.fromBase58(initiator).bytes);
+      bytes.setAll(40, Ed25519HDPublicKey.fromBase58(witness).bytes);
+      bytes.setAll(
+        72,
+        Ed25519HDPublicKey.fromBase58(
+          MwaWalletProvider.platformFeeWallet,
+        ).bytes,
+      );
+      final view = ByteData.sublistView(bytes);
+      view.setUint64(104, stake, Endian.little);
+      view.setUint64(112, fee, Endian.little);
+      view.setUint64(120, stake - fee, Endian.little);
+      view.setInt64(128, 1770120000, Endian.little);
+      bytes[136] = resolved;
+      return Account(
+        lamports: stake,
+        owner: owner,
+        data: BinaryAccountData(bytes),
+        executable: false,
+        rentEpoch: BigInt.zero,
+      );
+    }
+
+    test('the escrow account is read as the program wrote it', () {
+      final open = EscrowAccountCheck.of(escrowAccount());
+      expect(open.state, EscrowAccountState.open);
+      expect(open.initiator, _challenger);
+      expect(open.witness, walletFixture);
+      // 0.05 SOL less the 2.5% fee: what the program sends the winner.
+      expect(open.payoutLamports, 48750000);
+
+      expect(
+        EscrowAccountCheck.of(escrowAccount(resolved: 1)).state,
+        EscrowAccountState.settled,
+      );
+      expect(EscrowAccountCheck.of(null).state, EscrowAccountState.settled);
+      expect(
+        EscrowAccountCheck.of(
+          escrowAccount(owner: '11111111111111111111111111111111'),
+        ).state,
+        EscrowAccountState.notThisProgram,
+      );
+    });
+
+    group(
+      'the witness\'s wallet opens only for a resolve the program accepts',
+      () {
+        const row = {
+          'id': 'escrow-row',
+          'escrowAddress': 'Escrow1111111111111111111111111111111111111',
+          'member1_address': _challenger,
+          'amount': .05,
+          'winner_amount_sol': .04875,
+        };
+
+        test('nothing to sign without the witness wallet or an escrow', () {
+          expect(
+            escrowSettlePreflight(row, connectedWallet: null)?.subtitle,
+            'Connect the witness wallet to settle it.',
+          );
+          expect(
+            escrowSettlePreflight(const {
+              'member1_address': _challenger,
+            }, connectedWallet: walletFixture)?.subtitle,
+            'It has no escrow account on record, so there is nothing to sign.',
+          );
+          expect(
+            escrowSettlePreflight(row, connectedWallet: walletFixture),
+            isNull,
+          );
+        });
+
+        test('an open escrow: the stored challenger and the exact payout', () {
+          final plan = planEscrowSettle(
+            {
+              ...row,
+              'member1_address': 'So11111111111111111111111111111111111111112',
+            },
+            connectedWallet: walletFixture,
+            check: EscrowAccountCheck.of(escrowAccount()),
+          );
+          expect(plan, isA<EscrowSettlePlan>());
+          plan as EscrowSettlePlan;
+          expect(plan.escrow, row['escrowAddress']);
+          // The program checks the challenger it stored, not the row's.
+          expect(plan.initiator, _challenger);
+          expect(plan.payout, '0.04875 SOL');
+        });
+
+        test('a closed escrow is already settled, and says so', () {
+          final stop = planEscrowSettle(
+            row,
+            connectedWallet: walletFixture,
+            check: EscrowAccountCheck.of(null),
+          );
+          expect(stop, isA<EscrowSettleStop>());
+          stop as EscrowSettleStop;
+          expect(stop.title, 'Already settled');
+          expect(stop.settled, isTrue);
+        });
+
+        test('another program\'s account is not called settled', () {
+          final stop = planEscrowSettle(
+            row,
+            connectedWallet: walletFixture,
+            check: EscrowAccountCheck.of(
+              escrowAccount(owner: '11111111111111111111111111111111'),
+            ),
+          );
+          stop as EscrowSettleStop;
+          expect(stop.settled, isFalse);
+          expect(stop.subtitle, contains('Nothing was sent'));
+        });
+
+        test(
+          'a wallet that is not the stored witness stops before signing',
+          () {
+            final stop = planEscrowSettle(
+              row,
+              connectedWallet: walletFixture,
+              check: EscrowAccountCheck.of(
+                escrowAccount(
+                  witness: 'So11111111111111111111111111111111111111112',
+                ),
+              ),
+            );
+            stop as EscrowSettleStop;
+            expect(stop.title, 'Not the witness wallet');
+          },
+        );
+
+        test(
+          'the network could not say: the row decides, the program checks',
+          () {
+            final plan = planEscrowSettle(
+              row,
+              connectedWallet: walletFixture,
+              check: const EscrowAccountCheck(EscrowAccountState.unknown),
+            );
+            plan as EscrowSettlePlan;
+            expect(plan.initiator, _challenger);
+            expect(plan.payout, '0.04875 SOL');
+          },
+        );
+      },
+    );
+
+    test('a wallet name fits under its avatar', () {
+      expect(compactWalletName('CHaLLe...1111'), 'CHaL…1111');
+      expect(
+        compactWalletName('So11111111111111111111111111111111111111112'),
+        'So11…1112',
+      );
+      expect(compactWalletName('tolu.sol'), 'tolu.sol');
+      expect(compactWalletName('Ada'), 'Ada');
     });
 
     testWidgets('the witness settles with its consequences spelled out', (
@@ -318,6 +499,35 @@ void main() {
       expect(find.text('Not completed'), findsOneWidget); // the outcome label
       expect(find.text('Completed'), findsNothing);
       expect(find.textContaining('You’re the witness'), findsNothing);
+      // Said to the reader: the witness got it.
+      expect(find.text('The stake went to you, less the fee.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the challenger reads where their stake went', (tester) async {
+      await _mount(
+        tester,
+        Scaffold(
+          body: Align(
+            alignment: Alignment.bottomCenter,
+            child: ResolveChallengeSheet(
+              challenge: const {
+                'description': 'Run 5k every day',
+                'amount': .1,
+                'status': 'completed',
+                'isCurrentUserWitness': false,
+                'friendName': 'tolu.sol',
+              },
+              onMarkCompleted: (_, _) => fail('already settled'),
+            ),
+          ),
+        ),
+      );
+      expect(find.text('Completed'), findsOneWidget);
+      expect(
+        find.text('Your stake came back to you, less the fee.'),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
     });
 
@@ -356,8 +566,8 @@ void main() {
       await list(_NoWallet());
       expect(
         find.text(
-          'Escrow challenges belong to the wallet that made them. Connect '
-          'that wallet to see them here.',
+          'Escrow challenges are kept by wallet. Connect the wallet you used '
+          'for them to see them here.',
         ),
         findsOneWidget,
       );
@@ -401,6 +611,8 @@ void main() {
       // The deadline is the challenge's own: past it, the row says so plainly
       // (it used to read "Expires soon" for any date).
       expect(find.text('Was due 1 Aug 2025'), findsOneWidget);
+      // A settled row says how it ended without being opened.
+      expect(find.text('Completed'), findsOneWidget);
       expect(find.textContaining('Expires'), findsNothing);
       await tester.tap(find.text('Run 5k every day').last);
       await tester.pumpAndSettle();
@@ -451,7 +663,7 @@ void main() {
             ),
           ),
         );
-        expect(find.text('An escrow challenge is still open'), findsOneWidget);
+        expect(find.text('Escrow challenge still open'), findsOneWidget);
         await tester.tap(find.byKey(const ValueKey('profile-open-escrow')));
         expect(opened, 1);
       }

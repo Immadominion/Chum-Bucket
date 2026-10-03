@@ -4,19 +4,31 @@ import 'package:flutter/material.dart';
 /// Centralizes status logic to avoid duplication and ensure consistency.
 class ChallengeStatusUtils {
   /// Whether an earlier escrow challenge is still open, so its witness can
-  /// settle it. `expired` counts: the deadline is the challenge's own, and the
-  /// escrow program does not enforce it, so the SOL stays locked until the
-  /// witness settles (or the challenger cancels).
-  static bool isResolvable(String status) {
-    final s = status.toLowerCase();
-    return s == 'pending' || s == 'active' || s == 'expired';
-  }
+  /// settle it: anything not yet completed, failed or cancelled. `expired`
+  /// counts: the deadline is the challenge's own, and the escrow program does
+  /// not enforce it, so the SOL stays locked until the witness settles (or
+  /// the challenger cancels). `accepted` and `funded` are older open states.
+  /// Before the wallet opens, the settle flow asks Solana (escrow_settle.dart),
+  /// so an open-looking row whose escrow is already closed costs nothing.
+  static bool isResolvable(String status) =>
+      openStatuses.contains(status.toLowerCase());
+
+  /// The `challenges.status` values that may still hold SOL.
+  static const openStatuses = {
+    'pending',
+    'active',
+    'accepted',
+    'funded',
+    'expired',
+  };
 
   /// Get color for challenge status badge/indicator
   static Color getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'pending':
       case 'active':
+      case 'accepted':
+      case 'funded':
       case 'expired': // past due, but still open (see isResolvable)
         return const Color.fromARGB(255, 241, 155, 79); // Orange for ongoing
       case 'completed':
@@ -56,6 +68,10 @@ class ChallengeStatusUtils {
         return 'Pending';
       case 'active':
         return 'Active';
+      case 'accepted':
+        return 'Accepted';
+      case 'funded':
+        return 'Funded';
       case 'completed':
         return 'Completed';
       case 'failed':

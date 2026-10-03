@@ -47,18 +47,21 @@ class ChallengeStateProvider extends ChangeNotifier {
     return sorted;
   }
 
-  /// Earlier escrow challenges that may still hold SOL: not yet resolved or
-  /// cancelled. The database writes `active` for a new escrow and `pending`
-  /// for older rows; `expired` only means the deadline passed, which the
-  /// escrow program does not enforce, so the witness can still settle it.
+  /// Earlier escrow challenges that may still hold SOL: not yet completed,
+  /// failed or cancelled. The database writes `active` for a new escrow,
+  /// `pending`, `accepted` or `funded` for older rows; `expired` only means
+  /// the deadline passed, which the escrow program does not enforce, so the
+  /// witness can still settle it.
   List<Challenge> get openChallenges {
     return _challenges.where((c) => isOpenStatus(c.status)).toList();
   }
 
-  static bool isOpenStatus(ChallengeStatus status) =>
-      status == ChallengeStatus.pending ||
-      status == ChallengeStatus.active ||
-      status == ChallengeStatus.expired;
+  static bool isOpenStatus(ChallengeStatus status) => switch (status) {
+    ChallengeStatus.completed ||
+    ChallengeStatus.failed ||
+    ChallengeStatus.cancelled => false,
+    _ => true,
+  };
 
   /// Initialize the provider with user data (only once per user)
   Future<void> initialize(String userId, {String? walletAddress}) async {

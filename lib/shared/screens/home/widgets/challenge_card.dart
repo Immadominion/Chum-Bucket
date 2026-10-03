@@ -145,6 +145,26 @@ class ChallengeCard extends StatelessWidget {
                     ),
                   ],
                 ),
+              ] else if (!isInteractable) ...[
+                // Settled: how it ended, so the list reads without opening
+                // every row.
+                Row(
+                  children: [
+                    BasilIcon(
+                      ChallengeStatusUtils.getStatusIcon(status),
+                      size: 16.w,
+                      color: ChallengeStatusUtils.getStatusColor(status),
+                    ),
+                    SizedBox(width: 6.w),
+                    Text(
+                      ChallengeStatusUtils.getStatusLabel(status),
+                      style: TextStyle(
+                        fontSize: 13.sp,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ],
           ),

@@ -22,14 +22,6 @@ class ResolveChallengeSheet extends StatefulWidget {
 }
 
 class _ResolveChallengeSheetState extends State<ResolveChallengeSheet> {
-  /// Helper method to shorten wallet address in the same format used elsewhere
-  String _shortenAddress(String address) {
-    if (address.length <= 14) return address;
-    final start = address.substring(0, 6);
-    final end = address.substring(address.length - 4);
-    return '$start...$end';
-  }
-
   /// Format amount to display nicely (avoid rounding errors like 0.05 -> 0.1)
   String _formatAmount(dynamic amount) {
     if (amount == null) return '0';
@@ -84,7 +76,7 @@ class _ResolveChallengeSheetState extends State<ResolveChallengeSheet> {
             (context, snapshot) => OverlappingProfileAvatars(
               userImagePath: 'assets/images/ai_gen/profile_images/1.png',
               friendImagePath: 'assets/images/ai_gen/profile_images/2.png',
-              friendDisplayName: snapshot.data ?? _shortenAddress(friendRaw),
+              friendDisplayName: compactWalletName(snapshot.data ?? friendRaw),
             ),
       ),
       body: SingleChildScrollView(
@@ -102,6 +94,20 @@ class _ResolveChallengeSheetState extends State<ResolveChallengeSheet> {
       ),
     );
   }
+}
+
+/// A wallet as a name under a 92dp avatar: `AbCd…WxYz`. The resolver's
+/// `AbCdEf...WxYz` (or a raw address) does not fit there and loses its
+/// tail to the ellipsis; names and domains pass through.
+String compactWalletName(String name) {
+  final shortened = RegExp(
+    r'^([1-9A-HJ-NP-Za-km-z]{4})[1-9A-HJ-NP-Za-km-z]*\.\.\.([1-9A-HJ-NP-Za-km-z]{4})$',
+  ).firstMatch(name);
+  if (shortened != null) return '${shortened[1]}…${shortened[2]}';
+  if (RegExp(r'^[1-9A-HJ-NP-Za-km-z]{32,44}$').hasMatch(name)) {
+    return '${name.substring(0, 4)}…${name.substring(name.length - 4)}';
+  }
+  return name;
 }
 
 Future<void> showResolveChallengeSheet(

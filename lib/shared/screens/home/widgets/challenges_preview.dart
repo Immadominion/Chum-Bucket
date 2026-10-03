@@ -105,8 +105,11 @@ class _ChallengesPreviewState extends State<ChallengesPreview>
               final challengeJson = challenge.toJson();
               // Add isCurrentUserWitness flag for UI
               challengeJson['isCurrentUserWitness'] = isCurrentUserWitness;
+              // The sheet already shows "You"; name the other person in it,
+              // the challenger, as the History list does.
               if (isCurrentUserWitness) {
-                challengeJson['friendName'] = 'You';
+                challengeJson['friendName'] =
+                    challenge.member1Address ?? 'The challenger';
               }
 
               return Padding(

@@ -5,7 +5,8 @@ import 'package:provider/provider.dart';
 import 'package:solana/base58.dart';
 import 'package:solana/solana.dart' as solana;
 import 'package:solana/encoder.dart' as encoder;
-import 'package:solana/dto.dart' show Account, Commitment, Encoding;
+import 'package:solana/dto.dart'
+    show Account, BinaryAccountData, Commitment, Encoding;
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/core/utils/base_change_notifier.dart'
     show LoadingState;
@@ -189,13 +190,12 @@ class MwaWalletProvider extends ChangeNotifier {
     }
   }
 
-  /// Whether an earlier escrow still holds its stake on Solana. Read-only.
+  /// What Solana says about an earlier escrow, read before the witness's
+  /// wallet opens. Read-only; never signs or sends anything.
   ///
-  /// Resolve and cancel both close the escrow account, so an account that is
-  /// missing (or no longer owned by the escrow program) was already settled and
-  /// there is nothing left to sign for. `null` when the network could not say;
-  /// the wallet's own simulation still guards the transaction then.
-  Future<bool?> escrowIsOpen(String escrowAddress) async {
+  /// `unknown` when the network could not say; the program's own checks (and
+  /// the wallet's simulation) still guard the transaction then.
+  Future<EscrowAccountCheck> checkEscrowAccount(String escrowAddress) async {
     try {
       final read = _readEscrowAccount;
       final account =
@@ -206,16 +206,27 @@ class MwaWalletProvider extends ChangeNotifier {
                 commitment: Commitment.confirmed,
                 encoding: Encoding.base64,
               )).value;
-      return escrowAccountIsOpen(account);
+      return EscrowAccountCheck.of(account);
     } catch (e) {
       log('Escrow account read failed: $e', name: 'MwaWalletProvider');
-      return null;
+      return const EscrowAccountCheck(EscrowAccountState.unknown);
     }
   }
 
+  /// Whether an earlier escrow still holds its stake on Solana: `true` open,
+  /// `false` settled or not this program's, `null` when the network could not
+  /// say. See [checkEscrowAccount].
+  Future<bool?> escrowIsOpen(
+    String escrowAddress,
+  ) async => switch ((await checkEscrowAccount(escrowAddress)).state) {
+    EscrowAccountState.open => true,
+    EscrowAccountState.settled || EscrowAccountState.notThisProgram => false,
+    EscrowAccountState.unknown => null,
+  };
+
   /// An escrow is open while its account exists and the program owns it.
   static bool escrowAccountIsOpen(Account? account) =>
-      account != null && account.owner == escrowProgramId;
+      EscrowAccountCheck.of(account).state == EscrowAccountState.open;
 
   /// Build resolve challenge transaction for Pinocchio program
   /// NOTE: WITNESS must sign (witness is the judge)
@@ -595,5 +606,82 @@ class MwaWalletProvider extends ChangeNotifier {
     } finally {
       _setLoading(false);
     }
+  }
+}
+
+/// What Solana says about an earlier escrow account (program
+/// [MwaWalletProvider.escrowProgramId]; layout from chumbucket-pinocchio
+/// `src/lib.rs`).
+enum EscrowAccountState {
+  /// Owned by the escrow program and not resolved: its witness can settle it.
+  open,
+
+  /// Resolve and cancel close the account, so a missing one was already
+  /// settled. There is nothing left to sign for.
+  settled,
+
+  /// The account exists, but the escrow program does not own it. This app's
+  /// resolve could only fail, and it is not "already settled" either.
+  notThisProgram,
+
+  /// The network could not say.
+  unknown,
+}
+
+/// The result of [MwaWalletProvider.checkEscrowAccount].
+class EscrowAccountCheck {
+  const EscrowAccountCheck(
+    this.state, {
+    this.initiator,
+    this.witness,
+    this.payoutLamports,
+  });
+
+  final EscrowAccountState state;
+
+  /// The challenger and the witness the program stored when the escrow was
+  /// created (base58). The program checks a resolve against these, not
+  /// against the database row. Null when the account's data was not read.
+  final String? initiator;
+  final String? witness;
+
+  /// What resolving sends the winner: what the account holds, less the fee
+  /// the program stored (the program sends exactly that).
+  final int? payoutLamports;
+
+  static const _discriminator = 'CHALL001';
+
+  /// Reads an escrow account: `[0..8]` "CHALL001", `[8..40]` initiator,
+  /// `[40..72]` witness, `[112..120]` platform fee (u64 LE), `[136]`
+  /// is_resolved.
+  factory EscrowAccountCheck.of(Account? account) {
+    if (account == null) {
+      return const EscrowAccountCheck(EscrowAccountState.settled);
+    }
+    if (account.owner != MwaWalletProvider.escrowProgramId) {
+      return const EscrowAccountCheck(EscrowAccountState.notThisProgram);
+    }
+    final data = account.data;
+    final bytes = data is BinaryAccountData ? data.data : null;
+    if (bytes == null ||
+        bytes.length != MwaWalletProvider.challengeAccountSize ||
+        String.fromCharCodes(bytes.sublist(0, 8)) != _discriminator) {
+      // The program owns it, in a layout this app does not read: the
+      // program's own checks decide.
+      return const EscrowAccountCheck(EscrowAccountState.open);
+    }
+    if (bytes[136] != 0) {
+      return const EscrowAccountCheck(EscrowAccountState.settled);
+    }
+    final fee = ByteData.sublistView(
+      Uint8List.fromList(bytes),
+    ).getUint64(112, Endian.little);
+    final payout = account.lamports - fee;
+    return EscrowAccountCheck(
+      EscrowAccountState.open,
+      initiator: base58encode(bytes.sublist(8, 40)),
+      witness: base58encode(bytes.sublist(40, 72)),
+      payoutLamports: payout > 0 ? payout : null,
+    );
   }
 }

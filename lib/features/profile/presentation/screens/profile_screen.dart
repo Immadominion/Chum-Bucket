@@ -296,8 +296,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   icon: 'clock-outline',
                   title:
                       openEscrow.length == 1
-                          ? 'An escrow challenge is still open'
-                          : '${openEscrow.length} escrow challenges are still open',
+                          ? 'Escrow challenge still open'
+                          : '${openEscrow.length} escrow challenges still open',
                   detail:
                       openEscrow.any(
                             (c) => wallet != null && c.witnessAddress == wallet,

@@ -64,8 +64,8 @@ class _ChallengesTabState extends State<ChallengesTab> {
             withText: true,
             message:
                 currentUserWallet == null
-                    ? 'Escrow challenges belong to the wallet that made them. '
-                        'Connect that wallet to see them here.'
+                    ? 'Escrow challenges are kept by wallet. Connect the '
+                        'wallet you used for them to see them here.'
                     : 'This wallet has none from before calls.',
           );
         }

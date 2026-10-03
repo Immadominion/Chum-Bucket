@@ -15,12 +15,12 @@ import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.d
 import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/add_friend_sheet.dart';
 import 'package:chumbucket/shared/screens/home/widgets/chumbucket_bottom_navigation.dart';
+import 'package:chumbucket/shared/screens/home/widgets/escrow_settle.dart';
 import 'package:chumbucket/shared/screens/home/widgets/friend_actions.dart';
 import 'package:chumbucket/shared/screens/home/widgets/friends_hub_tab.dart';
 import 'package:chumbucket/shared/screens/home/widgets/predictions_home_tab.dart';
 import 'package:chumbucket/shared/screens/home/utils/home_utils.dart';
 import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
-import 'package:chumbucket/shared/utils/challenge_status_utils.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:chumbucket/core/services/app_lifecycle_service.dart';
 import 'package:chumbucket/core/services/realtime_service.dart';
@@ -346,13 +346,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// Escrows whose settle is in progress, so a second tap on the same row
+  /// cannot open the wallet twice.
+  final Set<String> _settlingEscrows = {};
+
   /// Settles an earlier SOL escrow challenge as its witness (Settings →
   /// History). Creating one is retired; settling one that still holds SOL is
   /// not, because that SOL belongs to the two people in it.
   ///
   /// [initiatorWon] is the witness's verdict: `true` returns the stake to the
   /// challenger, `false` sends it to the witness. The program keeps its fee
-  /// (2.5%, at most 0.1 SOL) either way. Only the witness's wallet can sign.
+  /// (2.5%, at most 0.1 SOL) either way. Only the witness's wallet can sign,
+  /// and the escrow account is read first (escrow_settle.dart): the wallet
+  /// opens only for a resolve the program can accept.
   Future<void> _markChallengeCompleted(
     Map<String, dynamic> challenge,
     bool initiatorWon,
@@ -360,57 +366,69 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     final walletProvider = context.read<MwaWalletProvider>();
     final witness = context.read<MwaAuthProvider>().walletAddress;
-    String field(List<String> keys) {
-      for (final key in keys) {
-        final value = challenge[key]?.toString() ?? '';
-        if (value.isNotEmpty) return value;
-      }
-      return '';
-    }
-
-    final escrow = field([
-      'escrowAddress',
-      'escrow_address',
-      'multisig_address',
-    ]);
-    final initiator = field([
-      'initiator_address',
-      'member1_address',
-      'creator_wallet_address',
-    ]);
-    final payout = escrowPayoutText(challenge);
-    if (escrow.isEmpty || initiator.isEmpty || witness == null) {
+    final stop = escrowSettlePreflight(challenge, connectedWallet: witness);
+    if (stop != null || witness == null) {
       SnackBarUtils.showError(
         context,
-        title: 'Can’t settle this challenge',
-        subtitle:
-            witness == null
-                ? 'Connect the witness wallet to settle it.'
-                : 'It has no escrow account on record, so there is nothing to sign.',
+        title: stop?.title ?? 'Can’t settle this challenge',
+        subtitle: stop?.subtitle ?? 'Connect the witness wallet to settle it.',
       );
       return;
     }
+    final escrow = escrowAddressOf(challenge);
+    if (!_settlingEscrows.add(escrow)) {
+      SnackBarUtils.showInfo(
+        context,
+        title: 'Already settling',
+        subtitle: 'Your wallet is already open for this one.',
+      );
+      return;
+    }
+    try {
+      await _settleEscrow(challenge, initiatorWon, walletProvider, witness);
+    } finally {
+      _settlingEscrows.remove(escrow);
+    }
+  }
 
-    // Resolve and cancel close the escrow account. If it is gone, someone
-    // already settled it: say so instead of opening the wallet for a
-    // transaction that can only fail.
+  Future<void> _settleEscrow(
+    Map<String, dynamic> challenge,
+    bool initiatorWon,
+    MwaWalletProvider walletProvider,
+    String witness,
+  ) async {
+    // Resolve and cancel close the escrow account, and the program checks the
+    // resolve against what it stored there: read it before the wallet opens
+    // instead of asking the witness to approve a transaction that can only
+    // fail.
     SnackBarUtils.showLoading(
       context,
       title: 'Checking the escrow',
       subtitle: 'Reading Solana before your wallet opens.',
     );
-    final open = await walletProvider.escrowIsOpen(escrow);
+    final check = await walletProvider.checkEscrowAccount(
+      escrowAddressOf(challenge),
+    );
     if (!mounted) return;
     SnackBarUtils.hide(context);
-    if (open == false) {
-      SnackBarUtils.showInfo(
-        context,
-        title: 'Already settled',
-        subtitle:
-            'This escrow is already closed on Solana, so there is nothing '
-            'left in it to settle.',
-      );
-      return;
+    final decision = planEscrowSettle(
+      challenge,
+      connectedWallet: witness,
+      check: check,
+    );
+    final EscrowSettlePlan plan;
+    switch (decision) {
+      case EscrowSettleStop(:final title, :final subtitle, :final settled):
+        settled
+            ? SnackBarUtils.showInfo(context, title: title, subtitle: subtitle)
+            : SnackBarUtils.showError(
+              context,
+              title: title,
+              subtitle: subtitle,
+            );
+        return;
+      case EscrowSettlePlan():
+        plan = decision;
     }
 
     SnackBarUtils.showLoading(
@@ -418,14 +436,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       title: 'Approve in your wallet',
       subtitle:
           initiatorWon
-              ? '$payout goes back to the challenger.'
-              : '$payout comes to you.',
+              ? '${plan.payout} goes back to the challenger.'
+              : '${plan.payout} comes to you.',
       duration: const Duration(minutes: 2),
     );
     try {
       final signature = await walletProvider.resolveChallenge(
-        challengeAddress: escrow,
-        initiatorAddress: initiator,
+        challengeAddress: plan.escrow,
+        initiatorAddress: plan.initiator,
         initiatorWon: initiatorWon,
         context: context,
       );
@@ -444,7 +462,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         'status': initiatorWon ? 'completed' : 'failed',
         'completedAt': DateTime.now(),
         // The wallet the SOL went to.
-        'winnerId': initiatorWon ? initiator : witness,
+        'winnerId': initiatorWon ? plan.initiator : witness,
       });
       if (!mounted) return;
       setState(() {
@@ -457,8 +475,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         title: 'Sent to Solana',
         subtitle:
             initiatorWon
-                ? 'Once it confirms, $payout goes back to the challenger.'
-                : 'Once it confirms, $payout arrives in your wallet.',
+                ? 'Once it confirms, ${plan.payout} goes back to the challenger.'
+                : 'Once it confirms, ${plan.payout} arrives in your wallet.',
       );
     } catch (e) {
       if (!mounted) return;

@@ -214,7 +214,8 @@ class ResolveSheetContent extends StatelessWidget {
                 ],
               ),
             ),
-            if (_settledNote(status) case final note?) ...[
+            if (_settledNote(status, isWitness: isWitness)
+                case final note?) ...[
               const SizedBox(height: 12),
               Text(note, style: explain, textAlign: TextAlign.center),
             ],
@@ -225,11 +226,15 @@ class ResolveSheetContent extends StatelessWidget {
     );
   }
 
-  /// Where the stake went, for the two outcomes the witness decides. Nothing
-  /// is claimed for any other state.
-  static String? _settledNote(String status) => switch (status) {
-    'completed' => 'The stake went back to the challenger, less the fee.',
-    'failed' => 'The stake went to the witness, less the fee.',
-    _ => null,
-  };
+  /// Where the stake went, for the two outcomes the witness decides, said to
+  /// the person reading it. Nothing is claimed for any other state.
+  static String? _settledNote(String status, {required bool isWitness}) =>
+      switch ((status, isWitness)) {
+        ('completed', true) =>
+          'The stake went back to the challenger, less the fee.',
+        ('completed', false) => 'Your stake came back to you, less the fee.',
+        ('failed', true) => 'The stake went to you, less the fee.',
+        ('failed', false) => 'Your stake went to the witness, less the fee.',
+        _ => null,
+      };
 }
