@@ -181,11 +181,11 @@ void main() {
         result = value;
       },
     );
-    expect(find.text('Edit Profile'), findsOneWidget);
+    expect(find.text('Edit profile'), findsOneWidget);
     expect(find.text('Ada Okafor'), findsOneWidget);
     expect(find.text('My existing bio.'), findsOneWidget);
     expect(account.lookups, 1);
-    await tester.tap(find.byTooltip('Cancel editing'));
+    await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
     expect(find.text('Original Profile tab'), findsOneWidget);
     expect(returned, isTrue);
@@ -339,7 +339,7 @@ void main() {
   ) async {
     final account = _Account()..pendingLoad = Completer<AccountProfile?>();
     await _openEditor(tester, account);
-    await tester.tap(find.byTooltip('Cancel editing'));
+    await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
     account.pendingLoad!.complete(account.profile);
     await tester.pumpAndSettle();
@@ -353,8 +353,8 @@ void main() {
     final account =
         _Account()..profile = const AccountProfile(userId: kCanonicalUserId);
     await _openEditor(tester, account, requiredSetup: true);
-    expect(find.text('Complete Your Profile'), findsOneWidget);
-    expect(find.byTooltip('Cancel editing'), findsNothing);
+    expect(find.text('Complete your profile'), findsOneWidget);
+    expect(find.byTooltip('Back'), findsNothing);
     await tester.enterText(find.byType(TextFormField).first, '   ');
     await _save(tester);
     await tester.pumpAndSettle();

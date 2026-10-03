@@ -10,6 +10,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
+import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/shared/screens/home/home.dart';
 import 'package:chumbucket/features/authentication/providers/onboarding_provider.dart';
@@ -231,14 +233,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        foregroundColor: AppColors.textPrimary,
+        automaticallyImplyLeading: false,
         leading:
             widget.showCancelIcon
                 ? IconButton(
-                  tooltip: 'Cancel editing',
-                  icon: BasilIcon(
-                    'cancel-outline',
-                    color: Theme.of(context).colorScheme.primary,
-                    size: 33.w,
+                  tooltip: 'Back',
+                  constraints: const BoxConstraints(
+                    minWidth: 48,
+                    minHeight: 48,
+                  ),
+                  icon: const BasilIcon(
+                    'arrow-left-outline',
+                    color: AppColors.textPrimary,
                   ),
                   onPressed:
                       _isLoading
@@ -258,10 +268,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           },
                 )
                 : null,
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        elevation: 0,
       ),
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: EdgeInsets.only(
@@ -274,16 +282,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(height: 20.h),
+                const SizedBox(height: 8),
                 Text(
-                  widget.isRequired ? 'Complete Your Profile' : 'Edit Profile',
-                  style: TextStyle(
-                    fontSize: 28.sp,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
+                  widget.isRequired ? 'Complete your profile' : 'Edit profile',
+                  style: AppTextStyles.pageTitle,
                 ),
-                SizedBox(height: 40.h),
+                const SizedBox(height: 8),
+                Text(
+                  'Your name and bio show next to your calls, on your '
+                  'profile and on receipts you share.',
+                  style: _hint,
+                ),
+                const SizedBox(height: 28),
                 if (_profileLoading) ...[
                   const LinearProgressIndicator(
                     semanticsLabel: 'Loading your profile',
@@ -322,16 +332,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      "Full Name",
-                      style: TextStyle(
-                        fontSize: 16.sp,
-                        fontWeight: FontWeight.w600,
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.7),
-                      ),
+                      'Name',
+                      style: _label,
                     ),
-                    SizedBox(height: 8.h),
+                    const SizedBox(height: 8),
                     TextFormField(
                       controller: _nameController,
                       inputFormatters: [LengthLimitingTextInputFormatter(60)],
@@ -342,39 +346,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           !_isLoading,
                       decoration: InputDecoration(
                         hintText: "Enter your name",
-                        hintStyle: TextStyle(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withValues(alpha: 0.5),
-                          fontSize: 20.sp,
-                          fontWeight: FontWeight.w700,
+                        hintStyle: _field.copyWith(
+                          color: AppColors.textTertiary,
                         ),
                         filled: true,
-                        fillColor: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.05),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12.r),
-                          borderSide: BorderSide.none,
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12.r),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12.r),
-                          borderSide: BorderSide.none,
-                        ),
+                        fillColor: AppColors.surface,
+                        border: _fieldBorder(AppColors.outlineVariant),
+                        enabledBorder: _fieldBorder(AppColors.outlineVariant),
+                        disabledBorder: _fieldBorder(AppColors.outlineVariant),
+                        focusedBorder: _fieldBorder(AppColors.primary, 1.5),
                         contentPadding: EdgeInsets.symmetric(
                           horizontal: 16.w,
                           vertical: 14.h,
                         ),
                       ),
-                      style: TextStyle(
-                        fontSize: 20.sp,
-                        color: Theme.of(context).colorScheme.onSurface,
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: _field,
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
                           return 'Please enter your full name';
@@ -384,21 +370,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ),
                   ],
                 ),
-                SizedBox(height: 20.h),
+                const SizedBox(height: 20),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      "Bio (Optional)",
-                      style: TextStyle(
-                        fontSize: 16.sp,
-                        fontWeight: FontWeight.w600,
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.7),
-                      ),
+                      'Bio (optional)',
+                      style: _label,
                     ),
-                    SizedBox(height: 8.h),
+                    const SizedBox(height: 8),
                     TextFormField(
                       controller: _bioController,
                       inputFormatters: [LengthLimitingTextInputFormatter(280)],
@@ -409,45 +389,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           !_isLoading,
                       decoration: InputDecoration(
                         hintText: "Tell us about yourself",
-                        hintStyle: TextStyle(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withValues(alpha: 0.5),
-                          fontSize: 20.sp,
-                          fontWeight: FontWeight.w700,
+                        hintStyle: _field.copyWith(
+                          color: AppColors.textTertiary,
                         ),
                         alignLabelWithHint: true,
                         filled: true,
-                        fillColor: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.05),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12.r),
-                          borderSide: BorderSide.none,
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12.r),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12.r),
-                          borderSide: BorderSide.none,
-                        ),
+                        fillColor: AppColors.surface,
+                        border: _fieldBorder(AppColors.outlineVariant),
+                        enabledBorder: _fieldBorder(AppColors.outlineVariant),
+                        disabledBorder: _fieldBorder(AppColors.outlineVariant),
+                        focusedBorder: _fieldBorder(AppColors.primary, 1.5),
                         contentPadding: EdgeInsets.symmetric(
                           horizontal: 16.w,
                           vertical: 14.h,
                         ),
                       ),
-                      style: TextStyle(
-                        fontSize: 20.sp,
-                        color: Theme.of(context).colorScheme.onSurface,
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: _field,
                       maxLines: 3,
                     ),
                   ],
                 ),
-                SizedBox(height: 40.h),
+                const SizedBox(height: 32),
                 ChallengeButton(
                   enabled:
                       !_profileLoading &&
@@ -456,7 +418,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       !_isLoading,
                   isLoading: _isLoading,
                   createNewChallenge: _saveProfile,
-                  label: _isLoading ? 'Saving...' : 'Save Changes',
+                  label: _isLoading ? 'Saving…' : 'Save changes',
                 ),
                 SizedBox(height: 30.h),
               ],
@@ -467,3 +429,25 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 }
+
+final _label = AppTextStyles.textTheme.bodyMedium!.copyWith(
+  color: AppColors.textSecondary,
+  fontSize: 13,
+  fontWeight: FontWeight.w600,
+);
+final _hint = AppTextStyles.textTheme.bodyMedium!.copyWith(
+  color: AppColors.textSecondary,
+  fontSize: 14,
+  height: 1.5,
+);
+final _field = AppTextStyles.textTheme.bodyLarge!.copyWith(
+  color: AppColors.textPrimary,
+  fontSize: 16,
+  fontWeight: FontWeight.w500,
+);
+
+OutlineInputBorder _fieldBorder(Color color, [double width = 1]) =>
+    OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide(color: color, width: width),
+    );

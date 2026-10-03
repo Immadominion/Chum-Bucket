@@ -170,9 +170,9 @@ void main() {
       // The editor loaded the account (account.me), not the wallet's row.
       expect(account.lookups, greaterThanOrEqualTo(1));
       expect(find.text('Create my profile'), findsNothing);
-      expect(find.text('Complete Your Profile'), findsNothing);
-      expect(find.text('Edit Profile'), findsOneWidget);
-      await tester.tap(find.byTooltip('Cancel editing'));
+      expect(find.text('Complete your profile'), findsNothing);
+      expect(find.text('Edit profile'), findsOneWidget);
+      await tester.tap(find.byTooltip('Back'));
       await tester.pumpAndSettle();
       expect(find.byType(EditProfileScreen), findsNothing);
       expect(find.byType(ProfileScreen), findsOneWidget);
