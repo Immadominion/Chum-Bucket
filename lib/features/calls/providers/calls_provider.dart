@@ -123,10 +123,14 @@ class CallsProvider extends ChangeNotifier {
     _viewerUserId = userId;
     // Invalidates successes AND errors already in flight. Clearing a cache
     // alone lets a response authorized for the previous viewer refill it.
+    // The open catalog is the exception: it is the same for every viewer, and
+    // Markets starts loading it at launch, before the restored session lands
+    // here. Cancelling that load left Markets empty until a manual refresh.
+    final catalogLoad = _requests['catalog'];
     _requests.clear();
+    if (catalogLoad != null) _requests['catalog'] = catalogLoad;
     _isLoadingFeed = false;
     _isLoadingMore = false;
-    _isLoadingOpenMarkets = false;
     _isLoadingInvitations = false;
     _isSubmitting = false;
     _marketsInFlight.clear();
@@ -136,7 +140,6 @@ class CallsProvider extends ChangeNotifier {
     _marketErrors.clear();
     _callErrors.clear();
     _personErrors.clear();
-    _openMarketsError = null;
     _feedFromCache = false;
     _clearPeople();
     // Binds the experiment unit to the canonical `public.users.id` — never a

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/data/mock_calls_repository.dart';
@@ -102,7 +104,41 @@ class _CountingRepository implements CallsRepository {
       _inner.shareLinkForPerson(handleOrId);
 }
 
+/// Holds the open-market read until the test lets it finish.
+class _GatedOpenMarkets extends MockCallsRepository {
+  _GatedOpenMarkets(this._gate);
+
+  final Future<void> _gate;
+
+  @override
+  Future<List<VenueMarket>> fetchOpenMarkets({String? category}) async {
+    await _gate;
+    return super.fetchOpenMarkets(category: category);
+  }
+}
+
 void main() {
+  group('open catalog across a sign-in', () {
+    test('a session landing mid-load keeps the catalog load alive', () async {
+      // Markets starts this load at launch; the restored session reaches
+      // setViewer a moment later. The catalog is the same for everyone.
+      final gate = Completer<void>();
+      final provider = CallsProvider(
+        repository: _GatedOpenMarkets(gate.future),
+      );
+      final load = provider.loadOpenMarkets();
+      expect(provider.isLoadingOpenMarkets, isTrue);
+
+      provider.setViewer(viewer);
+      expect(provider.isLoadingOpenMarkets, isTrue);
+
+      gate.complete();
+      await load;
+      expect(provider.isLoadingOpenMarkets, isFalse);
+      expect(provider.openMarkets, isNotEmpty);
+    });
+  });
+
   group('session', () {
     test('reads work signed out; only writes are gated', () async {
       final provider = CallsProvider(repository: MockCallsRepository());
