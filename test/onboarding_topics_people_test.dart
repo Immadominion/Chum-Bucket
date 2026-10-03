@@ -22,6 +22,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'onboarding_fakes.dart';
 import 'onboarding_scenes.dart';
+import 'session_fakes.dart';
 
 OnboardingFlowController _flow(WidgetTester tester) =>
     Provider.of<OnboardingFlowController>(
@@ -231,6 +232,41 @@ void main() {
       expect(rig.repo.followed, isEmpty);
       expect(find.text(OnboardingCopy.ctaContinue), findsOneWidget);
     });
+
+    testWidgets(
+      'follows chosen signed out are applied during the run once signed in — '
+      'even though the calls slice learns the account a frame later',
+      (tester) async {
+        final rig = OnboardingRig(
+          repo: OnboardingScene().repository(),
+          bindViewerLate: true,
+        );
+        await tester.runAsync(rig.start);
+        addTearDown(rig.dispose);
+        await mountAt(
+          tester,
+          rig.flow(OnboardingRun.newUser),
+          around: rig.wrap,
+          height: 1000,
+        );
+        await settle(tester);
+        await toPeople(tester);
+        await tester.tap(find.byKey(const ValueKey('follow-user-ada')));
+        await settle(tester, const Duration(milliseconds: 300));
+        await tester.tap(find.byKey(const ValueKey('people-continue')));
+        await settle(tester, const Duration(milliseconds: 1500));
+        expect(find.byType(FirstCallScreen), findsOneWidget);
+        await tester.tap(find.byKey(const ValueKey('first-call-later')));
+        await settle(tester);
+
+        rig.auth.deliverOnSignIn = snapshot();
+        await tester.tap(find.byKey(const ValueKey('front-door-google')));
+        await settle(tester, const Duration(milliseconds: 1500));
+        expect(rig.session.isReady, isTrue);
+        expect(rig.repo.followed, ['user-ada']);
+        expect(rig.app.pendingFollowIds, isEmpty);
+      },
+    );
 
     testWidgets('Follow all, then Unfollow all, both announced as state', (
       tester,

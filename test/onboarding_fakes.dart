@@ -574,6 +574,7 @@ class OnboardingRig {
     Set<String> providers = const {'google'},
     bool pushLive = false,
     FakePushPlatform? permission,
+    this.bindViewerLate = true,
   }) : repo = repo ?? FakeOnboardingRepository(),
        bff = bff ?? OnboardingBff(handle: 'ada'),
        lastSignIn = MemoryLastSignInStore(lastUsed),
@@ -601,6 +602,11 @@ class OnboardingRig {
   final FakeOnboardingRepository repo;
   final OnboardingBff bff;
   final bool signedIn;
+
+  /// As main.dart wires it (the default): the calls slice learns the account
+  /// in a ProxyProvider's update, on the next build — after every listener
+  /// of the session has already run. False binds it at once.
+  final bool bindViewerLate;
   final MemoryLastSignInStore lastSignIn;
   final FakeAccountApi account;
   final FakePushPlatform permission;
@@ -622,7 +628,13 @@ class OnboardingRig {
     PushRegistration.clock = () => clockNow;
     await session.restore();
     calls.setViewer(session.userId);
-    session.addListener(() => calls.setViewer(session.userId));
+    session.addListener(() {
+      if (bindViewerLate) {
+        scheduleMicrotask(() => calls.setViewer(session.userId));
+      } else {
+        calls.setViewer(session.userId);
+      }
+    });
     await app.load();
   }
 

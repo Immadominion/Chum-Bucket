@@ -662,6 +662,14 @@ class OnboardingFlowController extends ChangeNotifier {
       _topicsData == StepData.available && _selectedTopics.isEmpty;
 
   Future<void> _applyFollows() async {
+    // The session says "ready" before the calls slice knows the account:
+    // main.dart binds it in a ProxyProvider's update, on the next build. Wait
+    // for that rather than find "signed out" and apply nothing.
+    if (!calls.isSignedIn &&
+        !await _waitFor(() => calls.isSignedIn, const Duration(seconds: 5))) {
+      return;
+    }
+    if (_disposed) return;
     final result = await app.applyPendingFollows(calls);
     if (result == null || _disposed) return;
     final previous = _applied;
