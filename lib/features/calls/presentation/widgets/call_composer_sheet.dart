@@ -37,6 +37,7 @@ Future<CallFeedEntry?> showCallComposer({
   String? note,
   AnalyticsSurface? surface,
   bool askForNotifications = true,
+  bool compact = false,
 }) => showChumbucketWavySheet<CallFeedEntry>(
   context: context,
   builder:
@@ -54,6 +55,7 @@ Future<CallFeedEntry?> showCallComposer({
         note: note,
         surface: surface,
         askForNotifications: askForNotifications,
+        compact: compact,
       ),
 );
 
@@ -107,6 +109,11 @@ class CallComposerSheet extends StatefulWidget {
   /// After a lock, explain-then-ask for notifications (lockdown's in-context
   /// ask). Onboarding passes false: its "You're on record" step asks there.
   final bool askForNotifications;
+
+  /// Onboarding's one-tap confirm: the question, the side and Lock. No
+  /// reason, visibility, confidence or rules (all still defaults: public,
+  /// no reason, no confidence); the full composer is everywhere else.
+  final bool compact;
   const CallComposerSheet({
     super.key,
     required this.market,
@@ -122,6 +129,7 @@ class CallComposerSheet extends StatefulWidget {
     this.note,
     this.surface,
     this.askForNotifications = true,
+    this.compact = false,
   });
   @override
   State<CallComposerSheet> createState() => _CallComposerSheetState();
@@ -139,12 +147,23 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
   bool _refreshing = false;
   String? _error;
   String? _notice;
+
   /// Offer "Pick another market" (onboarding): stale price or a refusal.
   bool _offerAnother = false;
   @override
   void dispose() {
     _thesis.dispose();
     super.dispose();
+  }
+
+  /// Compact mode's single line: the side, Panta's price, and that it's free.
+  String _compactLine(Side side) {
+    final price = _sharePrice?.priceFor(side);
+    final at =
+        price == null
+            ? ''
+            : ' at ${CallsFormat.displayPrice(price)} USDC/share';
+    return 'You’re calling ${side.wire}$at. Free, and it goes on your record.';
   }
 
   CallComposerDraft _draft(Side side) => CallComposerDraft(
@@ -189,7 +208,8 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
           _priceRefreshed = true;
           if (fresh != null) _sharePrice = fresh;
           _offerAnother = !usable;
-          _notice = usable ? 'Panta sent a fresh price. Check it, then lock.' : null;
+          _notice =
+              usable ? 'Panta sent a fresh price. Check it, then lock.' : null;
           _error =
               usable
                   ? null
@@ -281,11 +301,13 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
                   ),
                 if (widget.note != null)
                   CallJourneyNote(widget.note!, icon: 'user-outline'),
-                Text(
-                  'Your opinion. On the record.',
-                  style: callJourneyBody(12),
-                ),
-                const SizedBox(height: 12),
+                if (!widget.compact) ...[
+                  Text(
+                    'Your opinion. On the record.',
+                    style: callJourneyBody(12),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 Text(market.question, style: callJourneyHeading(context, 22)),
                 const SizedBox(height: 16),
                 if (!open) ...[
@@ -309,89 +331,96 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
                 Text(
                   _side == null
                       ? 'Choose your YES or NO.'
+                      : widget.compact
+                      ? _compactLine(_side!)
                       : 'You’re calling ${_side!.wire}. No money involved.',
                   style: callJourneyBody(),
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  'Your reason (optional)',
-                  style: callJourneyHeading(context, 14),
-                ),
-                const SizedBox(height: 8),
-                CallJourneyReason(
-                  controller: _thesis,
-                  enabled: !provider.isSubmitting,
-                ),
-                CallJourneyVisibility(
-                  value: _visibility,
-                  onChanged:
-                      provider.isSubmitting
-                          ? null
-                          : (value) => setState(() => _visibility = value),
-                ),
-                const SizedBox(height: 12),
-                CallJourneyConfidence(
-                  enabled: _useConfidence,
-                  confidence: _confidence,
-                  onToggle:
-                      provider.isSubmitting
-                          ? null
-                          : (value) => setState(() => _useConfidence = value),
-                  onChanged:
-                      provider.isSubmitting
-                          ? null
-                          : (value) => setState(() => _confidence = value),
-                ),
-                const Divider(height: 32),
-                CallJourneyFact(
-                  'Closes',
-                  market.closesAtUtc == null
-                      ? 'No close time published'
-                      : CallsFormat.timestampUtc(market.closesAtUtc!),
-                ),
-                Text(
-                  market.venue == MarketVenue.panta
-                      ? '${CallsFormat.nativePrices(_sharePrice)} · ${SharePriceSnapshot.attribution}'
-                          '${_sharePrice == null ? '' : ' · Observed ${CallsFormat.timestampUtc(_sharePrice!.observedAtUtc)}'} · Indicative, not a trade quote'
-                      : widget.snapshot == null
-                      ? 'No venue price published — your call locks without one.'
-                      : 'Venue price: Yes ${CallsFormat.probability(widget.snapshot!.yesProbability)} · No ${CallsFormat.probability(widget.snapshot!.noProbability)} · ${CallsFormat.dataAge(widget.snapshot!.ageAt(DateTime.now()))}',
-                  style: callJourneyBody(12),
-                ),
-                ExpansionTile(
-                  tilePadding: EdgeInsets.zero,
-                  title: Text(
-                    'Read the market rules',
+                if (!widget.compact) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'Your reason (optional)',
                     style: callJourneyHeading(context, 14),
                   ),
-                  children: [
-                    SelectableText(market.rulesText, style: callJourneyBody()),
-                    // Panta's public page, never its authenticated API URL.
-                    if (market.venue == MarketVenue.panta &&
-                        market.venueMarketId.isNotEmpty)
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: PantaMarketLink(
-                          venueMarketId: market.venueMarketId,
-                          label: 'Resolved by Panta',
-                          style: callJourneyBody(12),
-                        ),
-                      )
-                    else if (market.resolutionSource != null)
-                      CallJourneyFact(
-                        'Resolution source',
-                        market.resolutionSource!,
+                  const SizedBox(height: 8),
+                  CallJourneyReason(
+                    controller: _thesis,
+                    enabled: !provider.isSubmitting,
+                  ),
+                  CallJourneyVisibility(
+                    value: _visibility,
+                    onChanged:
+                        provider.isSubmitting
+                            ? null
+                            : (value) => setState(() => _visibility = value),
+                  ),
+                  const SizedBox(height: 12),
+                  CallJourneyConfidence(
+                    enabled: _useConfidence,
+                    confidence: _confidence,
+                    onToggle:
+                        provider.isSubmitting
+                            ? null
+                            : (value) => setState(() => _useConfidence = value),
+                    onChanged:
+                        provider.isSubmitting
+                            ? null
+                            : (value) => setState(() => _confidence = value),
+                  ),
+                  const Divider(height: 32),
+                  CallJourneyFact(
+                    'Closes',
+                    market.closesAtUtc == null
+                        ? 'No close time published'
+                        : CallsFormat.timestampUtc(market.closesAtUtc!),
+                  ),
+                  Text(
+                    market.venue == MarketVenue.panta
+                        ? '${CallsFormat.nativePrices(_sharePrice)} · ${SharePriceSnapshot.attribution}'
+                            '${_sharePrice == null ? '' : ' · Observed ${CallsFormat.timestampUtc(_sharePrice!.observedAtUtc)}'} · Indicative, not a trade quote'
+                        : widget.snapshot == null
+                        ? 'No venue price published — your call locks without one.'
+                        : 'Venue price: Yes ${CallsFormat.probability(widget.snapshot!.yesProbability)} · No ${CallsFormat.probability(widget.snapshot!.noProbability)} · ${CallsFormat.dataAge(widget.snapshot!.ageAt(DateTime.now()))}',
+                    style: callJourneyBody(12),
+                  ),
+                  ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    title: Text(
+                      'Read the market rules',
+                      style: callJourneyHeading(context, 14),
+                    ),
+                    children: [
+                      SelectableText(
+                        market.rulesText,
+                        style: callJourneyBody(),
                       ),
-                  ],
-                ),
-                const CallJourneyNote(
-                  'Your side, reason and timestamp can’t be edited after locking.',
-                  icon: 'lock-outline',
-                ),
-                Text(
-                  'This is a free call. No money, no wallet, nothing to fund.',
-                  style: callJourneyBody(12),
-                ),
+                      // Panta's public page, never its authenticated API URL.
+                      if (market.venue == MarketVenue.panta &&
+                          market.venueMarketId.isNotEmpty)
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: PantaMarketLink(
+                            venueMarketId: market.venueMarketId,
+                            label: 'Resolved by Panta',
+                            style: callJourneyBody(12),
+                          ),
+                        )
+                      else if (market.resolutionSource != null)
+                        CallJourneyFact(
+                          'Resolution source',
+                          market.resolutionSource!,
+                        ),
+                    ],
+                  ),
+                  const CallJourneyNote(
+                    'Your side, reason and timestamp can’t be edited after locking.',
+                    icon: 'lock-outline',
+                  ),
+                  Text(
+                    'This is a free call. No money, no wallet, nothing to fund.',
+                    style: callJourneyBody(12),
+                  ),
+                ],
                 if (_notice != null)
                   Semantics(
                     liveRegion: true,
@@ -622,10 +651,9 @@ class CallJourneyFact extends StatelessWidget {
         final content = Text(
           value,
           textAlign: stacked ? TextAlign.start : TextAlign.end,
-          style: callJourneyBody(12).copyWith(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w500,
-          ),
+          style: callJourneyBody(
+            12,
+          ).copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w500),
         );
         if (stacked) {
           return Column(
@@ -665,7 +693,11 @@ class CallJourneyPerson extends StatelessWidget {
     final identity = _identity(context);
     if (trailing == null) return identity;
     return Row(
-      children: [Expanded(child: identity), const SizedBox(width: 8), trailing!],
+      children: [
+        Expanded(child: identity),
+        const SizedBox(width: 8),
+        trailing!,
+      ],
     );
   }
 

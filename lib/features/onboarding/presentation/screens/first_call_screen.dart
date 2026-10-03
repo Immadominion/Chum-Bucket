@@ -17,8 +17,9 @@ import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_badges.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_composer_sheet.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_market_card.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart';
+import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_format.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_response_sheet.dart';
-import 'package:chumbucket/features/calls/presentation/widgets/market_picker_sheet.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/features/onboarding/data/onboarding_store.dart';
 import 'package:chumbucket/features/onboarding/domain/onboarding_data.dart';
@@ -96,6 +97,7 @@ class _FirstCallScreenState extends State<FirstCallScreen> {
     SharePriceSnapshot? sharePrice,
     MarketSnapshot? snapshot,
     PendingCall? draft,
+    Side? side,
   }) async {
     final flow = _flow;
     if (draft == null) {
@@ -114,6 +116,8 @@ class _FirstCallScreenState extends State<FirstCallScreen> {
       surface: AnalyticsSurface.onboarding,
       // "You're on record" asks about notifications, once.
       askForNotifications: false,
+      compact: true,
+      initialSide: side,
       note: draft != null ? _signedInNote : null,
       initialDraft:
           draft == null
@@ -146,6 +150,37 @@ class _FirstCallScreenState extends State<FirstCallScreen> {
               ),
     );
     if (entry != null && mounted) await flow.locked(entry);
+  }
+
+  /// YES or NO on a deck card. Signed out, the pick is kept on the phone
+  /// and sign-in comes straight away (no sheet first); signed in, a one-tap
+  /// confirm with that side chosen.
+  Future<void> _pick(FirstCallMarket item, Side side) async {
+    final flow = _flow;
+    if (!flow.signedIn) {
+      _calls.analytics.record(
+        OnboardingAnalyticsEvents.firstCallOpened(
+          kind: 'market',
+          marketId: item.market.id,
+        ),
+      );
+      await flow.saveDraftAndSignIn(
+        PendingCall(
+          kind: PendingCallKind.call,
+          marketId: item.market.id,
+          side: side,
+          question: item.market.question,
+          savedAt: flow.now.toUtc().millisecondsSinceEpoch,
+        ),
+      );
+      return;
+    }
+    await _compose(
+      item.market,
+      sharePrice: item.sharePrice,
+      snapshot: item.snapshot,
+      side: side,
+    );
   }
 
   /// Back or Fade on someone's live call.
@@ -248,18 +283,6 @@ class _FirstCallScreenState extends State<FirstCallScreen> {
     );
   });
 
-  Future<void> _seeAll() => _guard(() async {
-    final market = await showMarketChooser(context: context);
-    if (market == null || !mounted) return;
-    final detail = await _calls.loadMarketDetail(market.id, force: true);
-    if (!mounted) return;
-    await _compose(
-      detail?.market ?? market,
-      sharePrice: detail?.sharePrice,
-      snapshot: detail?.snapshot,
-    );
-  });
-
   @override
   Widget build(BuildContext context) {
     final flow = context.watch<OnboardingFlowController>();
@@ -335,75 +358,15 @@ class _FirstCallScreenState extends State<FirstCallScreen> {
             Text(OnboardingCopy.callAnswerHelper, style: OnbText.meta),
           ],
           if (markets.isNotEmpty) ...[
-            const SizedBox(height: 24),
-            _SectionHeading(
-              answerable.isEmpty
-                  ? OnboardingCopy.callOwnHeader.replaceFirst('Or call', 'Call')
-                  : OnboardingCopy.callOwnHeader,
-            ),
-            const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(22),
-              child: Column(
-                children: [
-                  for (var i = 0; i < markets.length; i++) ...[
-                    if (i > 0)
-                      const ColoredBox(
-                        color: AppColors.surface,
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16),
-                          child: Divider(height: 1, color: AppColors.divider),
-                        ),
-                      ),
-                    AbsorbPointer(
-                      absorbing: _opening,
-                      child: CallMarketCard(
-                        key: ValueKey('first-call-${markets[i].market.id}'),
-                        market: markets[i].market,
-                        sharePrice: markets[i].sharePrice,
-                        onTap:
-                            () => _guard(
-                              () => _compose(
-                                markets[i].market,
-                                sharePrice: markets[i].sharePrice,
-                                snapshot: markets[i].snapshot,
-                              ),
-                            ),
-                      ),
-                    ),
-                  ],
-                ],
+            const SizedBox(height: 20),
+            OnbFullBleed(
+              child: _MarketDeck(
+                markets: markets,
+                enabled: !_opening,
+                onPick: (item, side) => _guard(() => _pick(item, side)),
               ),
             ),
-            const SizedBox(height: 8),
-            const MarketCatalogLegend(),
           ],
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              key: const ValueKey('first-call-see-all'),
-              onPressed: _opening ? null : _seeAll,
-              style: TextButton.styleFrom(
-                minimumSize: const Size(48, 48),
-                // The icon on the gutter, in line with the list above it.
-                padding: const EdgeInsets.only(right: 8),
-                foregroundColor: AppColors.pinkInk,
-              ),
-              icon: const BasilIcon(
-                'search-outline',
-                size: 18,
-                color: AppColors.pinkInk,
-              ),
-              label: Text(
-                OnboardingCopy.callSeeAll,
-                style: OnbText.chip.copyWith(
-                  fontSize: 14,
-                  color: AppColors.pinkInk,
-                ),
-              ),
-            ),
-          ),
         ],
       ],
     );
@@ -640,4 +603,266 @@ class _MarketsSkeleton extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// The first call as a deck: one real market per card, swiped sideways, with
+/// two big answers. Panta's live price is on each answer.
+class _MarketDeck extends StatefulWidget {
+  const _MarketDeck({
+    required this.markets,
+    required this.enabled,
+    required this.onPick,
+  });
+
+  final List<FirstCallMarket> markets;
+  final bool enabled;
+  final void Function(FirstCallMarket item, Side side) onPick;
+
+  @override
+  State<_MarketDeck> createState() => _MarketDeckState();
+}
+
+class _MarketDeckState extends State<_MarketDeck> {
+  final _pages = PageController(viewportFraction: .88);
+  int _page = 0;
+
+  @override
+  void dispose() {
+    _pages.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final markets = widget.markets;
+    final scale = MediaQuery.textScalerOf(context).scale(1);
+    // Tall phones get a tall card, which also brings YES/NO down to the
+    // thumb; the shadow gets room below so it is never cut.
+    final screen = MediaQuery.sizeOf(context).height;
+    final height =
+        (screen * .5).clamp(350.0, 480.0) + 60 * (scale - 1).clamp(0, 1.5);
+    return Column(
+      children: [
+        SizedBox(
+          height: height,
+          child: PageView.builder(
+            controller: _pages,
+            itemCount: markets.length,
+            onPageChanged: (i) => setState(() => _page = i),
+            itemBuilder:
+                (context, i) => AnimatedBuilder(
+                  animation: _pages,
+                  builder: (context, child) {
+                    final page =
+                        _pages.hasClients && _pages.position.haveDimensions
+                            ? (_pages.page ?? _page.toDouble())
+                            : _page.toDouble();
+                    final d = (page - i).abs().clamp(0.0, 1.0);
+                    return Transform.scale(scale: 1 - .06 * d, child: child);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(6, 2, 6, 28),
+                    child: _DeckCard(
+                      key: ValueKey('first-call-${markets[i].market.id}'),
+                      item: markets[i],
+                      enabled: widget.enabled,
+                      onPick: (side) => widget.onPick(markets[i], side),
+                    ),
+                  ),
+                ),
+          ),
+        ),
+        if (markets.length > 1) ...[
+          ExcludeSemantics(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (var i = 0; i < markets.length; i++)
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: i == _page ? 18 : 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color:
+                          i == _page
+                              ? AppColors.primary
+                              : const Color(0xFFD8DADD),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _DeckCard extends StatelessWidget {
+  static double _questionSize(String q) =>
+      q.length <= 48
+          ? 31
+          : q.length <= 80
+          ? 27
+          : q.length <= 120
+          ? 23
+          : 20;
+
+  const _DeckCard({
+    super.key,
+    required this.item,
+    required this.enabled,
+    required this.onPick,
+  });
+
+  final FirstCallMarket item;
+  final bool enabled;
+  final void Function(Side side) onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final market = item.market;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14111827),
+            blurRadius: 24,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              MarketGlyph(market: market),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '${marketCategoryLabel(market.category)} · '
+                  '${OnbFormat.closesLine(market)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: OnbText.meta,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          // The question owns the card: set large and centred, sized to its
+          // length so a short question never floats in empty space.
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                market.question,
+                maxLines: 6,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'PPNeueMachina',
+                  fontSize: _questionSize(market.question),
+                  fontWeight: FontWeight.w800,
+                  height: 1.2,
+                  letterSpacing: -.6,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _AnswerButton(
+                  side: Side.yes,
+                  price: item.sharePrice.yesPrice,
+                  enabled: enabled,
+                  onTap: () => onPick(Side.yes),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _AnswerButton(
+                  side: Side.no,
+                  price: item.sharePrice.noPrice,
+                  enabled: enabled,
+                  onTap: () => onPick(Side.no),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AnswerButton extends StatelessWidget {
+  const _AnswerButton({
+    required this.side,
+    required this.price,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final Side side;
+  final String? price;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final yes = side == Side.yes;
+    final ink = yes ? const Color(0xFF07644C) : const Color(0xFF334155);
+    final fill = yes ? const Color(0xFFE6F6EF) : const Color(0xFFEEF0F4);
+    return Semantics(
+      button: true,
+      label:
+          'Call ${side.wire}'
+          '${price == null ? '' : ', ${CallsFormat.displayPrice(price!)} USDC per share'}',
+      excludeSemantics: true,
+      child: Material(
+        color: fill,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          key: ValueKey('deck-${side.wire.toLowerCase()}'),
+          borderRadius: BorderRadius.circular(18),
+          onTap: enabled ? onTap : null,
+          child: SizedBox(
+            height: 68,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  side.wire,
+                  style: TextStyle(
+                    fontFamily: 'PPNeueMachina',
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: ink,
+                  ),
+                ),
+                if (price != null)
+                  Text(
+                    CallsFormat.displayPrice(price!),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: ink.withValues(alpha: .75),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

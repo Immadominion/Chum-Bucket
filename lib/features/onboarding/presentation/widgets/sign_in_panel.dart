@@ -112,7 +112,12 @@ class OnboardingSignInPanel extends StatefulWidget {
     this.onFailed,
     this.onBusyChanged,
     this.walletOnly = false,
+    this.compact = false,
   });
+
+  /// Onboarding's layout: the main way in as a full button, the others as
+  /// round buttons under an "or", and no explanatory lines.
+  final bool compact;
 
   final WalletDoor walletDoor;
   final Future<bool> Function() isOnline;
@@ -275,6 +280,13 @@ class _OnboardingSignInPanelState extends State<OnboardingSignInPanel> {
     return out;
   }
 
+  VoidCallback? _press(SignInMethod method, SignInMethod? last, bool busy) =>
+      !_online || busy
+          ? null
+          : method == SignInMethod.wallet
+          ? () => _wallet(method == last)
+          : () => _startSocial(method, method == last);
+
   @override
   Widget build(BuildContext context) {
     final session = context.watch<ChumbucketSession>();
@@ -348,33 +360,71 @@ class _OnboardingSignInPanelState extends State<OnboardingSignInPanel> {
               ),
             ),
           ),
-        for (var i = 0; i < order.length; i++) ...[
-          if (i > 0) const SizedBox(height: 14),
+        if (widget.compact && order.isNotEmpty) ...[
           FrontDoorButton(
-            method: order[i],
-            primary: i == 0,
-            lastUsed: order[i] == last,
+            method: order.first,
+            primary: true,
+            lastUsed: order.first == last,
             busy:
-                order[i] == SignInMethod.wallet
+                order.first == SignInMethod.wallet
                     ? _walletPhase != _WalletPhase.idle
-                    : socialBusy && _social == order[i],
-            busyLabel: busyLabel(order[i]),
+                    : socialBusy && _social == order.first,
+            busyLabel: busyLabel(order.first),
             subtitle:
-                order[i] == SignInMethod.wallet &&
+                order.first == SignInMethod.wallet &&
                         _walletApp == false &&
                         !widget.walletOnly
                     ? OnboardingCopy.signInNoWallet
                     : null,
-            onPressed:
-                !_online || busy
-                    ? null
-                    : switch (order[i]) {
-                      SignInMethod.wallet => () => _wallet(order[i] == last),
-                      final method =>
-                        () => _startSocial(method, method == last),
-                    },
+            onPressed: _press(order.first, last, busy),
           ),
-        ],
+          if (order.length > 1) ...[
+            const SizedBox(height: 18),
+            const _OrRule(),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (var i = 1; i < order.length; i++) ...[
+                  if (i > 1) const SizedBox(width: 20),
+                  FrontDoorCircleButton(
+                    method: order[i],
+                    lastUsed: order[i] == last,
+                    busy: socialBusy && _social == order[i],
+                    onPressed: _press(order[i], last, busy),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ] else
+          for (var i = 0; i < order.length; i++) ...[
+            if (i > 0) const SizedBox(height: 14),
+            FrontDoorButton(
+              method: order[i],
+              primary: i == 0,
+              lastUsed: order[i] == last,
+              busy:
+                  order[i] == SignInMethod.wallet
+                      ? _walletPhase != _WalletPhase.idle
+                      : socialBusy && _social == order[i],
+              busyLabel: busyLabel(order[i]),
+              subtitle:
+                  order[i] == SignInMethod.wallet &&
+                          _walletApp == false &&
+                          !widget.walletOnly
+                      ? OnboardingCopy.signInNoWallet
+                      : null,
+              onPressed:
+                  !_online || busy
+                      ? null
+                      : switch (order[i]) {
+                        SignInMethod.wallet => () => _wallet(order[i] == last),
+                        final method =>
+                          () => _startSocial(method, method == last),
+                      },
+            ),
+          ],
         if (socialBusy && session.status == SessionStatus.signingIn)
           OnbTextAction(
             key: const ValueKey('sign-in-cancel'),
@@ -382,7 +432,7 @@ class _OnboardingSignInPanelState extends State<OnboardingSignInPanel> {
             color: AppColors.textMuted,
             onPressed: _cancelSocial,
           ),
-        if (order.contains(SignInMethod.wallet)) ...[
+        if (!widget.compact && order.contains(SignInMethod.wallet)) ...[
           const SizedBox(height: 14),
           Text(
             OnboardingCopy.signInWalletLine,
@@ -393,4 +443,23 @@ class _OnboardingSignInPanelState extends State<OnboardingSignInPanel> {
       ],
     );
   }
+}
+
+/// "or" between the main way in and the round ones.
+class _OrRule extends StatelessWidget {
+  const _OrRule();
+
+  @override
+  Widget build(BuildContext context) => ExcludeSemantics(
+    child: Row(
+      children: [
+        const Expanded(child: Divider(color: AppColors.divider, height: 1)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text('or', style: OnbText.meta),
+        ),
+        const Expanded(child: Divider(color: AppColors.divider, height: 1)),
+      ],
+    ),
+  );
 }

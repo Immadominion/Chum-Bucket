@@ -3,8 +3,6 @@
 /// nothing will be lost; "Not now" keeps signed-out reading fully usable.
 library;
 
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
@@ -17,6 +15,7 @@ import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_m
 import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_parts.dart';
 import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_scaffold.dart';
 import 'package:chumbucket/features/onboarding/presentation/widgets/sign_in_panel.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
 
 /// The fist bump: plays once and holds; a still frame under reduced motion
 /// (the frame where the fists meet).
@@ -79,6 +78,7 @@ class SignInScreen extends StatelessWidget {
     final panelWidget =
         panel ??
         OnboardingSignInPanel(
+          compact: true,
           onStarted: (m, lastUsed) => flow.signInStarted(m, lastUsed: lastUsed),
           onFailed: flow.signInFailed,
           onBusyChanged: flow.setBusy,
@@ -89,33 +89,32 @@ class SignInScreen extends StatelessWidget {
       busy: flow.busy,
       progress: welcomeBack ? null : flow.progress,
       announce: title,
-      header: welcomeBack ? const OnboardingBrandBand(height: 120) : null,
-      contentPadding: EdgeInsets.fromLTRB(16, welcomeBack ? 0 : 8, 16, 24),
+      // Sign-in is the way in: no "Not now" or "Look around first". The ways
+      // in sit at the bottom, where a thumb reaches on a tall phone.
       actions: [
-        OnbTextAction(
-          key: const ValueKey('sign-in-not-now'),
-          label:
-              welcomeBack
-                  ? OnboardingCopy.backLook
-                  : OnboardingCopy.signInNotNow,
-          color: AppColors.textMuted,
-          onPressed:
-              flow.busy
-                  ? null
-                  : () => unawaited(
-                    flow.lookAround(
-                      outcome: welcomeBack ? 'look_around' : 'not_now',
-                    ),
-                  ),
-        ),
+        panelWidget,
+        const SizedBox(height: 22),
+        const OnbConsentLine(),
       ],
       children: [
-        if (!welcomeBack) ...[const FistBumpHero(), const SizedBox(height: 8)],
-        OnbTitle(title),
         const SizedBox(height: 8),
-        OnbBody(
-          welcomeBack ? OnboardingCopy.backBody : OnboardingCopy.signInSubtitle,
+        Center(
+          child: OnbReveal(
+            scaleFrom: .94,
+            child: ChumbucketStateArt(
+              welcomeBack
+                  ? ChumbucketStateArtwork.success
+                  : ChumbucketStateArtwork.record,
+              size: 176,
+            ),
+          ),
         ),
+        const SizedBox(height: 20),
+        OnbTitle(title),
+        if (welcomeBack) ...[
+          const SizedBox(height: 8),
+          OnbBody(OnboardingCopy.backBody),
+        ],
         if (welcomeBack && flow.sessionEnded) ...[
           const SizedBox(height: 16),
           OnbSurface(
@@ -131,10 +130,6 @@ class SignInScreen extends StatelessWidget {
           const SizedBox(height: 16),
           DraftCallCard(draft: draft),
         ],
-        const SizedBox(height: 24),
-        panelWidget,
-        const SizedBox(height: 12),
-        const OnbConsentLine(),
       ],
     );
   }

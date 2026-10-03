@@ -177,3 +177,163 @@ class TopicChipsSkeleton extends StatelessWidget {
     ),
   );
 }
+
+/// T's topics as big tiles, two to a row, docked above the button where a
+/// thumb reaches on a tall phone. Same data and rules as [TopicChips].
+class TopicTiles extends StatelessWidget {
+  const TopicTiles({
+    super.key,
+    required this.topics,
+    required this.selected,
+    required this.onToggle,
+  });
+
+  final List<TopicCount> topics;
+  final Set<String> selected;
+  final void Function(String slug) onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <List<TopicCount>>[
+      for (var i = 0; i < topics.length; i += 2)
+        topics.sublist(i, i + 2 > topics.length ? topics.length : i + 2),
+    ];
+    return Column(
+      children: [
+        for (var r = 0; r < rows.length; r++) ...[
+          if (r > 0) const SizedBox(height: 10),
+          Row(
+            children: [
+              for (var c = 0; c < 2; c++) ...[
+                if (c > 0) const SizedBox(width: 10),
+                Expanded(
+                  child:
+                      c < rows[r].length
+                          ? OnbReveal(
+                            delay: Duration(milliseconds: 40 * (r * 2 + c)),
+                            child: _TopicTile(
+                              topic: rows[r][c],
+                              selected: selected.contains(rows[r][c].slug),
+                              onTap: () => onToggle(rows[r][c].slug),
+                            ),
+                          )
+                          : const SizedBox.shrink(),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _TopicTile extends StatelessWidget {
+  const _TopicTile({
+    required this.topic,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final TopicCount topic;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduce = onbReduceMotion(context);
+    final label = marketCategoryLabel(topic.slug);
+    final duration = reduce ? Duration.zero : const Duration(milliseconds: 180);
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: OnboardingCopy.topicChipA11y(label, topic.openCount),
+      excludeSemantics: true,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          key: ValueKey('topic-${topic.slug}'),
+          borderRadius: BorderRadius.circular(22),
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onTap();
+          },
+          child: AnimatedContainer(
+            duration: duration,
+            curve: Curves.easeOut,
+            constraints: const BoxConstraints(minHeight: 96),
+            padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
+            decoration: BoxDecoration(
+              color: selected ? AppColors.pinkWash : AppColors.surface,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: selected ? AppColors.primary : const Color(0xFFE5E7EB),
+                width: 1.5,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color:
+                            selected ? AppColors.surface : AppColors.background,
+                        shape: BoxShape.circle,
+                      ),
+                      child: BasilIcon(
+                        MarketGlyph.categoryIcon(topic.slug),
+                        size: 19,
+                        color:
+                            selected ? AppColors.pinkInk : AppColors.textMuted,
+                      ),
+                    ),
+                    const Spacer(),
+                    AnimatedScale(
+                      duration: duration,
+                      curve: Curves.easeOutBack,
+                      scale: selected ? 1 : 0,
+                      child: Container(
+                        width: 22,
+                        height: 22,
+                        alignment: Alignment.center,
+                        decoration: const BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const BasilIcon(
+                          'check-outline',
+                          size: 14,
+                          color: AppColors.onPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontFamily: 'PPNeueMachina',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  OnboardingCopy.topicTileCount(topic.openCount),
+                  style: OnbText.meta,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

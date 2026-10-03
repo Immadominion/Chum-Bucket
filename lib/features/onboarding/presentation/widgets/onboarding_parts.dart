@@ -76,7 +76,7 @@ class OnboardingBrandBand extends StatelessWidget {
             Positioned(
               left: OnbSpace.gutter,
               top: top + 14,
-              child: const _BandWordmark(),
+              child: const OnbWordmark(),
             ),
             if (art != null)
               Positioned(
@@ -98,8 +98,8 @@ class OnboardingBrandBand extends StatelessWidget {
 }
 
 /// The bucket in a white disc beside the name, on the coral band.
-class _BandWordmark extends StatelessWidget {
-  const _BandWordmark();
+class OnbWordmark extends StatelessWidget {
+  const OnbWordmark({super.key});
 
   @override
   Widget build(BuildContext context) => Row(

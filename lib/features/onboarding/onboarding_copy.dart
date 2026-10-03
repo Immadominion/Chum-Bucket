@@ -44,18 +44,34 @@ abstract final class OnboardingCopy {
       'what you put in.';
   static const welcomeCta = 'Get started';
   static const welcomeSignIn = 'I already have an account';
+
+  /// W1's one line under the title: the product in eight words.
+  static const welcomeTagline =
+      'See what people call. Back them or fade\u00A0them.';
+
+  /// W1's line when nobody has called anything yet: the phone shows markets.
+  static const welcomeTaglineMarkets =
+      'Call real markets before they happen. It’s\u00A0free.';
+
+  /// W1's phone when it has nothing to show yet (API down, or empty).
+  static const welcomePhoneEmpty = 'Live calls show up here.';
+  static const welcomePhoneOffline =
+      'You’re offline. Calls show up when you’re back.';
+
+  /// W1's top-right sign-in for people who already have an account.
+  static const welcomeSignInShort = 'Sign in';
   static const welcomeFooter = 'Markets powered by Panta · Solana';
   static const welcomeOffline =
       'You’re offline. Live calls show up when you’re back.';
 
   // ── T Topics ─────────────────────────────────────────────────────────────
   static const topicsTitle = 'What are you into?';
-  static const topicsBody =
-      'Pick topics to see first. These are the markets open on Panta right '
-      'now.';
+  static const topicsBody = 'Pick what you want to see first.';
   static String topicChipA11y(String label, int n) =>
       '$label, $n open ${n == 1 ? 'market' : 'markets'}';
   static const topicsNote = 'Change these any time in Settings.';
+  static String topicTileCount(int open) =>
+      open == 1 ? '1 open market' : '$open open markets';
   static const ctaSkip = 'Skip for now';
   static const ctaContinue = 'Continue';
   static const topicsSheetTitle = 'Topics';
@@ -99,8 +115,7 @@ abstract final class OnboardingCopy {
   // ── C First call ─────────────────────────────────────────────────────────
   static const callTitle = 'Make your first call';
   static const callBody =
-      'Pick YES or NO on a real market. It’s free, and it goes on your '
-      'record.';
+      'Pick a side. It’s free, and it goes on your\u00A0record.';
   static const callAnswerHeader = 'Answer a call';
   static const callAnswerHelper =
       'Back takes their side. Fade takes the other side.';

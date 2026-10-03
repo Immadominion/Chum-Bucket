@@ -271,6 +271,69 @@ LiveStrip chooseLiveStrip({
   return LiveStrip.empty;
 }
 
+/// W1's phone: real people's calls first (live ones, then recently settled
+/// ones with their result), then markets open on Panta to fill the screen.
+/// Only rows the server returned; a source still loading is passed as null.
+class WelcomeFeed {
+  const WelcomeFeed(this.items);
+  static const empty = WelcomeFeed([]);
+  final List<LiveItem> items;
+  bool get isEmpty => items.isEmpty;
+  bool get hasCalls => items.any((i) => i is LiveCallItem);
+
+  /// For analytics: what the phone ended up showing.
+  String get source =>
+      isEmpty
+          ? 'none'
+          : hasCalls
+          ? 'calls'
+          : 'markets';
+}
+
+/// How many cards the phone aims to show.
+const int kWelcomeFeedTarget = 5;
+
+WelcomeFeed chooseWelcomeFeed({
+  List<TopCall>? top,
+  List<CallFeedEntry>? feed,
+  List<VenueMarket>? markets,
+  required DateTime now,
+}) {
+  final seen = <String>{};
+  final live = <LiveItem>[];
+  final settled = <LiveItem>[];
+  for (final e in [
+    for (final t in top ?? const <TopCall>[]) entryOfTopCall(t),
+    ...?feed,
+  ]) {
+    if (e.call.visibility != CallVisibility.public ||
+        !isShowablePerson(
+          displayName: e.author.displayName,
+          handle: e.author.handle,
+        ) ||
+        !seen.add(e.call.id)) {
+      continue;
+    }
+    if (isLiveOpenMarket(e.market, now)) {
+      live.add(LiveCallItem(e));
+    } else if (e.result != null && e.result!.outcome != CallOutcome.pending) {
+      settled.add(LiveCallItem(e));
+    }
+  }
+  final calls = [...live, ...settled].take(kLiveStripCalls).toList();
+  final open =
+      (markets ?? const <VenueMarket>[])
+          .where((m) => isLiveOpenMarket(m, now))
+          .toList()
+        ..sort((a, b) => a.closesAt!.compareTo(b.closesAt!));
+  final fill = kWelcomeFeedTarget - calls.length;
+  return WelcomeFeed([
+    ...calls,
+    if (fill > 0)
+      for (final m in open.take(fill)) LiveMarketItem(m),
+  ]);
+}
+
 // ── People (P) ──────────────────────────────────────────────────────────────
 
 /// The record line under a person (§6 P): accuracy only when the server

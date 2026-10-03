@@ -20,6 +20,16 @@ void onbAnnounce(BuildContext context, String message) {
 bool onbReduceMotion(BuildContext context) =>
     MediaQuery.maybeDisableAnimationsOf(context) ?? false;
 
+/// Ambient loops (W1's auto-advancing feed, live pulse, floating callers,
+/// drag-up hint) run forever by design. Widget tests turn them off globally
+/// (test/flutter_test_config.dart) so pumpAndSettle can settle; the app
+/// leaves this on, and reduced motion still stops them per device.
+bool onbAmbientMotion = true;
+
+/// Whether ambient loops may run here.
+bool onbAmbient(BuildContext context) =>
+    onbAmbientMotion && !onbReduceMotion(context);
+
 /// A one-shot entrance: fade, rise and (optionally) scale, after [delay].
 /// One controller with an [Interval] — no timers — so it can never fire after
 /// the widget is gone.

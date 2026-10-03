@@ -19,6 +19,7 @@ import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_s
 import 'package:chumbucket/features/onboarding/presentation/widgets/topic_chip.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
 
 class TopicsScreen extends StatelessWidget {
   const TopicsScreen({super.key});
@@ -36,6 +37,17 @@ class TopicsScreen extends StatelessWidget {
       progress: flow.progress,
       announce: OnboardingCopy.topicsTitle,
       actions: [
+        Center(child: Text(OnboardingCopy.topicsNote, style: OnbText.small)),
+        const SizedBox(height: 12),
+        if (loading)
+          const TopicChipsSkeleton()
+        else
+          TopicTiles(
+            topics: flow.topics,
+            selected: flow.selectedTopics,
+            onToggle: flow.toggleTopic,
+          ),
+        const SizedBox(height: 16),
         ChumbucketPrimaryButton(
           key: const ValueKey('topics-continue'),
           label:
@@ -47,17 +59,10 @@ class TopicsScreen extends StatelessWidget {
         const OnbTitle(OnboardingCopy.topicsTitle),
         const SizedBox(height: 8),
         const OnbBody(OnboardingCopy.topicsBody),
-        const SizedBox(height: 24),
-        if (loading)
-          const TopicChipsSkeleton()
-        else
-          TopicChips(
-            topics: flow.topics,
-            selected: flow.selectedTopics,
-            onToggle: flow.toggleTopic,
-          ),
-        const SizedBox(height: 20),
-        Text(OnboardingCopy.topicsNote, style: OnbText.small),
+        const SizedBox(height: 44),
+        const Center(
+          child: ChumbucketStateArt(ChumbucketStateArtwork.search, size: 190),
+        ),
       ],
     );
   }

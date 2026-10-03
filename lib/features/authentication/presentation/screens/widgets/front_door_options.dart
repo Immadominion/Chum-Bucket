@@ -228,14 +228,18 @@ class FrontDoorButton extends StatelessWidget {
     SignInMethod.x => 'Continue with X',
   };
 
-  Widget _icon(Color color) => switch (method) {
-    SignInMethod.wallet => BasilIcon('wallet-outline', size: 20, color: color),
-    SignInMethod.google => BasilIcon('google-outline', size: 20, color: color),
+  Widget _icon(Color color) => iconFor(method, color);
+
+  /// The method's mark: wallet, Google's G, or X's letter.
+  static Widget iconFor(SignInMethod method, Color color, {double size = 20}) =>
+      switch (method) {
+    SignInMethod.wallet => BasilIcon('wallet-outline', size: size, color: color),
+    SignInMethod.google => BasilIcon('google-outline', size: size, color: color),
     // X's mark is a letter; the old bird would be wrong.
     SignInMethod.x => Text(
       'X',
       style: AppTextStyles.pageTitle.copyWith(
-        fontSize: 18,
+        fontSize: size - 2,
         height: 1,
         color: color,
       ),
@@ -457,5 +461,94 @@ class _ClaimFirstUsername extends StatelessWidget {
       const SizedBox(height: 12),
       ClaimUsernameForm(onUseDifferentSignIn: onCancel),
     ],
+  );
+}
+
+
+/// A sign-in method as a compact round button (onboarding's secondary
+/// options beside the main one). 60dp, labelled for screen readers, with a
+/// spinner while that method is busy and a dot when it was last used here.
+class FrontDoorCircleButton extends StatelessWidget {
+  const FrontDoorCircleButton({
+    super.key,
+    required this.method,
+    required this.lastUsed,
+    required this.busy,
+    required this.onPressed,
+  });
+
+  final SignInMethod method;
+  final bool lastUsed;
+  final bool busy;
+  final VoidCallback? onPressed;
+
+  static const double size = 60;
+
+  String get _label => switch (method) {
+    SignInMethod.wallet => 'Continue with wallet',
+    SignInMethod.google => 'Continue with Google',
+    SignInMethod.x => 'Continue with X',
+  };
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    enabled: onPressed != null,
+    label: _label,
+    hint: lastUsed ? 'Last used on this phone' : null,
+    excludeSemantics: true,
+    child: Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Material(
+          key: ValueKey('front-door-${method.wire}'),
+          color: AppColors.surface,
+          shape: const CircleBorder(
+            side: BorderSide(color: Color(0xFFE3E5E8), width: 1.5),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: busy ? null : onPressed,
+            child: SizedBox.square(
+              dimension: size,
+              child: Center(
+                child:
+                    busy
+                        ? const SizedBox.square(
+                          dimension: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.2,
+                            color: AppColors.textPrimary,
+                          ),
+                        )
+                        : Opacity(
+                          opacity: onPressed == null ? .4 : 1,
+                          child: FrontDoorButton.iconFor(
+                            method,
+                            AppColors.textPrimary,
+                            size: 24,
+                          ),
+                        ),
+              ),
+            ),
+          ),
+        ),
+        if (lastUsed)
+          Positioned(
+            right: 2,
+            top: 2,
+            child: Container(
+              key: const ValueKey('front-door-last-used'),
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+            ),
+          ),
+      ],
+    ),
   );
 }

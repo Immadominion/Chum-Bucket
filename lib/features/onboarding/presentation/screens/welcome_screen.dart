@@ -18,13 +18,12 @@ import 'package:chumbucket/features/onboarding/domain/onboarding_data.dart';
 import 'package:chumbucket/features/people/data/people_models.dart';
 import 'package:chumbucket/features/onboarding/onboarding_copy.dart';
 import 'package:chumbucket/features/onboarding/onboarding_flow_controller.dart';
-import 'package:chumbucket/features/onboarding/presentation/widgets/live_call_strip.dart';
+import 'package:chumbucket/features/onboarding/presentation/widgets/welcome_phone.dart';
+import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_motion.dart';
 import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_parts.dart';
-import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_scaffold.dart';
 import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_styles.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
-import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
 
 /// How long the strip may show skeletons before it uses what has answered.
 const Duration kLiveStripBudget = Duration(seconds: 6);
@@ -45,7 +44,12 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   bool _budgetSpent = false;
   bool _feedRequested = false;
   bool _marketsRequested = false;
-  LiveStrip? _resolved;
+  WelcomeFeed? _resolved;
+
+  /// While the phone has nothing to show (offline, or the API is down), the
+  /// sources are asked again on this beat until something answers.
+  static const _retryEvery = Duration(seconds: 15);
+  Timer? _retry;
 
   @override
   void initState() {
@@ -66,8 +70,23 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     });
   }
 
+  void _scheduleRetry() {
+    if (_retry?.isActive ?? false) return;
+    _retry = Timer(_retryEvery, () {
+      if (!mounted) return;
+      final calls = context.read<CallsProvider>();
+      setState(() => _resolved = null);
+      unawaited(calls.loadTopCalls(force: true));
+      if (calls.feedMode == CallFeedMode.global) {
+        unawaited(calls.loadFeed(force: true));
+      }
+      unawaited(calls.loadOpenMarkets(force: true));
+    });
+  }
+
   @override
   void dispose() {
+    _retry?.cancel();
     _budget?.cancel();
     _scroll.dispose();
     _stripScroll.dispose();
@@ -91,36 +110,32 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   bool _marketsSettled(CallsProvider c) =>
       _marketsRequested && !c.isLoadingOpenMarkets;
 
-  /// The strip, or null while a higher-priority source is still answering
-  /// (inside the budget). Once resolved it does not change under the reader.
-  LiveStrip? _strip(CallsProvider c, DateTime now) {
-    if (_resolved != null) return _resolved;
+  /// The phone's feed, or null while sources are still answering (inside
+  /// the budget). Once resolved with something it does not change under the
+  /// reader; resolved empty, it is asked again on [_retryEvery].
+  WelcomeFeed? _feed(CallsProvider c, DateTime now) {
+    final done = _resolved;
+    if (done != null) return done;
     final top = _topSettled(c) ? (c.topCalls ?? const <TopCall>[]) : null;
     final feed =
         _feedSettled(c) && c.feedMode == CallFeedMode.global ? c.feed : null;
     final markets = _marketsSettled(c) ? c.openMarkets : null;
-    final strip = chooseLiveStrip(
+    final all = top != null && feed != null && markets != null;
+    if (!all && !_budgetSpent) return null;
+    final chosen = chooseWelcomeFeed(
       top: top,
       feed: feed,
       markets: markets,
       now: now,
     );
-    final decided = switch (strip.source) {
-      LiveStripSource.top => true,
-      LiveStripSource.feed => top != null || _budgetSpent,
-      LiveStripSource.markets => (top != null && feed != null) || _budgetSpent,
-      LiveStripSource.none =>
-        (top != null && feed != null && markets != null) || _budgetSpent,
-    };
-    if (!decided) return null;
-    _resolved = strip;
+    _resolved = chosen;
     context.read<CallsProvider>().analytics.record(
       OnboardingAnalyticsEvents.welcomeLive(
-        source: strip.source.wire,
-        count: strip.items.length,
+        source: chosen.source,
+        count: chosen.items.length,
       ),
     );
-    return strip;
+    return chosen;
   }
 
   void _openCall(CallFeedEntry entry) => Navigator.of(context).push(
@@ -140,126 +155,157 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     final flow = context.read<OnboardingFlowController>();
     final calls = context.watch<CallsProvider>();
     final now = flow.now;
-    final strip = _strip(calls, now);
-    final largeText = MediaQuery.textScalerOf(context).scale(10) > 13;
-    final offline =
-        calls.isOffline &&
-        (strip == null || strip.isEmpty) &&
-        calls.feed.isEmpty &&
-        calls.openMarkets.isEmpty;
+    final feed = _feed(calls, now);
+    final offline = calls.isOffline;
+    if (feed != null && feed.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _scheduleRetry();
+      });
+    }
+    // The line under the title says what the phone shows: people's calls,
+    // or (when nobody has called anything yet) markets.
+    final tagline =
+        feed != null && !feed.isEmpty && !feed.hasCalls
+            ? OnboardingCopy.welcomeTaglineMarkets
+            : OnboardingCopy.welcomeTagline;
 
-    return OnboardingScaffold(
-      controller: _scroll,
-      announce: OnboardingCopy.welcomeTitle,
-      header: const OnboardingBrandBand(artwork: ChumbucketStateArtwork.calls),
-      contentPadding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-      actions: [
-        ChumbucketPrimaryButton(
-          key: const ValueKey('welcome-get-started'),
-          label: OnboardingCopy.welcomeCta,
-          onPressed: () => flow.advance(outcome: 'get_started'),
-        ),
-        const SizedBox(height: 4),
-        OnbTextAction(
-          key: const ValueKey('welcome-have-account'),
-          label: OnboardingCopy.welcomeSignIn,
-          onPressed: flow.haveAccount,
-        ),
-      ],
-      // At large text the venue line moves into the page, so the sticky
-      // area stays two actions tall.
-      footer:
-          largeText
-              ? null
-              : Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text(
-                  OnboardingCopy.welcomeFooter,
-                  textAlign: TextAlign.center,
-                  style: OnbText.meta,
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: Stack(
+        children: [
+          // Brand coral at the top, dissolving into the page behind the phone.
+          const Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    AppColors.lightPrimary,
+                    AppColors.primary,
+                    AppColors.background,
+                  ],
+                  stops: [0, .26, .58],
                 ),
               ),
-      children: [
-        const OnbReveal(child: OnbTitle(OnboardingCopy.welcomeTitle)),
-        const SizedBox(height: 8),
-        const OnbReveal(
-          delay: Duration(milliseconds: 60),
-          child: OnbBody(OnboardingCopy.welcomeBody),
-        ),
-        if (offline) ...[
-          const SizedBox(height: 20),
-          const OnbIconLine(
-            key: ValueKey('welcome-offline'),
-            icon: 'cloud-off-outline',
-            text: OnboardingCopy.welcomeOffline,
+            ),
           ),
-        ] else if (strip == null) ...[
-          const SizedBox(height: 24),
-          _StripHeading(text: OnboardingCopy.welcomeLiveCalls, loading: true),
-          const SizedBox(height: 12),
-          const OnbFullBleed(child: LiveStripSkeleton()),
-        ] else if (!strip.isEmpty) ...[
-          const SizedBox(height: 24),
-          _StripHeading(
-            text:
-                strip.source == LiveStripSource.markets
-                    ? OnboardingCopy.welcomeLiveMarkets
-                    : OnboardingCopy.welcomeLiveCalls,
-          ),
-          const SizedBox(height: 12),
-          OnbFullBleed(
-            child: LiveCallStrip(
-              key: const ValueKey('welcome-live-strip'),
-              strip: strip,
-              controller: _stripScroll,
-              now: now,
-              onOpenCall: _openCall,
-              onOpenMarket: _openMarket,
+          SafeArea(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(OnbSpace.gutter, 10, 6, 0),
+                  child: Row(
+                    children: [
+                      const ExcludeSemantics(child: OnbWordmark()),
+                      const Spacer(),
+                      TextButton(
+                        key: const ValueKey('welcome-have-account'),
+                        onPressed: flow.haveAccount,
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(64, 48),
+                          textStyle: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        child: const Text(OnboardingCopy.welcomeSignInShort),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  // The phone's stage runs behind the headline; the phone has
+                  // fully dissolved by the time the title starts.
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        top: 0,
+                        bottom: 150,
+                        child: OnbReveal(
+                          duration: const Duration(milliseconds: 520),
+                          rise: 28,
+                          child: WelcomePhone(
+                            key: const ValueKey('welcome-live-strip'),
+                            clearBottom: 96,
+                            feed: feed,
+                            offline: offline,
+                            now: now,
+                            onOpenCall: _openCall,
+                            onOpenMarket: _openMarket,
+                          ),
+                        ),
+                      ),
+                      Align(
+                        alignment: Alignment.bottomCenter,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(
+                            OnbSpace.gutter + 4,
+                            0,
+                            OnbSpace.gutter + 4,
+                            12,
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const OnbReveal(
+                                delay: Duration(milliseconds: 120),
+                                child: Text(
+                                  OnboardingCopy.welcomeTitle,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontFamily: 'PPNeueMachina',
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.w800,
+                                    height: 1.12,
+                                    letterSpacing: -.8,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              OnbReveal(
+                                delay: const Duration(milliseconds: 180),
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 240),
+                                  child: Text(
+                                    tagline,
+                                    key: ValueKey(tagline),
+                                    textAlign: TextAlign.center,
+                                    style: OnbText.body.copyWith(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 16,
+                                      height: 1.45,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 22),
+                              OnbReveal(
+                                delay: const Duration(milliseconds: 240),
+                                child: ChumbucketPrimaryButton(
+                                  key: const ValueKey('welcome-get-started'),
+                                  label: OnboardingCopy.welcomeCta,
+                                  onPressed:
+                                      () =>
+                                          flow.advance(outcome: 'get_started'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ],
-        const SizedBox(height: 28),
-        const HowItWorksList(),
-        const SizedBox(height: 24),
-        const OnbIconLine(
-          key: ValueKey('welcome-money'),
-          icon: 'info-circle-outline',
-          text: OnboardingCopy.welcomeMoney,
-        ),
-        if (largeText) ...[
-          const SizedBox(height: 16),
-          Text(OnboardingCopy.welcomeFooter, style: OnbText.meta),
-        ],
-      ],
+      ),
     );
   }
-}
-
-class _StripHeading extends StatelessWidget {
-  const _StripHeading({required this.text, this.loading = false});
-  final String text;
-  final bool loading;
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-    header: true,
-    child: Row(
-      children: [
-        if (!loading) ...[
-          ExcludeSemantics(
-            child: Container(
-              width: 8,
-              height: 8,
-              decoration: const BoxDecoration(
-                color: Color(0xFF07644C),
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-        ],
-        Expanded(child: Text(text, style: OnbText.section)),
-      ],
-    ),
-  );
 }
