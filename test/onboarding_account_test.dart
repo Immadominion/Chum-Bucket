@@ -1,8 +1,12 @@
 // A1 sign-in, A2/A2c usernames, B1 Welcome back and U1 What's new
-// (onboarding spec §6, §7), acceptance as tests.
+// (onboarding spec §6, §7), acceptance as tests. A1 and B1 as redesigned on
+// device: brand art, the title and the pick, and the ways in at the bottom
+// (the first as a full button, the others round under an "or"). An account
+// is the way in: no "Not now" on A1, no "Look around first" on B1.
 import 'dart:typed_data';
 
 import 'package:chumbucket/core/analytics/analytics.dart';
+import 'package:chumbucket/features/authentication/presentation/screens/widgets/front_door_options.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/onboarding/presentation/widgets/sign_in_panel.dart';
@@ -15,10 +19,13 @@ import 'package:chumbucket/features/onboarding/domain/entry_decision.dart';
 import 'package:chumbucket/features/onboarding/domain/onboarding_steps.dart';
 import 'package:chumbucket/features/onboarding/onboarding_copy.dart';
 import 'package:chumbucket/features/onboarding/onboarding_flow_controller.dart';
+import 'package:chumbucket/features/onboarding/presentation/screens/first_call_screen.dart';
 import 'package:chumbucket/features/onboarding/presentation/screens/sign_in_screen.dart';
 import 'package:chumbucket/features/onboarding/presentation/screens/upgrade_screen.dart';
 import 'package:chumbucket/features/onboarding/presentation/screens/username_screen.dart';
 import 'package:chumbucket/features/onboarding/presentation/screens/welcome_screen.dart';
+import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_parts.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -167,26 +174,97 @@ void main() {
       },
     );
 
-    testWidgets('"Not now": Home signed out; the draft and follows are kept', (
-      tester,
-    ) async {
-      final rig = OnboardingRig(repo: OnboardingScene().repository());
-      await tester.runAsync(() async {
-        await rig.start();
-        await rig.app.saveDraft(_draft());
-      });
-      await _mount(tester, OnboardingRun.newUser, rig: rig);
-      await toSignIn(tester);
-      await tester.tap(find.byKey(const ValueKey('sign-in-not-now')));
-      await settle(tester);
-      expect(rig.exits, [FlowExit.home]);
-      expect(rig.app.status, OnboardingStatus.lookedAround);
-      expect(rig.app.pendingCall, isNotNull);
-      expect(
-        rig.events(AnalyticsEventName.onboardingStepCompleted),
-        contains(allOf(contains('sign_in'), contains('not_now'))),
-      );
-    });
+    testWidgets(
+      'brand art, the title and the pick; the ways in and the consent line '
+      'sit at the bottom',
+      (tester) async {
+        final rig = OnboardingRig(repo: OnboardingScene().repository());
+        await tester.runAsync(() async {
+          await rig.start();
+          await rig.app.saveDraft(_draft());
+        });
+        await _mount(tester, OnboardingRun.newUser, rig: rig);
+        await toSignIn(tester);
+        final page = find.byType(SingleChildScrollView);
+        final art = tester.widget<ChumbucketStateArt>(
+          find.descendant(of: page, matching: find.byType(ChumbucketStateArt)),
+        );
+        expect(art.artwork, ChumbucketStateArtwork.record);
+        expect(
+          find.descendant(
+            of: page,
+            matching: find.text(OnboardingCopy.signInTitleCall),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(of: page, matching: find.byType(DraftCallCard)),
+          findsOneWidget,
+        );
+        // The compact panel and the consent line are the sticky actions.
+        final panel = find.byType(OnboardingSignInPanel);
+        expect(tester.widget<OnboardingSignInPanel>(panel).compact, isTrue);
+        expect(find.descendant(of: page, matching: panel), findsNothing);
+        expect(
+          find.descendant(of: page, matching: find.byType(OnbConsentLine)),
+          findsNothing,
+        );
+        expect(
+          tester.getRect(panel).bottom,
+          lessThanOrEqualTo(tester.getRect(find.byType(OnbConsentLine)).top),
+        );
+        expect(
+          tester.getRect(find.byType(OnbConsentLine)).bottom,
+          lessThanOrEqualTo(900),
+        );
+        expect(find.byType(FrontDoorCircleButton), findsWidgets);
+        expect(find.text(OnboardingCopy.signInWalletLine), findsNothing);
+        expect(find.text(OnboardingCopy.signInSubtitle), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'no "Not now": an account is the way in, and the pick stays on the '
+      'phone',
+      (tester) async {
+        final rig = OnboardingRig(repo: OnboardingScene().repository());
+        await tester.runAsync(() async {
+          await rig.start();
+          await rig.app.saveDraft(_draft());
+        });
+        await _mount(tester, OnboardingRun.newUser, rig: rig);
+        await toSignIn(tester);
+        expect(find.byKey(const ValueKey('sign-in-not-now')), findsNothing);
+        expect(find.text(OnboardingCopy.signInNotNow), findsNothing);
+        expect(find.text(OnboardingCopy.backLook), findsNothing);
+        await settle(tester, const Duration(seconds: 2));
+        expect(find.byType(SignInScreen), findsOneWidget);
+        expect(rig.exits, isEmpty, reason: 'no way out to Home signed out');
+        expect(rig.app.status, isNot(OnboardingStatus.lookedAround));
+        expect(rig.app.pendingCall, isNotNull);
+        expect(
+          rig.events(AnalyticsEventName.onboardingStepCompleted),
+          isNot(contains(contains('not_now'))),
+        );
+      },
+    );
+
+    testWidgets(
+      '"I\'ll do this later" on First call still leads to A1, which has no '
+      'way around it',
+      (tester) async {
+        final rig = await _mount(tester, OnboardingRun.newUser);
+        _flow(tester).goTo(OnboardingStep.firstCall);
+        await settle(tester, const Duration(milliseconds: 1500));
+        expect(find.byType(FirstCallScreen), findsOneWidget);
+        await tester.tap(find.byKey(const ValueKey('first-call-later')));
+        await settle(tester);
+        expect(find.byType(SignInScreen), findsOneWidget);
+        expect(find.text(OnboardingCopy.signInTitleDefault), findsOneWidget);
+        expect(find.byKey(const ValueKey('sign-in-not-now')), findsNothing);
+        expect(rig.exits, isEmpty);
+      },
+    );
 
     testWidgets(
       'at 320dp and 2x text everything is reachable, nothing overflows',
@@ -385,7 +463,190 @@ void main() {
     ) async {
       await _mount(tester, OnboardingRun.welcomeBack, sessionEnded: true);
       expect(find.text(OnboardingCopy.backSessionEnded), findsOneWidget);
-      expect(find.text(OnboardingCopy.backLook), findsOneWidget);
+      // Signing back in is the way in: nothing to look around first.
+      expect(find.text(OnboardingCopy.backLook), findsNothing);
+      expect(find.byKey(const ValueKey('sign-in-not-now')), findsNothing);
+    });
+
+    testWidgets('success art, the compact ways in, no "Look around first"', (
+      tester,
+    ) async {
+      final rig = OnboardingRig(
+        repo: OnboardingScene().repository(),
+        providers: const {'google', 'x'},
+        lastUsed: SignInMethod.google,
+      );
+      await _mount(tester, OnboardingRun.welcomeBack, rig: rig);
+      expect(find.text(OnboardingCopy.backTitle), findsOneWidget);
+      expect(
+        tester
+            .widget<ChumbucketStateArt>(find.byType(ChumbucketStateArt))
+            .artwork,
+        ChumbucketStateArtwork.success,
+      );
+      expect(
+        tester
+            .widget<OnboardingSignInPanel>(find.byType(OnboardingSignInPanel))
+            .compact,
+        isTrue,
+      );
+      final primary = tester.widget<FrontDoorButton>(
+        find.byType(FrontDoorButton),
+      );
+      expect(primary.method, SignInMethod.google);
+      expect(find.byType(FrontDoorCircleButton), findsNWidgets(2));
+      expect(find.text(OnboardingCopy.backLook), findsNothing);
+      expect(find.byKey(const ValueKey('sign-in-not-now')), findsNothing);
+      await settle(tester, const Duration(seconds: 2));
+      expect(rig.exits, isEmpty);
+    });
+  });
+
+  group('the compact sign-in panel (A1, B1)', () {
+    Future<OnboardingRig> mountPanel(
+      WidgetTester tester, {
+      SignInMethod? lastUsed,
+      bool walletApp = true,
+      bool compact = true,
+      List<(SignInMethod, bool)>? started,
+    }) async {
+      final rig = OnboardingRig(
+        repo: OnboardingScene().repository(),
+        providers: const {'google', 'x'},
+        lastUsed: lastUsed,
+      );
+      await tester.runAsync(rig.start);
+      addTearDown(rig.dispose);
+      await mountAt(
+        tester,
+        Scaffold(
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: OnboardingSignInPanel(
+                compact: compact,
+                walletAvailable: () async => walletApp,
+                isOnline: () async => true,
+                onStarted: (m, last) => started?.add((m, last)),
+              ),
+            ),
+          ),
+        ),
+        around: rig.wrap,
+      );
+      await settle(tester);
+      return rig;
+    }
+
+    FrontDoorButton primary(WidgetTester tester) =>
+        tester.widget<FrontDoorButton>(find.byType(FrontDoorButton));
+
+    List<SignInMethod> circles(WidgetTester tester) {
+      final found =
+          find.byType(FrontDoorCircleButton).evaluate().toList()..sort(
+            (a, b) => tester
+                .getCenter(find.byWidget(a.widget))
+                .dx
+                .compareTo(tester.getCenter(find.byWidget(b.widget)).dx),
+          );
+      return [
+        for (final e in found) (e.widget as FrontDoorCircleButton).method,
+      ];
+    }
+
+    testWidgets(
+      'the first way in is the full button; the others are round buttons '
+      'under an "or"; no wallet line',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await mountPanel(tester);
+        expect(primary(tester).method, SignInMethod.wallet);
+        expect(primary(tester).primary, isTrue);
+        expect(circles(tester), [SignInMethod.google, SignInMethod.x]);
+        final full = tester.getRect(
+          find.byKey(const ValueKey('front-door-wallet')),
+        );
+        final or = tester.getRect(find.text('or'));
+        final google = tester.getRect(
+          find.byKey(const ValueKey('front-door-google')),
+        );
+        expect(full.bottom, lessThanOrEqualTo(or.top));
+        expect(or.bottom, lessThanOrEqualTo(google.top));
+        // Round, 48dp or more, and named for a screen reader.
+        expect(google.width, google.height);
+        expect(google.height, greaterThanOrEqualTo(48));
+        expect(find.bySemanticsLabel('Continue with Google'), findsOneWidget);
+        expect(find.bySemanticsLabel('Continue with X'), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('front-door-last-used')),
+          findsNothing,
+        );
+        expect(find.text(OnboardingCopy.signInWalletLine), findsNothing);
+        handle.dispose();
+      },
+    );
+
+    testWidgets('a round button starts its own sign-in', (tester) async {
+      final started = <(SignInMethod, bool)>[];
+      final rig = await mountPanel(tester, started: started);
+      rig.auth.deliverOnSignIn = snapshot();
+      await tester.tap(find.byKey(const ValueKey('front-door-x')));
+      await settle(tester, const Duration(milliseconds: 1500));
+      expect(started, [(SignInMethod.x, false)]);
+      expect(rig.session.isReady, isTrue);
+    });
+
+    testWidgets('the method last used here leads, filled and marked', (
+      tester,
+    ) async {
+      await mountPanel(tester, lastUsed: SignInMethod.x);
+      expect(primary(tester).method, SignInMethod.x);
+      expect(primary(tester).lastUsed, isTrue);
+      expect(find.text(OnboardingCopy.signInLastUsed), findsOneWidget);
+      expect(circles(tester), [SignInMethod.wallet, SignInMethod.google]);
+      expect(
+        find.descendant(
+          of: find.byType(FrontDoorCircleButton),
+          matching: find.byKey(const ValueKey('front-door-last-used')),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
+      'last used was the wallet but no wallet app is here now: Google leads '
+      'and the round wallet button carries the last-used dot',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await mountPanel(
+          tester,
+          lastUsed: SignInMethod.wallet,
+          walletApp: false,
+        );
+        expect(primary(tester).method, SignInMethod.google);
+        expect(circles(tester), [SignInMethod.x, SignInMethod.wallet]);
+        final wallet = find.byWidgetPredicate(
+          (w) => w is FrontDoorCircleButton && w.method == SignInMethod.wallet,
+        );
+        expect(
+          find.descendant(
+            of: wallet,
+            matching: find.byKey(const ValueKey('front-door-last-used')),
+          ),
+          findsOneWidget,
+        );
+        expect(tester.getSemantics(wallet).hint, 'Last used on this phone');
+        handle.dispose();
+      },
+    );
+
+    testWidgets('elsewhere the full panel keeps full buttons and the wallet '
+        'line', (tester) async {
+      await mountPanel(tester, compact: false);
+      expect(find.byType(FrontDoorButton), findsNWidgets(3));
+      expect(find.byType(FrontDoorCircleButton), findsNothing);
+      expect(find.text('or'), findsNothing);
+      expect(find.text(OnboardingCopy.signInWalletLine), findsOneWidget);
     });
   });
 

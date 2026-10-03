@@ -7,31 +7,33 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Every string the onboarding screens can show, including the templated
-/// ones filled with ordinary values.
+/// ones filled with ordinary values. (W1's old body, strip headings, money
+/// line and footer, C's "See all", A1's "Not now" and B1's "Look around
+/// first" are no longer shown anywhere.)
 final List<String> _all = [
   OnboardingCopy.splashRestoring,
   OnboardingCopy.restoreOk('@ada'),
   OnboardingCopy.restoreOk(null),
   OnboardingCopy.welcomeTitle,
-  OnboardingCopy.welcomeBody,
-  OnboardingCopy.welcomeLiveCalls,
-  OnboardingCopy.welcomeLiveMarkets,
+  OnboardingCopy.welcomeTagline,
+  OnboardingCopy.welcomeTaglineMarkets,
+  OnboardingCopy.welcomePhoneEmpty,
+  OnboardingCopy.welcomePhoneOffline,
+  OnboardingCopy.welcomeSignInShort,
   OnboardingCopy.welcomeCardCalled('Ada', 'YES'),
-  OnboardingCopy.welcomeCardCloses('in 2 days'),
+  // U1's how-it-works list.
   OnboardingCopy.howCallLead,
   OnboardingCopy.howCallBody,
   OnboardingCopy.howSideLead,
   OnboardingCopy.howSideBody,
   OnboardingCopy.howReceiptLead,
   OnboardingCopy.howReceiptBody,
-  OnboardingCopy.welcomeMoney,
   OnboardingCopy.welcomeCta,
-  OnboardingCopy.welcomeSignIn,
-  OnboardingCopy.welcomeFooter,
-  OnboardingCopy.welcomeOffline,
   OnboardingCopy.topicsTitle,
   OnboardingCopy.topicsBody,
   OnboardingCopy.topicChipA11y('Sports', 2),
+  OnboardingCopy.topicTileCount(1),
+  OnboardingCopy.topicTileCount(3),
   OnboardingCopy.topicsNote,
   OnboardingCopy.ctaSkip,
   OnboardingCopy.ctaContinue,
@@ -64,8 +66,6 @@ final List<String> _all = [
   OnboardingCopy.callBody,
   OnboardingCopy.callAnswerHeader,
   OnboardingCopy.callAnswerHelper,
-  OnboardingCopy.callOwnHeader,
-  OnboardingCopy.callSeeAll,
   OnboardingCopy.callLater,
   OnboardingCopy.callSignedInNote('ada'),
   OnboardingCopy.callSignedInNote(null),
@@ -79,7 +79,6 @@ final List<String> _all = [
   OnboardingCopy.signInTitleFollow(3, null),
   OnboardingCopy.signInTitleFollow(1, 'Ada'),
   OnboardingCopy.signInTitleDefault,
-  OnboardingCopy.signInSubtitle,
   OnboardingCopy.signInDraftNote,
   OnboardingCopy.signInLastUsed,
   OnboardingCopy.signInNoWallet,
@@ -87,7 +86,6 @@ final List<String> _all = [
   OnboardingCopy.signInConsentLead,
   OnboardingCopy.signInTerms,
   OnboardingCopy.signInPrivacy,
-  OnboardingCopy.signInNotNow,
   OnboardingCopy.signInWalletOpening,
   OnboardingCopy.signInWalletChecking,
   OnboardingCopy.signInSettingUp,
@@ -102,7 +100,6 @@ final List<String> _all = [
   OnboardingCopy.signInOffline,
   OnboardingCopy.backTitle,
   OnboardingCopy.backBody,
-  OnboardingCopy.backLook,
   OnboardingCopy.backSessionEnded,
   OnboardingCopy.usernameTitle,
   OnboardingCopy.usernameSubtitle,
@@ -219,31 +216,38 @@ void main() {
     expect(const PushRationaleSheet(), isA<StatelessWidget>());
   });
 
-  test(
-    'money is said once, plainly: real USDC on Panta, and you can lose it',
-    () {
-      expect(OnboardingCopy.welcomeMoney, contains('real USDC'));
-      expect(OnboardingCopy.welcomeMoney, contains('Panta'));
-      expect(OnboardingCopy.welcomeMoney, contains('lose'));
-      expect(OnboardingCopy.welcomeMoney, contains('optional'));
-      // Calls themselves are free, and it says so where you make one.
-      expect(OnboardingCopy.howCallBody, contains('free'));
-      expect(OnboardingCopy.callBody, contains('free'));
-      // Only the money line and the venue line name money or the chain.
-      final money = [
-        for (final t in _all)
-          if (RegExp(
-            r'USDC|deposit|wallet balance|fund',
-            caseSensitive: false,
-          ).hasMatch(t))
-            t,
-      ];
-      expect(money, [
-        OnboardingCopy.welcomeMoney,
-        OnboardingCopy.recordLockedAt('0.50'),
-      ]);
-    },
-  );
+  test('calls are free and it says so; no onboarding line asks for or promises '
+      'money, and only a locked price names USDC', () {
+    // W1 no longer carries a money line: the first run never brings up
+    // trading at all. Calls are free, and that is said where it matters.
+    expect(OnboardingCopy.welcomeTaglineMarkets, contains('free'));
+    expect(OnboardingCopy.callBody, contains('free'));
+    expect(OnboardingCopy.howCallBody, contains('free'));
+    final money = [
+      for (final t in _all)
+        if (RegExp(
+          r'USDC|deposit|wallet balance|fund',
+          caseSensitive: false,
+        ).hasMatch(t))
+          t,
+    ];
+    expect(money, [OnboardingCopy.recordLockedAt('0.50')]);
+  });
+
+  test('W1\'s line says what the phone shows: calls, or markets', () {
+    expect(OnboardingCopy.welcomeTagline, contains('call'));
+    expect(OnboardingCopy.welcomeTagline, contains('Back'));
+    expect(OnboardingCopy.welcomeTagline, contains('fade'));
+    expect(OnboardingCopy.welcomeTaglineMarkets, contains('markets'));
+    // The empty phone is honest about why, and never invents a call.
+    expect(OnboardingCopy.welcomePhoneOffline, contains('offline'));
+    expect(OnboardingCopy.welcomePhoneEmpty, isNot(contains('offline')));
+  });
+
+  test('topic tiles count open markets in words, singular and plural', () {
+    expect(OnboardingCopy.topicTileCount(1), '1 open market');
+    expect(OnboardingCopy.topicTileCount(3), '3 open markets');
+  });
 
   test('receipts come only from Panta settling, right or wrong', () {
     expect(OnboardingCopy.howReceiptBody, contains('Panta settles'));

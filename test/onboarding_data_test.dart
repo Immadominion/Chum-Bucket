@@ -42,6 +42,41 @@ CallFeedEntry _entry(
   market: t.market,
 );
 
+/// A call on a market that has closed, with the result the server derived
+/// ([outcome] null: no result published yet).
+CallFeedEntry _settled(
+  String id,
+  PersonCard author, {
+  CallOutcome? outcome = CallOutcome.correct,
+  MarketVenue venue = MarketVenue.panta,
+  CallVisibility visibility = CallVisibility.public,
+}) {
+  final market = pantaMarket(
+    'closed-$id',
+    question: 'Did $id happen?',
+    closesIn: const Duration(days: -1),
+    status: MarketStatus.resolved,
+    venue: venue,
+  );
+  final e = _entry(topCall(market, author), visibility: visibility);
+  return CallFeedEntry(
+    call: e.call,
+    author: e.author,
+    market: market,
+    result:
+        outcome == null
+            ? null
+            : CallResult(
+              callId: e.call.id,
+              outcome: outcome,
+              resolution: null,
+              resolvedAt: kNowMs - 3600000,
+              marketResolutionId: null,
+              derivedAt: kNowMs - 3600000,
+            ),
+  );
+}
+
 void main() {
   final s = OnboardingScene();
 
@@ -330,6 +365,155 @@ void main() {
         ).source,
         LiveStripSource.markets,
       );
+    });
+  });
+
+  group('Welcome\'s phone (W1)', () {
+    List<String> ids(WelcomeFeed feed) => [
+      for (final item in feed.items)
+        switch (item) {
+          LiveCallItem(:final entry) => entry.call.id,
+          LiveMarketItem(:final market) => market.id,
+        },
+    ];
+
+    test('people\'s live calls first, then settled ones with their result', () {
+      final won = _settled('won', s.tunde);
+      final lost = _settled('lost', s.kemi, outcome: CallOutcome.incorrect);
+      final feed = chooseWelcomeFeed(
+        top: [s.adaBtc],
+        // Settled rows come first from the server; live ones still lead.
+        feed: [won, lost, _entry(s.kemiAlbum)],
+        markets: const [],
+        now: kNow,
+      );
+      expect(ids(feed), [
+        s.adaBtc.call.id,
+        s.kemiAlbum.call.id,
+        won.call.id,
+        lost.call.id,
+      ]);
+      expect(feed.hasCalls, isTrue);
+      expect(feed.source, 'calls');
+    });
+
+    test('only public calls, by people with a real name or handle', () {
+      // What the BFF sends for an account with no name and no handle.
+      final nameless = personCard(
+        'u-nameless',
+        name: 'user-80d78065',
+        handle: 'user-80d78065',
+      );
+      final feed = chooseWelcomeFeed(
+        top: [topCall(s.btc, nameless)],
+        feed: [
+          _entry(s.tundeLakers, visibility: CallVisibility.followers),
+          _settled('hidden', s.ada, visibility: CallVisibility.followers),
+          _settled('anon', nameless),
+          // Kemi's handle is a placeholder, but her name is real.
+          _entry(s.kemiAlbum),
+        ],
+        markets: const [],
+        now: kNow,
+      );
+      expect(ids(feed), [s.kemiAlbum.call.id]);
+    });
+
+    test('a call on a closed market shows only once its result is in', () {
+      final feed = chooseWelcomeFeed(
+        top: const [],
+        feed: [
+          _settled('pending', s.ada, outcome: CallOutcome.pending),
+          _settled('unresolved', s.tunde, outcome: null),
+          // Labelled OPEN by the venue, but its close has passed.
+          _entry(topCall(s.closedButOpen, s.kemi)),
+        ],
+        markets: const [],
+        now: kNow,
+      );
+      expect(feed.isEmpty, isTrue);
+    });
+
+    test('markets open on Panta fill the phone to five, soonest first', () {
+      final withCalls = chooseWelcomeFeed(
+        top: [s.adaBtc, s.kemiAlbum],
+        feed: const [],
+        markets: s.catalog,
+        now: kNow,
+      );
+      expect(withCalls.items, hasLength(kWelcomeFeedTarget));
+      expect(ids(withCalls).take(2), [s.adaBtc.call.id, s.kemiAlbum.call.id]);
+      expect(ids(withCalls).skip(2), [s.soon.id, s.lakers.id, s.btc.id]);
+
+      final marketsOnly = chooseWelcomeFeed(
+        top: const [],
+        feed: const [],
+        markets: s.catalog,
+        now: kNow,
+      );
+      // The 30 Sep market the venue still calls OPEN never fills a slot.
+      expect(ids(marketsOnly), [
+        s.soon.id,
+        s.lakers.id,
+        s.btc.id,
+        s.stale.id,
+        s.album.id,
+      ]);
+      expect(marketsOnly.hasCalls, isFalse);
+      expect(marketsOnly.source, 'markets');
+    });
+
+    test('the same call from two sources shows once', () {
+      final feed = chooseWelcomeFeed(
+        top: [s.adaBtc],
+        feed: [_entry(s.adaBtc), _entry(s.adaBtc)],
+        markets: const [],
+        now: kNow,
+      );
+      expect(ids(feed), [s.adaBtc.call.id]);
+    });
+
+    test('nothing anywhere: empty, never a fixture', () {
+      for (final feed in [
+        chooseWelcomeFeed(
+          top: const [],
+          feed: const [],
+          markets: const [],
+          now: kNow,
+        ),
+        chooseWelcomeFeed(now: kNow),
+        chooseWelcomeFeed(
+          top: const [],
+          feed: const [],
+          markets: [pantaMarket('demo', venue: MarketVenue.fixture)],
+          now: kNow,
+        ),
+      ]) {
+        expect(feed.isEmpty, isTrue);
+        expect(feed.hasCalls, isFalse);
+        expect(feed.source, 'none');
+      }
+    });
+
+    test('a demo row never reaches the phone, live or settled', () {
+      final demoMarket = pantaMarket('demo', venue: MarketVenue.fixture);
+      final demoCall = topCall(demoMarket, s.ada);
+      final feed = chooseWelcomeFeed(
+        top: [demoCall],
+        feed: [
+          _entry(demoCall),
+          _settled('demo', s.tunde, venue: MarketVenue.fixture),
+        ],
+        markets: [demoMarket],
+        now: kNow,
+      );
+      expect(feed.isEmpty, isTrue);
+    });
+
+    test('a source that has not answered is skipped, not treated as empty', () {
+      final feed = chooseWelcomeFeed(markets: [s.btc], now: kNow);
+      expect(feed.source, 'markets');
+      expect(ids(feed), [s.btc.id]);
     });
   });
 

@@ -211,6 +211,7 @@ class FakeOnboardingRepository
   final Set<String> failFollowIds = {};
   int suggestionReads = 0;
   int catalogReads = 0;
+  int topReads = 0;
   Completer<void>? holdCatalog;
 
   DateTime get now => (clock ?? () => kNow)();
@@ -424,6 +425,7 @@ class FakeOnboardingRepository
 
   @override
   Future<List<TopCall>> fetchTopCalls({int limit = 10}) async {
+    topReads++;
     _online();
     return top;
   }

@@ -1,6 +1,7 @@
 // C "Make your first call", A1 "Sign in to lock your call" and R "You're on
-// record" (onboarding spec §6, §8), acceptance as tests: real markets with
-// fresh prices only, no money anywhere, the draft surviving sign-in, a fresh
+// record" (onboarding spec §6, §8), acceptance as tests: a swipeable deck of
+// real markets with fresh prices only, no money anywhere, a signed-out pick
+// kept on the phone through sign-in, a compact composer that needs a fresh
 // tap to lock, the server's own record on R, and no notification dialog
 // before the person asks for one.
 import 'package:chumbucket/core/analytics/analytics.dart';
@@ -9,6 +10,7 @@ import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_composer_sheet.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_response_sheet.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart';
 import 'package:chumbucket/features/onboarding/data/onboarding_store.dart';
 import 'package:chumbucket/features/onboarding/domain/onboarding_data.dart';
 import 'package:chumbucket/features/onboarding/domain/onboarding_steps.dart';
@@ -125,12 +127,38 @@ Future<OnboardingRig> _atFirstCall(
 Finder _inComposer(Finder f) =>
     find.descendant(of: find.byType(CallComposerSheet), matching: f);
 
-Future<void> _scrollTo(WidgetTester tester, Finder target) async {
-  await tester.dragUntilVisible(
-    target,
-    find.byType(SingleChildScrollView).first,
-    const Offset(0, -200),
+/// The deck card for [marketId].
+Finder _card(String marketId) => find.byKey(ValueKey('first-call-$marketId'));
+
+/// YES or NO on the deck card for [marketId] (the next card peeks in beside
+/// it with its own buttons, so the card is named).
+Finder _answer(String marketId, Side side) => find.descendant(
+  of: _card(marketId),
+  matching: find.byKey(ValueKey('deck-${side.wire.toLowerCase()}')),
+);
+
+/// What only the full composer shows: reason, visibility, confidence, rules.
+void _expectCompact(WidgetTester tester) {
+  expect(_inComposer(find.byType(TextField)), findsNothing);
+  expect(_inComposer(find.text('Your reason (optional)')), findsNothing);
+  expect(_inComposer(find.byType(CallJourneyReason)), findsNothing);
+  expect(_inComposer(find.byType(CallJourneyVisibility)), findsNothing);
+  expect(_inComposer(find.byType(CallJourneyConfidence)), findsNothing);
+  expect(_inComposer(find.text('Read the market rules')), findsNothing);
+}
+
+/// Scrolls C to its end, where the deck is. Only the page scrolls: the
+/// deck's own pages stay where they are (ensureVisible would slide them).
+Future<void> _toDeck(WidgetTester tester) async {
+  final page = tester.state<ScrollableState>(
+    find
+        .descendant(
+          of: find.byType(SingleChildScrollView).first,
+          matching: find.byType(Scrollable),
+        )
+        .first,
   );
+  page.position.jumpTo(page.position.maxScrollExtent);
   await settle(tester, const Duration(milliseconds: 200));
 }
 
@@ -160,6 +188,11 @@ void main() {
     // "Answer a call" first: named people's live calls.
     expect(find.text(OnboardingCopy.callAnswerHeader), findsOneWidget);
     expect(find.text(OnboardingCopy.callAnswerHelper), findsOneWidget);
+    // Then the deck, one offered market per card; nothing else to browse.
+    await _toDeck(tester);
+    expect(_card(flow.firstCallMarkets.first.market.id), findsOneWidget);
+    expect(find.byKey(const ValueKey('first-call-see-all')), findsNothing);
+    expect(find.text(OnboardingCopy.callSeeAll), findsNothing);
     expect(
       rig.events(AnalyticsEventName.onboardingStepViewed),
       contains(allOf(contains('first_call'), contains('markets'))),
@@ -182,44 +215,67 @@ void main() {
     }
   });
 
+  testWidgets('the deck: one real market per card, swiped sideways', (
+    tester,
+  ) async {
+    final live = _live();
+    await _atFirstCall(tester, repo: live.repo, now: live.now);
+    final markets = _flow(tester).firstCallMarkets;
+    expect(markets.length, greaterThan(1));
+    final first = markets[0].market;
+    final second = markets[1].market;
+    await _toDeck(tester);
+    expect(find.text(first.question), findsOneWidget);
+    // Panta's price on each answer.
+    expect(
+      find.descendant(
+        of: _answer(first.id, Side.no),
+        matching: find.text(
+          CallsFormat.displayPrice(markets[0].sharePrice.noPrice!),
+        ),
+      ),
+      findsOneWidget,
+    );
+    // The first card is centred; a swipe brings the next one to the centre.
+    expect(tester.getCenter(_card(first.id)).dx, closeTo(390 / 2, 1));
+    await tester.fling(_card(first.id), const Offset(-300, 0), 1000);
+    await settle(tester);
+    expect(tester.getCenter(_card(second.id)).dx, closeTo(390 / 2, 1));
+  });
+
   testWidgets(
-    'signed out: Lock keeps the draft on the phone and asks for sign-in; '
-    'after sign-in the composer reopens with it and needs a fresh tap',
+    'signed out: YES or NO keeps the pick on the phone and goes straight to '
+    'sign-in (no sheet); after sign-in the compact composer reopens with it '
+    'and needs a fresh tap',
     (tester) async {
       final live = _live();
       final rig = await _atFirstCall(tester, repo: live.repo, now: live.now);
-      final btc = live.repo.catalog.firstWhere(
-        (m) => m.id == live.scene.btc.id,
-      );
+      final market = _flow(tester).firstCallMarkets.first.market;
 
-      await _scrollTo(tester, find.byKey(ValueKey('first-call-${btc.id}')));
-      await tester.tap(find.byKey(ValueKey('first-call-${btc.id}')));
-      await settle(tester);
-      expect(find.byType(CallComposerSheet), findsOneWidget);
-      // The composer's own words: a free call, no money involved.
-      await tester.tap(_inComposer(find.text('NO')));
-      await settle(tester, const Duration(milliseconds: 200));
-      await tester.enterText(
-        _inComposer(find.byType(TextField)).first,
-        'The close matters, not the wick.',
-      );
-      await tester.tap(_inComposer(find.text('Lock my NO call')));
+      await _toDeck(tester);
+      await tester.tap(_answer(market.id, Side.no));
       await settle(tester);
 
-      // A1, titled for the call, with the draft card.
+      // A1 at once, titled for the call, with the draft card. No composer.
       expect(find.byType(CallComposerSheet), findsNothing);
       expect(find.byType(SignInScreen), findsOneWidget);
       expect(find.text(OnboardingCopy.signInTitleCall), findsOneWidget);
-      expect(find.text(btc.question), findsOneWidget);
+      expect(find.text(market.question), findsOneWidget);
       expect(find.text(OnboardingCopy.signInDraftNote), findsOneWidget);
       expect(rig.repo.created, isEmpty);
+      // The pick on a market, then the call kept for after sign-in.
+      expect(rig.events(AnalyticsEventName.onboardingFirstCallOpened), [
+        allOf(contains('kind: market'), contains(market.id)),
+        allOf(contains('kind: call'), contains(market.id)),
+      ]);
 
-      // The draft is on the phone, so it survives the OAuth app switch and a
+      // The pick is on the phone, so it survives the OAuth app switch and a
       // process death.
       final saved = await const OnboardingStore().readPendingCall(live.now);
-      expect(saved?.marketId, btc.id);
+      expect(saved?.kind, PendingCallKind.call);
+      expect(saved?.marketId, market.id);
       expect(saved?.side, Side.no);
-      expect(saved?.thesis, 'The close matters, not the wick.');
+      expect(saved?.thesis, isNull);
 
       // Sign in with Google (the "Last used" door, first and filled).
       rig.auth.deliverOnSignIn = snapshot();
@@ -227,16 +283,22 @@ void main() {
       await settle(tester, const Duration(milliseconds: 1500));
       expect(rig.session.isReady, isTrue);
 
-      // The composer is back with the draft, a note, and nothing locked.
+      // The compact composer is back with the pick, a note, nothing locked.
       expect(find.byType(CallComposerSheet), findsOneWidget);
+      expect(
+        tester.widget<CallComposerSheet>(find.byType(CallComposerSheet)),
+        isA<CallComposerSheet>().having((c) => c.compact, 'compact', isTrue),
+      );
       expect(
         _inComposer(find.text(OnboardingCopy.callSignedInNote('ada'))),
         findsOneWidget,
       );
+      expect(_inComposer(find.text(market.question)), findsOneWidget);
       expect(
-        _inComposer(find.text('The close matters, not the wick.')),
+        _inComposer(find.textContaining('You’re calling NO')),
         findsOneWidget,
       );
+      _expectCompact(tester);
       expect(_inComposer(find.text('Lock my NO call')), findsOneWidget);
       expect(rig.repo.created, isEmpty, reason: 'never locked on its own');
 
@@ -245,11 +307,10 @@ void main() {
 
       // R shows the server's own record of the call.
       expect(rig.repo.created, hasLength(1));
-      expect(
-        rig.repo.created.single.thesis,
-        'The close matters, not the wick.',
-      );
-      final own = rig.repo.ownCalls[btc.id]!;
+      expect(rig.repo.created.single.side, Side.no);
+      expect(rig.repo.created.single.thesis, isNull);
+      expect(rig.repo.created.single.visibility, CallVisibility.public);
+      final own = rig.repo.ownCalls[market.id]!;
       expect(find.byType(OnRecordScreen), findsOneWidget);
       expect(
         find.byKey(ValueKey('record-call-${own.call.id}')),
@@ -273,19 +334,13 @@ void main() {
 
   testWidgets(
     'the reopened composer put away without locking is one tap from coming '
-    'back, draft and all',
+    'back, pick and all',
     (tester) async {
       final live = _live();
       final rig = await _atFirstCall(tester, repo: live.repo, now: live.now);
-      final btc = live.repo.catalog.firstWhere(
-        (m) => m.id == live.scene.btc.id,
-      );
-      await _scrollTo(tester, find.byKey(ValueKey('first-call-${btc.id}')));
-      await tester.tap(find.byKey(ValueKey('first-call-${btc.id}')));
-      await settle(tester);
-      await tester.tap(_inComposer(find.text('NO')));
-      await settle(tester, const Duration(milliseconds: 200));
-      await tester.tap(_inComposer(find.text('Lock my NO call')));
+      final market = _flow(tester).firstCallMarkets.first.market;
+      await _toDeck(tester);
+      await tester.tap(_answer(market.id, Side.no));
       await settle(tester);
       rig.auth.deliverOnSignIn = snapshot();
       await tester.tap(find.byKey(const ValueKey('front-door-google')));
@@ -298,19 +353,122 @@ void main() {
       expect(find.byType(CallComposerSheet), findsNothing);
       expect(rig.repo.created, isEmpty);
       // The draft's market has its own card; it is not offered again beside
-      // it, as a market row or as someone's call to answer.
+      // it, as a deck card or as someone's call to answer.
       final flow = _flow(tester);
       expect(
         flow.firstCallMarkets.map((m) => m.market.id),
-        isNot(contains(btc.id)),
+        isNot(contains(market.id)),
       );
-      expect(flow.answerable.map((t) => t.market.id), isNot(contains(btc.id)));
+      expect(
+        flow.answerable.map((t) => t.market.id),
+        isNot(contains(market.id)),
+      );
 
       await tester.tap(find.byKey(const ValueKey('draft-review')));
       await settle(tester);
       expect(find.byType(CallComposerSheet), findsOneWidget);
       expect(_inComposer(find.text('Lock my NO call')), findsOneWidget);
       expect(rig.repo.created, isEmpty, reason: 'still a fresh tap to lock');
+    },
+  );
+
+  testWidgets(
+    'signed in: YES on a card opens the compact composer with YES chosen; '
+    'one tap locks it',
+    (tester) async {
+      final live = _live();
+      final rig = await _atFirstCall(
+        tester,
+        repo: live.repo,
+        now: live.now,
+        signedIn: true,
+      );
+      final item = _flow(tester).firstCallMarkets.first;
+      await _toDeck(tester);
+      await tester.tap(_answer(item.market.id, Side.yes));
+      await settle(tester);
+      expect(find.byType(SignInScreen), findsNothing);
+      expect(find.byType(CallComposerSheet), findsOneWidget);
+      expect(_inComposer(find.text(item.market.question)), findsOneWidget);
+      expect(
+        _inComposer(
+          find.text(
+            'You’re calling YES at '
+            '${CallsFormat.displayPrice(item.sharePrice.yesPrice!)} USDC/share. '
+            'Free, and it goes on your record.',
+          ),
+        ),
+        findsOneWidget,
+      );
+      _expectCompact(tester);
+      expect(rig.repo.created, isEmpty, reason: 'nothing before Lock');
+
+      await tester.tap(_inComposer(find.text('Lock my YES call')));
+      await settle(tester, const Duration(milliseconds: 2600));
+      expect(rig.repo.created.single.marketId, item.market.id);
+      expect(rig.repo.created.single.side, Side.yes);
+      expect(rig.repo.created.single.thesis, isNull);
+      expect(rig.repo.created.single.confidence, isNull);
+      expect(rig.repo.created.single.visibility, CallVisibility.public);
+      expect(find.byType(OnRecordScreen), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'the compact composer shows the question, the sides and Lock; the full '
+    'one adds reason, visibility, confidence and rules',
+    (tester) async {
+      final live = _live();
+      final rig = OnboardingRig(repo: live.repo, signedIn: true);
+      await tester.runAsync(rig.start);
+      addTearDown(rig.dispose);
+      final market = live.repo.catalog.firstWhere(
+        (m) => m.id == live.scene.btc.id,
+      );
+      for (final compact in [true, false]) {
+        await mountAt(
+          tester,
+          Scaffold(
+            body: CallComposerSheet(
+              key: ValueKey('composer-$compact'),
+              market: market,
+              sharePrice: live.repo.prices[market.id],
+              initialSide: Side.yes,
+              compact: compact,
+            ),
+          ),
+          around: rig.wrap,
+          height: 2000,
+        );
+        await settle(tester, const Duration(milliseconds: 300));
+        expect(_inComposer(find.text(market.question)), findsOneWidget);
+        expect(_inComposer(find.text('YES')), findsWidgets);
+        expect(_inComposer(find.text('NO')), findsWidgets);
+        expect(_inComposer(find.text('Lock my YES call')), findsOneWidget);
+        if (compact) {
+          _expectCompact(tester);
+          expect(
+            _inComposer(
+              find.textContaining('Free, and it goes on your record'),
+            ),
+            findsOneWidget,
+          );
+        } else {
+          expect(_inComposer(find.byType(CallJourneyReason)), findsOneWidget);
+          expect(
+            _inComposer(find.byType(CallJourneyVisibility)),
+            findsOneWidget,
+          );
+          expect(
+            _inComposer(find.byType(CallJourneyConfidence)),
+            findsOneWidget,
+          );
+          expect(
+            _inComposer(find.text('Read the market rules')),
+            findsOneWidget,
+          );
+        }
+      }
     },
   );
 
