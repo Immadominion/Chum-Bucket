@@ -30,11 +30,16 @@ class NotificationRow extends StatelessWidget {
   /// produced the row.
   final VoidCallback? onOpenActor;
 
+  /// True while the tapped target is being fetched (a receipt re-reads its
+  /// call first). Shows progress in place of the time and ignores taps.
+  final bool opening;
+
   const NotificationRow({
     super.key,
     required this.notification,
     required this.onTap,
     this.onOpenActor,
+    this.opening = false,
   });
 
   @override
@@ -45,13 +50,14 @@ class NotificationRow extends StatelessWidget {
     return Semantics(
       button: true,
       label:
-          '${unread ? 'Unread. ' : ''}${notification.title}. '
+          '${opening ? 'Opening. ' : ''}${unread ? 'Unread. ' : ''}'
+          '${notification.title}. '
           '${notification.body} ${CallsFormat.relative(notification.createdAtUtc)}.',
       child: Material(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18.r),
         child: InkWell(
-          onTap: onTap,
+          onTap: opening ? null : onTap,
           borderRadius: BorderRadius.circular(18.r),
           child: Container(
             padding: EdgeInsets.all(14.w),
@@ -93,15 +99,26 @@ class NotificationRow extends StatelessWidget {
                               ),
                             ),
                           ),
-                          Text(
-                            CallsFormat.relative(notification.createdAtUtc),
-                            style: TextStyle(
-                              color: AppColors.textTertiary,
-                              fontSize: 10.sp,
-                              fontWeight: FontWeight.w700,
+                          if (opening)
+                            SizedBox(
+                              key: const ValueKey('notification-opening'),
+                              width: 12.w,
+                              height: 12.w,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.6,
+                                color: tone,
+                              ),
+                            )
+                          else
+                            Text(
+                              CallsFormat.relative(notification.createdAtUtc),
+                              style: TextStyle(
+                                color: AppColors.textTertiary,
+                                fontSize: 10.sp,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
-                          ),
-                          if (unread) ...[
+                          if (unread && !opening) ...[
                             SizedBox(width: 6.w),
                             Container(
                               width: 8.w,

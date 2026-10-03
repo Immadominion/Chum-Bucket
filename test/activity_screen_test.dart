@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:chumbucket/core/theme/app_theme.dart';
 import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
@@ -117,6 +119,42 @@ void main() {
       inbox.notifications.firstWhere((n) => n.id == first.id).isUnread,
       isFalse,
     );
+  });
+
+  testWidgets('a tapped row shows progress while its target loads', (
+    tester,
+  ) async {
+    // A receipt re-reads its call before the sheet opens; that round trip
+    // must not look like a dead tap.
+    usePhoneSurface(tester);
+    final inbox = _signedIn();
+    final loading = Completer<void>();
+    var opens = 0;
+    await tester.pumpWidget(
+      _host(
+        inbox: inbox,
+        child: ActivityScreen(
+          openTarget: (_, target) async {
+            opens++;
+            await loading.future;
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(NotificationRow).first);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('notification-opening')), findsOneWidget);
+
+    // A second tap while it loads does not open it twice.
+    await tester.tap(find.byType(NotificationRow).first);
+    await tester.pump();
+    expect(opens, 1);
+
+    loading.complete();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('notification-opening')), findsNothing);
   });
 
   testWidgets('no session: one Sign in row, and the screen stays usable', (

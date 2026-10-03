@@ -42,12 +42,21 @@ class _ActivityScreenState extends State<ActivityScreen> {
   Future<void> _refresh() =>
       context.read<NotificationsProvider>().load(force: true);
 
+  /// The row whose target is being fetched, so it can show progress.
+  String? _openingId;
+
   Future<void> _open(CallNotification notification) async {
+    if (_openingId != null) return;
     final opener = widget.openTarget ?? openNotificationTarget;
-    // Opening is the acknowledgement.
-    await context.read<NotificationsProvider>().markRead(notification.id);
-    if (!mounted) return;
-    await opener(context, notification.target);
+    setState(() => _openingId = notification.id);
+    try {
+      // Opening is the acknowledgement.
+      await context.read<NotificationsProvider>().markRead(notification.id);
+      if (!mounted) return;
+      await opener(context, notification.target);
+    } finally {
+      if (mounted) setState(() => _openingId = null);
+    }
   }
 
   Future<void> _openActor(CallNotification notification) async {
@@ -167,6 +176,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
           for (final notification in calls.notifications) ...[
             NotificationRow(
               notification: notification,
+              opening: _openingId == notification.id,
               onTap: () => _open(notification),
               onOpenActor:
                   notification.actorTarget == null
