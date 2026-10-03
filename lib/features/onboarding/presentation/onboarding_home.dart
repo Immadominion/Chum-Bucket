@@ -95,6 +95,14 @@ class _OnboardingHomeEffectsState extends State<OnboardingHomeEffects> {
     final calls = context.read<CallsProvider>();
     final arrival = app.takeArrival();
     if (arrival != null) {
+      if (arrival.restored) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            key: const ValueKey('home-restored'),
+            content: Text(OnboardingCopy.restoreOk(arrival.restoredAs)),
+          ),
+        );
+      }
       if (arrival.madeCall) unawaited(calls.loadFeed(force: true));
       if (arrival.followed > 0 && calls.isSignedIn) {
         try {

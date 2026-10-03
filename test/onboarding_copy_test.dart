@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 final List<String> _all = [
   OnboardingCopy.splashRestoring,
   OnboardingCopy.restoreOk('@ada'),
+  OnboardingCopy.restoreOk(null),
   OnboardingCopy.welcomeTitle,
   OnboardingCopy.welcomeBody,
   OnboardingCopy.welcomeLiveCalls,

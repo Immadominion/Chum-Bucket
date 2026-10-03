@@ -10,6 +10,7 @@ import 'package:chumbucket/features/onboarding/onboarding_copy.dart';
 import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_motion.dart';
 import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_styles.dart';
 import 'package:chumbucket/shared/screens/home/widgets/wave_clipper.dart';
+import 'package:chumbucket/shared/screens/splash/widgets/splash_marks.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:chumbucket/shared/widgets/app_components/app_avatar.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
@@ -32,8 +33,6 @@ class OnboardingBrandBand extends StatelessWidget {
   final ChumbucketStateArtwork? artwork;
   final double artworkSize;
 
-  static const String logoAsset = 'assets/images/ai_gen/logo/bucket_logo.png';
-
   @override
   Widget build(BuildContext context) {
     final top = MediaQuery.paddingOf(context).top;
@@ -47,11 +46,14 @@ class OnboardingBrandBand extends StatelessWidget {
         child: Stack(
           clipBehavior: Clip.none,
           children: [
+            // The gradient stops a pixel short of the wave's foot and the
+            // canvas starts a pixel into it, so no antialiased seam shows
+            // under the scallop at any pixel ratio.
             Positioned(
               left: 0,
               right: 0,
               top: 0,
-              height: top + height + ChumbucketBandWave.height,
+              height: top + height + ChumbucketBandWave.height - 1,
               child: const DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: ChumbucketPrimaryButton.gradient,
@@ -67,7 +69,7 @@ class OnboardingBrandBand extends StatelessWidget {
             Positioned(
               left: 0,
               right: 0,
-              top: top + height + ChumbucketBandWave.height,
+              top: top + height + ChumbucketBandWave.height - 1,
               bottom: 0,
               child: const ColoredBox(color: AppColors.background),
             ),
@@ -106,22 +108,15 @@ class _BandWordmark extends StatelessWidget {
       Container(
         width: 40,
         height: 40,
+        alignment: Alignment.center,
         decoration: const BoxDecoration(
           color: AppColors.surface,
           shape: BoxShape.circle,
         ),
-        clipBehavior: Clip.antiAlias,
-        child: OverflowBox(
-          maxWidth: 64,
-          maxHeight: 96,
-          child: Image.asset(
-            OnboardingBrandBand.logoAsset,
-            width: 64,
-            height: 96,
-            fit: BoxFit.contain,
-            cacheWidth: 192,
-            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-          ),
+        // The whole bucket, chimney to doorstep, inside the disc.
+        child: const Padding(
+          padding: EdgeInsets.only(top: 1),
+          child: SplashBucket(size: 28),
         ),
       ),
       const SizedBox(width: 10),

@@ -15,6 +15,7 @@ import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.d
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/authentication/session/session_state.dart';
 import 'package:chumbucket/features/onboarding/domain/entry_decision.dart';
+import 'package:chumbucket/features/onboarding/domain/onboarding_data.dart';
 import 'package:chumbucket/features/onboarding/domain/onboarding_steps.dart';
 import 'package:chumbucket/features/onboarding/onboarding_controller.dart';
 import 'package:chumbucket/features/onboarding/onboarding_copy.dart';
@@ -24,6 +25,7 @@ import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_m
 import 'package:chumbucket/features/profile/presentation/screens/edit_profile_screen.dart';
 import 'package:chumbucket/features/profile/providers/profile_provider.dart';
 import 'package:chumbucket/shared/screens/home/home.dart';
+import 'package:chumbucket/shared/screens/splash/widgets/splash_marks.dart';
 import 'package:chumbucket/shared/services/efficient_sync_service.dart';
 
 /// The session as the entry table sees it.
@@ -191,6 +193,7 @@ class _MwaSplashScreenState extends State<MwaSplashScreen>
 
     // A session backed up to Block Store comes back after a reinstall (B2).
     var restoreFailed = false;
+    var restoredFromBackup = false;
     if (continuity != null && session?.hasSupabaseSession != true) {
       _continuity = continuity..restoring.addListener(_onRestoring);
       _onRestoring();
@@ -212,6 +215,7 @@ class _MwaSplashScreenState extends State<MwaSplashScreen>
           !restored &&
           (result == SessionRestoreResult.failed ||
               result == SessionRestoreResult.unreachable);
+      restoredFromBackup = restored;
       if (restored) {
         // The SDK announces the adopted session; wait for the account to
         // pick it up.
@@ -251,10 +255,24 @@ class _MwaSplashScreenState extends State<MwaSplashScreen>
         now: _now,
       ),
     );
-    AppLogger.info('Splash: entry ${entry.name}');
     await _holdMinimum(started);
     if (!mounted) return;
     if (auth?.isAuthenticated == true) _triggerInitialSync(auth!);
+
+    // Back after a reinstall: Home says so, with the @handle the server just
+    // confirmed (never anything read from the backup itself).
+    if (restoredFromBackup && session?.isReady == true) {
+      final handle = visibleHandle(session?.handle);
+      onboarding?.setArrival(
+        HomeArrival(
+          restoredAs: handle == null ? null : '@$handle',
+          restored: true,
+        ),
+      );
+    }
+    AppLogger.info(
+      'Splash: ${entry.name} after ${_now.difference(started).inMilliseconds}ms',
+    );
 
     switch (entry) {
       case OnboardingEntry.legacy:
@@ -453,78 +471,4 @@ class _MwaSplashScreenState extends State<MwaSplashScreen>
       ),
     );
   }
-}
-
-/// The bucket from `bucket_logo.png`, cropped to its drawing (the PNG has
-/// wide transparent margins) at the size the native launch window shows the
-/// launcher foreground: 121dp wide.
-class SplashBucket extends StatelessWidget {
-  const SplashBucket({super.key});
-
-  static const double width = 121;
-  static const double height = 114;
-
-  // The drawing's box inside the 1024x1536 source, measured from its alpha.
-  static const double _scale = width / 706;
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    width: width,
-    height: height,
-    child: ClipRect(
-      child: OverflowBox(
-        alignment: Alignment.topLeft,
-        minWidth: 0,
-        minHeight: 0,
-        maxWidth: 1024 * _scale,
-        maxHeight: 1536 * _scale,
-        child: Transform.translate(
-          offset: const Offset(-200 * _scale, -320 * _scale),
-          child: Image.asset(
-            'assets/images/ai_gen/logo/bucket_logo.png',
-            width: 1024 * _scale,
-            height: 1536 * _scale,
-            fit: BoxFit.fill,
-            cacheWidth: 600,
-            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
-/// "The Chum Bucket" lettering, cropped to its drawing, 180dp wide.
-class SplashWordmark extends StatelessWidget {
-  const SplashWordmark({super.key});
-
-  static const double width = 180;
-  static const double _scale = width / 862;
-  static const double height = 526 * _scale;
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    width: width,
-    height: height,
-    child: ClipRect(
-      child: OverflowBox(
-        alignment: Alignment.topLeft,
-        minWidth: 0,
-        minHeight: 0,
-        maxWidth: 1024 * _scale,
-        maxHeight: 1024 * _scale,
-        child: Transform.translate(
-          offset: const Offset(-88 * _scale, -240 * _scale),
-          child: Image.asset(
-            'assets/images/ai_gen/logo/chum_text.png',
-            width: 1024 * _scale,
-            height: 1024 * _scale,
-            fit: BoxFit.fill,
-            cacheWidth: 640,
-            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-          ),
-        ),
-      ),
-    ),
-  );
 }

@@ -1,7 +1,10 @@
 // S0: the splash routes through the entry table to one destination, with no
 // OS permission dialog on the way (onboarding spec §3, §6 S0, §8). Plus
 // what onboarding leaves on Home and in Settings (§7 K1, §8.6).
+import 'package:chumbucket/core/analytics/analytics.dart';
 import 'package:chumbucket/core/services/push_registration.dart';
+import 'package:chumbucket/features/authentication/continuity/session_continuity.dart';
+import 'package:chumbucket/features/authentication/session/supabase_auth_port.dart';
 import 'package:chumbucket/features/authentication/session/last_sign_in.dart';
 import 'package:chumbucket/features/onboarding/data/onboarding_store.dart';
 import 'package:chumbucket/features/onboarding/domain/entry_decision.dart';
@@ -15,10 +18,13 @@ import 'package:chumbucket/features/onboarding/presentation/screens/welcome_scre
 import 'package:chumbucket/shared/screens/splash/mwa_splash_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'onboarding_fakes.dart';
+import 'identity_fakes.dart';
 import 'onboarding_scenes.dart';
+import 'session_fakes.dart';
 
 const _home = Key('home-under-test');
 
@@ -26,6 +32,7 @@ Future<OnboardingRig> _splash(
   WidgetTester tester, {
   OnboardingRig? rig,
   bool deepLink = false,
+  SessionContinuity? continuity,
 }) async {
   final r = rig ?? OnboardingRig(repo: OnboardingScene().repository());
   await tester.runAsync(r.start);
@@ -36,12 +43,30 @@ Future<OnboardingRig> _splash(
       peopleFirst: true,
       deepLinkPending: () async => deepLink,
       minimumDuration: const Duration(milliseconds: 700),
-      homeBuilder: (_) => const Scaffold(key: _home, body: SizedBox()),
+      homeBuilder:
+          (_) => const OnboardingHomeEffects(
+            child: Scaffold(key: _home, body: SizedBox()),
+          ),
       clock: () => r.clockNow,
     ),
-    around: r.wrap,
+    around:
+        (app) =>
+            continuity == null
+                ? r.wrap(app)
+                : Provider<SessionContinuity>.value(
+                  value: continuity,
+                  child: r.wrap(app),
+                ),
   );
-  await settle(tester, const Duration(milliseconds: 1500));
+  // Work started on the rig's own (real) zone — a session adopting a
+  // restored token — needs real turns of the event loop between frames.
+  for (var i = 0; i < 15; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 5)),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+  await settle(tester, const Duration(milliseconds: 500));
   return r;
 }
 
@@ -123,6 +148,72 @@ void main() {
     test('entrySessionStateOf reads the session as the table needs it', () {
       expect(entrySessionStateOf(null), EntrySessionState.none);
     });
+  });
+
+  group('B2 restoring after a reinstall', () {
+    SessionContinuity continuityFor(
+      OnboardingRig rig, {
+      required SessionAdoption outcome,
+    }) {
+      final store = MemoryBlockStore();
+      store.entries[SessionContinuity.sessionKey] =
+          const SessionBackup(
+            refreshToken: 'rt-test-only',
+            authUserId: kAuthUserId,
+            method: SignInMethod.google,
+          ).encode();
+      return SessionContinuity(
+        store: store,
+        localSession: () async => null,
+        lastSignIn: rig.lastSignIn,
+        adopt: (_) async {
+          if (outcome == SessionAdoption.adopted) {
+            rig.auth.restored = snapshot();
+            rig.auth.emit(SupabaseAuthEventKind.tokenRefreshed, snapshot());
+          }
+          return outcome;
+        },
+      );
+    }
+
+    testWidgets('restored: Home, "Welcome back, @ada.", never Welcome', (
+      tester,
+    ) async {
+      final rig = OnboardingRig(
+        repo: OnboardingScene().repository(),
+        bff: OnboardingBff(handle: 'ada'),
+      );
+      await _splash(
+        tester,
+        rig: rig,
+        continuity: continuityFor(rig, outcome: SessionAdoption.adopted),
+      );
+      expect(rig.session.isReady, isTrue);
+      expect(find.byKey(_home), findsOneWidget);
+      expect(find.text(OnboardingCopy.restoreOk('@ada')), findsOneWidget);
+      expect(find.byType(WelcomeScreen), findsNothing);
+      expect(
+        rig.events(AnalyticsEventName.sessionRestore),
+        isEmpty,
+        reason: 'recorded through the app recorder, not this rig',
+      );
+    });
+
+    testWidgets(
+      'refused: Welcome back, saying the session ended, Last used kept',
+      (tester) async {
+        final rig = OnboardingRig(repo: OnboardingScene().repository());
+        await _splash(
+          tester,
+          rig: rig,
+          continuity: continuityFor(rig, outcome: SessionAdoption.rejected),
+        );
+        expect(find.byType(SignInScreen), findsOneWidget);
+        expect(find.text(OnboardingCopy.backSessionEnded), findsOneWidget);
+        expect(await rig.lastSignIn.read(), SignInMethod.google);
+        expect(find.byType(WelcomeScreen), findsNothing);
+      },
+    );
   });
 
   group('resume after process death (§3 row 3)', () {

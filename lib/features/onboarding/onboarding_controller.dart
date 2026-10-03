@@ -35,12 +35,19 @@ class HomeArrival {
     this.followed = 0,
     this.failed = 0,
     this.madeCall = false,
+    this.restored = false,
+    this.restoredAs,
   });
 
   /// Follows applied during the run, and those that could not be.
   final int followed;
   final int failed;
   final bool madeCall;
+
+  /// The session came back from the phone's backup (B2), and as whom: the
+  /// @handle the server confirmed, or null to just say "Welcome back."
+  final bool restored;
+  final String? restoredAs;
 }
 
 class OnboardingController extends ChangeNotifier {

@@ -15,10 +15,12 @@ library;
 abstract final class OnboardingCopy {
   // ── S0 / B2 ──────────────────────────────────────────────────────────────
   static const splashRestoring = 'Restoring your account…';
-  static String restoreOk(String who) => 'Welcome back, $who.';
+  static String restoreOk(String? who) =>
+      who == null ? 'Welcome back.' : 'Welcome back, $who.';
 
   // ── W1 Welcome ───────────────────────────────────────────────────────────
-  static const welcomeTitle = 'Call it before it happens.';
+  // A no-break space keeps the last two words together: no one-word line.
+  static const welcomeTitle = 'Call it before it\u00A0happens.';
   static const welcomeBody =
       'See what people call on real prediction markets. Back them, fade '
       'them, or make your own call.';
@@ -65,7 +67,7 @@ abstract final class OnboardingCopy {
       'No topics have open markets on Panta right now. Try again later.';
 
   // ── P People / Friends ──────────────────────────────────────────────────
-  static const peopleTitle = 'Follow people who call it';
+  static const peopleTitle = 'Follow people who call\u00A0it';
   static const peopleBody =
       'Their calls show up first on your Home. You can unfollow any time.';
   static const peopleSection = 'People to follow';
