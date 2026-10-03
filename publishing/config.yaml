@@ -41,7 +41,7 @@ release:
       long_description: |-
         Chumbucket is a people-first feed of calls on real prediction markets. See what named people call on live Panta markets, the price they called it at, and how often they have been right.
 
-        Back a call, fade it, or challenge a friend to go on record. Calls are free and carry no money.
+        Back a call, fade it, or dare a friend to go on record. Calls are free and carry no money.
 
         Every call locks who made it, which side, when and at what price. When the market resolves on Panta, the call becomes a receipt nobody can edit, and you can share it as a chumbucket.fun link anyone can open.
 
@@ -51,9 +51,10 @@ release:
       new_in_version: |-
         A new Chumbucket, built around people and their calls.
         - Follow what people call on live Panta prediction markets
-        - Back, fade or challenge any call, free
+        - Back, fade or dare any call, free
         - Every call becomes a receipt you can share at chumbucket.fun
         - Optionally take the position on Panta with USDC from your own wallet
+        - Friends lead to their calls. SOL escrow challenges are retired; earlier ones stay in Settings > History, where an open one can still be settled
         - Crash reports are now opt-in (Settings)
       saga_features: Sign in and approve trades with Mobile Wallet Adapter, including Seed Vault on Seeker.
   android_details:
@@ -69,10 +70,11 @@ solana_mobile_dapp_publisher_portal:
     1. Open the app and sign in with your wallet (Mobile Wallet Adapter / Seed Vault).
     2. Home shows what people are calling. Tap any call to see its receipt: who, which side, when, the entry price, and the result once Panta resolves the market.
     3. Markets: open any market, pick Yes or No, optionally add a reason, and lock your call. It appears on your profile.
-    4. On someone else's call, tap Back, Fade or Challenge. All are free.
-    5. Share a receipt. The link (https://chumbucket.fun/c/...) opens in the app on a phone that has it, and as a web page anywhere else.
-    6. Optional, real money: a funded position is a real trade on Panta in USDC on Solana mainnet, approved in your wallet and capped at 100 USDC per approval. Reviewing it does not require placing one.
-    7. Settings > Share crash reports is off by default; turning it on is the only way reports are sent.
+    4. On someone else's call, tap Back, Fade or Dare. All are free.
+    5. Friends: tapping a friend opens their profile and calls. Nothing in the app starts a SOL escrow; Settings > History lists earlier escrow challenges (a new account has none).
+    6. Share a receipt. The link (https://chumbucket.fun/c/...) opens in the app on a phone that has it, and as a web page anywhere else.
+    7. Optional, real money: a funded position is a real trade on Panta in USDC on Solana mainnet, approved in your wallet and capped at 100 USDC per approval. Reviewing it does not require placing one.
+    8. Settings > Share crash reports is off by default; turning it on is the only way reports are sent.
     Full notes: publishing/LISTING.md in the app repository.
 lastSubmittedVersionOnChain:
   address: 74Ra239BnAaenFndMB91Hx1mvUZu7XSn3dQ5khF5xwda

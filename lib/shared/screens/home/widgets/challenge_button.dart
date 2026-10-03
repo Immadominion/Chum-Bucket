@@ -7,8 +7,13 @@ import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 /// The app's primary call to action. Renders the reference comp's button
 /// ([ChumbucketPrimaryButton]); the API is unchanged for existing callers.
 class ChallengeButton extends StatelessWidget {
+  /// The tap handler. (The name is historical: this button no longer starts
+  /// anything to do with challenges; it is the shared primary action.)
   final VoidCallback createNewChallenge;
-  final String? label; // optional custom label
+
+  /// Required: the old default label named the retired SOL escrow flow
+  /// (Challenge a new friend) and must not come back by omission.
+  final String label;
   final bool enabled; // allow disabling
   final bool isLoading; // optional loading state
 
@@ -23,7 +28,7 @@ class ChallengeButton extends StatelessWidget {
   const ChallengeButton({
     super.key,
     required this.createNewChallenge,
-    this.label,
+    required this.label,
     this.enabled = true,
     this.isLoading = false,
     this.hasGradient = true,
@@ -35,7 +40,7 @@ class ChallengeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = label ?? 'Challenge a new friend';
+    final text = label;
     final onPressed = enabled && !isLoading ? createNewChallenge : null;
     if (hasGradient) {
       return ChumbucketPrimaryButton(

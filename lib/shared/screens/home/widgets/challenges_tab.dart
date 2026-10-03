@@ -2,12 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
 import 'package:chumbucket/shared/models/models.dart';
-import 'package:chumbucket/shared/utils/challenge_status_utils.dart';
-import 'package:chumbucket/core/config/network_config.dart';
 import 'challenge_card.dart';
 import 'shimmer_challenges.dart';
 import 'resolve_challenge_sheet.dart';
@@ -48,39 +46,6 @@ class _ChallengesTabState extends State<ChallengesTab> {
     }
   }
 
-  /// Open the transaction or account on explorer for completed challenges
-  Future<void> _openExplorer(Map<String, dynamic> challengeData) async {
-    // Prefer transaction signature over escrow address
-    final txSig = challengeData['transaction_signature'] as String?;
-    final escrowAddress = challengeData['escrowAddress'] as String?;
-
-    String url;
-    if (txSig != null && txSig.isNotEmpty) {
-      // View transaction
-      url = NetworkConfig.getExplorerUrl(txSig);
-    } else if (escrowAddress != null && escrowAddress.isNotEmpty) {
-      // View account (escrow address)
-      url = NetworkConfig.getAccountExplorerUrl(escrowAddress);
-    } else {
-      // No explorer link available - fallback to modal
-      showResolveChallengeSheet(
-        context,
-        challenge: challengeData,
-        onMarkCompleted: widget.onMarkChallengeCompleted,
-      );
-      return;
-    }
-
-    try {
-      final uri = Uri.parse(url);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
-    } catch (e) {
-      debugPrint('Failed to open explorer: $e');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Consumer2<ChallengeStateProvider, MwaAuthProvider>(
@@ -95,50 +60,56 @@ class _ChallengesTabState extends State<ChallengesTab> {
         final challenges = challengeState.sortedChallenges;
 
         if (challenges.isEmpty) {
-          return buildNoChallengesView(withText: true);
+          return buildNoChallengesView(
+            withText: true,
+            message:
+                currentUserWallet == null
+                    ? 'Escrow challenges belong to the wallet that made them. '
+                        'Connect that wallet to see them here.'
+                    : 'This wallet has none from before calls.',
+          );
         }
 
-        // Render challenges list
-        return SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 8.h),
-            child: Column(
-              children: [
-                ...challenges.map((challenge) {
-                  final challengeData = _challengeToMap(
-                    challenge,
-                    currentUserWallet,
-                  );
-                  final status =
-                      challenge.status.toString().split('.').last.toLowerCase();
-                  final isCompleted = status == 'completed';
-
-                  return Padding(
-                    padding: EdgeInsets.symmetric(vertical: 6.h),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12.r),
-                      onTap: () {
-                        if (ChallengeStatusUtils.isResolvable(status)) {
-                          // Pending challenges - open resolve modal
-                          showResolveChallengeSheet(
-                            context,
-                            challenge: challengeData,
-                            onMarkCompleted: widget.onMarkChallengeCompleted,
-                          );
-                        } else if (isCompleted) {
-                          // Completed challenges - open explorer directly
-                          _openExplorer(challengeData);
-                        }
-                      },
-                      child: ChallengeCard(
-                        challenge: challengeData,
-                        onMarkCompleted: widget.onMarkChallengeCompleted,
+        // Every row opens its sheet: an open one with the witness's settle
+        // actions (or whose move it is), a settled one with how it ended and
+        // its Solscan link. Pull down to re-read the list.
+        return RefreshIndicator(
+          color: AppColors.primary,
+          onRefresh: () async {
+            if (currentUserWallet != null) {
+              await challengeState.softRefresh(currentUserWallet);
+            }
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 8.h),
+              child: Column(
+                children: [
+                  ...challenges.map((challenge) {
+                    final challengeData = _challengeToMap(
+                      challenge,
+                      currentUserWallet,
+                    );
+                    return Padding(
+                      padding: EdgeInsets.symmetric(vertical: 6.h),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12.r),
+                        onTap:
+                            () => showResolveChallengeSheet(
+                              context,
+                              challenge: challengeData,
+                              onMarkCompleted: widget.onMarkChallengeCompleted,
+                            ),
+                        child: ChallengeCard(
+                          challenge: challengeData,
+                          onMarkCompleted: widget.onMarkChallengeCompleted,
+                        ),
                       ),
-                    ),
-                  );
-                }),
-              ],
+                    );
+                  }),
+                ],
+              ),
             ),
           ),
         );
@@ -151,17 +122,16 @@ class _ChallengesTabState extends State<ChallengesTab> {
     Challenge challenge,
     String? currentUserWallet,
   ) {
-    // Debug: Log escrow address from Challenge model
-    debugPrint(
-      '🔍 DEBUG _challengeToMap: id=${challenge.id}, escrowAddress=${challenge.escrowAddress}, witnessAddress=${challenge.witnessAddress}',
-    );
-
-    // Determine display name - show "You" if current user is the witness
+    // The other person in it: the challenger when you are the witness, the
+    // witness otherwise. (It used to be "You" for a witness, so the settle
+    // sheet showed "You" twice.)
     final isCurrentUserWitness =
         currentUserWallet != null &&
         challenge.witnessAddress == currentUserWallet;
     final displayName =
-        isCurrentUserWitness ? 'You' : _getFriendDisplayName(challenge);
+        isCurrentUserWitness
+            ? (challenge.member1Address ?? 'The challenger')
+            : _getFriendDisplayName(challenge);
 
     return {
       'id': challenge.id,
@@ -229,12 +199,20 @@ class _ChallengesTabState extends State<ChallengesTab> {
   }
 }
 
-Widget buildNoChallengesView({withText = false}) {
+/// The empty escrow list. Nothing here invites starting one: creating an
+/// escrow challenge is retired.
+Widget buildNoChallengesView({
+  bool withText = false,
+  String message = 'This wallet has none from before calls.',
+}) {
   return SingleChildScrollView(
     physics: const AlwaysScrollableScrollPhysics(),
     child: Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
+        // Full width, so the art and copy centre on the screen, not on the
+        // widest line.
+        const SizedBox(width: double.infinity),
         if (withText) const SizedBox(height: 24),
         ChumbucketStateArt(
           ChumbucketStateArtwork.challenges,
@@ -243,7 +221,7 @@ Widget buildNoChallengesView({withText = false}) {
         SizedBox(height: 16.h),
         withText
             ? Text(
-              'No challenges yet',
+              'No escrow challenges',
               style: TextStyle(
                 color: Colors.grey,
                 fontSize: 18.sp,
@@ -254,7 +232,8 @@ Widget buildNoChallengesView({withText = false}) {
         withText ? SizedBox(height: 8.h) : SizedBox.shrink(),
         withText
             ? Text(
-              'Create your first challenge!',
+              message,
+              textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14.sp,
                 color: Colors.grey,

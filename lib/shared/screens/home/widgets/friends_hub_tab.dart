@@ -20,8 +20,10 @@ import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class FriendsHubTab extends StatefulWidget {
   final int refreshKey;
-  final VoidCallback createNewChallenge;
-  final void Function(String, String) onFriendSelected;
+  final VoidCallback onAddFriend;
+
+  /// A tapped friend's row (`name`, `walletAddress`, `userId`).
+  final void Function(Map<String, String> friend) onFriendSelected;
   final Widget Function(BuildContext, int) buildViewMoreItem;
   final VoidCallback onViewAllChallenges;
   final Future<void> Function(Map<String, dynamic>, bool)
@@ -29,7 +31,7 @@ class FriendsHubTab extends StatefulWidget {
   const FriendsHubTab({
     super.key,
     required this.refreshKey,
-    required this.createNewChallenge,
+    required this.onAddFriend,
     required this.onFriendSelected,
     required this.buildViewMoreItem,
     required this.onViewAllChallenges,
@@ -97,7 +99,7 @@ class _FriendsHubTabState extends State<FriendsHubTab>
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: FriendsTab(
                     key: ValueKey('${widget.refreshKey}-$wallet'),
-                    createNewChallenge: widget.createNewChallenge,
+                    onAddFriend: widget.onAddFriend,
                     onFriendSelected: widget.onFriendSelected,
                     buildViewMoreItem: widget.buildViewMoreItem,
                     onViewAllChallenges: widget.onViewAllChallenges,

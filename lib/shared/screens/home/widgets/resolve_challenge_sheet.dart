@@ -5,7 +5,8 @@ import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
 import 'package:chumbucket/shared/utils/challenge_status_utils.dart';
 
-/// Modal bottom sheet for resolving challenges with wave design and overlapping avatars
+/// An earlier SOL escrow challenge (Settings → History), with its settle
+/// actions for the witness. Wave design and overlapping avatars.
 class ResolveChallengeSheet extends StatefulWidget {
   final Map<String, dynamic> challenge;
   final Function(Map<String, dynamic>, bool) onMarkCompleted;
@@ -46,51 +47,13 @@ class _ResolveChallengeSheetState extends State<ResolveChallengeSheet> {
         .replaceAll(RegExp(r'\.$'), '');
   }
 
-  /// Safe wrapper for the completion callback that shows success feedback
-  void _safeMarkCompleted(
-    Map<String, dynamic> challenge,
-    bool completed,
-  ) async {
+  /// Close the sheet, then hand the verdict to the settle flow. The flow
+  /// reports the real outcome (wallet approval, then Solana); nothing here
+  /// claims success before the transaction exists.
+  void _safeMarkCompleted(Map<String, dynamic> challenge, bool completed) {
     if (!mounted) return;
-
-    try {
-      // Close the modal first
-      Navigator.of(context).pop();
-
-      // Execute the completion callback
-      widget.onMarkCompleted(challenge, completed);
-
-      // Show success feedback after a short delay to ensure modal is closed
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                completed
-                    ? 'Challenge completed successfully!'
-                    : 'Challenge marked as failed',
-                style: const TextStyle(color: Colors.white),
-              ),
-              backgroundColor: completed ? Colors.green : Colors.orange,
-              duration: const Duration(seconds: 3),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
-      });
-    } catch (e) {
-      // Show error feedback if something goes wrong
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update challenge: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
+    Navigator.of(context).pop();
+    widget.onMarkCompleted(challenge, completed);
   }
 
   @override
@@ -108,11 +71,12 @@ class _ResolveChallengeSheetState extends State<ResolveChallengeSheet> {
     final amount = widget.challenge['amount'];
     final amountText = _formatAmount(amount);
 
-    // This is the reference sheet itself (irfan/img2.jpeg): a muted "Bet
-    // Amount" caption over the amount as the hero, and the two avatars
-    // straddling the wave rather than sitting below it in the body.
+    // This is the reference sheet itself (irfan/img2.jpeg): a muted caption
+    // over the amount as the hero, and the two avatars straddling the wave
+    // rather than sitting below it in the body. An earlier escrow challenge:
+    // the caption says what the amount is, SOL locked in escrow.
     return ChumbucketWavySheet(
-      title: 'Bet Amount',
+      title: isResolvable ? 'In escrow' : 'Staked',
       value: '$amountText SOL',
       headerLeading: FutureBuilder<String>(
         future: AddressNameResolver.resolveDisplayName(friendRaw),
@@ -120,8 +84,7 @@ class _ResolveChallengeSheetState extends State<ResolveChallengeSheet> {
             (context, snapshot) => OverlappingProfileAvatars(
               userImagePath: 'assets/images/ai_gen/profile_images/1.png',
               friendImagePath: 'assets/images/ai_gen/profile_images/2.png',
-              friendDisplayName:
-                  snapshot.data ?? _shortenAddress(friendRaw),
+              friendDisplayName: snapshot.data ?? _shortenAddress(friendRaw),
             ),
       ),
       body: SingleChildScrollView(

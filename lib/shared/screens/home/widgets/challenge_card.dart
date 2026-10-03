@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:intl/intl.dart';
 import 'package:chumbucket/shared/services/address_name_resolver.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:chumbucket/shared/utils/challenge_status_utils.dart';
@@ -32,8 +33,8 @@ class ChallengeCard extends StatelessWidget {
             ? title
             : 'Challenge';
 
-    // Determine prefix based on whether current user is the witness
-    final witnessPrefix = isCurrentUserWitness ? 'Witnessed by ' : 'Witness: ';
+    // Whose card is it to settle: the witness's.
+    const witnessPrefix = 'Witness: ';
 
     return Container(
       padding: EdgeInsets.all(16.w),
@@ -104,7 +105,7 @@ class ChallengeCard extends StatelessWidget {
                 child:
                     isCurrentUserWitness || friendNameRaw == 'You'
                         ? Text(
-                          '${witnessPrefix}You',
+                          'You’re the witness',
                           style: TextStyle(
                             fontSize: 14.sp,
                             fontWeight: FontWeight.w600,
@@ -136,7 +137,7 @@ class ChallengeCard extends StatelessWidget {
                     ),
                     SizedBox(width: 6.w),
                     Text(
-                      'Expires ${_formatDate(challenge['expiresAt'])}',
+                      _dueText(challenge['expiresAt']),
                       style: TextStyle(
                         fontSize: 13.sp,
                         color: Colors.grey.shade600,
@@ -152,34 +153,19 @@ class ChallengeCard extends StatelessWidget {
     );
   }
 
-  String _formatDate(dynamic date) {
-    if (date == null) return '';
-
-    DateTime dateTime;
-    if (date is DateTime) {
-      dateTime = date;
-    } else if (date is String) {
-      try {
-        dateTime = DateTime.parse(date);
-      } catch (e) {
-        return '';
-      }
-    } else {
-      return '';
-    }
-
+  /// The challenge's own deadline. The escrow program does not enforce it,
+  /// so a past date only means the challenge is overdue, not that the SOL
+  /// moved.
+  String _dueText(dynamic date) {
+    final DateTime? due =
+        date is DateTime ? date : DateTime.tryParse(date?.toString() ?? '');
+    if (due == null) return '';
+    final local = due.toLocal();
     final now = DateTime.now();
-    final diff = now.difference(dateTime);
-
-    if (diff.inDays > 7) {
-      return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
-    } else if (diff.inDays > 0) {
-      return '${diff.inDays} day${diff.inDays == 1 ? '' : 's'} ago';
-    } else if (diff.inHours > 0) {
-      return '${diff.inHours} hour${diff.inHours == 1 ? '' : 's'} ago';
-    } else {
-      return 'soon';
-    }
+    final label = DateFormat(
+      local.year == now.year ? 'd MMM' : 'd MMM y',
+    ).format(local);
+    return local.isAfter(now) ? 'Due $label' : 'Was due $label';
   }
 
   /// Format amount to display nicely (avoid rounding errors like 0.05 -> 0.1)

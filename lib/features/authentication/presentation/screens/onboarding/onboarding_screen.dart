@@ -35,7 +35,7 @@ class OnboardingScreen extends StatefulWidget {
       title: "Back them, fade them, or call it",
       description:
           "Making a call is free. Back a call you agree with, fade one you "
-          "don't, or challenge a friend to put their name on it.",
+          "don't, or dare a friend to put their name on it.",
       illustration: "assets/animations/whisk_ai_generate/onb_animation_2.gif",
       fallback:
           "assets/images/ai_gen/whisk_animation_fallback/animation_image_2.jpg",

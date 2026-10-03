@@ -6,7 +6,10 @@ import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
 
 class FriendsGrid extends StatelessWidget {
   final List<Map<String, String>> friends;
-  final Function(String) onFriendSelected;
+
+  /// The tapped friend's whole row, so two friends with the same name are
+  /// never confused.
+  final void Function(Map<String, String> friend) onFriendSelected;
   final Widget Function(BuildContext, int) buildViewMoreItem;
   final VoidCallback? onViewMorePressed;
   final VoidCallback? onAddFriend;

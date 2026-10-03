@@ -3,7 +3,10 @@ import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/shared/widgets/app_components/app_avatar.dart';
 
-Widget buildFriendItem(Map<String, String> friend, onFriendSelected) {
+Widget buildFriendItem(
+  Map<String, String> friend,
+  void Function(Map<String, String> friend) onFriendSelected,
+) {
   final name = friend['name'] ?? '';
   final label = friend['xLabel'] ?? name;
   final image = friend['imagePath'];
@@ -17,7 +20,7 @@ Widget buildFriendItem(Map<String, String> friend, onFriendSelected) {
     button: true,
     label: 'Open $label',
     child: InkWell(
-      onTap: () => onFriendSelected(name),
+      onTap: () => onFriendSelected(friend),
       borderRadius: BorderRadius.circular(16),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),

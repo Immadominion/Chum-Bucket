@@ -47,12 +47,18 @@ class ChallengeStateProvider extends ChangeNotifier {
     return sorted;
   }
 
-  // Get pending challenges only
-  List<Challenge> get pendingChallenges {
-    return _challenges
-        .where((c) => c.status == ChallengeStatus.pending)
-        .toList();
+  /// Earlier escrow challenges that may still hold SOL: not yet resolved or
+  /// cancelled. The database writes `active` for a new escrow and `pending`
+  /// for older rows; `expired` only means the deadline passed, which the
+  /// escrow program does not enforce, so the witness can still settle it.
+  List<Challenge> get openChallenges {
+    return _challenges.where((c) => isOpenStatus(c.status)).toList();
   }
+
+  static bool isOpenStatus(ChallengeStatus status) =>
+      status == ChallengeStatus.pending ||
+      status == ChallengeStatus.active ||
+      status == ChallengeStatus.expired;
 
   /// Initialize the provider with user data (only once per user)
   Future<void> initialize(String userId, {String? walletAddress}) async {
@@ -190,32 +196,6 @@ class ChallengeStateProvider extends ChangeNotifier {
         notifyListeners();
       }
     }
-  }
-
-  /// Add a new challenge (when created)
-  void addChallenge(Challenge challenge) {
-    // Check for duplicates by escrow address or ID
-    final existingIndex = _challenges.indexWhere(
-      (c) =>
-          c.id == challenge.id ||
-          (c.escrowAddress != null &&
-              c.escrowAddress == challenge.escrowAddress),
-    );
-
-    if (existingIndex >= 0) {
-      // Update existing challenge
-      _challenges[existingIndex] = challenge;
-      AppLogger.info(
-        'ChallengeState: Updated existing challenge ${challenge.id}',
-      );
-    } else {
-      // Add new challenge
-      _challenges.add(challenge);
-      AppLogger.info('ChallengeState: Added new challenge ${challenge.id}');
-    }
-
-    _lastUpdate = DateTime.now();
-    notifyListeners();
   }
 
   /// Update challenge status (when resolved)

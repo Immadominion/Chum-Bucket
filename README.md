@@ -18,8 +18,10 @@ web and settlement stack.
 
 ## Product
 
-- Create direct challenges with friends and lock SOL in the original mainnet
-  Pinocchio escrow.
+- Earlier: direct challenges with friends that locked SOL in the original
+  mainnet Pinocchio escrow. Creating them is retired (no screen, link or
+  notification starts one); open ones stay in Settings > History, where their
+  witness can still settle them.
 - Browse TxLINE football fixtures and call HOME, DRAW, or AWAY in Arena.
 - Follow people, copy calls, challenge friends, and track settled positions.
 - Connect and sign with an MWA-compatible Solana wallet; Chumbucket never

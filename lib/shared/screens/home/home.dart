@@ -1,7 +1,4 @@
 import 'package:chumbucket/core/theme/app_colors.dart';
-import 'package:chumbucket/core/theme/app_text_styles.dart';
-import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
-import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/core/config/app_config.dart';
 import 'package:chumbucket/features/arena/presentation/screens/calls_screen.dart';
 import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
@@ -18,10 +15,12 @@ import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.d
 import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/add_friend_sheet.dart';
 import 'package:chumbucket/shared/screens/home/widgets/chumbucket_bottom_navigation.dart';
+import 'package:chumbucket/shared/screens/home/widgets/friend_actions.dart';
 import 'package:chumbucket/shared/screens/home/widgets/friends_hub_tab.dart';
 import 'package:chumbucket/shared/screens/home/widgets/predictions_home_tab.dart';
 import 'package:chumbucket/shared/screens/home/utils/home_utils.dart';
 import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
+import 'package:chumbucket/shared/utils/challenge_status_utils.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
 import 'package:chumbucket/core/services/app_lifecycle_service.dart';
 import 'package:chumbucket/core/services/realtime_service.dart';
@@ -255,7 +254,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   const CallsScreen(),
                 FriendsHubTab(
                   refreshKey: _friendsRefreshKey,
-                  createNewChallenge: createNewChallenge,
+                  onAddFriend: _addFriend,
                   onFriendSelected: onFriendSelected,
                   buildViewMoreItem:
                       (context, remainingCount) =>
@@ -347,165 +346,138 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// Settles an earlier SOL escrow challenge as its witness (Settings →
+  /// History). Creating one is retired; settling one that still holds SOL is
+  /// not, because that SOL belongs to the two people in it.
+  ///
+  /// [initiatorWon] is the witness's verdict: `true` returns the stake to the
+  /// challenger, `false` sends it to the witness. The program keeps its fee
+  /// (2.5%, at most 0.1 SOL) either way. Only the witness's wallet can sign.
   Future<void> _markChallengeCompleted(
     Map<String, dynamic> challenge,
-    bool userWon,
+    bool initiatorWon,
   ) async {
     if (!mounted) return;
-
-    final walletProvider = Provider.of<MwaWalletProvider>(
-      context,
-      listen: false,
-    );
-    final authProvider = Provider.of<MwaAuthProvider>(context, listen: false);
-    final walletAddress = authProvider.walletAddress;
-
-    // Debug: Log challenge data to understand what we have
-    debugPrint('🔍 DEBUG: Challenge data for resolution:');
-    debugPrint('🔍 DEBUG: id=${challenge['id']}');
-    debugPrint('🔍 DEBUG: escrowAddress=${challenge['escrowAddress']}');
-    debugPrint('🔍 DEBUG: escrow_address=${challenge['escrow_address']}');
-    debugPrint('🔍 DEBUG: multisig_address=${challenge['multisig_address']}');
-    debugPrint('🔍 DEBUG: All keys: ${challenge.keys.toList()}');
-
-    // Show enhanced loading state with branded styling
-    SnackBarUtils.showChallengeLoading(context, isWinning: userWon);
-
-    try {
-      // Use resolveChallenge from MwaWalletProvider
-      // The initiatorAddress is the one who created the challenge
-      // Handle different key names from different sources
-      final escrowAddr =
-          challenge['escrowAddress'] ??
-          challenge['escrow_address'] ??
-          challenge['multisig_address'];
-
-      debugPrint('🔍 DEBUG: Final escrowAddr=$escrowAddr');
-
-      if (escrowAddr == null || escrowAddr.toString().isEmpty) {
-        throw Exception(
-          'Challenge has no escrow address - cannot resolve on-chain. Debug: escrowAddress=${challenge['escrowAddress']}, keys=${challenge.keys.toList()}',
-        );
+    final walletProvider = context.read<MwaWalletProvider>();
+    final witness = context.read<MwaAuthProvider>().walletAddress;
+    String field(List<String> keys) {
+      for (final key in keys) {
+        final value = challenge[key]?.toString() ?? '';
+        if (value.isNotEmpty) return value;
       }
+      return '';
+    }
 
-      final txSignature = await walletProvider.resolveChallenge(
-        challengeAddress: escrowAddr,
-        initiatorAddress:
-            challenge['initiator_address'] ??
-            challenge['member1_address'] ??
-            challenge['creator_wallet_address'] ??
-            '',
-        initiatorWon: userWon,
+    final escrow = field([
+      'escrowAddress',
+      'escrow_address',
+      'multisig_address',
+    ]);
+    final initiator = field([
+      'initiator_address',
+      'member1_address',
+      'creator_wallet_address',
+    ]);
+    final payout = escrowPayoutText(challenge);
+    if (escrow.isEmpty || initiator.isEmpty || witness == null) {
+      SnackBarUtils.showError(
+        context,
+        title: 'Can’t settle this challenge',
+        subtitle:
+            witness == null
+                ? 'Connect the witness wallet to settle it.'
+                : 'It has no escrow account on record, so there is nothing to sign.',
+      );
+      return;
+    }
+
+    // Resolve and cancel close the escrow account. If it is gone, someone
+    // already settled it: say so instead of opening the wallet for a
+    // transaction that can only fail.
+    SnackBarUtils.showLoading(
+      context,
+      title: 'Checking the escrow',
+      subtitle: 'Reading Solana before your wallet opens.',
+    );
+    final open = await walletProvider.escrowIsOpen(escrow);
+    if (!mounted) return;
+    SnackBarUtils.hide(context);
+    if (open == false) {
+      SnackBarUtils.showInfo(
+        context,
+        title: 'Already settled',
+        subtitle:
+            'This escrow is already closed on Solana, so there is nothing '
+            'left in it to settle.',
+      );
+      return;
+    }
+
+    SnackBarUtils.showLoading(
+      context,
+      title: 'Approve in your wallet',
+      subtitle:
+          initiatorWon
+              ? '$payout goes back to the challenger.'
+              : '$payout comes to you.',
+      duration: const Duration(minutes: 2),
+    );
+    try {
+      final signature = await walletProvider.resolveChallenge(
+        challengeAddress: escrow,
+        initiatorAddress: initiator,
+        initiatorWon: initiatorWon,
         context: context,
       );
-
-      final success = txSignature != null;
-
-      // Remove loading snackbar
-      if (mounted) {
-        SnackBarUtils.hide(context);
+      if (!mounted) return;
+      SnackBarUtils.hide(context);
+      if (signature == null) {
+        SnackBarUtils.showError(
+          context,
+          title: 'Not settled',
+          subtitle: 'Your wallet did not send it. Try again.',
+        );
+        return;
       }
 
-      // NOTE: Don't pop here - the resolve sheet already pops itself in _safeMarkCompleted
-
-      if (success) {
-        // Update challenge state provider and persist to database
-        // Use walletAddress instead of currentUser.id for MWA
-        // Status is 'completed' if user won, 'failed' if they lost
-        await ChallengeStateProvider.instance.updateChallenge(challenge['id'], {
-          'status': userWon ? 'completed' : 'failed',
-          'completedAt': DateTime.now(),
-          'winnerId': userWon ? walletAddress : null,
-        });
-
-        // No client-sent push to a named wallet (prod readiness B3) and no
-        // client analytics ping (trust); the initiator sees the result in
-        // their challenge list.
-
-        // Force refresh both tabs since challenge status changed
-        if (mounted) {
-          setState(() {
-            _challengesRefreshKey++;
-            _friendsRefreshKey++;
-          });
-          _lastDataRefresh = DateTime.now();
-        }
-
-        // Show enhanced success message
-        if (mounted) {
-          SnackBarUtils.showChallengeSuccess(context, userWon: userWon);
-        }
-      } else {
-        // Show enhanced error message
-        if (mounted) {
-          SnackBarUtils.showChallengeError(context);
-        }
-      }
+      await ChallengeStateProvider.instance.updateChallenge(challenge['id'], {
+        'status': initiatorWon ? 'completed' : 'failed',
+        'completedAt': DateTime.now(),
+        // The wallet the SOL went to.
+        'winnerId': initiatorWon ? initiator : witness,
+      });
+      if (!mounted) return;
+      setState(() {
+        _challengesRefreshKey++;
+        _friendsRefreshKey++;
+      });
+      _lastDataRefresh = DateTime.now();
+      SnackBarUtils.showSuccess(
+        context,
+        title: 'Sent to Solana',
+        subtitle:
+            initiatorWon
+                ? 'Once it confirms, $payout goes back to the challenger.'
+                : 'Once it confirms, $payout arrives in your wallet.',
+      );
     } catch (e) {
-      // Remove loading snackbar
-      if (mounted) {
-        SnackBarUtils.hide(context);
-      }
-
-      // Show enhanced error message
-      if (mounted) {
-        SnackBarUtils.showChallengeError(context, errorMessage: e.toString());
-      }
+      if (!mounted) return;
+      SnackBarUtils.hide(context);
+      SnackBarUtils.showError(
+        context,
+        title: 'Not settled',
+        subtitle: 'Something went wrong before it was sent. Try again.',
+      );
+      AppLogger.error('Escrow settle failed: $e');
     }
   }
 
-  /// Tapping a friend used to start a SOL escrow challenge. Escrow is retired
-  /// (read-only in Settings → History); the call-level Dare replaces it.
-  ///
-  /// A dare is a response on the OTHER person's call (the BFF refuses one on
-  /// your own call), so the copy points at their calls rather than promising
-  /// a dare from a call of your own.
-  void onFriendSelected(String name, String walletAddress) {
-    showChumbucketWavySheet<void>(
-      context: context,
-      builder:
-          (sheetContext) => ChumbucketWavySheet(
-            title: 'Go on record with $name',
-            subtitle: 'Escrow challenges have been retired.',
-            body: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Make a free call on a market and share it with $name, or '
-                    'open one of their calls and dare them to go again. No '
-                    'money is locked up. Your earlier escrow challenges are in '
-                    'Settings → History.',
-                    style: AppTextStyles.textTheme.bodyMedium?.copyWith(
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ChumbucketPrimaryButton(
-                    label: 'Make a call',
-                    onPressed: () {
-                      Navigator.of(sheetContext).pop();
-                      _openCallMarkets();
-                    },
-                  ),
-                  const SizedBox(height: 4),
-                  ChumbucketTextAction(
-                    label: 'See earlier challenges',
-                    onPressed: () {
-                      Navigator.of(sheetContext).pop();
-                      _openChallengeHistory();
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-    );
-  }
+  /// Tapping a friend opens their profile and calls (friend_actions.dart).
+  /// It used to open a SOL escrow challenge; that flow is retired.
+  void onFriendSelected(Map<String, String> friend) =>
+      openFriend(context, friend, onMakeCall: _openCallMarkets);
 
-  void createNewChallenge() {
+  void _addFriend() {
     showAddFriendSheet(
       context,
       onFriendAdded: () {

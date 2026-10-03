@@ -73,7 +73,7 @@ class ProfileSettingsSheet extends StatelessWidget {
             ProfileMenuItem(
               basilIcon: 'history-outline',
               title: 'History',
-              subtitle: 'Escrow challenges and Arena, read-only',
+              subtitle: 'Earlier escrow challenges and Arena',
               iconColor: AppColors.primary,
               onTap:
                   () => _push(

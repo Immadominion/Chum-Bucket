@@ -25,90 +25,8 @@ class UnifiedDatabaseService {
     return _supabase!;
   }
 
-  // Challenge operations
-  static Future<Challenge> createChallenge({
-    required String title,
-    required String description,
-    required double amountInSol,
-    required String creatorPrivyId,
-    required String member1Address,
-    required String member2Address,
-    DateTime? expiresAt,
-    String? participantEmail,
-    String? escrowAddress,
-    String? vaultAddress,
-    required double platformFee,
-    required double winnerAmount,
-    String? challengeId, // Optional blockchain challenge address to use as ID
-  }) async {
-    try {
-      // Get creator user ID - check both privy_id and wallet_address (for MWA auth)
-      var creatorResponse =
-          await _client
-              .from('users')
-              .select('id')
-              .eq('privy_id', creatorPrivyId)
-              .maybeSingle();
-
-      // If not found by privy_id, try wallet_address (MWA auth)
-      creatorResponse ??=
-          await _client
-              .from('users')
-              .select('id')
-              .eq('wallet_address', creatorPrivyId)
-              .maybeSingle();
-
-      if (creatorResponse == null) {
-        throw Exception(
-          'Creator user not found with privy_id or wallet_address: $creatorPrivyId',
-        );
-      }
-
-      final creatorDbId = creatorResponse['id'];
-
-      final insertData = {
-        'creator_id': creatorDbId,
-        'participant_id':
-            creatorDbId, // Default to creator, updated when participant joins
-        'participant_email': participantEmail ?? '',
-        'title': title,
-        'description': description,
-        'amount': amountInSol, // Fill the NOT NULL amount column
-        'amount_in_sol': amountInSol,
-        'platform_fee_sol': platformFee,
-        'winner_amount_sol': winnerAmount,
-        'expires_at':
-            (expiresAt ?? DateTime.now().add(const Duration(days: 7)))
-                .toIso8601String(),
-        'status': 'pending',
-        'escrow_address': escrowAddress,
-        'multisig_address': escrowAddress,
-        'vault_address': vaultAddress,
-        'member1_address': member1Address,
-        'member2_address': member2Address,
-        // Store the current network for devnet/mainnet separation
-        'network': NetworkConfig.currentNetwork,
-      };
-
-      // For blockchain challenges, store the blockchain ID in blockchain_id field, not id
-      if (challengeId != null && challengeId.isNotEmpty) {
-        insertData['blockchain_id'] = challengeId;
-      }
-
-      final response =
-          await _client.from('challenges').insert(insertData).select().single();
-
-      final createdChallenge = Challenge.fromJson(response);
-      dev.log(
-        'Challenge created with ID: ${createdChallenge.id}, Blockchain ID: $challengeId, Network: ${NetworkConfig.currentNetwork}',
-      );
-      return createdChallenge;
-    } catch (e) {
-      dev.log('Error creating challenge: $e');
-      rethrow;
-    }
-  }
-
+  // Challenge operations: earlier SOL escrow challenges are read and settled
+  // here. Creating one is retired, so there is no create method.
   static Future<Challenge?> getChallenge(String id) async {
     try {
       final response =
@@ -439,6 +357,9 @@ class UnifiedDatabaseService {
           friends.add({
             'name': friendName,
             'walletAddress': walletAddress,
+            // Their canonical person id (`public.users.id`): tapping a friend
+            // opens their calls with it, never with the wallet.
+            'userId': friendData['friend_id']?.toString() ?? '',
             'profileImageId': '0', // Will be set based on position later
             'avatarColor':
                 '#FF5A76', // Default color, will be set based on position

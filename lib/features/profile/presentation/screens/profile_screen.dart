@@ -129,8 +129,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final auth = context.watch<MwaAuthProvider?>();
     final calls = context.watch<CallsProvider?>();
     final session = context.watch<ChumbucketSession?>();
-    final challenges = context.watch<ChallengeStateProvider?>();
     final wallet = auth?.walletAddress;
+    // This wallet's own escrows: the provider is loaded per wallet.
+    final openEscrow =
+        context.watch<ChallengeStateProvider?>()?.openChallenges ?? const [];
     final userId = calls?.viewerUserId;
     final identityKey = '$userId|$wallet';
     if (_requestedIdentity != identityKey) {
@@ -284,16 +286,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   onTap: () => showClaimHandleSheet(context),
                 ),
               ],
-              if (challenges != null &&
-                  challenges.pendingChallenges.isNotEmpty) ...[
+              if (openEscrow.isNotEmpty) ...[
                 const SizedBox(height: 16),
-                // Earlier SOL escrow challenges still holding funds stay
-                // one tap away until they are finished.
+                // Earlier SOL escrow challenges still holding SOL stay one tap
+                // away until they are settled. Only the witness can settle
+                // one, so say who has to act.
                 _ProfileActionRow(
+                  key: const ValueKey('profile-open-escrow'),
                   icon: 'clock-outline',
-                  title: 'Escrow challenges waiting',
+                  title:
+                      openEscrow.length == 1
+                          ? 'An escrow challenge is still open'
+                          : '${openEscrow.length} escrow challenges are still open',
                   detail:
-                      'Earlier SOL escrow challenges to resolve, claim or refund.',
+                      openEscrow.any(
+                            (c) => wallet != null && c.witnessAddress == wallet,
+                          )
+                          ? 'You’re the witness, so only you can settle it '
+                              'and release the SOL.'
+                          : 'Your SOL stays in escrow until the witness '
+                              'settles it.',
                   onTap: widget.onOpenChallenges,
                 ),
               ],

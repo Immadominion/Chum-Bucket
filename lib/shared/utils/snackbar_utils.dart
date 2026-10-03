@@ -346,45 +346,6 @@ class SnackBarUtils {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
   }
 
-  /// Challenge-specific methods for common use cases
-
-  /// Show loading state for challenge operations
-  static void showChallengeLoading(
-    BuildContext context, {
-    required bool isWinning,
-  }) {
-    showLoading(
-      context,
-      title: isWinning ? 'Marking as Won...' : 'Marking as Lost...',
-      subtitle: 'Processing challenge completion',
-    );
-  }
-
-  /// Show success for challenge completion
-  static void showChallengeSuccess(
-    BuildContext context, {
-    required bool userWon,
-  }) {
-    showSuccess(
-      context,
-      title: userWon ? 'Challenge Won! 🎉' : 'Challenge Lost',
-      subtitle:
-          userWon
-              ? 'Congratulations on your victory!'
-              : 'Better luck next time!',
-      icon: userWon ? Icons.sentiment_satisfied_alt : Icons.sentiment_neutral,
-    );
-  }
-
-  /// Show error for challenge operations
-  static void showChallengeError(BuildContext context, {String? errorMessage}) {
-    showError(
-      context,
-      title: 'Challenge Update Failed',
-      subtitle: errorMessage ?? 'Please try again in a moment',
-    );
-  }
-
   /// Show error for network/sync issues
   static void showSyncError(BuildContext context) {
     showWarning(

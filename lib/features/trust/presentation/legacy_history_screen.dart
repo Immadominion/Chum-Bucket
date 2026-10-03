@@ -2,9 +2,10 @@
 ///
 /// SOL escrow challenges and Arena football predictions came before calls.
 /// They no longer sit in the main app (no tab, no badge, no "Challenge"
-/// button), but everything a person had there is still reachable here —
-/// including resolving, claiming and refunding an escrow that is still open,
-/// because that is their money.
+/// button, and nothing anywhere can start a new escrow), but everything a
+/// person had there is still reachable here — including settling an escrow
+/// that still holds SOL, which its witness does with their wallet, because
+/// that is their money.
 library;
 
 import 'package:flutter/material.dart';
@@ -37,9 +38,10 @@ class LegacyHistoryScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
           Text(
-            'Earlier Chumbucket features. They are read-only now: nothing new '
-            'can be started here, but anything you already have is still yours '
-            'to finish, claim or refund.',
+            'Earlier Chumbucket features. Nothing new can be started here, '
+            'but what you already have is still yours: an open escrow '
+            'challenge can still be settled by its witness, and Arena '
+            'winnings can still be claimed.',
             style: styles.bodySmall?.copyWith(
               color: AppColors.textSecondary,
               height: 1.5,
@@ -51,9 +53,9 @@ class LegacyHistoryScreen extends StatelessWidget {
             title: 'Escrow challenges',
             detail:
                 onOpenEscrowChallenges == null
-                    ? 'Open this from the Profile tab (Settings → History) to see and resolve your SOL escrow challenges.'
-                    : 'Your SOL escrow challenges with friends, including any '
-                        'still waiting to be resolved, claimed or refunded.',
+                    ? 'Open this from the Profile tab (Settings → History) to see your SOL escrow challenges and settle any still open.'
+                    : 'Your SOL escrow challenges with friends. Any still '
+                        'open are settled here by their witness.',
             onTap: onOpenEscrowChallenges,
           ),
           _HistoryRow(
