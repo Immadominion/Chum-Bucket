@@ -7,6 +7,7 @@
 
 import 'dart:async';
 
+import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/authentication/session/session_bff_client.dart';
 import 'package:chumbucket/features/authentication/session/supabase_auth_port.dart';
@@ -222,7 +223,10 @@ void main() {
       find.textContaining('Sign in to edit your profile'),
       findsOneWidget,
     );
-    expect(find.widgetWithText(TextButton, 'Sign in'), findsOneWidget);
+    expect(
+      find.widgetWithText(ChumbucketPrimaryButton, 'Sign in'),
+      findsOneWidget,
+    );
     expect(_saveButton(tester).enabled, isFalse);
     _saveButton(tester).createNewChallenge();
     expect(account.writes, isEmpty);
@@ -234,7 +238,8 @@ void main() {
   ) async {
     final account = _Account()..pendingLoad = Completer<AccountProfile?>();
     await _openEditor(tester, account);
-    expect(find.text('Loading your profile…'), findsOneWidget);
+    // Progress, without a "Loading…" line.
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
     expect(_saveButton(tester).enabled, isFalse);
     _saveButton(tester).createNewChallenge();
     expect(account.writes, isEmpty);
@@ -249,15 +254,10 @@ void main() {
   ) async {
     final account = _Account()..throwOnLoad = true;
     await _openEditor(tester, account);
-    expect(
-      find.text(
-        'Your profile could not be loaded. Retry before making changes.',
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('Couldn’t load your profile'), findsOneWidget);
     expect(_saveButton(tester).enabled, isFalse);
     account.throwOnLoad = false;
-    await tester.tap(find.text('Retry'));
+    await tester.tap(find.text('Try again'));
     await tester.pumpAndSettle();
     expect(find.text('Ada Okafor'), findsOneWidget);
     expect(_saveButton(tester).enabled, isTrue);

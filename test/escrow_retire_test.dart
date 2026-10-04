@@ -555,22 +555,17 @@ void main() {
         );
       }
 
+      // The brand scene and one line; the detail is read, not printed.
       await list(ConnectedAuth());
       expect(find.text('No escrow challenges'), findsOneWidget);
       expect(
-        find.text('This wallet has none from before calls.'),
+        find.bySemanticsLabel('No escrow challenges'),
         findsOneWidget,
       );
       expect(find.textContaining('Create'), findsNothing);
 
       await list(_NoWallet());
-      expect(
-        find.text(
-          'Escrow challenges are kept by wallet. Connect the wallet you used '
-          'for them to see them here.',
-        ),
-        findsOneWidget,
-      );
+      expect(find.text('Connect your wallet to see them'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -663,19 +658,21 @@ void main() {
             ),
           ),
         );
-        expect(find.text('Escrow challenge still open'), findsOneWidget);
+        // A slim row: a few words and a chevron. Who has to act is read
+        // out with it.
+        expect(find.text('Escrow still open'), findsOneWidget);
         await tester.tap(find.byKey(const ValueKey('profile-open-escrow')));
         expect(opened, 1);
       }
 
+      String hint() =>
+          tester
+              .getSemantics(find.byKey(const ValueKey('profile-open-escrow')))
+              .hint;
+
       // The database writes `active` for a new escrow: it counts.
       await profile(_escrow('mine-to-settle', ChallengeStatus.active));
-      expect(
-        find.text(
-          'You’re the witness, so only you can settle it and release the SOL.',
-        ),
-        findsOneWidget,
-      );
+      expect(hint(), 'You’re the witness: only you can settle it.');
 
       await profile(
         _escrow(
@@ -685,10 +682,7 @@ void main() {
           initiator: walletFixture,
         ),
       );
-      expect(
-        find.text('Your SOL stays in escrow until the witness settles it.'),
-        findsOneWidget,
-      );
+      expect(hint(), 'Your SOL stays in escrow until the witness settles it.');
       expect(find.textContaining('refund'), findsNothing);
       expect(find.textContaining('claim'), findsNothing);
       expect(tester.takeException(), isNull);
@@ -699,9 +693,11 @@ void main() {
     ) async {
       await _mount(tester, LegacyHistoryScreen(onOpenEscrowChallenges: () {}));
       expect(find.textContaining('refund'), findsNothing);
+      // Slim rows; what each holds is read out, not printed as a paragraph.
+      expect(find.text('Escrow challenges'), findsOneWidget);
       expect(
-        find.textContaining('an open escrow challenge can still be settled'),
-        findsOneWidget,
+        tester.getSemantics(find.text('Escrow challenges')).hint,
+        contains('Any still open are settled here by their witness.'),
       );
       expect(tester.takeException(), isNull);
     });

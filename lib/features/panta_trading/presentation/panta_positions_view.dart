@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_badges.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_state_view.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 import '../data/panta_lifecycle_models.dart';
@@ -79,61 +80,28 @@ class _PantaPositionsViewState extends State<PantaPositionsView> {
       if (error != null) return _ErrorCard(error: error, onRetry: c.load);
       return const _LoadingCard();
     }
-    final children = <Widget>[
-      _SummaryCard(page: page, refreshing: c.loading, onRefresh: c.load),
-      if (error != null) ...[
-        const SizedBox(height: 10),
-        _Notice(
-          icon: 'info-circle-outline',
-          text:
-              '${positionsLoadCopy(error)} Showing the last positions we loaded.',
+    // Positions refresh on their own (on open, on pull, and while an order
+    // is pending). A failed refresh keeps the last positions with no banner.
+    if (page.positions.isEmpty) return const _EmptyCard();
+    final children = <Widget>[_SummaryCard(page: page)];
+    for (final p in page.positions) {
+      children.addAll([
+        const SizedBox(height: 12),
+        _PositionCard(
+          key: ValueKey('panta-position-${p.orderId}'),
+          position: p,
+          progress: c.claimProgress(p.orderId),
+          onClaim: () => c.claim(p),
+          onRetrySubmit: () => c.retryClaimSubmit(p.orderId),
+          onOpenCall:
+              widget.onOpenCall == null
+                  ? null
+                  : () => widget.onOpenCall!(p.callId),
+          opener: widget.opener,
+          claimStatusKnown: page.holdings == PantaHoldingsState.live,
         ),
-      ],
-      if (page.holdings == PantaHoldingsState.unavailable) ...[
-        const SizedBox(height: 10),
-        const _Notice(
-          icon: 'clock-outline',
-          text:
-              'Panta did not report claim status just now. Prices and '
-              'results are current; claim status refreshes shortly.',
-        ),
-      ],
-    ];
-    if (page.positions.isEmpty) {
-      children.addAll([const SizedBox(height: 12), const _EmptyCard()]);
-    } else {
-      for (final p in page.positions) {
-        children.addAll([
-          const SizedBox(height: 12),
-          _PositionCard(
-            key: ValueKey('panta-position-${p.orderId}'),
-            position: p,
-            progress: c.claimProgress(p.orderId),
-            onClaim: () => c.claim(p),
-            onRetrySubmit: () => c.retryClaimSubmit(p.orderId),
-            onOpenCall:
-                widget.onOpenCall == null
-                    ? null
-                    : () => widget.onOpenCall!(p.callId),
-            opener: widget.opener,
-            claimStatusKnown: page.holdings == PantaHoldingsState.live,
-          ),
-        ]);
-      }
+      ]);
     }
-    children.addAll([
-      const SizedBox(height: 14),
-      Text(
-        'Chumbucket can’t sell a position: Panta’s API has no sell order. '
-        'See panta.market for what Panta offers on each market. '
-        'Values are marked to Panta’s latest price and are not a quote. '
-        '$pantaAttribution.',
-        style: AppTextStyles.textTheme.bodySmall?.copyWith(
-          color: AppColors.textSecondary,
-          height: 1.5,
-        ),
-      ),
-    ]);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: children,
@@ -149,15 +117,16 @@ Widget _card({required Widget child, Color color = AppColors.surface}) =>
       child: Padding(padding: const EdgeInsets.all(16), child: child),
     );
 
+/// What Chumbucket can and cannot do with a position, said once, behind the
+/// summary's info icon rather than under every list.
+const positionsAboutCopy =
+    'Chumbucket can’t sell a position: Panta’s API has no sell order. '
+    'See panta.market for what Panta offers on each market. Values are '
+    'marked to Panta’s latest price and are not a quote. $pantaAttribution.';
+
 class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({
-    required this.page,
-    required this.refreshing,
-    required this.onRefresh,
-  });
+  const _SummaryCard({required this.page});
   final PantaPositionsPage page;
-  final bool refreshing;
-  final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -186,29 +155,20 @@ class _SummaryCard extends StatelessWidget {
                   ),
                 ),
               ),
-              Semantics(
-                button: true,
-                label: 'Refresh positions',
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(20),
-                  onTap: refreshing ? null : onRefresh,
-                  child: Padding(
-                    padding: const EdgeInsets.all(6),
-                    child:
-                        refreshing
-                            ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white70,
-                              ),
-                            )
-                            : const BasilIcon(
-                              'refresh-outline',
-                              size: 18,
-                              color: Colors.white70,
-                            ),
+              Tooltip(
+                key: const ValueKey('panta-positions-about'),
+                message: positionsAboutCopy,
+                triggerMode: TooltipTriggerMode.tap,
+                showDuration: const Duration(seconds: 8),
+                child: const SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: Center(
+                    child: BasilIcon(
+                      'info-circle-outline',
+                      size: 20,
+                      color: Colors.white70,
+                    ),
                   ),
                 ),
               ),
@@ -234,7 +194,7 @@ class _SummaryCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             page.positions.isEmpty
-                ? 'No funded calls yet.'
+                ? '—'
                 : '${page.positions.length} position${page.positions.length == 1 ? '' : 's'}'
                     ' · $open still open'
                     '${page.counted == 0 ? '' : ' · cost ${PantaMoney.usdc(page.totalCost)}'}',
@@ -610,25 +570,18 @@ class _Notice extends StatelessWidget {
   );
 }
 
+/// The summary's shape while the first read runs; no "Loading…" copy.
 class _LoadingCard extends StatelessWidget {
   const _LoadingCard();
   @override
-  Widget build(BuildContext context) => _card(
-    child: Row(
-      children: [
-        const SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            'Loading your Panta positions…',
-            style: AppTextStyles.textTheme.bodyMedium,
-          ),
-        ),
-      ],
+  Widget build(BuildContext context) => Semantics(
+    label: 'Loading your Panta positions',
+    child: Container(
+      height: 132,
+      decoration: BoxDecoration(
+        color: _ink.withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(20),
+      ),
     ),
   );
 }
@@ -636,30 +589,13 @@ class _LoadingCard extends StatelessWidget {
 class _EmptyCard extends StatelessWidget {
   const _EmptyCard();
   @override
-  Widget build(BuildContext context) => _card(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const BasilIcon('wallet-outline', color: AppColors.textPrimary),
-        const SizedBox(height: 10),
-        Text(
-          'No funded positions yet',
-          style: AppTextStyles.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Calls are free. Open one of your own calls on a Panta market and '
-          'fund it to put real USDC behind it — it shows up here once Panta '
-          'and Solana confirm the fill.',
-          style: AppTextStyles.textTheme.bodySmall?.copyWith(
-            color: AppColors.textSecondary,
-            height: 1.5,
-          ),
-        ),
-      ],
-    ),
+  Widget build(BuildContext context) => const ChumbucketStateView(
+    artwork: ChumbucketStateArtwork.record,
+    message: 'No funded positions yet',
+    semanticsHint:
+        'Calls are free. Fund one of your calls on a Panta market and it '
+        'shows here once Panta and Solana confirm the fill.',
+    compact: true,
   );
 }
 
@@ -672,42 +608,22 @@ class _ErrorCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final unavailable = error.code == PantaErrorCode.unavailable;
     final signedOut = error.code == PantaErrorCode.signedOut;
-    return _card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          BasilIcon(
-            signedOut ? 'login-outline' : 'lock-outline',
-            color: AppColors.textPrimary,
-          ),
-          const SizedBox(height: 10),
-          Text(
-            signedOut
-                ? 'Sign in to see your positions'
-                : unavailable
-                ? 'Positions are not available yet'
-                : 'Couldn’t load your positions',
-            style: AppTextStyles.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            unavailable
-                ? 'Funded positions are not switched on for this server yet. '
-                    'Your calls are unaffected.'
-                : positionsLoadCopy(error),
-            style: AppTextStyles.textTheme.bodySmall?.copyWith(
-              color: AppColors.textSecondary,
-              height: 1.5,
-            ),
-          ),
-          if (!signedOut) ...[
-            const SizedBox(height: 10),
-            OutlinedButton(onPressed: onRetry, child: const Text('Try again')),
-          ],
-        ],
-      ),
+    return ChumbucketStateView(
+      artwork:
+          signedOut
+              ? ChumbucketStateArtwork.access
+              : unavailable
+              ? ChumbucketStateArtwork.waiting
+              : ChumbucketStateArtwork.error,
+      message:
+          signedOut
+              ? 'Sign in to see your positions'
+              : unavailable
+              ? 'Positions are not available yet'
+              : 'Couldn’t load your positions',
+      semanticsHint: positionsLoadCopy(error),
+      actionLabel: signedOut || unavailable ? null : 'Try again',
+      onAction: onRetry,
     );
   }
 }

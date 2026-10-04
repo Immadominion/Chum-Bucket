@@ -9,6 +9,7 @@ import 'package:chumbucket/features/arena/data/arena_models.dart';
 import 'package:chumbucket/features/arena/presentation/screens/my_pots_screen.dart';
 import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 import 'package:chumbucket/shared/utils/snackbar_utils.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_state_view.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class ArenaNotificationsScreen extends StatefulWidget {
@@ -129,20 +130,23 @@ class _ArenaNotificationsScreenState extends State<ArenaNotificationsScreen> {
                       arena.notifications.isEmpty)
                     SliverFillRemaining(
                       hasScrollBody: false,
-                      child: _InboxState(
-                        icon: 'cloud-off-outline',
-                        title: 'Could not load your inbox',
-                        action: _load,
+                      child: Center(
+                        child: ChumbucketStateView(
+                          artwork: ChumbucketStateArtwork.error,
+                          message: 'Couldn’t load earlier notices',
+                          actionLabel: 'Try again',
+                          onAction: _load,
+                        ),
                       ),
                     )
                   else if (arena.notifications.isEmpty)
                     const SliverFillRemaining(
                       hasScrollBody: false,
-                      child: _InboxState(
-                        icon: 'notification-outline',
-                        title: 'You are all caught up',
-                        detail:
-                            'Followed calls and claim-ready winnings will appear here.',
+                      child: Center(
+                        child: ChumbucketStateView(
+                          artwork: ChumbucketStateArtwork.inbox,
+                          message: 'No earlier notices',
+                        ),
                       ),
                     )
                   else
@@ -271,57 +275,6 @@ class ArenaNotificationRow extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _InboxState extends StatelessWidget {
-  final String icon;
-  final String title;
-  final String? detail;
-  final VoidCallback? action;
-
-  const _InboxState({
-    required this.icon,
-    required this.title,
-    this.detail,
-    this.action,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: EdgeInsets.all(32.w),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            BasilIcon(icon, size: 40.w, color: AppColors.textTertiary),
-            SizedBox(height: 12.h),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w700),
-            ),
-            if (detail != null) ...[
-              SizedBox(height: 6.h),
-              Text(
-                detail!,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12.sp,
-                  height: 1.4,
-                ),
-              ),
-            ],
-            if (action != null) ...[
-              SizedBox(height: 8.h),
-              TextButton(onPressed: action, child: const Text('Try again')),
-            ],
-          ],
         ),
       ),
     );

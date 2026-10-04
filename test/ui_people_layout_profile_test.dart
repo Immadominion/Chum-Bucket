@@ -175,12 +175,26 @@ void main() {
           ),
         ),
       );
-      expect(find.text('1 / 2'), findsOneWidget);
+      // Four numbers with icons: misses and voids beside the hits, never
+      // dropped. What it counts sits behind the info icon.
+      for (final label in [
+        '1 correct of 2 decided',
+        '1 Incorrect',
+        '1 Pending',
+        '1 void, not scored',
+      ]) {
+        expect(
+          find.bySemanticsLabel(RegExp(RegExp.escape(label))),
+          findsWidgets,
+          reason: label,
+        );
+      }
       expect(
-        find.text('1 incorrect · 2 decided. Void excluded.'),
-        findsOneWidget,
+        tester
+            .widget<Tooltip>(find.byKey(const ValueKey('record-scope')))
+            .message,
+        contains('incorrect ones included'),
       );
-      expect(find.text('void · not scored'), findsOneWidget);
       expect(
         find.textContaining('31'),
         findsNothing,
@@ -248,7 +262,10 @@ void main() {
       );
       expect(find.text('Ada Okafor'), findsOneWidget);
       expect(find.text('Follow'), findsOneWidget);
-      expect(find.text('1 / 2'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(RegExp('1 correct of 2 decided')),
+        findsWidgets,
+      );
       expect(find.text('DEMO DATA · sample call record'), findsOneWidget);
       expect(find.text('My wallet'), findsNothing);
       expect(find.textContaining('PnL'), findsNothing);

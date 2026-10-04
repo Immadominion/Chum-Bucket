@@ -47,6 +47,16 @@ class AccountProfile {
   String get avatarAsset =>
       avatarAssetFor(avatarId) ?? avatarAssetFor(kDefaultAvatarId)!;
 
+  /// The same shape [fromJson] reads, for the copy kept on this phone.
+  Map<String, Object?> toJson() => {
+    'userId': userId,
+    'handle': handle,
+    'displayName': displayName,
+    'bio': bio,
+    'avatarId': avatarId,
+    'walletAddress': walletAddress,
+  };
+
   static AccountProfile fromJson(Object? raw) {
     final outer = raw is Map ? raw : const {};
     final json = outer['profile'] is Map ? outer['profile'] as Map : outer;

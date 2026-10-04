@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_state_view.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
@@ -62,6 +62,10 @@ class _ChallengesTabState extends State<ChallengesTab> {
         if (challenges.isEmpty) {
           return buildNoChallengesView(
             withText: true,
+            title:
+                currentUserWallet == null
+                    ? 'Connect your wallet to see them'
+                    : 'No escrow challenges',
             message:
                 currentUserWallet == null
                     ? 'Escrow challenges are kept by wallet. Connect the '
@@ -199,49 +203,24 @@ class _ChallengesTabState extends State<ChallengesTab> {
   }
 }
 
-/// The empty escrow list. Nothing here invites starting one: creating an
-/// escrow challenge is retired.
+/// The empty escrow list: the brand scene and one line. Nothing here invites
+/// starting one: creating an escrow challenge is retired. [message] is read
+/// to screen readers.
 Widget buildNoChallengesView({
   bool withText = false,
+  String title = 'No escrow challenges',
   String message = 'This wallet has none from before calls.',
 }) {
-  return SingleChildScrollView(
-    physics: const AlwaysScrollableScrollPhysics(),
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // Full width, so the art and copy centre on the screen, not on the
-        // widest line.
-        const SizedBox(width: double.infinity),
-        if (withText) const SizedBox(height: 24),
-        ChumbucketStateArt(
-          ChumbucketStateArtwork.challenges,
-          size: withText ? 144 : 96,
-        ),
-        SizedBox(height: 16.h),
+  return ChumbucketStateFill(
+    child:
         withText
-            ? Text(
-              'No escrow challenges',
-              style: TextStyle(
-                color: Colors.grey,
-                fontSize: 18.sp,
-                fontWeight: FontWeight.bold,
-              ),
+            ? ChumbucketStateView(
+              artwork: ChumbucketStateArtwork.challenges,
+              message: title,
+              semanticsHint: message,
             )
-            : SizedBox(),
-        withText ? SizedBox(height: 8.h) : SizedBox.shrink(),
-        withText
-            ? Text(
-              message,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14.sp,
-                color: Colors.grey,
-                fontWeight: FontWeight.bold,
-              ),
-            )
-            : SizedBox(),
-      ],
-    ),
+            : const ChumbucketStateArt.compact(
+              ChumbucketStateArtwork.challenges,
+            ),
   );
 }
