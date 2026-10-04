@@ -217,8 +217,12 @@ void main() {
               isNotNull,
               reason: 'your own call on a USDC market opens its trade',
             );
+            // Panta's compact mark beside the trade (its terms, §6).
+            expect(find.byKey(const ValueKey('panta-mark')), findsOneWidget);
+            expect(find.text('Powered by Panta'), findsNothing);
           } else {
             expect(find.text('Trade'), findsNothing);
+            expect(find.byKey(const ValueKey('panta-mark')), findsNothing);
             final tradeCopy =
                 _everything(tester)
                     .where(
