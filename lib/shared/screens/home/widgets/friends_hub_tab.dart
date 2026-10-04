@@ -154,7 +154,11 @@ class _FriendsHubTabState extends State<FriendsHubTab>
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: FriendsTab(
-                key: ValueKey('${widget.refreshKey}-$wallet'),
+                // Keyed by wallet only: a refresh (resume, a friend added)
+                // reads again in place and keeps the list on screen, rather
+                // than building a new, empty tab.
+                key: ValueKey('friends-$wallet'),
+                refreshKey: widget.refreshKey,
                 onAddFriend: widget.onAddFriend,
                 onFriendSelected: widget.onFriendSelected,
                 buildViewMoreItem: widget.buildViewMoreItem,
@@ -178,11 +182,9 @@ class _FriendsHubTabState extends State<FriendsHubTab>
                 invitations:
                     signedIn
                         ? _CallInvitations(
-                          key: ValueKey(
-                            'invitations-${calls!.viewerUserId}-'
-                            '${widget.refreshKey}-$_refreshTick',
-                          ),
+                          key: ValueKey('invitations-${calls!.viewerUserId}'),
                           provider: calls,
+                          refreshToken: '${widget.refreshKey}-$_refreshTick',
                         )
                         : null,
               ),
@@ -318,7 +320,15 @@ class _FeedPeopleState extends State<_FeedPeople> {
 /// or unreadable is left out rather than shown as a broken row.
 class _CallInvitations extends StatefulWidget {
   final CallsProvider provider;
-  const _CallInvitations({super.key, required this.provider});
+
+  /// Changes when the tab is refreshed (resume, pull): the dares read again
+  /// while the ones already shown stay on screen.
+  final String refreshToken;
+  const _CallInvitations({
+    super.key,
+    required this.provider,
+    required this.refreshToken,
+  });
   @override
   State<_CallInvitations> createState() => _CallInvitationsState();
 }
@@ -329,6 +339,13 @@ class _CallInvitationsState extends State<_CallInvitations> {
   void initState() {
     super.initState();
     _invitations = _read();
+  }
+
+  @override
+  void didUpdateWidget(covariant _CallInvitations oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A new future keeps FutureBuilder's last data until it answers.
+    if (oldWidget.refreshToken != widget.refreshToken) _invitations = _read();
   }
 
   Future<List<CallDetail>> _read() async {

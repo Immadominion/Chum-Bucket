@@ -62,6 +62,10 @@ class FriendsTab extends StatefulWidget {
   /// invitations).
   final Future<void> Function()? onRefresh;
 
+  /// Bumped by Home on resume and after a friend is added: the wallet
+  /// friends read again in place, and the list stays on screen meanwhile.
+  final int refreshKey;
+
   const FriendsTab({
     super.key,
     required this.onAddFriend,
@@ -77,6 +81,7 @@ class FriendsTab extends StatefulWidget {
     this.followingLoading = false,
     this.followingError,
     this.onRefresh,
+    this.refreshKey = 0,
   });
   @override
   State<FriendsTab> createState() => _FriendsTabState();
@@ -94,7 +99,6 @@ class _FriendsTabState extends State<FriendsTab>
 
   // Caching for performance optimization
   Future<List<Map<String, String>>>? _friendsFuture;
-  ValueKey? _lastRefreshKey;
   DateTime? _lastLoadTime; // Track when we last loaded friends
 
   // Keep state alive when switching tabs
@@ -104,7 +108,6 @@ class _FriendsTabState extends State<FriendsTab>
   @override
   void initState() {
     super.initState();
-    _lastRefreshKey = widget.key is ValueKey ? widget.key as ValueKey : null;
     // Don't load friends immediately - wait for auth state
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -136,11 +139,11 @@ class _FriendsTabState extends State<FriendsTab>
   @override
   void didUpdateWidget(FriendsTab oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Check if we need to refresh based on the widget key
-    final newRefreshKey = widget.key;
-    if (newRefreshKey != _lastRefreshKey && newRefreshKey is ValueKey) {
-      debugPrint('FriendsTab: Refresh key changed, clearing caches');
-      _lastRefreshKey = newRefreshKey;
+    // A refresh reads again in place. (A changed widget key would build a
+    // new, empty State instead, which is why the parent keys this tab by
+    // wallet only and passes the refresh as [refreshKey].)
+    if (oldWidget.refreshKey != widget.refreshKey) {
+      debugPrint('FriendsTab: refresh requested, reading again in place');
       _friendsFuture = null; // Clear cache to force refresh
       hasAttemptedLoad = false; // Reset load flag to allow refresh
       // DON'T clear friends list - keep showing old data while refreshing

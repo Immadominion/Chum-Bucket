@@ -11,6 +11,7 @@ import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_person_screen.dart';
 import 'package:chumbucket/shared/screens/home/widgets/friends_grid.dart';
 import 'package:chumbucket/shared/screens/home/widgets/friends_hub_tab.dart';
+import 'package:chumbucket/shared/screens/home/widgets/friends_tab.dart';
 import 'package:chumbucket/shared/screens/home/widgets/header.dart';
 import 'package:chumbucket/features/people/data/people_models.dart';
 import 'package:chumbucket/features/people/data/people_repository.dart'
@@ -226,6 +227,49 @@ void main() {
       expect(find.text('Accept'), findsNothing);
       expect(find.text('Decline'), findsNothing);
       expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'coming back to the app refreshes Friends in place: nothing blinks out',
+    (tester) async {
+      final repository = FriendsRepository()..invite = true;
+      final calls = CallsProvider(repository: repository)..setViewer('viewer');
+      final arena = QuietArena();
+      addTearDown(calls.dispose);
+      addTearDown(arena.dispose);
+      var refreshKey = 0;
+      late StateSetter rebuild;
+      await mountPeople(
+        tester,
+        StatefulBuilder(
+          builder: (context, setState) {
+            rebuild = setState;
+            return Scaffold(
+              body: FriendsHubTab(
+                refreshKey: refreshKey,
+                onAddFriend: () {},
+                onFriendSelected: (_) {},
+                buildViewMoreItem: (_, count) => Text('View $count more'),
+                onViewAllChallenges: () {},
+                onMarkChallengeCompleted: (_, __) async {},
+              ),
+            );
+          },
+        ),
+        wrap: (child) => hub(calls, arena, child),
+      );
+      expect(find.text('Ada Okafor invited you to call'), findsOneWidget);
+      final before = tester.state(find.byType(FriendsTab));
+
+      // Home bumps the refresh key on resume (and after adding a friend).
+      rebuild(() => refreshKey++);
+      await tester.pump();
+      // Same list, same dare, while the fresh read runs underneath.
+      expect(identical(tester.state(find.byType(FriendsTab)), before), isTrue);
+      expect(find.text('Ada Okafor invited you to call'), findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(find.text('Ada Okafor invited you to call'), findsOneWidget);
     },
   );
 
