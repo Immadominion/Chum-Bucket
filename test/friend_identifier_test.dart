@@ -55,6 +55,10 @@ void main() {
     'https://x.com@evil.com/alice',
     'https://x.com:8443/alice',
     'https://x.com/home',
+    // The server's reserved pages too (personFinder.ts X_RESERVED).
+    'https://x.com/login',
+    'x.com/privacy',
+    'twitter.com/tos',
     'https://x.com/i/web/status/1',
     'https://x.com/',
     'ftp://x.com/alice',

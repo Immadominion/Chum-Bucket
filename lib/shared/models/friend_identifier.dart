@@ -44,7 +44,8 @@ class FriendIdentifier {
     'mobile.twitter.com',
   };
 
-  /// X paths that are pages, not people.
+  /// X paths that are pages, not people — the same list as the server's
+  /// (personFinder.ts X_RESERVED), so a link it would refuse is refused here.
   static const _xReserved = {
     'home',
     'explore',
@@ -57,6 +58,12 @@ class FriendIdentifier {
     'compose',
     'hashtag',
     'share',
+    'login',
+    'logout',
+    'signup',
+    'tos',
+    'privacy',
+    'about',
   };
 
   static final _xHandle = RegExp(r'^[A-Za-z0-9_]{1,15}$');
