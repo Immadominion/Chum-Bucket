@@ -507,6 +507,7 @@ MoneyDependencies fakeMoneyDeps(
   Future<bool> Function()? openCard,
   Duration pollEvery = const Duration(seconds: 5),
   Future<Uint8List> Function(Uint8List, ExpectedUsdcTransfer)? checkTransfer,
+  Future<bool> Function()? setUpWallet,
 }) => MoneyDependencies(
   createClient: server.moneyClient,
   createTradingClient: server.tradingClient,
@@ -536,5 +537,6 @@ MoneyDependencies fakeMoneyDeps(
       openCard == null
           ? null
           : (context, {shortfall, wallet}) => openCard(),
+  setUpWallet: setUpWallet == null ? null : (_) => setUpWallet(),
   pollEvery: pollEvery,
 );

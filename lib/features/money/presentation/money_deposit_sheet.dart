@@ -98,6 +98,9 @@ class _MoneyDepositSheetState extends State<MoneyDepositSheet> {
   BigInt? _baseline;
   Timer? _watch;
   bool _closed = false;
+
+  /// The account has no trading wallet yet: set one up first.
+  bool _noWallet = false;
   _Stage _stage = _Stage.options;
   BigInt? _amount;
 
@@ -155,7 +158,9 @@ class _MoneyDepositSheetState extends State<MoneyDepositSheet> {
       // Every address on this sheet must be the trading wallet the app knows
       // on its own (money.wallet), never only what this answer says.
       final known = wallet.wallet?.address;
-      if (known == null ||
+      _noWallet = known == null;
+      if (known == null) return;
+      if (
           options.tradingWallet?.address != known ||
           (options.sendUsdc != null &&
               (options.sendUsdc!.address != known ||
@@ -239,6 +244,31 @@ class _MoneyDepositSheetState extends State<MoneyDepositSheet> {
             child: CircularProgressIndicator(color: AppColors.primary),
           ),
         ),
+      ];
+    }
+    if (_noWallet) {
+      final setUp = widget.dependencies.setUpWallet;
+      return [
+        const Center(
+          child: ChumbucketStateArt(ChumbucketStateArtwork.access, size: 96),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Set up your wallet first.',
+          textAlign: TextAlign.center,
+          style: callJourneyBody(13),
+        ),
+        if (setUp != null) ...[
+          const SizedBox(height: 12),
+          ChumbucketPrimaryButton(
+            key: const ValueKey('deposit-set-up-wallet'),
+            label: 'Set up wallet',
+            neutral: true,
+            onPressed: () async {
+              if (await setUp(context) && mounted) await _load();
+            },
+          ),
+        ],
       ];
     }
     final options = _options;

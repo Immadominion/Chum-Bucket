@@ -462,6 +462,69 @@ void main() {
     });
   });
 
+  testWidgets('no wallet yet: set one up, then the options', (tester) async {
+    usePhone(tester);
+    final server =
+        moneyServer()
+          ..on('money.depositOptions', [depositOptionsJson()])
+          ..on('money.wallet', [
+            moneyWalletJson(noWallet: true),
+            moneyWalletJson(noWallet: true),
+            moneyWalletJson(),
+          ]);
+    final money = await boundMoney(server);
+    addTearDown(money.dispose);
+    var setUps = 0;
+    await tester.pumpWidget(
+      harness(
+        money: money,
+        deps: fakeMoneyDeps(
+          server,
+          setUpWallet: () async {
+            setUps++;
+            return true;
+          },
+        ),
+        child: Opener(open: (context) => showMoneyDepositSheet(context)),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(find.text('Set up your wallet first.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('deposit-send-usdc')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('deposit-set-up-wallet')));
+    await tester.pumpAndSettle();
+    expect(setUps, 1);
+    expect(find.byKey(const ValueKey('deposit-send-usdc')), findsOneWidget);
+  });
+
+  testWidgets('an answer naming another wallet is refused, nothing shown', (
+    tester,
+  ) async {
+    usePhone(tester);
+    final server =
+        moneyServer()
+          ..on('money.depositOptions', [
+            {
+              ...depositOptionsJson(),
+              'tradingWallet': {'address': otherWallet, 'walletType': 'mwa'},
+            },
+          ]);
+    final money = await boundMoney(server);
+    addTearDown(money.dispose);
+    await tester.pumpWidget(
+      harness(
+        money: money,
+        deps: fakeMoneyDeps(server),
+        child: Opener(open: (context) => showMoneyDepositSheet(context)),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('deposit-send-usdc')), findsNothing);
+    expect(find.textContaining('couldn’t confirm your wallet'), findsOneWidget);
+  });
+
   testWidgets('Collect \$9.20: the claim path, then the balance again', (
     tester,
   ) async {
