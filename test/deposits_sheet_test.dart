@@ -213,7 +213,7 @@ void main() {
       presets: ['1', '5', '10'],
     );
     await rig.mount(tester);
-    await reveal(tester, find.textContaining('Test mode.'));
+    await reveal(tester, find.textContaining('Test mode, not real money.'));
     expect(find.textContaining('4242 4242 4242 4242'), findsOneWidget);
     expect(
       find.textContaining('won\'t show up in your trading balance'),

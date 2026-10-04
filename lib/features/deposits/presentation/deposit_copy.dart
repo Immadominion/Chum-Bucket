@@ -22,7 +22,43 @@ int depositStep(DepositOrderState state) => switch (state) {
   _ => 0,
 };
 
-DepositStateCopy depositStateCopy(DepositOrder order) {
+DepositStateCopy depositStateCopy(DepositOrder order) =>
+    order.isDevnet ? _testCopy(order, _copy(order)) : _copy(order);
+
+/// Crossmint staging pays out devnet test USDC. It says so in every state,
+/// every time: test money never reads as real.
+DepositStateCopy _testCopy(DepositOrder order, DepositStateCopy live) {
+  final usdc = order.receiveLabel;
+  return switch (order.state) {
+    DepositOrderState.delivering => DepositStateCopy(
+      'Sending test USDC',
+      usdc == null
+          ? 'Test payment received. Crossmint is sending devnet test USDC to your wallet. $kTestMoneyLine'
+          : 'Test payment received. Crossmint is sending $usdc devnet test USDC to your wallet. $kTestMoneyLine',
+      live.icon,
+      tone: live.tone,
+    ),
+    DepositOrderState.delivered => DepositStateCopy(
+      'Test funds added',
+      usdc == null
+          ? 'Devnet test USDC is in your wallet. $kTestMoneyLine'
+          : '$usdc devnet test USDC is in your wallet. $kTestMoneyLine',
+      live.icon,
+      tone: live.tone,
+    ),
+    _ => DepositStateCopy(
+      'Test · ${live.title}',
+      '${live.message} $kTestMoneyLine',
+      live.icon,
+      tone: live.tone,
+    ),
+  };
+}
+
+/// Said with every test (staging) deposit state.
+const kTestMoneyLine = 'Test money, not real.';
+
+DepositStateCopy _copy(DepositOrder order) {
   final usdc = order.receiveLabel;
   return switch (order.state) {
     DepositOrderState.awaitingPayment => const DepositStateCopy(

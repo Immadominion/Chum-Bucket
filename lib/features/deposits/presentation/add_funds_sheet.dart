@@ -241,8 +241,10 @@ class _AddFundsSheetState extends State<AddFundsSheet> {
         null,
       ),
       AddFundsStage.delivered => (
-        'Funds added',
-        order?.receiveLabel != null ? '+${order!.receiveLabel} USDC' : null,
+        order?.isDevnet ?? false ? 'Test funds added' : 'Funds added',
+        order?.receiveLabel != null
+            ? '+${order!.receiveLabel} ${order.isDevnet ? 'test ' : ''}USDC'
+            : null,
         null,
       ),
       AddFundsStage.failed => ('Payment didn\'t finish', null, null),
@@ -526,7 +528,7 @@ class _AddFundsSheetState extends State<AddFundsSheet> {
       if (status?.isTestMode ?? false) ...[
         const SizedBox(height: 12),
         const CallJourneyNote(
-          'Test mode. Pay with card 4242 4242 4242 4242, any future date and CVC. '
+          'Test mode, not real money. Pay with card 4242 4242 4242 4242, any future date and CVC. '
           'Crossmint sends devnet test USDC, which won\'t show up in your trading balance.',
           icon: 'info-rect-outline',
           quiet: true,
@@ -597,9 +599,10 @@ class _AddFundsSheetState extends State<AddFundsSheet> {
             : waiting
             ? 'Getting a price…'
             : c.amount?.label ?? '—';
+    final test = c.status?.isTestMode ?? false;
     final get =
         quote?.receiveLabel != null
-            ? '≈ ${quote!.receiveLabel} USDC'
+            ? '≈ ${quote!.receiveLabel} ${test ? 'test ' : ''}USDC'
             : waiting
             ? 'Getting a price…'
             : 'Shown at checkout';
@@ -759,8 +762,8 @@ class _AddFundsSheetState extends State<AddFundsSheet> {
                 'You get',
                 order.state.isInFlight ||
                         order.state == DepositOrderState.delivered
-                    ? '${order.receiveLabel} USDC'
-                    : '≈ ${order.receiveLabel} USDC',
+                    ? '${order.receiveLabel} ${order.isDevnet ? 'test ' : ''}USDC'
+                    : '≈ ${order.receiveLabel} ${order.isDevnet ? 'test ' : ''}USDC',
               ),
             CallJourneyFact(
               'Goes to',
@@ -797,7 +800,11 @@ class _AddFundsSheetState extends State<AddFundsSheet> {
       Semantics(
         liveRegion: true,
         child: Text(
-          order?.receiveLabel != null
+          order?.isDevnet ?? false
+              ? order!.receiveLabel != null
+                  ? '${order.receiveLabel} test USDC landed in your wallet.'
+                  : 'Test USDC landed in your wallet.'
+              : order?.receiveLabel != null
               ? '${order!.receiveLabel} USDC landed in your wallet.'
               : 'Your USDC landed in your wallet.',
           key: const ValueKey('deposit-delivered'),
@@ -844,7 +851,7 @@ class _AddFundsSheetState extends State<AddFundsSheet> {
       if (order?.isDevnet ?? false) ...[
         const SizedBox(height: 12),
         const CallJourneyNote(
-          'Test mode: this was devnet test USDC, so your mainnet balance above doesn\'t include it.',
+          'Test money, not real: this was devnet test USDC, so your mainnet balance above doesn\'t include it.',
           icon: 'info-rect-outline',
           quiet: true,
         ),
