@@ -105,7 +105,8 @@ class _RematchSheetState extends State<RematchSheet> {
     RematchAvailability.notSettled => const CallsStateView(
       icon: 'clock-outline',
       artwork: ChumbucketStateArtwork.waiting,
-      title: 'Not settled yet',
+      // One line on screen (the message is read out): it has to say why.
+      title: 'No result to rematch yet',
       message:
           'A rematch answers a result. This call is still pending, so there '
           'is nothing to answer yet.',
@@ -113,7 +114,7 @@ class _RematchSheetState extends State<RematchSheet> {
     RematchAvailability.ownCall => const CallsStateView(
       icon: 'user-outline',
       artwork: ChumbucketStateArtwork.record,
-      title: 'That one is yours',
+      title: 'You can’t rematch your own call',
       message:
           'You can\'t rematch yourself. Open somebody else\'s settled call to '
           'send one.',

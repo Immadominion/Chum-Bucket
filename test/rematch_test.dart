@@ -398,7 +398,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Not settled yet'), findsOneWidget);
+      expect(find.text('No result to rematch yet'), findsOneWidget);
       expect(find.text('Send the rematch'), findsNothing);
     });
   });
