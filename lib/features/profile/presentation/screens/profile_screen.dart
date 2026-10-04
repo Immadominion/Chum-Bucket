@@ -339,7 +339,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               if (_selectedTab == 0 && userId == null && !pending)
                 ChumbucketStateView(
                   artwork: ChumbucketStateArtwork.record,
-                  message: 'Sign in to keep your call record',
+                  message: 'Sign in to keep your record',
                   semanticsHint: session?.error?.message,
                   actionLabel: session == null ? null : 'Sign in',
                   actionIcon: 'login-outline',
@@ -373,7 +373,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ChumbucketStateView(
           artwork: ChumbucketStateArtwork.error,
           message: 'Couldn’t load your calls',
-          semanticsHint: error,
+          semanticsHint: CallsErrorView.isHumanReason(error) ? error : null,
           actionLabel: 'Try again',
           onAction: _loadProfileData,
         ),

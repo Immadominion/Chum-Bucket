@@ -172,7 +172,7 @@ class _NotificationsInboxScreenState extends State<NotificationsInboxScreen> {
 
       case NotificationsLoadState.signedOut:
         return CallsSignedOutView(
-          title: 'Sign in to see who backs your calls',
+          title: 'Sign in to see who backs you',
           message:
               'Sign in to see who backed you, who faded you, and when the '
               'venue settles your calls. No wallet needed.',

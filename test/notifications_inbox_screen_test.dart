@@ -274,10 +274,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(CallsSignedOutView), findsOneWidget);
-    expect(find.text('Sign in to see who backs your calls'), findsOneWidget);
+    expect(find.text('Sign in to see who backs you'), findsOneWidget);
     expect(
       tester
-          .getSemantics(find.text('Sign in to see who backs your calls'))
+          .getSemantics(find.text('Sign in to see who backs you'))
           .hint,
       contains('No wallet needed'),
     );

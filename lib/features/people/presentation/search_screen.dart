@@ -232,6 +232,7 @@ class _PeopleSearchScreenState extends State<PeopleSearchScreen> {
         ),
       if (_peopleError != null)
         _SearchMiss(
+          offline: provider.isOffline,
           text:
               provider.isOffline
                   ? 'You’re offline'
@@ -274,6 +275,7 @@ class _PeopleSearchScreenState extends State<PeopleSearchScreen> {
       if (provider.openMarketsError != null) {
         return [
           _SearchMiss(
+            offline: provider.isOffline,
             text:
                 provider.isOffline
                     ? 'You’re offline'
@@ -362,19 +364,24 @@ class _SectionTitle extends StatelessWidget {
 /// A section that could not be searched: an icon and a few words. Typing
 /// again searches again; there is no retry button.
 class _SearchMiss extends StatelessWidget {
-  const _SearchMiss({required this.text, required this.detail});
+  const _SearchMiss({
+    required this.text,
+    required this.detail,
+    required this.offline,
+  });
   final String text;
   final String detail;
+  final bool offline;
 
   @override
   Widget build(BuildContext context) => Semantics(
     label: text,
-    hint: detail,
+    hint: CallsErrorView.isHumanReason(detail) ? detail : null,
     excludeSemantics: true,
     child: Row(
       children: [
-        const BasilIcon(
-          'cloud-off-outline',
+        BasilIcon(
+          offline ? 'cloud-off-outline' : 'info-triangle-outline',
           size: 18,
           color: AppColors.textSecondary,
         ),

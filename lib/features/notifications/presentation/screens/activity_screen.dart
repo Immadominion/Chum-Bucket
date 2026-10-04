@@ -59,9 +59,35 @@ class _ActivityScreenState extends State<ActivityScreen> {
   void _onScroll() {
     if (!_scroll.hasClients) return;
     final position = _scroll.position;
-    if (position.pixels > position.maxScrollExtent - 240) {
-      context.read<NotificationsProvider>().loadMore();
-    }
+    if (position.pixels > position.maxScrollExtent - 240) _loadMore();
+  }
+
+  /// The inbox (as read, and how long) whose next page last came back with
+  /// nothing — offline, an error, an empty page. It is not asked for again
+  /// on every scroll frame; a refresh or new rows lift the block.
+  String? _moreBlockedFor;
+
+  String _pageKey(NotificationsProvider inbox) =>
+      '${inbox.servedAtUtc?.millisecondsSinceEpoch}:'
+      '${inbox.notifications.length}';
+
+  Future<void> _loadMore() async {
+    final inbox = context.read<NotificationsProvider>();
+    if (!inbox.hasMore || inbox.isLoadingMore || inbox.isLoading) return;
+    final key = _pageKey(inbox);
+    if (_moreBlockedFor == key) return;
+    await inbox.loadMore();
+    if (!mounted) return;
+    if (inbox.hasMore && _pageKey(inbox) == key) _moreBlockedFor = key;
+  }
+
+  /// A first page shorter than the screen never scrolls, so it asks for the
+  /// next page itself.
+  void _fillScreen() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scroll.hasClients) return;
+      if (_scroll.position.maxScrollExtent <= 240) _loadMore();
+    });
   }
 
   Future<void> _refresh() =>
@@ -149,7 +175,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
         return ChumbucketStateFill(
           child: ChumbucketStateView(
             artwork: ChumbucketStateArtwork.inbox,
-            message: 'Sign in to see who backs your calls',
+            message: 'Sign in to see who backs you',
             actionLabel: 'Sign in',
             actionIcon: 'login-outline',
             onAction: () => requestCallSignIn(context),
@@ -169,7 +195,12 @@ class _ActivityScreenState extends State<ActivityScreen> {
           child: ChumbucketStateView(
             artwork: ChumbucketStateArtwork.error,
             message: 'Couldn’t load your activity',
-            semanticsHint: calls.error,
+            // A reason written for people is read out; transport text
+            // (procedure paths, status codes) never is.
+            semanticsHint:
+                CallsErrorView.isHumanReason(calls.error ?? '')
+                    ? calls.error
+                    : null,
             actionLabel: 'Try again',
             onAction: _refresh,
           ),
@@ -192,6 +223,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
           for (final n in calls.notifications)
             if (!n.isUnread) n,
         ];
+        if (calls.hasMore) _fillScreen();
         return ListView(
           controller: _scroll,
           physics: const AlwaysScrollableScrollPhysics(),

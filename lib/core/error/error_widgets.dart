@@ -118,7 +118,9 @@ class DefaultErrorWidget extends StatelessWidget {
         child: ChumbucketStateView(
           artwork: ChumbucketStateArtwork.error,
           message: 'Something went wrong',
-          semanticsHint: customMessage ?? error.message,
+          // Only a caller's own sentence is read out; the raw error is
+          // for logs, never for people.
+          semanticsHint: customMessage,
           actionLabel: onRetry == null ? null : 'Try again',
           onAction: onRetry,
         ),

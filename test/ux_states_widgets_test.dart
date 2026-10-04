@@ -11,10 +11,11 @@ import 'package:provider/provider.dart';
 import 'package:chumbucket/features/calls/data/mock_calls_repository.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart';
 import 'package:chumbucket/features/notifications/data/mock_notifications_repository.dart';
+import 'package:chumbucket/features/notifications/data/notification_models.dart';
+import 'package:chumbucket/features/notifications/data/notifications_repository.dart';
 import 'package:chumbucket/features/notifications/presentation/screens/activity_screen.dart';
 import 'package:chumbucket/features/notifications/providers/notifications_provider.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
-import 'package:chumbucket/shared/widgets/chumbucket_state_view.dart';
 
 Future<void> _mount(
   WidgetTester tester,
@@ -45,6 +46,61 @@ Future<void> _mount(
   await tester.pumpAndSettle();
 }
 
+/// A short first page that says there is more, then a next page that fails
+/// until [nextPageWorks] — counting every ask for it.
+class _PagedInbox implements NotificationsRepository {
+  int nextPageAsks = 0;
+  int servedAt = 1000;
+  bool nextPageWorks = false;
+
+  CallNotification _row(String id) => CallNotification(
+    id: id,
+    recipientUserId: MockCallsRepository.demoViewerUserId,
+    kind: CallNotificationKind.backed,
+    title: 'Row $id',
+    body: 'They went on record on the same side as you.',
+    createdAt: DateTime.now().millisecondsSinceEpoch,
+    target: const NotificationCallTarget('call_you_fed'),
+    isUnread: false,
+  );
+
+  @override
+  Future<NotificationPage> fetchNotifications({
+    required String? viewerUserId,
+    NotificationFilter filter = NotificationFilter.all,
+    String? cursor,
+    int limit = 20,
+  }) async {
+    if (cursor == null) {
+      return NotificationPage(
+        notifications: [_row('a'), _row('b')],
+        nextCursor: 'page-2',
+        servedAt: servedAt++,
+        unreadCount: 0,
+      );
+    }
+    nextPageAsks++;
+    if (!nextPageWorks) throw const NotificationsOfflineException();
+    return NotificationPage(
+      notifications: [_row('c')],
+      servedAt: servedAt,
+      unreadCount: 0,
+    );
+  }
+
+  @override
+  Future<int> unreadCount({required String? viewerUserId}) async => 0;
+
+  @override
+  Future<void> markAllRead({required String? viewerUserId}) async {}
+
+  @override
+  Future<void> markRead({
+    required String? viewerUserId,
+    required String notificationId,
+  }) async {}
+}
+
 void main() {
   setUpAll(() => GoogleFonts.config.allowRuntimeFetching = false);
 
@@ -73,7 +129,11 @@ void main() {
         'Unknown market: market_btc_150k',
       ]) {
         await show(internal);
-        expect(find.text('Couldn\u2019t load this'), findsOneWidget, reason: internal);
+        expect(
+          find.text('Couldn\u2019t load this'),
+          findsOneWidget,
+          reason: internal,
+        );
         expect(find.text(internal), findsNothing, reason: internal);
         expect(
           tester.getSemantics(find.text('Couldn\u2019t load this')).hint,
@@ -191,7 +251,7 @@ void main() {
       )..setViewer(null);
       addTearDown(inbox.dispose);
       await _mount(tester, activity(inbox));
-      expect(find.text('Sign in to see who backs your calls'), findsOneWidget);
+      expect(find.text('Sign in to see who backs you'), findsOneWidget);
       expect(
         find.widgetWithText(ChumbucketPrimaryButton, 'Sign in'),
         findsOneWidget,
@@ -218,6 +278,35 @@ void main() {
       expect(find.text('New'), findsNothing);
       expect(find.text('Earlier'), findsOneWidget);
       expect(find.byTooltip('Mark all read'), findsNothing);
+    });
+    testWidgets('older rows load by themselves, and a failed page is asked '
+        'for once, not on every frame', (tester) async {
+      final repo = _PagedInbox();
+      final inbox = NotificationsProvider(repository: repo)
+        ..setViewer(MockCallsRepository.demoViewerUserId);
+      addTearDown(inbox.dispose);
+      await _mount(tester, activity(inbox), width: 390, scale: 1);
+
+      // Two rows do not fill the screen: the next page is asked for without
+      // a scroll, fails offline, and is not asked for again while nothing
+      // changes — however much the list is dragged.
+      expect(repo.nextPageAsks, 1);
+      for (var i = 0; i < 5; i++) {
+        await tester.drag(find.text('Row b'), const Offset(0, -300));
+        await tester.pump();
+      }
+      await tester.pumpAndSettle();
+      expect(repo.nextPageAsks, 1);
+      expect(find.text('Row a'), findsOneWidget);
+
+      // A refresh reads page one again; its next page is asked for once more
+      // and this time it lands.
+      repo.nextPageWorks = true;
+      await inbox.load(force: true);
+      await tester.pumpAndSettle();
+      expect(repo.nextPageAsks, 2);
+      expect(find.text('Row c'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 }
