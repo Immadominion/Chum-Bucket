@@ -348,15 +348,21 @@ void main() {
         friendsScreen(),
         wrap: (child) => hub(provider, arena, child),
       );
-      // The record-based board, and never the Arena's wealth ranking.
-      await revealPeopleText(tester, 'Leaderboard');
+      // The record-based board, one tap away on the header's award icon,
+      // and never the Arena's wealth ranking.
+      expect(find.byTooltip('Leaderboard'), findsOneWidget);
       expect(arena.leaderboardLoads, 0);
 
-      await revealPeopleText(tester, 'Following');
-      await tester.tap(find.text('Following'));
-      await tester.pumpAndSettle();
-      expect(find.text('People you follow'), findsOneWidget);
+      // Adding a friend follows them: the people you follow ARE the Friends
+      // list, so there is no separate Following tab to explain.
+      expect(find.text('Following'), findsNothing);
+      await revealPeopleText(tester, 'Ada Okafor');
       expect(find.text('Ada Okafor'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Leaderboard'));
+      await tester.pumpAndSettle();
+      expect(find.byType(LeaderboardScreen), findsOneWidget);
+      expect(find.text('Ace Caller'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
@@ -662,7 +668,8 @@ void main() {
         width: 390,
         scale: 1,
       );
-      expect(find.textContaining('Find a person'), findsOneWidget);
+      // Idle: the search scene and one line, not instructions.
+      expect(find.text('Find people and markets'), findsOneWidget);
 
       await tester.enterText(find.byType(TextField), 'ada');
       await tester.pumpAndSettle();

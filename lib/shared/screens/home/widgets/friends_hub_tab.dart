@@ -1,21 +1,31 @@
+/// The Friends tab: the people you follow and your friends from the wallet
+/// app, in one list. The leaderboard opens from the header's award icon.
+///
+/// Adding a friend follows them (add_friend_sheet.dart), so "Friends" and
+/// "Following" are one list here rather than two tabs that showed the same
+/// people with different explanations. Friends from the original wallet app
+/// sit under them, with their avatars, when a wallet is connected.
+///
+/// No paragraphs: an obvious Add a friend row at the top, the people, and —
+/// with nobody yet — the Plankton & Karen people scene with one line and one
+/// button.
+library;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import 'package:chumbucket/core/theme/app_colors.dart';
-import 'package:chumbucket/core/theme/app_text_styles.dart';
-import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
-import 'package:chumbucket/features/calls/providers/calls_provider.dart';
-import 'package:chumbucket/features/calls/presentation/screens/call_person_screen.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_detail_screen.dart';
+import 'package:chumbucket/features/calls/presentation/screens/call_person_screen.dart';
+import 'package:chumbucket/features/calls/providers/calls_provider.dart';
+import 'package:chumbucket/features/people/data/people_models.dart';
 import 'package:chumbucket/features/people/presentation/leaderboard_view.dart';
 import 'package:chumbucket/features/people/presentation/search_screen.dart';
 import 'package:chumbucket/features/people/presentation/widgets/person_row.dart';
 import 'package:chumbucket/shared/screens/home/widgets/friends_tab.dart';
 import 'package:chumbucket/shared/screens/home/widgets/header.dart';
-import 'package:chumbucket/shared/widgets/app_components/app_avatar.dart';
-import 'package:chumbucket/shared/widgets/chumbucket_tabs.dart';
-import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class FriendsHubTab extends StatefulWidget {
@@ -44,9 +54,26 @@ class FriendsHubTab extends StatefulWidget {
 
 class _FriendsHubTabState extends State<FriendsHubTab>
     with AutomaticKeepAliveClientMixin {
-  int _selectedIndex = 0;
+  /// Bumped by pull-to-refresh so the invitations read again.
+  int _refreshTick = 0;
+
   @override
   bool get wantKeepAlive => true;
+
+  Future<void> _refresh(CallsProvider? calls) async {
+    setState(() => _refreshTick++);
+    if (calls != null && calls.isSignedIn && calls.supportsPeople) {
+      await calls.loadFollowing(force: true);
+    }
+  }
+
+  void _openLeaderboard() => Navigator.of(
+    context,
+  ).push(MaterialPageRoute(builder: (_) => const LeaderboardScreen()));
+
+  void _openPerson(String personId) => Navigator.of(context).push(
+    MaterialPageRoute(builder: (_) => CallPersonScreen(personRef: personId)),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -57,8 +84,37 @@ class _FriendsHubTabState extends State<FriendsHubTab>
     // does. A build without it (the seeded mock) shows no ranking at all
     // rather than an invented one.
     final people = calls?.supportsPeople == true;
-    final labels = ['Friends', 'Following', if (people) 'Leaderboard'];
-    final selected = _selectedIndex < labels.length ? _selectedIndex : 0;
+    final signedIn = calls?.isSignedIn == true;
+
+    // The people you follow, from the server's own follow list.
+    final following = people && signedIn ? calls!.following : null;
+    if (people &&
+        signedIn &&
+        following == null &&
+        !calls!.isLoadingFollowing &&
+        calls.followingError == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) calls.loadFollowing();
+      });
+    }
+    final Widget? followingSection;
+    if (people) {
+      followingSection =
+          following == null || following.isEmpty
+              ? null
+              : _FollowingRows(people: following, onOpen: _openPerson);
+    } else {
+      followingSection =
+          signedIn
+              ? _FeedPeople(
+                key: ValueKey('feed-people-${calls!.viewerUserId}'),
+                provider: calls,
+                refreshTick: _refreshTick,
+                onOpen: _openPerson,
+              )
+              : null;
+    }
+
     return SafeArea(
       bottom: false,
       child: Column(
@@ -69,6 +125,21 @@ class _FriendsHubTabState extends State<FriendsHubTab>
             child: ChumbucketAppHeader(
               title: 'Friends',
               showAccountActions: false,
+              // The leaderboard is one tap away as an icon, not a second
+              // tab row under the title.
+              actions: [
+                if (people)
+                  IconButton(
+                    key: const ValueKey('friends-leaderboard'),
+                    tooltip: 'Leaderboard',
+                    onPressed: _openLeaderboard,
+                    icon: const BasilIcon(
+                      'award-outline',
+                      size: 22,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+              ],
               onSearchTap:
                   calls == null
                       ? null
@@ -79,310 +150,172 @@ class _FriendsHubTabState extends State<FriendsHubTab>
                       ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: ChumbucketTabs(
-                labels: labels,
-                selectedIndex: selected,
-                onSelected: (index) => setState(() => _selectedIndex = index),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
           Expanded(
-            child: IndexedStack(
-              index: selected,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: FriendsTab(
-                    key: ValueKey('${widget.refreshKey}-$wallet'),
-                    onAddFriend: widget.onAddFriend,
-                    onFriendSelected: widget.onFriendSelected,
-                    buildViewMoreItem: widget.buildViewMoreItem,
-                    onViewAllChallenges: widget.onViewAllChallenges,
-                    onMarkChallengeCompleted: widget.onMarkChallengeCompleted,
-                    showChallengesPreview: false,
-                    bottomPadding: 140,
-                    invitations:
-                        calls?.isSignedIn == true
-                            ? _CallInvitations(
-                              key: ValueKey(
-                                'invitations-${calls!.viewerUserId}-${widget.refreshKey}',
-                              ),
-                              provider: calls,
-                            )
-                            : null,
-                  ),
-                ),
-                if (people)
-                  _FollowingList(
-                    key: ValueKey('following-list-${calls!.viewerUserId}'),
-                    provider: calls,
-                  )
-                else
-                  _FollowingPeople(
-                    key: ValueKey('following-${calls?.viewerUserId}'),
-                    provider: calls,
-                  ),
-                if (people) const LeaderboardView(),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// The people you follow, from the server's own follow list
-/// (`people.following`) — complete, not inferred from recent calls — each
-/// with their public record.
-class _FollowingList extends StatelessWidget {
-  final CallsProvider provider;
-  const _FollowingList({super.key, required this.provider});
-
-  @override
-  Widget build(BuildContext context) {
-    final styles = AppTextStyles.textTheme;
-    if (!provider.isSignedIn) {
-      return ListView(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 140),
-        children: [
-          _PeopleNotice(
-            artwork: ChumbucketStateArtwork.access,
-            title: 'Keep up with your people',
-            message: 'Sign in to see the people you follow.',
-            action: () => requestCallSignIn(context),
-            actionLabel: 'Sign in',
-          ),
-        ],
-      );
-    }
-    final following = provider.following;
-    final error = provider.followingError;
-    final loading = provider.isLoadingFollowing;
-    // First open, or the list was dropped after a follow change: read it.
-    if (following == null && !loading && error == null) {
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => provider.loadFollowing(),
-      );
-    }
-    return RefreshIndicator(
-      color: AppColors.primary,
-      onRefresh: () => provider.loadFollowing(force: true),
-      child: ListView(
-        key: const PageStorageKey('following-list'),
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 140),
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: [
-          Text('People you follow', style: styles.titleLarge),
-          const SizedBox(height: 8),
-          Text(
-            'Their calls fill your Following feed on Home. Following is '
-            'separate from friendship.',
-            style: styles.bodySmall?.copyWith(
-              color: AppColors.textSecondary,
-              height: 1.5,
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (loading) const LinearProgressIndicator(color: AppColors.primary),
-          if (error != null)
-            _PeopleNotice(
-              artwork: ChumbucketStateArtwork.error,
-              title: 'Following unavailable',
-              message: error,
-              action: () => provider.loadFollowing(force: true),
-              actionLabel: 'Try again',
-            )
-          else if (following != null && following.isEmpty)
-            const _PeopleNotice(
-              artwork: ChumbucketStateArtwork.people,
-              title: 'You don’t follow anyone yet',
-              message:
-                  'Find people on the Leaderboard, in Search, or from any call '
-                  'on Home, then tap Follow.',
-            )
-          else if (following != null)
-            PersonRowGroup(
-              rows: [
-                for (final person in following)
-                  PersonRow(
-                    person: person,
-                    onTap:
-                        () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder:
-                                (_) => CallPersonScreen(personRef: person.id),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: FriendsTab(
+                key: ValueKey('${widget.refreshKey}-$wallet'),
+                onAddFriend: widget.onAddFriend,
+                onFriendSelected: widget.onFriendSelected,
+                buildViewMoreItem: widget.buildViewMoreItem,
+                onViewAllChallenges: widget.onViewAllChallenges,
+                onMarkChallengeCompleted: widget.onMarkChallengeCompleted,
+                showChallengesPreview: false,
+                bottomPadding: 140,
+                followingSection: followingSection,
+                followingEmpty:
+                    !people || !signedIn ? null : following?.isEmpty,
+                followingLoading:
+                    people &&
+                    signedIn &&
+                    following == null &&
+                    calls!.followingError == null,
+                followingError:
+                    people && signedIn && following == null
+                        ? calls!.followingError
+                        : null,
+                onRefresh: () => _refresh(calls),
+                invitations:
+                    signedIn
+                        ? _CallInvitations(
+                          key: ValueKey(
+                            'invitations-${calls!.viewerUserId}-'
+                            '${widget.refreshKey}-$_refreshTick',
                           ),
-                        ),
-                  ),
-              ],
+                          provider: calls,
+                        )
+                        : null,
+              ),
             ),
+          ),
         ],
       ),
     );
   }
 }
 
-/// The repository exposes a following feed, not a complete follow directory.
-/// Label that scope explicitly and leave feed mode/scroll state untouched.
-class _FollowingPeople extends StatefulWidget {
-  final CallsProvider? provider;
-  const _FollowingPeople({super.key, this.provider});
+/// The people you follow, each with their public record.
+class _FollowingRows extends StatelessWidget {
+  const _FollowingRows({required this.people, required this.onOpen});
+  final List<PersonCard> people;
+  final void Function(String personId) onOpen;
+
   @override
-  State<_FollowingPeople> createState() => _FollowingPeopleState();
+  Widget build(BuildContext context) => PersonRowGroup(
+    rows: [
+      for (final person in people)
+        PersonRow(person: person, onTap: () => onOpen(person.id)),
+    ],
+  );
 }
 
-class _FollowingPeopleState extends State<_FollowingPeople> {
-  Future<CallFeedPage>? _page;
-  @override
-  void initState() {
-    super.initState();
-    _page = _read();
-  }
-
-  Future<CallFeedPage>? _read() {
-    final provider = widget.provider;
-    if (provider == null || !provider.isSignedIn) return null;
-    return provider.repository.fetchFeed(
-      mode: CallFeedMode.following,
-      viewerUserId: provider.viewerUserId,
-    );
-  }
-
-  Future<void> _refresh() async {
-    final next = _read();
-    setState(() {
-      _page = next;
-    });
-    try {
-      await _page;
-    } catch (_) {
-      /* FutureBuilder renders the error. */
-    }
-  }
+/// A build without the people layer (the seeded mock) has no follow
+/// directory: it lists the people behind your Following feed instead.
+class _FeedPeople extends StatefulWidget {
+  const _FeedPeople({
+    super.key,
+    required this.provider,
+    required this.refreshTick,
+    required this.onOpen,
+  });
+  final CallsProvider provider;
+  final int refreshTick;
+  final void Function(String personId) onOpen;
 
   @override
-  Widget build(BuildContext context) {
-    final styles = AppTextStyles.textTheme;
-    if (_page == null) {
-      return ListView(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 140),
-        children: [
-          _PeopleNotice(
-            artwork: ChumbucketStateArtwork.access,
-            title: 'Keep up with your people',
-            message: 'Sign in to see people from your Following feed.',
-            action:
-                widget.provider == null
-                    ? null
-                    : () => requestCallSignIn(context),
-            actionLabel: 'Sign in',
-          ),
-        ],
-      );
-    }
-    return RefreshIndicator(
-      color: AppColors.primary,
-      onRefresh: _refresh,
-      child: FutureBuilder<CallFeedPage>(
-        future: _page,
-        builder: (context, snapshot) {
-          final entries = snapshot.data?.entries ?? const <CallFeedEntry>[];
-          final people = <String, Person>{
-            for (final entry in entries) entry.author.id: entry.author,
-          };
-          return ListView(
-            key: const PageStorageKey('following-people'),
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 140),
-            physics: const AlwaysScrollableScrollPhysics(),
-            children: [
-              Text('People in your Following feed', style: styles.titleLarge),
-              const SizedBox(height: 8),
-              Text(
-                'From the latest calls. Following is separate from friendship.',
-                style: styles.bodySmall?.copyWith(
-                  color: AppColors.textSecondary,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (snapshot.connectionState == ConnectionState.waiting)
-                const LinearProgressIndicator(color: AppColors.primary),
-              if (snapshot.hasError)
-                _PeopleNotice(
-                  artwork: ChumbucketStateArtwork.error,
-                  title: 'Following unavailable',
-                  message:
-                      snapshot.error is CallsException
-                          ? (snapshot.error as CallsException).message
-                          : 'Could not load people. Try again.',
-                  action: _refresh,
-                  actionLabel: 'Try again',
-                ),
-              if (snapshot.connectionState == ConnectionState.done &&
-                  !snapshot.hasError &&
-                  people.isEmpty)
-                const _PeopleNotice(
-                  artwork: ChumbucketStateArtwork.people,
-                  title: 'No recent calls here',
-                  message:
-                      'Follow someone from their call or profile. Their calls will appear on Home.',
-                ),
-              if (snapshot.data?.fromCache == true)
-                Text(
-                  'Showing saved people. Pull down to refresh.',
-                  style: styles.bodySmall,
-                ),
-              Material(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(24),
-                clipBehavior: Clip.antiAlias,
-                child: Column(
-                  children: [
-                    for (final person in people.values)
-                      ListTile(
-                        contentPadding: const EdgeInsets.all(16),
-                        leading: AppAvatar(
+  State<_FeedPeople> createState() => _FeedPeopleState();
+}
+
+class _FeedPeopleState extends State<_FeedPeople> {
+  late Future<CallFeedPage> _page = _read();
+
+  Future<CallFeedPage> _read() => widget.provider.repository.fetchFeed(
+    mode: CallFeedMode.following,
+    viewerUserId: widget.provider.viewerUserId,
+  );
+
+  @override
+  void didUpdateWidget(covariant _FeedPeople oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshTick != widget.refreshTick) _page = _read();
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<CallFeedPage>(
+    future: _page,
+    builder: (context, snapshot) {
+      final entries = snapshot.data?.entries ?? const <CallFeedEntry>[];
+      final people = <String, Person>{
+        for (final entry in entries) entry.author.id: entry.author,
+      };
+      if (people.isEmpty) return const SizedBox.shrink();
+      return Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(22),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            for (final person in people.values)
+              Semantics(
+                button: true,
+                label: '${person.displayName}, @${person.handle}',
+                excludeSemantics: true,
+                child: InkWell(
+                  onTap: () => widget.onOpen(person.id),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      children: [
+                        PersonAvatar(
                           initials: person.initials,
                           imageUrl: person.avatarUrl,
-                          size: 48,
-                          backgroundColor: AppColors.primaryContainer,
-                          textColor: AppColors.onPrimaryContainer,
+                          size: 44,
                         ),
-                        title: Text(
-                          person.displayName,
-                          style: styles.titleMedium,
-                        ),
-                        subtitle: Text(
-                          '@${person.handle}',
-                          style: styles.bodySmall,
-                        ),
-                        trailing: const BasilIcon('arrow-right-outline'),
-                        onTap:
-                            () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder:
-                                    (_) =>
-                                        CallPersonScreen(personRef: person.id),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                person.displayName,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
-                            ),
-                      ),
-                  ],
+                              Text(
+                                '@${person.handle}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const BasilIcon(
+                          'arrow-right-outline',
+                          size: 18,
+                          color: AppColors.textSecondary,
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ],
-          );
-        },
-      ),
-    );
-  }
+          ],
+        ),
+      );
+    },
+  );
 }
 
+/// Dares to call a market, from people you know. Free; they open the source
+/// call, where you take a side. A dare whose source call is private, deleted
+/// or unreadable is left out rather than shown as a broken row.
 class _CallInvitations extends StatefulWidget {
   final CallsProvider provider;
   const _CallInvitations({super.key, required this.provider});
@@ -391,18 +324,18 @@ class _CallInvitations extends StatefulWidget {
 }
 
 class _CallInvitationsState extends State<_CallInvitations> {
-  late Future<List<CallDetail?>> _invitations;
+  late Future<List<CallDetail>> _invitations;
   @override
   void initState() {
     super.initState();
     _invitations = _read();
   }
 
-  Future<List<CallDetail?>> _read() async {
+  Future<List<CallDetail>> _read() async {
     final viewer = widget.provider.viewerUserId;
     final repository = widget.provider.repository;
     final invites = await repository.fetchInvitations(viewerUserId: viewer);
-    return Future.wait(
+    final details = await Future.wait(
       invites.where((invite) => invite.toUserId == viewer).map((invite) async {
         try {
           final detail = await repository.fetchCall(
@@ -419,150 +352,140 @@ class _CallInvitationsState extends State<_CallInvitations> {
         } // Private/deleted/blocked source stays hidden.
       }),
     );
+    return details.whereType<CallDetail>().toList(growable: false);
   }
 
   @override
   Widget build(BuildContext context) {
-    final styles = AppTextStyles.textTheme;
-    return FutureBuilder<List<CallDetail?>>(
+    return FutureBuilder<List<CallDetail>>(
       future: _invitations,
       builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: _PeopleNotice(
-              title: 'Call invitations unavailable',
-              message: 'Could not load your invitations.',
-              action: () {
-                final next = _read();
-                setState(() {
-                  _invitations = next;
-                });
-              },
-              actionLabel: 'Try again',
-            ),
-          );
-        }
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Padding(
-            padding: EdgeInsets.only(bottom: 16),
-            child: LinearProgressIndicator(color: AppColors.primary),
-          );
-        }
+        // Loading or failed: nothing here. The list below stays usable and a
+        // pull re-reads it; a dare is never worth a spinner or an error card.
         final invitations = snapshot.data ?? const [];
         if (invitations.isEmpty) return const SizedBox.shrink();
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Call invitations', style: styles.titleMedium),
-            const SizedBox(height: 8),
-            for (final detail in invitations)
-              if (detail == null)
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 12),
-                  child: _PeopleNotice(
-                    title: 'Invitation unavailable',
-                    message:
-                        'The source call may be private, deleted or unavailable.',
-                  ),
-                )
-              else
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final detail in invitations)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Material(
-                    color: AppColors.primaryContainer,
-                    borderRadius: BorderRadius.circular(20),
-                    clipBehavior: Clip.antiAlias,
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.all(16),
-                      leading: AppAvatar(
-                        initials: detail.entry.author.initials,
-                        imageUrl: detail.entry.author.avatarUrl,
-                        size: 48,
-                        backgroundColor: AppColors.surface,
-                        textColor: AppColors.textPrimary,
-                      ),
-                      title: Text(
-                        '${detail.entry.author.displayName} invited you to call',
-                        style: styles.titleSmall,
-                      ),
-                      subtitle: Text(
-                        '${detail.entry.market.venue.isDemo ? 'DEMO DATA · ' : ''}'
-                        'Free invitation · no payment\nOpen the source call to take a side.',
-                        style: styles.bodySmall?.copyWith(
-                          color: AppColors.onPrimaryContainer,
-                        ),
-                      ),
-                      trailing: const BasilIcon('arrow-right-outline'),
-                      onTap:
-                          () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder:
-                                  (_) => CallDetailScreen(
-                                    callId: detail.entry.call.id,
-                                  ),
-                            ),
-                          ),
-                    ),
-                  ),
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _InvitationRow(detail: detail),
                 ),
-          ],
+            ],
+          ),
         );
       },
     );
   }
 }
 
-class _PeopleNotice extends StatelessWidget {
-  final ChumbucketStateArtwork? artwork;
-  final String title;
-  final String message;
-  final VoidCallback? action;
-  final String? actionLabel;
-  const _PeopleNotice({
-    this.artwork,
-    required this.title,
-    required this.message,
-    this.action,
-    this.actionLabel,
-  });
+class _InvitationRow extends StatelessWidget {
+  const _InvitationRow({required this.detail});
+  final CallDetail detail;
+
   @override
   Widget build(BuildContext context) {
-    final styles = AppTextStyles.textTheme;
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
+    final author = detail.entry.author;
+    final market = detail.entry.market;
+    final title = '${author.displayName} invited you to call';
+    return Semantics(
+      button: true,
+      label:
+          '$title. ${market.venue.isDemo ? 'Demo data. ' : ''}'
+          '${market.question}. Free.',
+      excludeSemantics: true,
+      child: Material(
+        color: AppColors.primaryContainer,
         borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (artwork != null) ...[
-            Center(child: ChumbucketStateArt.compact(artwork!)),
-            const SizedBox(height: 12),
-          ],
-          Text(title, style: styles.titleMedium),
-          const SizedBox(height: 8),
-          Text(
-            message,
-            style: styles.bodyMedium?.copyWith(
-              color: AppColors.textSecondary,
-              height: 1.5,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap:
+              () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder:
+                      (_) => CallDetailScreen(callId: detail.entry.call.id),
+                ),
+              ),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    PersonAvatar(
+                      initials: author.initials,
+                      imageUrl: author.avatarUrl,
+                      size: 44,
+                    ),
+                    const Positioned(
+                      right: -3,
+                      bottom: -3,
+                      child: CircleAvatar(
+                        radius: 10,
+                        backgroundColor: AppColors.surface,
+                        child: BasilIcon(
+                          'fire-solid',
+                          size: 13,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.onPrimaryContainer,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${market.venue.isDemo ? 'DEMO DATA · ' : ''}'
+                        '${market.question}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.onPrimaryContainer,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Text(
+                    'Free',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.pinkInk,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          if (action != null) ...[
-            const SizedBox(height: 12),
-            TextButton(
-              style: TextButton.styleFrom(
-                minimumSize: const Size(48, 48),
-                foregroundColor: AppColors.textPrimary,
-              ),
-              onPressed: action,
-              child: Text(actionLabel!),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }

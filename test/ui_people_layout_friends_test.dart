@@ -12,6 +12,11 @@ import 'package:chumbucket/features/calls/presentation/screens/call_person_scree
 import 'package:chumbucket/shared/screens/home/widgets/friends_grid.dart';
 import 'package:chumbucket/shared/screens/home/widgets/friends_hub_tab.dart';
 import 'package:chumbucket/shared/screens/home/widgets/header.dart';
+import 'package:chumbucket/features/people/data/people_models.dart';
+import 'package:chumbucket/features/people/data/people_repository.dart'
+    as people;
+import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
 import 'ui_people_layout_profile_test.dart'
     show mountPeople, PeopleRepository, peopleEntry, revealPeopleText;
 
@@ -165,7 +170,7 @@ void main() {
   });
 
   testWidgets(
-    'Friends uses quiet header and Following instead of wealth rankings',
+    'Friends uses a quiet header and one list of people, no wealth rankings',
     (tester) async {
       final repository = FriendsRepository();
       final calls = CallsProvider(repository: repository)..setViewer('viewer');
@@ -183,16 +188,17 @@ void main() {
             .showAccountActions,
         isFalse,
       );
-      expect(find.text('Leaderboard'), findsNothing);
+      // No people layer in this build: no ranking, and no second tab that
+      // lists the same people under another name.
+      expect(find.byTooltip('Leaderboard'), findsNothing);
+      expect(find.text('Following'), findsNothing);
       expect(arena.leaderboardLoads, 0);
-      await revealPeopleText(tester, 'Following');
-      await tester.tap(find.text('Following'));
-      await tester.pumpAndSettle();
-      expect(find.text('People in your Following feed'), findsOneWidget);
-      expect(find.text('Ada Okafor'), findsOneWidget);
+      // No explanatory paragraphs.
+      expect(find.textContaining('Following is separate'), findsNothing);
+      expect(find.textContaining('Friends you add'), findsNothing);
+      await revealPeopleText(tester, 'Ada Okafor');
       expect(find.textContaining('win rate'), findsNothing);
       expect(tester.takeException(), isNull);
-      await revealPeopleText(tester, 'Ada Okafor');
       expect(find.text('Ada Okafor').hitTestable(), findsOneWidget);
       await tester.tap(find.text('Ada Okafor'));
       await tester.pumpAndSettle();
@@ -215,10 +221,8 @@ void main() {
         wrap: (child) => hub(calls, arena, child),
       );
       expect(find.text('Ada Okafor invited you to call'), findsOneWidget);
-      expect(
-        find.textContaining('DEMO DATA · Free invitation · no payment'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('DEMO DATA · '), findsOneWidget);
+      expect(find.text('Free'), findsOneWidget);
       expect(find.text('Accept'), findsNothing);
       expect(find.text('Decline'), findsNothing);
       expect(tester.takeException(), isNull);
@@ -226,7 +230,7 @@ void main() {
   );
 
   testWidgets(
-    'invitation and Following failures stay retryable, not empty success',
+    'a failed read stays quiet, never an empty success, and a pull reads again',
     (tester) async {
       final repository = FriendsRepository()..unavailable = true;
       final calls = CallsProvider(repository: repository)..setViewer('viewer');
@@ -238,14 +242,17 @@ void main() {
         friendsScreen(),
         wrap: (child) => hub(calls, arena, child),
       );
-      expect(find.text('Call invitations unavailable'), findsOneWidget);
-      await revealPeopleText(tester, 'Following');
-      await tester.tap(find.text('Following'));
-      await tester.pumpAndSettle();
-      expect(find.text('Following unavailable'), findsOneWidget);
+      // No error card, no retry button, no "nobody yet" scene either.
+      expect(find.textContaining('unavailable'), findsNothing);
+      expect(find.text('Try again'), findsNothing);
+      expect(find.text('Add friends to see their calls'), findsNothing);
+      expect(find.text('Add a friend'), findsOneWidget);
       repository.unavailable = false;
-      await revealPeopleText(tester, 'Try again');
-      await tester.tap(find.text('Try again'));
+      await tester.fling(
+        find.byType(RefreshIndicator).first,
+        const Offset(0, 400),
+        1000,
+      );
       await tester.pumpAndSettle();
       expect(find.text('Ada Okafor'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -275,18 +282,124 @@ void main() {
         ),
         wrap: (child) => hub(calls, arena, child),
       );
-      // No wallet is connected, and the action is still there.
+      // No wallet is connected, and the action is still there, first.
       await revealPeopleText(tester, 'Add a friend');
       expect(find.text('Add a friend').hitTestable(), findsOneWidget);
       await tester.tap(find.text('Add a friend'));
       expect(adds, 1);
-      expect(
-        find.textContaining('Friends you add are listed under Following'),
-        findsOneWidget,
-      );
+      // Nothing about the old app's wallet friends, and no account link.
+      expect(find.textContaining('wallet is connected'), findsNothing);
+      expect(find.text('Account settings'), findsNothing);
       // The old add-by-handle queue is gone: nothing promises a join.
       expect(find.text('Waiting to join'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets(
+    'nobody yet: the people scene, one line, one Add a friend button',
+    (tester) async {
+      final repository = FollowsRepository();
+      final calls = CallsProvider(repository: repository)..setViewer('viewer');
+      final arena = QuietArena();
+      addTearDown(calls.dispose);
+      addTearDown(arena.dispose);
+      var adds = 0;
+      await mountPeople(
+        tester,
+        Scaffold(
+          body: FriendsHubTab(
+            refreshKey: 0,
+            onAddFriend: () => adds++,
+            onFriendSelected: (_) {},
+            buildViewMoreItem: (_, count) => Text('View $count more'),
+            onViewAllChallenges: () {},
+            onMarkChallengeCompleted: (_, __) async {},
+          ),
+        ),
+        wrap: (child) => hub(calls, arena, child),
+      );
+      expect(find.byTooltip('Leaderboard'), findsOneWidget);
+      expect(find.text('Add friends to see their calls'), findsOneWidget);
+      expect(find.byType(ChumbucketStateArt), findsOneWidget);
+      await tester.tap(
+        find.widgetWithText(ChumbucketPrimaryButton, 'Add a friend'),
+      );
+      expect(adds, 1);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('the people you follow are the Friends list, with records', (
+    tester,
+  ) async {
+    final repository =
+        FollowsRepository()
+          ..follows = [
+            PersonCard(
+              id: 'user_kemi',
+              handle: 'kemi',
+              displayName: 'Kemi Balogun',
+              record: const PublicRecord(
+                correct: 6,
+                incorrect: 2,
+                voided: 0,
+                decided: 8,
+                pending: 1,
+                minimumDecided: 10,
+              ),
+            ),
+          ];
+    final calls = CallsProvider(repository: repository)..setViewer('viewer');
+    final arena = QuietArena();
+    addTearDown(calls.dispose);
+    addTearDown(arena.dispose);
+    await mountPeople(
+      tester,
+      friendsScreen(),
+      width: 390,
+      scale: 1,
+      wrap: (child) => hub(calls, arena, child),
+    );
+    expect(find.text('Add a friend'), findsOneWidget);
+    expect(find.text('Kemi Balogun'), findsOneWidget);
+    expect(find.text('Add friends to see their calls'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+}
+
+/// The live people layer's follow list, over the seeded mock.
+class FollowsRepository extends FriendsRepository
+    implements people.PeopleRepository {
+  List<PersonCard> follows = const [];
+
+  @override
+  Future<List<PersonCard>> fetchFollowing() async => follows;
+
+  @override
+  Future<Leaderboard> fetchLeaderboard({
+    required LeaderboardWindow window,
+    int limit = 50,
+  }) async => Leaderboard(
+    window: window,
+    ranked: const [],
+    building: const [],
+    viewer: null,
+    minimumDecided: 10,
+    rule: 'Ranked by accuracy.',
+    servedAt: 0,
+  );
+
+  @override
+  Future<List<PersonCard>> searchPeople(String query, {int limit = 20}) async =>
+      const [];
+
+  @override
+  Future<List<TopCall>> fetchTopCalls({int limit = 10}) async => const [];
+
+  @override
+  Future<ThesisUpdate> appendThesisUpdate({
+    required String callId,
+    required String body,
+  }) => throw UnimplementedError();
 }

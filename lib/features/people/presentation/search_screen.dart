@@ -190,11 +190,14 @@ class _PeopleSearchScreenState extends State<PeopleSearchScreen> {
           ),
           const SizedBox(height: 20),
           if (term.isEmpty)
-            Text(
-              'Find a person by name or @handle, or a market by its question.',
-              style: styles.bodyMedium?.copyWith(
-                color: AppColors.textSecondary,
-                height: 1.5,
+            const Padding(
+              padding: EdgeInsets.only(top: 24),
+              child: ChumbucketStateView(
+                artwork: ChumbucketStateArtwork.search,
+                message: 'Find people and markets',
+                semanticsHint:
+                    'Search a name or @handle, or words from a market’s '
+                    'question.',
               ),
             )
           else ...[
@@ -228,12 +231,12 @@ class _PeopleSearchScreenState extends State<PeopleSearchScreen> {
           child: LinearProgressIndicator(color: AppColors.primary),
         ),
       if (_peopleError != null)
-        CallsNotice(
-          icon: 'info-triangle-outline',
-          color: AppColors.error,
-          message: _peopleError!,
-          actionLabel: 'Try again',
-          onAction: () => _searchPeople(_query),
+        _SearchMiss(
+          text:
+              provider.isOffline
+                  ? 'You’re offline'
+                  : 'Couldn’t search people',
+          detail: _peopleError!,
         )
       else if (people != null && people.isEmpty && !_searchingPeople)
         Text(
@@ -270,12 +273,12 @@ class _PeopleSearchScreenState extends State<PeopleSearchScreen> {
       }
       if (provider.openMarketsError != null) {
         return [
-          CallsNotice(
-            icon: 'info-triangle-outline',
-            color: AppColors.error,
-            message: provider.openMarketsError!,
-            actionLabel: 'Try again',
-            onAction: () => provider.loadOpenMarkets(force: true),
+          _SearchMiss(
+            text:
+                provider.isOffline
+                    ? 'You’re offline'
+                    : 'Couldn’t load markets',
+            detail: provider.openMarketsError!,
           ),
         ];
       }
@@ -352,6 +355,40 @@ class _SectionTitle extends StatelessWidget {
         fontSize: 17,
         letterSpacing: 0,
       ),
+    ),
+  );
+}
+
+/// A section that could not be searched: an icon and a few words. Typing
+/// again searches again; there is no retry button.
+class _SearchMiss extends StatelessWidget {
+  const _SearchMiss({required this.text, required this.detail});
+  final String text;
+  final String detail;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: text,
+    hint: detail,
+    excludeSemantics: true,
+    child: Row(
+      children: [
+        const BasilIcon(
+          'cloud-off-outline',
+          size: 18,
+          color: AppColors.textSecondary,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 14,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+      ],
     ),
   );
 }
