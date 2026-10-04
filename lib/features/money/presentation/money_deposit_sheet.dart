@@ -160,6 +160,15 @@ class _MoneyDepositSheetState extends State<MoneyDepositSheet> {
       final known = wallet.wallet?.address;
       _noWallet = known == null;
       if (known == null) return;
+      // The destination must be a wallet this phone itself knows is the
+      // account's; otherwise nothing payable shows (no QR, card or transfer).
+      final mine = widget.dependencies.phoneWallets?.call() ?? const {};
+      if (!mine.contains(known)) {
+        throw const MoneyException(
+          MoneyErrorKind.invalidResponse,
+          'We couldn’t confirm your wallet. Nothing was sent.',
+        );
+      }
       if (
           options.tradingWallet?.address != known ||
           (options.sendUsdc != null &&

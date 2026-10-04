@@ -2,14 +2,23 @@
 /// keeps the sheet; a second transfer while one is in flight watches that
 /// one; a key replayed after signing answers its state, never a new review.
 /// The silent gas top-up is capped and refuses a bad rate before signing.
+///
+/// These run the REAL transfer check (`checkUsdcTransfer`) on real v0
+/// transactions laid out as contract (c) builds them.
 library;
+
+import 'dart:async';
 
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:chumbucket/features/money/data/money_models.dart';
 import 'package:chumbucket/features/money/domain/money_gas.dart';
+import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/money/domain/money_transfer_signer.dart';
+import 'package:chumbucket/features/money/domain/usdc_transfer_check.dart';
+import 'package:chumbucket/features/money/presentation/money_dependencies.dart'
+    show moneyTransferSignerFor;
 import 'package:chumbucket/features/money/money_transfer_controller.dart';
 import 'package:chumbucket/features/sol_topup/domain/gasless_swap_check.dart';
 import 'package:chumbucket/features/sol_topup/domain/sol_topup_signer.dart';
@@ -33,12 +42,15 @@ Map<String, dynamic> _view({String state = 'BUILT', String? id}) => {
   'expiresAt': farFuture,
 };
 
-Map<String, dynamic> _ready() => {
+/// A real cash out of $5 from [signerWallet] to [otherWallet].
+late String realPayload;
+
+Map<String, dynamic> _ready({String? payload}) => {
   'status': 'READY',
   'transfer': _view(),
   'transaction': {
     'encoding': 'solana-tx-base64',
-    'payload': base64Encode(moneyUnsigned()),
+    'payload': payload ?? realPayload,
     'expiresAt': farFuture,
   },
   'review': {
@@ -74,26 +86,40 @@ void main() {
   late int signs;
   var keys = 0;
 
+  setUpAll(() async {
+    realPayload = await transferPayload(from: signerWallet, to: otherWallet);
+  });
+
   setUp(() {
     server = FakeMoneyServer();
     signs = 0;
   });
 
-  MoneyTransferController controller() {
+  var clock = moneyNow;
+  MoneyTransferController controller({
+    Future<Uint8List> Function()? answer,
+    MoneyGasTopUp? topUp,
+    Duration approvalTimeout = const Duration(minutes: 2),
+  }) {
     final c = MoneyTransferController(
       client: server.moneyClient(),
       kind: MoneyTransferKind.cashOut,
+      // The real check (the signer's default), before any signature.
       signerFor:
           (wallet) => MoneyTransferSigner(
             address: wallet,
-            check: (bytes, _) async => Uint8List.fromList(bytes.sublist(65)),
             sign: (_, _) async {
               signs++;
-              return Uint8List.fromList(List.filled(64, 4));
+              return answer == null
+                  ? Uint8List.fromList(List.filled(64, 4))
+                  : answer();
             },
           ),
+      topUp: topUp,
       newIdempotencyKey: () => 'transfer-key-${(++keys).toString().padLeft(8, '0')}',
+      now: () => DateTime.fromMillisecondsSinceEpoch(clock),
       pollEvery: const Duration(hours: 1),
+      approvalTimeout: approvalTimeout,
     );
     addTearDown(c.dispose);
     return c;
@@ -213,6 +239,122 @@ void main() {
     expect(keysSent, hasLength(2));
   });
 
+  test('the real check signs the reviewed transfer, slot only', () async {
+    server
+      ..on('money.cashOutPrepare', [_ready()])
+      ..on('money.transferSubmit', [_view(state: 'SUBMITTED')]);
+    final c = controller();
+    await prepare(c);
+    await c.sign();
+    expect(signs, 1);
+    final sent = base64Decode(
+      server.inputs('money.transferSubmit').single['signedTransaction'] as String,
+    );
+    expect(sent.sublist(65), base64Decode(realPayload).sublist(65));
+    expect(c.step, MoneyTransferStep.confirming);
+  });
+
+  test('the real check refuses bytes paying someone else, unsigned', () async {
+    final elsewhere = await transferPayload(
+      from: signerWallet,
+      to: otherWallet,
+      destinationOverride: venueMarket,
+    );
+    server.on('money.cashOutPrepare', [_ready(payload: elsewhere)]);
+    final c = controller();
+    await prepare(c);
+    await c.sign();
+    expect(signs, 0);
+    expect(server.count('money.transferSubmit'), 0);
+    expect(c.error, contains('didn’t match'));
+  });
+
+  test('the real check refuses a different amount than asked', () async {
+    final more = await transferPayload(
+      from: signerWallet,
+      to: otherWallet,
+      amount: 50000000,
+    );
+    server.on('money.cashOutPrepare', [_ready(payload: more)]);
+    final c = controller();
+    await prepare(c);
+    await c.sign();
+    expect(signs, 0);
+    expect(server.count('money.transferSubmit'), 0);
+  });
+
+  test('gas is only topped up on the wallet that pays', () async {
+    server.on('money.cashOutPrepare', [
+      {
+        'status': 'NEEDS_GAS',
+        'wallet': {'address': otherWallet, 'walletType': 'mwa'},
+        'topUp': {'amountBaseUnits': '2000000'},
+      },
+    ]);
+    var topUps = 0;
+    final c = controller(topUp: (_, _) async => topUps++);
+    await prepare(c);
+    expect(topUps, 0);
+    expect(c.step, MoneyTransferStep.idle);
+    expect(c.error, isNotNull);
+  });
+
+  test('an unsigned review in the way: nothing was sent, a new one after it', () async {
+    const flying = '99999999-9999-4999-8999-999999999999';
+    server
+      ..on('money.cashOutPrepare', [_inFlight(flying)])
+      ..on('money.transferStatus', [
+        {..._view(id: flying), 'expiresAt': moneyNow + 60000},
+      ]);
+    final c = controller();
+    await prepare(c);
+    expect(c.step, MoneyTransferStep.idle);
+    expect(c.error, 'Nothing was sent.');
+    expect(c.canDismiss, isTrue);
+
+    // Before its time is up: not yet.
+    await prepare(c);
+    expect(server.count('money.cashOutPrepare'), 1);
+    expect(c.error, contains('Nothing was sent'));
+
+    // After: a new review.
+    clock = moneyNow + 61000;
+    server.on('money.cashOutPrepare', [_ready()]);
+    await prepare(c);
+    expect(c.step, MoneyTransferStep.review);
+    clock = moneyNow;
+  });
+
+  test('a wallet that never answers: back to review, the sheet free', () async {
+    server.on('money.cashOutPrepare', [_ready()]);
+    final never = Completer<Uint8List>();
+    final c = controller(
+      answer: () => never.future,
+      approvalTimeout: const Duration(milliseconds: 50),
+    );
+    await prepare(c);
+    await c.sign();
+    expect(c.step, MoneyTransferStep.review);
+    expect(c.canDismiss, isTrue);
+    expect(server.count('money.transferSubmit'), 0);
+  });
+
+  test('production wiring signs transfers behind the real check', () {
+    final app = moneyTransferSignerFor(
+      wallet: signerWallet,
+      walletApp: _WalletApp(signerWallet),
+    );
+    expect(app, isNotNull);
+    expect(identical(app!.check, checkUsdcTransfer), isTrue);
+    expect(
+      identical(
+        MoneyTransferSigner(address: signerWallet, sign: (_, _) async => Uint8List(64)).check,
+        checkUsdcTransfer,
+      ),
+      isTrue,
+    );
+  });
+
   group('the silent gas top-up', () {
     late FakeTopUpBff bff;
     setUp(() => bff = FakeTopUpBff());
@@ -273,4 +415,13 @@ class _CountingSigner implements SolTopUpSigner {
     count++;
     return unsigned;
   }
+}
+
+class _WalletApp extends MwaAuthProvider {
+  _WalletApp(this.wallet);
+  final String? wallet;
+  @override
+  bool get isAuthenticated => wallet != null;
+  @override
+  String? get walletAddress => wallet;
 }

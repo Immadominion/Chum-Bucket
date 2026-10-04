@@ -47,6 +47,7 @@ class MoneyTransferController extends ChangeNotifier {
     String Function()? newIdempotencyKey,
     DateTime Function()? now,
     this.pollEvery = const Duration(seconds: 3),
+    this.approvalTimeout = const Duration(minutes: 2),
   }) : _client = client,
        _signerFor = signerFor,
        _topUp = topUp,
@@ -60,6 +61,13 @@ class MoneyTransferController extends ChangeNotifier {
   final String Function() _newKey;
   final DateTime Function() _now;
   final Duration pollEvery;
+
+  /// How long a wallet may take to approve before the sheet gives up on it.
+  final Duration approvalTimeout;
+
+  /// A review that was never signed, still open on the server until then:
+  /// a new one may be prepared only after it.
+  int? _blockedUntil;
 
   MoneyTransferStep _step = MoneyTransferStep.idle;
   TransferReady? _ready;
@@ -105,6 +113,14 @@ class MoneyTransferController extends ChangeNotifier {
       _resumeInFlight();
       return;
     }
+    final until = _blockedUntil;
+    if (until != null && _now().millisecondsSinceEpoch < until) {
+      throw const MoneyException(
+        MoneyErrorKind.conflict,
+        'Nothing was sent. Try again in a moment.',
+      );
+    }
+    _blockedUntil = null;
     final request = '$from>$to:$amountBaseUnits';
     if (_keyFor != request || !_replyLost) {
       _key = _newKey();
@@ -141,6 +157,10 @@ class MoneyTransferController extends ChangeNotifier {
           _set(MoneyTransferStep.idle);
           return;
         case TransferNeedsGas(:final wallet, :final topUpBaseUnits):
+          // Gas is only ever topped up on the wallet that pays this transfer.
+          if (wallet.address != from) {
+            throw const MoneyException(MoneyErrorKind.invalidResponse);
+          }
           final topUp = _topUp;
           if (topUp == null || topUpBaseUnits == null || gasRuns >= 2) {
             throw const MoneyException(MoneyErrorKind.unavailable);
@@ -204,7 +224,10 @@ class MoneyTransferController extends ChangeNotifier {
     _expected = null;
     _transfer = view;
     _applyState(view);
-    if (!view.settled) _startPolling();
+    if (_step == MoneyTransferStep.confirming ||
+        _step == MoneyTransferStep.sent) {
+      _startPolling();
+    }
     if (!_disposed) notifyListeners();
   }
 
@@ -249,7 +272,9 @@ class MoneyTransferController extends ChangeNotifier {
       _set(MoneyTransferStep.signing);
       final bytes = decodePantaTransaction(ready.payload);
       try {
-        final signed = await signer.signTransfer(bytes, expected);
+        final signed = await signer
+            .signTransfer(bytes, expected)
+            .timeout(approvalTimeout);
         _signed = base64Encode(signed);
       } catch (e) {
         _step = MoneyTransferStep.review;
@@ -358,8 +383,17 @@ class MoneyTransferController extends ChangeNotifier {
       case TransferState.submitted:
         _step = MoneyTransferStep.confirming;
       case TransferState.built:
-        // Our bytes never arrived: keep the resend offer.
-        if (_step != MoneyTransferStep.sent) _step = MoneyTransferStep.confirming;
+        if (_signed != null) {
+          // Our bytes never arrived: keep the resend offer.
+          _step = MoneyTransferStep.sent;
+        } else {
+          // Never signed: nothing was sent. A new review may follow once
+          // this one's time is up on the server.
+          _stopPolling();
+          _blockedUntil = view.expiresAt;
+          _error = 'Nothing was sent.';
+          _step = MoneyTransferStep.idle;
+        }
     }
   }
 

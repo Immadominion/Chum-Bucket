@@ -252,7 +252,9 @@ class BffCallsRepository
       requireJsonMap(data, '$feedProcedure result'),
     );
     // Only the first page: it is what a cold start draws.
-    if (cursor == null) _save(_feedKey(mode, viewer), data, at);
+    if (cursor == null) {
+      _save(_feedKey(mode, viewer), withoutOwnerMoney(data), at);
+    }
     return page;
   }
 
@@ -373,7 +375,7 @@ class BffCallsRepository
     );
     // Your own profile and record only: it is what Profile draws on open.
     if (viewer != null && personRef == viewer) {
-      _save(_personKey(personRef, viewer), data, at);
+      _save(_personKey(personRef, viewer), withoutOwnerMoney(data), at);
     }
     return detail;
   }
@@ -643,4 +645,18 @@ class BffCallsRepository
 
   /// Releases the HTTP client, if this repository created it.
   void close() => _transport.close();
+}
+
+/// [json] with every call's owner-only `money` view taken out: a pending or
+/// expired money call is never written to this phone's disk. It comes back
+/// from the server on the next read; a saved read draws the call without it.
+Object? withoutOwnerMoney(Object? json) {
+  if (json is List) return [for (final item in json) withoutOwnerMoney(item)];
+  if (json is! Map) return json;
+  final isEntry = json.containsKey('call') && json.containsKey('market');
+  return {
+    for (final entry in json.entries)
+      if (!(isEntry && entry.key == 'money'))
+        entry.key: withoutOwnerMoney(entry.value),
+  };
 }

@@ -317,8 +317,10 @@ void main() {
       addTearDown(calls.dispose);
       await calls.loadFeed();
       final source = calls.repository as BffCallsRepository;
+      // On screen the owner sees it pending; on disk it is never written.
+      expect(calls.feed.single.money!.pending, isTrue);
       final saved = await source.savedFeed(mode: CallFeedMode.global);
-      expect(saved!.entries.single.money!.pending, isTrue);
+      expect(saved!.entries.single.money, isNull);
 
       calls.setViewer('user_other');
       await Future<void>.delayed(Duration.zero);
@@ -340,5 +342,25 @@ void main() {
       AppSignOutEffects().clearSharedState();
       expect(SnapshotStore.device.generation, before + 1);
     });
+  });
+
+  test('a saved profile never carries the owner\'s money view either', () {
+    final stripped =
+        withoutOwnerMoney({
+              'calls': [
+                pantaEntryJson(
+                  money: {
+                    'state': 'PENDING',
+                    'amountBaseUnits': '5000000',
+                    'side': 'YES',
+                    'expiresAt': moneyNow,
+                  },
+                ),
+              ],
+            })
+            as Map;
+    final call = (stripped['calls'] as List).single as Map;
+    expect(call.containsKey('money'), isFalse);
+    expect(call.containsKey('call'), isTrue);
   });
 }

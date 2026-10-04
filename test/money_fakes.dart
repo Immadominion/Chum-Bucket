@@ -16,6 +16,9 @@ import 'package:chumbucket/features/panta_trading/panta_trading.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:solana/base58.dart';
+import 'package:solana/encoder.dart';
+import 'package:solana/solana.dart'
+    show Ed25519HDPublicKey, Signature, findAssociatedTokenAddress;
 
 import 'bff_calls_fixtures.dart';
 
@@ -516,6 +519,7 @@ MoneyDependencies fakeMoneyDeps(
   Duration pollEvery = const Duration(seconds: 5),
   Future<Uint8List> Function(Uint8List, ExpectedUsdcTransfer)? checkTransfer,
   Future<bool> Function()? setUpWallet,
+  Set<String>? phoneWallets,
 }) => MoneyDependencies(
   createClient: server.moneyClient,
   createTradingClient: server.tradingClient,
@@ -546,5 +550,51 @@ MoneyDependencies fakeMoneyDeps(
           ? null
           : (context, {shortfall, wallet}) => openCard(),
   setUpWallet: setUpWallet == null ? null : (_) => setUpWallet(),
+  phoneWallets: () => phoneWallets ?? {signerWallet},
   pollEvery: pollEvery,
 );
+
+const _usdcMint = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+const _token = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+
+Ed25519HDPublicKey _pk(String b58) => Ed25519HDPublicKey.fromBase58(b58);
+
+/// A cash-out transfer exactly as contract (c) builds it.
+Future<String> transferPayload({
+  required String from,
+  required String to,
+  int amount = 5000000,
+  String? destinationOverride,
+}) async {
+  Future<String> ata(String owner) async =>
+      (await findAssociatedTokenAddress(owner: _pk(owner), mint: _pk(_usdcMint)))
+          .toBase58();
+  final amountLe = List<int>.generate(8, (i) => (amount >> (8 * i)) & 0xff);
+  final compiled = Message(
+    instructions: [
+      Instruction(
+        programId: _pk(_token),
+        accounts: [
+          AccountMeta(pubKey: _pk(await ata(from)), isWriteable: true, isSigner: false),
+          AccountMeta(pubKey: _pk(_usdcMint), isWriteable: false, isSigner: false),
+          AccountMeta(
+            pubKey: _pk(destinationOverride ?? await ata(to)),
+            isWriteable: true,
+            isSigner: false,
+          ),
+          AccountMeta(pubKey: _pk(from), isWriteable: false, isSigner: true),
+        ],
+        data: ByteArray([12, ...amountLe, 6]),
+      ),
+    ],
+  ).compileV0(
+    recentBlockhash: 'EETubP5AKHgjPAhzPAFcb8BAY1hMH639CWCFTqi3hq1k',
+    feePayer: _pk(from),
+  );
+  return base64Encode(
+    SignedTx(
+      compiledMessage: compiled,
+      signatures: [Signature(List.filled(64, 0), publicKey: _pk(from))],
+    ).toByteArray().toList(),
+  );
+}

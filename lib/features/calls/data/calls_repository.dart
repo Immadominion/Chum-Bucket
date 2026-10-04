@@ -209,11 +209,15 @@ class CallFunding {
   /// The amount and its side are both known.
   bool get hasAmount => amountBaseUnits != null && side != null;
 
-  /// "$5 on YES", as receipts and cards stamp it; null without an amount.
+  /// "$5 on YES", as receipts and cards stamp it; null without an amount,
+  /// and below $1 (a dust fill earns no stamp, as on the web and the BFF).
   String? get amountLabel =>
-      hasAmount
+      hasAmount && amountBaseUnits! >= minStampBaseUnits
           ? '${PantaMoney.dollars(amountBaseUnits!)} on ${side!.wire}'
           : null;
+
+  /// $1: the least a fill must be to wear its amount.
+  static final minStampBaseUnits = BigInt.from(1000000);
 
   /// Only `{state: FILLED, venue: panta}` is a funded call; anything else is
   /// not shown as funded. A malformed amount is dropped, never guessed at.

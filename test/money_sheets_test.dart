@@ -13,57 +13,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:solana/encoder.dart';
-import 'package:solana/solana.dart'
-    show Ed25519HDPublicKey, Signature, findAssociatedTokenAddress;
 
 import 'money_fakes.dart';
 import 'money_widgets_test.dart' show Opener, harness, moneyServer, usePhone;
-
-const _usdc = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
-const _token = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
-
-Ed25519HDPublicKey _pk(String b58) => Ed25519HDPublicKey.fromBase58(b58);
-
-/// A cash-out transfer exactly as contract (c) builds it.
-Future<String> transferPayload({
-  required String from,
-  required String to,
-  int amount = 5000000,
-  String? destinationOverride,
-}) async {
-  Future<String> ata(String owner) async =>
-      (await findAssociatedTokenAddress(owner: _pk(owner), mint: _pk(_usdc)))
-          .toBase58();
-  final amountLe = List<int>.generate(8, (i) => (amount >> (8 * i)) & 0xff);
-  final compiled = Message(
-    instructions: [
-      Instruction(
-        programId: _pk(_token),
-        accounts: [
-          AccountMeta(pubKey: _pk(await ata(from)), isWriteable: true, isSigner: false),
-          AccountMeta(pubKey: _pk(_usdc), isWriteable: false, isSigner: false),
-          AccountMeta(
-            pubKey: _pk(destinationOverride ?? await ata(to)),
-            isWriteable: true,
-            isSigner: false,
-          ),
-          AccountMeta(pubKey: _pk(from), isWriteable: false, isSigner: true),
-        ],
-        data: ByteArray([12, ...amountLe, 6]),
-      ),
-    ],
-  ).compileV0(
-    recentBlockhash: 'EETubP5AKHgjPAhzPAFcb8BAY1hMH639CWCFTqi3hq1k',
-    feePayer: _pk(from),
-  );
-  return base64Encode(
-    SignedTx(
-      compiledMessage: compiled,
-      signatures: [Signature(List.filled(64, 0), publicKey: _pk(from))],
-    ).toByteArray().toList(),
-  );
-}
 
 Map<String, dynamic> transferViewJson({
   required String from,
@@ -523,6 +475,40 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('deposit-send-usdc')), findsNothing);
     expect(find.textContaining('couldn’t confirm your wallet'), findsOneWidget);
+  });
+
+  testWidgets('a trading wallet this phone doesn\'t know: nothing payable', (
+    tester,
+  ) async {
+    usePhone(tester);
+    final server = moneyServer()..on('money.depositOptions', [depositOptionsJson()]);
+    final money = await boundMoney(server);
+    addTearDown(money.dispose);
+    var cards = 0;
+    await tester.pumpWidget(
+      harness(
+        money: money,
+        // The phone only knows another wallet: the server's answer, however
+        // consistent, is not enough.
+        deps: fakeMoneyDeps(
+          server,
+          phoneWallets: {otherWallet},
+          openCard: () async {
+            cards++;
+            return false;
+          },
+        ),
+        child: Opener(open: (context) => showMoneyDepositSheet(context)),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('deposit-send-usdc')), findsNothing);
+    expect(find.byKey(const ValueKey('deposit-card')), findsNothing);
+    expect(find.byKey(const ValueKey('deposit-from-wallet')), findsNothing);
+    expect(find.byKey(const ValueKey('deposit-qr')), findsNothing);
+    expect(find.textContaining('couldn’t confirm your wallet'), findsOneWidget);
+    expect(cards, 0);
   });
 
   testWidgets('Collect \$9.20: the claim path, then the balance again', (

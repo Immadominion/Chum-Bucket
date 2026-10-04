@@ -50,6 +50,7 @@ class MoneyDependencies {
     this.openCard,
     this.walletApp,
     this.connectWalletApp,
+    this.phoneWallets,
     this.pollEvery = const Duration(seconds: 3),
   });
 
@@ -89,6 +90,12 @@ class MoneyDependencies {
   /// The connected wallet app's address, or null.
   final String? Function()? walletApp;
   final Future<bool> Function(BuildContext context)? connectWalletApp;
+
+  /// The wallets this phone itself knows are the account's: the Chumbucket
+  /// wallet alone when it is on, else the wallet app, the wallet on this
+  /// phone and the wallet this session signed in with. A deposit only ever
+  /// goes to one of these, whatever a server answer names.
+  final Set<String> Function()? phoneWallets;
   final Duration pollEvery;
 
   static MoneyDependencies? of(BuildContext context) {
@@ -179,6 +186,21 @@ class MoneyDependencies {
               ? null
               : () => auth.isAuthenticated ? auth.walletAddress : null,
       connectWalletApp: auth == null ? null : reconnectWalletApp,
+      phoneWallets: () {
+        if (chumbucket != null) {
+          final own = chumbucket.address;
+          return {if (own != null) own};
+        }
+        final app =
+            auth != null && auth.isAuthenticated ? auth.walletAddress : null;
+        final phone = onPhone?.signer?.address;
+        final signedInWith = session.signInWallet;
+        return {
+          if (app != null) app,
+          if (phone != null) phone,
+          if (signedInWith != null) signedInWith,
+        };
+      },
     );
   }
 }

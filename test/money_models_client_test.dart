@@ -105,6 +105,19 @@ void main() {
         ),
       );
       expect(funded.funding!.amountLabel, r'$5 on YES');
+      // Below $1 a fill earns no amount stamp (as on the web and the BFF).
+      final dust = callFeedEntryFromJson(
+        pantaEntryJson(
+          funding: {
+            'state': 'FILLED',
+            'venue': 'panta',
+            'fundedAt': kNow,
+            'amountBaseUnits': '990000',
+            'side': 'YES',
+          },
+        ),
+      );
+      expect(dust.funding!.amountLabel, isNull);
       final legacy = callFeedEntryFromJson(
         pantaEntryJson(
           funding: {'state': 'FILLED', 'venue': 'panta', 'fundedAt': kNow},

@@ -12,7 +12,7 @@ import 'package:flutter/material.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart'
-    show CallFeedEntry;
+    show CallFeedEntry, CallFunding;
 import 'package:chumbucket/features/calls/presentation/widgets/call_badges.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_composer_sheet.dart'
     show CallInlineError, callJourneyBody, callJourneyHeading;
@@ -399,8 +399,10 @@ class _MoneyCallSheetState extends State<MoneyCallSheet> {
               key: const ValueKey('money-funded'),
               // The confirmed fill; "Funded" when its amount is unknown.
               amount: switch (money.filledBaseUnits) {
-                final filled? => moneyOnSide(filled, money.side),
-                null => null,
+                // Below $1 a fill earns no amount stamp.
+                final filled? when filled >= CallFunding.minStampBaseUnits =>
+                  moneyOnSide(filled, money.side),
+                _ => null,
               },
               large: true,
             ),
