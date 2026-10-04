@@ -1,7 +1,12 @@
 /// What the bell opens: the calls inbox (`inbox.*` on the calls BFF) — who
 /// backed or faded your call, when the venue settled one, who dared you to go
-/// on record. Session-scoped; with no session it says so in one row and
-/// offers to connect, rather than blocking the screen.
+/// on record.
+///
+/// Laid out as "New" (unread) and "Earlier" (read), compact rows grouped on
+/// one surface. It opens on the inbox as last seen (saved on this phone) and
+/// refreshes silently: on open, on pull, on resume. A failed refresh keeps the
+/// rows with no banner; with nothing to show, a full-screen state with the
+/// brand art says so in one line.
 ///
 /// The wallet-keyed notices from the original challenge and Arena system now
 /// live in Settings → History (`LegacyHistoryScreen`), read-only, and are not
@@ -14,6 +19,7 @@ import 'package:provider/provider.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart';
 import 'package:chumbucket/features/notifications/data/notification_models.dart';
 import 'package:chumbucket/features/notifications/presentation/notification_target_router.dart';
 import 'package:chumbucket/features/notifications/presentation/widgets/notification_row.dart';
@@ -31,12 +37,31 @@ class ActivityScreen extends StatefulWidget {
 }
 
 class _ActivityScreenState extends State<ActivityScreen> {
+  final ScrollController _scroll = ScrollController();
+
   @override
   void initState() {
     super.initState();
+    _scroll.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _refresh();
     });
+  }
+
+  @override
+  void dispose() {
+    _scroll.removeListener(_onScroll);
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  /// Older rows load as you reach them — no "Show more" button.
+  void _onScroll() {
+    if (!_scroll.hasClients) return;
+    final position = _scroll.position;
+    if (position.pixels > position.maxScrollExtent - 240) {
+      context.read<NotificationsProvider>().loadMore();
+    }
   }
 
   Future<void> _refresh() =>
@@ -72,6 +97,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.background,
+        surfaceTintColor: AppColors.background,
         elevation: 0,
         foregroundColor: AppColors.textPrimary,
         leading: IconButton(
@@ -86,190 +112,185 @@ class _ActivityScreenState extends State<ActivityScreen> {
         title: Text(
           'Activity',
           style: AppTextStyles.questionTitle.copyWith(
-            fontSize: 17,
-            fontWeight: FontWeight.w400,
+            fontSize: 20,
             letterSpacing: 0,
           ),
         ),
+        actions: [
+          if (calls.unreadCount > 0 &&
+              calls.state == NotificationsLoadState.ready)
+            IconButton(
+              key: const ValueKey('activity-mark-all-read'),
+              tooltip: 'Mark all read',
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+              onPressed: calls.isMarkingRead ? null : calls.markAllRead,
+              icon: const BasilIcon(
+                'checked-box-outline',
+                color: AppColors.textPrimary,
+              ),
+            ),
+          const SizedBox(width: 4),
+        ],
       ),
       body: RefreshIndicator(
         color: AppColors.primary,
         onRefresh: _refresh,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
-          children: [
-            _SectionHeader(
-              title: 'Your calls',
-              action:
-                  calls.unreadCount > 0
-                      ? TextButton(
-                        onPressed:
-                            calls.isMarkingRead ? null : calls.markAllRead,
-                        style: TextButton.styleFrom(
-                          minimumSize: const Size(48, 48),
-                          foregroundColor: _pinkInk,
-                        ),
-                        child: const Text('Mark all read'),
-                      )
-                      : null,
-            ),
-            ..._callsSection(calls),
-          ],
-        ),
+        child: _body(calls),
       ),
     );
   }
 
-  List<Widget> _callsSection(NotificationsProvider calls) {
+  Widget _body(NotificationsProvider calls) {
     switch (calls.state) {
       case NotificationsLoadState.idle:
       case NotificationsLoadState.loading:
-        return const [
-          Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
-            ),
-          ),
-        ];
+        return const CallsLoadingView(rows: 4);
       case NotificationsLoadState.signedOut:
-        return [
-          _Row(
-            icon: 'user-outline',
-            text:
-                'Sign in to see who backed or faded your calls and when they '
-                'settle. Your wallet, Google or X.',
+        return ChumbucketStateFill(
+          child: ChumbucketStateView(
+            artwork: ChumbucketStateArtwork.inbox,
+            message: 'Sign in to see who backs your calls',
             actionLabel: 'Sign in',
+            actionIcon: 'login-outline',
             onAction: () => requestCallSignIn(context),
           ),
-        ];
+        );
       case NotificationsLoadState.offline:
-        return [
-          _Row(
-            icon: 'cloud-off-outline',
-            text: 'You’re offline.',
-            actionLabel: 'Retry',
+        return ChumbucketStateFill(
+          child: ChumbucketStateView(
+            artwork: ChumbucketStateArtwork.offline,
+            message: 'You’re offline',
+            actionLabel: 'Try again',
             onAction: _refresh,
           ),
-        ];
+        );
       case NotificationsLoadState.error:
-        return [
-          _Row(
-            icon: 'info-circle-outline',
-            text: calls.error ?? 'Something went wrong.',
-            actionLabel: 'Retry',
+        return ChumbucketStateFill(
+          child: ChumbucketStateView(
+            artwork: ChumbucketStateArtwork.error,
+            message: 'Couldn’t load your activity',
+            semanticsHint: calls.error,
+            actionLabel: 'Try again',
             onAction: _refresh,
           ),
-        ];
+        );
       case NotificationsLoadState.empty:
-        return [
-          _Row(
-            icon: 'notification-outline',
-            text:
-                'Nothing has come back yet. When someone backs or fades one '
-                'of your calls, or the venue settles one, it lands here.',
+        return const ChumbucketStateFill(
+          child: ChumbucketStateView(
+            artwork: ChumbucketStateArtwork.inbox,
+            message: 'No activity yet',
+            semanticsHint:
+                'Backs, fades, results and dares on your calls land here.',
           ),
-        ];
+        );
       case NotificationsLoadState.ready:
-        return [
-          for (final notification in calls.notifications) ...[
-            NotificationRow(
-              notification: notification,
-              opening: _openingId == notification.id,
-              onTap: () => _open(notification),
-              onOpenActor:
-                  notification.actorTarget == null
-                      ? null
-                      : () => _openActor(notification),
-            ),
-            const SizedBox(height: 10),
-          ],
-          if (calls.hasMore)
-            Center(
-              child: TextButton(
-                onPressed: calls.isLoadingMore ? null : calls.loadMore,
-                style: TextButton.styleFrom(
-                  minimumSize: const Size(48, 48),
-                  foregroundColor: _pinkInk,
-                ),
-                child: Text(calls.isLoadingMore ? 'Loading…' : 'Show more'),
-              ),
-            ),
+        final fresh = [
+          for (final n in calls.notifications)
+            if (n.isUnread) n,
         ];
+        final earlier = [
+          for (final n in calls.notifications)
+            if (!n.isUnread) n,
+        ];
+        return ListView(
+          controller: _scroll,
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+          children: [
+            if (calls.isOffline)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 10),
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: ChumbucketOfflinePill(),
+                ),
+              ),
+            if (fresh.isNotEmpty) ...[
+              const _SectionLabel('New'),
+              _Group(children: [for (final n in fresh) _row(n)]),
+            ],
+            if (earlier.isNotEmpty) ...[
+              if (fresh.isNotEmpty) const SizedBox(height: 20),
+              const _SectionLabel('Earlier'),
+              _Group(children: [for (final n in earlier) _row(n)]),
+            ],
+            if (calls.isLoadingMore)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 20),
+                child: Center(
+                  child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
     }
   }
+
+  Widget _row(CallNotification notification) => NotificationRow(
+    key: ValueKey('activity-${notification.id}'),
+    notification: notification,
+    grouped: true,
+    opening: _openingId == notification.id,
+    onTap: () => _open(notification),
+    onOpenActor:
+        notification.actorTarget == null
+            ? null
+            : () => _openActor(notification),
+  );
 }
 
-const _pinkInk = Color(0xFFB8173B);
-const _muted = Color(0xFF606775);
-final _meta = AppTextStyles.textTheme.bodySmall!.copyWith(
-  color: _muted,
-  height: 1.5,
-);
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title, this.action});
-  final String title;
-  final Widget? action;
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text);
+  final String text;
 
   @override
-  Widget build(BuildContext context) => ConstrainedBox(
-    constraints: const BoxConstraints(minHeight: 48),
-    child: Row(
-      children: [
-        Expanded(
-          child: Semantics(
-            header: true,
-            child: Text(
-              title,
-              style: AppTextStyles.questionTitle.copyWith(
-                fontSize: 17,
-                letterSpacing: 0,
-              ),
-            ),
-          ),
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+    child: Semantics(
+      header: true,
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontFamily: 'PPNeueMachina',
+          color: AppColors.textMuted,
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
+          letterSpacing: .2,
         ),
-        if (action != null) action!,
-      ],
+      ),
     ),
   );
 }
 
-/// A one-row state inside a section: the screen stays usable around it.
-class _Row extends StatelessWidget {
-  const _Row({
-    required this.icon,
-    required this.text,
-    this.actionLabel,
-    this.onAction,
-  });
-  final String icon;
-  final String text;
-  final String? actionLabel;
-  final VoidCallback? onAction;
+/// Rows on one white surface with hairline dividers: denser than a card each.
+class _Group extends StatelessWidget {
+  const _Group({required this.children});
+  final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
-    decoration: BoxDecoration(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(18),
-    ),
-    child: Row(
+  Widget build(BuildContext context) => Material(
+    color: AppColors.surface,
+    borderRadius: BorderRadius.circular(20),
+    clipBehavior: Clip.antiAlias,
+    child: Column(
       children: [
-        BasilIcon(icon, size: 20, color: AppColors.textPrimary),
-        const SizedBox(width: 12),
-        Expanded(child: Text(text, style: _meta)),
-        if (actionLabel != null && onAction != null)
-          TextButton(
-            onPressed: onAction,
-            style: TextButton.styleFrom(
-              minimumSize: const Size(48, 48),
-              foregroundColor: _pinkInk,
+        for (var i = 0; i < children.length; i++) ...[
+          if (i > 0)
+            const Divider(
+              height: 1,
+              thickness: 1,
+              indent: 66,
+              color: AppColors.outlineVariant,
             ),
-            child: Text(actionLabel!),
-          ),
+          children[i],
+        ],
       ],
     ),
   );
