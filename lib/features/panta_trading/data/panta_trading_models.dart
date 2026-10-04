@@ -19,6 +19,9 @@ enum PantaErrorCode {
   rejected,
   walletCancelled,
   signingFailed,
+
+  /// The server knows the signing wallet as none of this account's.
+  walletNotLinked,
 }
 
 /// Only fixed, local copy escapes this boundary; never a provider's message.
@@ -46,6 +49,7 @@ class PantaException implements Exception {
       'The server could not accept this request. Check the order status.',
     PantaErrorCode.walletCancelled => 'Wallet approval was cancelled.',
     PantaErrorCode.signingFailed => 'Wallet approval could not be completed.',
+    PantaErrorCode.walletNotLinked => 'Link this wallet first.',
   };
 
   @override

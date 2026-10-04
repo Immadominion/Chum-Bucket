@@ -248,6 +248,11 @@ class PantaTradingClient {
         if (code == 'UNAUTHORIZED') {
           throw const PantaException(PantaErrorCode.signedOut);
         }
+        // The BFF's own code for a signing wallet that is not one of the
+        // account's (`WALLET_NOT_LINKED`); nothing else on this path uses it.
+        if (code == 'UNPROCESSABLE_CONTENT') {
+          throw const PantaException(PantaErrorCode.walletNotLinked);
+        }
         if (code == 'PRECONDITION_FAILED' ||
             code == 'NOT_IMPLEMENTED' ||
             (forbiddenIsUnavailable && code == 'FORBIDDEN')) {

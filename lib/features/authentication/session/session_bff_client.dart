@@ -266,6 +266,25 @@ class SessionBffClient {
     return outcome as String;
   }
 
+  /// The account's Chumbucket wallet as the server has it linked
+  /// (`wallet.status`): null when this server runs without it, when the
+  /// account has none yet, or for an address that is not a Solana one.
+  Future<String?> chumbucketWallet(String accessToken) async {
+    final data = await _send(
+      'wallet.status',
+      method: 'POST',
+      bearer: accessToken,
+      input: const {},
+    );
+    if (data is! Map || data['enabled'] != true) return null;
+    final account = data['account'];
+    final address = account is Map ? account['chumbucketWallet'] : null;
+    return address is String &&
+            RegExp(r'^[1-9A-HJ-NP-Za-km-z]{32,44}$').hasMatch(address)
+        ? address
+        : null;
+  }
+
   /// Whether [handle] can be claimed. Public and credential-free: usernames
   /// are public, and the answer carries no profile field.
   Future<UsernameStatus> usernameStatus(String handle) async {
