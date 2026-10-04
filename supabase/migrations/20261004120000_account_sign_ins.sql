@@ -114,7 +114,7 @@ CREATE TABLE public.account_sign_ins (
   CONSTRAINT account_sign_ins_wallet_needed CHECK (via <> 'wallet' OR wallet_address IS NOT NULL),
   CONSTRAINT account_sign_ins_fold_needed CHECK (via <> 'fold' OR fold_id IS NOT NULL),
   CONSTRAINT account_sign_ins_reason_check CHECK (
-    revoked_reason IS NULL OR revoked_reason IN ('unlinked', 'folded')),
+    revoked_reason IS NULL OR revoked_reason IN ('unlinked', 'folded', 'account_deleted')),
   CONSTRAINT account_sign_ins_revoked_shape CHECK ((revoked_at IS NULL) = (revoked_reason IS NULL))
 );
 -- One sign-in reaches at most one account.
@@ -157,10 +157,13 @@ SECURITY DEFINER
 SET search_path = pg_catalog, public, pg_temp
 AS $$
 BEGIN
+  -- An additional sign-in of a deleted account is free to start a new one.
   IF NEW.auth_user_id IS NOT NULL
      AND (TG_OP = 'INSERT' OR NEW.auth_user_id IS DISTINCT FROM OLD.auth_user_id)
      AND EXISTS (SELECT 1 FROM public.account_sign_ins s
-                  WHERE s.auth_user_id = NEW.auth_user_id AND s.revoked_at IS NULL) THEN
+                   JOIN public.users u ON u.id = s.user_id
+                  WHERE s.auth_user_id = NEW.auth_user_id AND s.revoked_at IS NULL
+                    AND u.deleted_at IS NULL) THEN
     RAISE EXCEPTION 'this sign-in already reaches another account'
       USING ERRCODE = 'unique_violation';
   END IF;
@@ -357,6 +360,23 @@ AS $$
 $$;
 REVOKE ALL ON FUNCTION public.wallet_account_v1(TEXT) FROM PUBLIC, anon, authenticated;
 
+-- Additional sign-ins of a deleted account are released (delete_account_v1
+-- predates them and anonymises only the account row). Internal; called before
+-- a sign-in is linked anywhere.
+CREATE FUNCTION public.release_dead_sign_ins_v1(p_auth_user_id UUID)
+RETURNS VOID
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+  UPDATE public.account_sign_ins s
+     SET revoked_at = now(), revoked_reason = 'account_deleted'
+    FROM public.users u
+   WHERE u.id = s.user_id AND u.deleted_at IS NOT NULL
+     AND s.auth_user_id = p_auth_user_id AND s.revoked_at IS NULL;
+$$;
+REVOKE ALL ON FUNCTION public.release_dead_sign_ins_v1(UUID) FROM PUBLIC, anon, authenticated;
+
 -- What the BFF asks when the primary lookup misses: the account an additional
 -- sign-in reaches. {ok, user_id (null when none), via}.
 CREATE FUNCTION public.resolve_auth_user_v1(p_auth_user_id UUID)
@@ -409,6 +429,7 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'reason', 'missing_input');
   END IF;
   PERFORM pg_advisory_xact_lock(hashtextextended('account-sign-in:' || p_auth_user_id::text, 0));
+  PERFORM public.release_dead_sign_ins_v1(p_auth_user_id);
 
   v_user := public.account_for_auth_user_v1(p_auth_user_id);
   IF v_user IS NOT NULL THEN
@@ -998,6 +1019,7 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'reason', 'missing_input');
   END IF;
   PERFORM pg_advisory_xact_lock(hashtextextended('account-sign-in:' || p_auth_user_id::text, 0));
+  PERFORM public.release_dead_sign_ins_v1(p_auth_user_id);
   SELECT * INTO v_ticket FROM public.account_link_tickets WHERE ticket_hash = p_ticket_hash FOR UPDATE;
   IF NOT FOUND THEN RETURN jsonb_build_object('ok', false, 'reason', 'ticket_unknown'); END IF;
   IF v_ticket.consumed_at IS NOT NULL THEN RETURN jsonb_build_object('ok', false, 'reason', 'ticket_used'); END IF;
