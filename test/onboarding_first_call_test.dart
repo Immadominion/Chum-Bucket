@@ -231,7 +231,7 @@ void main() {
       find.descendant(
         of: _answer(first.id, Side.no),
         matching: find.text(
-          CallsFormat.odds(markets[0].sharePrice.noPrice)!,
+          CallsFormat.sideOdds(markets[0].sharePrice, Side.no)!,
         ),
       ),
       findsOneWidget,
@@ -320,7 +320,7 @@ void main() {
       expect(
         find.text(
           OnboardingCopy.recordCalledAt(
-            CallsFormat.odds(own.call.entryPrice!.noPrice)!,
+            CallsFormat.sideOdds(own.call.entryPrice, Side.no)!,
           ),
         ),
         findsOneWidget,
@@ -406,7 +406,7 @@ void main() {
         _inComposer(
           find.text(
             'You’re calling YES · '
-            '${CallsFormat.odds(item.sharePrice.yesPrice)!}',
+            '${CallsFormat.sideOdds(item.sharePrice, Side.yes)!}',
           ),
         ),
         findsOneWidget,

@@ -45,10 +45,11 @@ void main() {
     final p = SharePriceSnapshot.fromJson(priceJson());
     expect(p.toJson(), priceJson());
     expect(p.priceFor(Side.no), '0.35');
-    // A price above a whole share is kept verbatim but has no honest odds.
+    // Independent prices (YES above a whole share) are kept verbatim and
+    // read as odds that add up: yes / (yes + no).
     expect(p.yesPrice, '1.250000000000000001');
     expect(CallsFormat.odds(p.yesPrice), isNull);
-    expect(CallsFormat.sidesOdds(p), 'YES — · NO 35%');
+    expect(CallsFormat.sidesOdds(p), 'YES 78% · NO 22%');
     expect(MarketVenue.fromWire('panta'), MarketVenue.panta);
   });
   for (final patch in <Map<String, dynamic>>[
@@ -157,10 +158,10 @@ void main() {
       );
       await tester.pumpWidget(app(CallReceiptCard(receipt: receipt)));
       await tester.pumpAndSettle();
-      // Odds, never a per-share figure: a side above a whole share has no
-      // honest percent and reads "—".
+      // Odds that add up, never a per-share figure: 1.25 / 0.35 reads
+      // 78% / 22%.
       expect(find.text('Odds at call'), findsOneWidget);
-      expect(find.text('YES — · NO 35%'), findsOneWidget);
+      expect(find.text('YES 78% · NO 22%'), findsOneWidget);
       expect(find.text('1.250000000000000001'), findsNothing);
       expect(find.text('0.35'), findsNothing);
       expect(find.text('Entry probability'), findsNothing);

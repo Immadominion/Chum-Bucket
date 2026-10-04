@@ -168,7 +168,7 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
   /// Compact mode's single line: the side and its odds. That it's free is
   /// the [FreeMarker] in the button.
   String _compactLine(Side side) {
-    final odds = CallsFormat.odds(_sharePrice?.priceFor(side));
+    final odds = CallsFormat.sideOdds(_sharePrice, side);
     return 'You’re calling ${side.wire}${odds == null ? '' : ' · $odds'}';
   }
 
@@ -299,7 +299,7 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
       if (price == null) return null;
       return {
         for (final side in Side.values)
-          if (CallsFormat.odds(price.priceFor(side)) case final odds?)
+          if (CallsFormat.sideOdds(price, side) case final odds?)
             side: odds,
       };
     }

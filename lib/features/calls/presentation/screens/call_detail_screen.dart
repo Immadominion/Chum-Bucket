@@ -600,9 +600,9 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
   List<_Fact> _facts(CallFeedEntry entry) {
     final call = entry.call;
     // The odds its side had when it locked, as a percent (USDC and SOL
-    // markets alike).
-    final price = switch (call.entryPrice?.priceFor(call.side)) {
-      final value? => CallsFormat.odds(value),
+    // markets alike), weighed against the other side's price.
+    final price = switch (call.entryPrice) {
+      final snapshot? => CallsFormat.sideOdds(snapshot, call.side),
       null =>
         entry.market.venue != MarketVenue.panta && call.entryProbability != null
             ? CallsFormat.probability(call.entryProbability)

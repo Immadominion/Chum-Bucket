@@ -796,7 +796,7 @@ class _DeckCard extends StatelessWidget {
               Expanded(
                 child: _AnswerButton(
                   side: Side.yes,
-                  price: CallsFormat.odds(item.sharePrice.yesPrice),
+                  price: CallsFormat.sideOdds(item.sharePrice, Side.yes),
                   enabled: enabled,
                   onTap: () => onPick(Side.yes),
                 ),
@@ -805,7 +805,7 @@ class _DeckCard extends StatelessWidget {
               Expanded(
                 child: _AnswerButton(
                   side: Side.no,
-                  price: CallsFormat.odds(item.sharePrice.noPrice),
+                  price: CallsFormat.sideOdds(item.sharePrice, Side.no),
                   enabled: enabled,
                   onTap: () => onPick(Side.no),
                 ),

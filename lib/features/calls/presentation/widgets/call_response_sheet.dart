@@ -369,7 +369,7 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
     if (!_kind.createsOwnCall) return null;
     final price = provider.marketDetail(_entry.market.id)?.sharePrice;
     if (price == null || !price.isUsableAt(DateTime.now())) return null;
-    return CallsFormat.odds(price.priceFor(_side));
+    return CallsFormat.sideOdds(price, _side);
   }
 }
 

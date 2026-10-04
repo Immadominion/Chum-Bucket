@@ -12,11 +12,11 @@ import 'package:chumbucket/features/calls/data/call_models.dart';
 class CallsFormat {
   CallsFormat._();
 
-  /// A Panta share price as the odds people read: `0.62` reads `62%`.
+  /// One side's price read alone as odds: `0.62` reads `62%`. Only for a
+  /// price with no other side to weigh it against (a position's fill, a
+  /// trade's average, a side whose pair Panta did not publish); a market's
+  /// two sides go through [pairOdds], so they always add up.
   ///
-  /// USDC and SOL markets alike: both price a share on Panta's 0..1 scale
-  /// (the program's `last_yes_price` over its 1e9 PRICE_SCALE, which is what
-  /// panta.market shows as the odds), so the percent never carries a unit.
   /// Rounded half-up on the DECIMAL STRING, never through a double; a
   /// positive price under half a percent reads `<1%` and one just short of a
   /// whole share `>99%`, never `0%` / `100%`. Null when there is nothing
@@ -43,10 +43,60 @@ class CallsFormat {
     return '$percent%';
   }
 
-  /// Both sides as odds: `YES 62% · NO 38%`. A side Panta did not publish
+  /// A market's two sides as odds that always add up to 100.
+  ///
+  /// Panta's USDC prices are independent venue prices: they need not sum to
+  /// one, and either can exceed one (YES 1.25 / NO 0.35). So YES reads
+  /// yes / (yes + no) and NO reads 100 minus that rounded YES; a SOL market's
+  /// complementary pair reads exactly as its own figures. Rounded half-up
+  /// with exact integer arithmetic. A side alone (the other unpublished)
+  /// falls back to [odds]; both missing, or both zero, read null.
+  static ({String? yes, String? no}) pairOdds(String? yes, String? no) {
+    final y = _decimal(yes);
+    final n = _decimal(no);
+    if (y == null || n == null) {
+      return (
+        yes: y == null ? null : odds(yes),
+        no: n == null ? null : odds(no),
+      );
+    }
+    // Both on one scale: as many decimals as the longer has.
+    final places = y.$2 > n.$2 ? y.$2 : n.$2;
+    BigInt scaled((BigInt, int) v) => v.$1 * BigInt.from(10).pow(places - v.$2);
+    final yes0 = scaled(y);
+    final no0 = scaled(n);
+    final sum = yes0 + no0;
+    if (sum == BigInt.zero) return (yes: null, no: null);
+    // round(100 · yes / sum), half-up: floor((200 · yes + sum) / (2 · sum)).
+    final percent =
+        ((yes0 * BigInt.from(200) + sum) ~/ (sum * BigInt.two)).toInt();
+    if (percent == 0 && yes0 > BigInt.zero) return (yes: '<1%', no: '>99%');
+    if (percent == 100 && no0 > BigInt.zero) return (yes: '>99%', no: '<1%');
+    return (yes: '$percent%', no: '${100 - percent}%');
+  }
+
+  /// One side's odds out of a market's price, weighed against the other.
+  static String? sideOdds(SharePriceSnapshot? value, Side side) {
+    if (value == null) return null;
+    final pair = pairOdds(value.yesPrice, value.noPrice);
+    return side == Side.yes ? pair.yes : pair.no;
+  }
+
+  /// Both sides as odds: `YES 59% · NO 41%`. A side Panta did not publish
   /// reads `—`.
-  static String sidesOdds(SharePriceSnapshot value) =>
-      'YES ${odds(value.yesPrice) ?? '—'} · NO ${odds(value.noPrice) ?? '—'}';
+  static String sidesOdds(SharePriceSnapshot value) {
+    final pair = pairOdds(value.yesPrice, value.noPrice);
+    return 'YES ${pair.yes ?? '—'} · NO ${pair.no ?? '—'}';
+  }
+
+  /// A plain decimal as (digits, decimal places); null if it is not one.
+  static (BigInt, int)? _decimal(String? value) {
+    if (value == null) return null;
+    final match = RegExp(r'^(\d+)(?:\.(\d+))?$').firstMatch(value.trim());
+    if (match == null) return null;
+    final fraction = match.group(2) ?? '';
+    return (BigInt.parse('${match.group(1)}$fraction'), fraction.length);
+  }
 
   static final DateFormat _absolute = DateFormat('d MMM yyyy, HH:mm');
   static final DateFormat _absoluteShort = DateFormat('d MMM, HH:mm');
