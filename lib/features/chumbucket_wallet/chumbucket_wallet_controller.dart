@@ -89,15 +89,24 @@ class ChumbucketWalletController extends ChangeNotifier {
   Future<void>? _signingOut;
   ChumbucketWalletPhase _phase = ChumbucketWalletPhase.idle;
   String? _address;
+
+  /// The server's answer for THIS account (`wallet.status`): the build's
+  /// CHUMBUCKET_WALLET_ENABLED and Privy ids only mean the capability is
+  /// built in. Off (or unknown) is exactly today's app: no wallet, no
+  /// provider session.
+  bool _enabled = false;
   String? _error;
   Future<ChumbucketWalletSigner>? _ensuring;
 
   ChumbucketWalletPhase get phase => _phase;
   String? get userId => _userId;
 
+  /// On for the signed-in account, as the server said.
+  bool get enabled => _enabled && _userId != null;
+
   /// The linked wallet's address; null until the server has it linked.
   String? get address =>
-      _phase == ChumbucketWalletPhase.ready ? _address : null;
+      enabled && _phase == ChumbucketWalletPhase.ready ? _address : null;
   bool get isBusy =>
       _phase == ChumbucketWalletPhase.loading ||
       _phase == ChumbucketWalletPhase.settingUp;
@@ -131,6 +140,7 @@ class ChumbucketWalletController extends ChangeNotifier {
     final epoch = ++_epoch;
     _userId = userId;
     _address = null;
+    _enabled = false;
     _error = null;
     _ensuring = null;
     _signedIn = false;
@@ -166,16 +176,22 @@ class ChumbucketWalletController extends ChangeNotifier {
     try {
       final token = await _authToken();
       if (!_current(at)) return;
-      final linked = token == null ? null : await _bff.chumbucketWallet(token);
+      final status =
+          token == null
+              ? (enabled: false, address: null)
+              : await _bff.chumbucketWalletStatus(token);
       if (!_current(at)) return;
-      _address = linked;
+      _enabled = status.enabled;
+      _address = status.address;
       _phase =
-          linked == null
+          status.address == null
               ? ChumbucketWalletPhase.none
               : ChumbucketWalletPhase.ready;
     } catch (_) {
       if (!_current(at)) return;
-      // Not knowing is not "none": [ensure] asks the provider itself.
+      // Not knowing is off: nothing of the wallet shows, and no provider
+      // session starts, until the server says it is on for this account.
+      _enabled = false;
       _phase = ChumbucketWalletPhase.none;
     }
     _notify();
@@ -185,6 +201,8 @@ class ChumbucketWalletController extends ChangeNotifier {
   /// has none, links it to the account, and answers its signer. Concurrent
   /// callers share one attempt.
   Future<ChumbucketWalletSigner> ensure() {
+    // Off for this account: never a provider session.
+    if (!enabled) return Future.error(ChumbucketWalletException.unavailable);
     final ready = signer;
     if (ready != null) return Future.value(ready);
     return _ensuring ??= _setUp().whenComplete(() => _ensuring = null);
@@ -269,6 +287,7 @@ class ChumbucketWalletController extends ChangeNotifier {
   ) async {
     final account = _userId;
     if (account == null) throw ChumbucketWalletException.signedOut;
+    if (!_enabled) throw ChumbucketWalletException.unavailable;
     await _signIn(epoch);
     try {
       return await action(account);

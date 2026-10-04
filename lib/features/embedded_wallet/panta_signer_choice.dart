@@ -20,13 +20,13 @@
 library;
 
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
-import 'package:chumbucket/features/authentication/session/panta_mwa_wallet.dart';
 import 'package:chumbucket/features/panta_trading/panta_trading.dart';
 
 import 'package:chumbucket/features/chumbucket_wallet/chumbucket_signers.dart';
 import 'package:chumbucket/features/chumbucket_wallet/chumbucket_wallet_controller.dart';
 
 import 'embedded_wallet_controller.dart';
+import 'panta_wallet_app.dart';
 import 'panta_embedded_wallet.dart';
 
 class PantaSignerChoice {
@@ -67,7 +67,8 @@ PantaSignerChoice? choosePantaSigner({
       (chumbucket == null || useWalletApp)) {
     return PantaSignerChoice._(
       address: appAddress,
-      port: PantaMwaWallet(app),
+      // Checked on this phone before the wallet app opens, like every signer.
+      port: walletAppBuyPort(app, owner: appAddress, reviewed: reviewed),
       kind: PantaSigner.walletApp,
       selectedWallet: () => app.walletAddress,
     );

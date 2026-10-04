@@ -15,9 +15,9 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
-import 'package:chumbucket/features/authentication/session/panta_mwa_wallet.dart';
 import 'package:chumbucket/features/authentication/session/session_bff_client.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart' show Side;
+import 'package:chumbucket/features/embedded_wallet/panta_wallet_app.dart';
 import 'package:chumbucket/features/embedded_wallet/embedded_wallet_controller.dart';
 import 'package:chumbucket/features/embedded_wallet/embedded_wallet_key.dart';
 import 'package:chumbucket/features/embedded_wallet/embedded_wallet_vault.dart';
@@ -370,7 +370,7 @@ void main() {
             kTestPhraseAddress,
             intent(),
           ),
-          isA<PantaMwaWallet>(),
+          isA<CheckedPantaWalletPort>(),
         );
         final other = await _account(12);
         expect(
@@ -394,4 +394,77 @@ void main() {
       },
     );
   });
+
+  group('a wallet app signs a claim only after the same check', () {
+    PantaWalletPort appPort(_AppPort inner, [PantaClaimSigningIntent? reviewed]) =>
+        walletAppClaimPort(
+          _WalletApp(kTestPhraseAddress),
+          intent: reviewed ?? intent(),
+          inner: inner,
+        );
+
+    test('the reviewed claim reaches the app, the same bytes back', () async {
+      final inner = _AppPort();
+      final unsigned = base64Decode(_bffClaim);
+      final signed = await appPort(inner).signTransaction(unsigned);
+      expect(inner.asked, 1);
+      expect(inner.seen.single, unsigned);
+      expect(signed.sublist(65), unsigned.sublist(65));
+    });
+
+    for (final (name, bytes) in <(String, Future<Uint8List> Function())>[
+      ('another market', () async => _claim(key.address, market: await _account(7))),
+      (
+        'another payout account',
+        () async => _claim(key.address, payTo: await _usdcOf(await _account(8))),
+      ),
+      ('a SOL transfer tucked in', () async => _claim(key.address, transferOut: true)),
+      ('another program', () async => _claim(key.address, program: await _account(10))),
+      (
+        'an inflated priority fee',
+        () async => _claim(key.address, computePrice: List<int>.filled(8, 0xff)),
+      ),
+      ('someone else paying', () async => _claim(key.address, feePayer: await _account(11))),
+    ]) {
+      test('never opens the app for $name', () async {
+        final inner = _AppPort();
+        await expectLater(
+          appPort(inner).signTransaction(await bytes()),
+          throwsA(isA<PantaException>()),
+        );
+        expect(inner.asked, 0);
+      });
+    }
+
+    test('an answer that changes the transaction is refused', () async {
+      final inner = _AppPort(tamper: true);
+      await expectLater(
+        appPort(inner).signTransaction(base64Decode(_bffClaim)),
+        throwsA(
+          isA<PantaException>().having(
+            (e) => e.code,
+            'code',
+            PantaErrorCode.signingFailed,
+          ),
+        ),
+      );
+    });
+  });
+}
+
+/// Stands in for the wallet app: fills the owner's slot, or tampers.
+class _AppPort implements PantaWalletPort {
+  _AppPort({this.tamper = false});
+  final bool tamper;
+  int asked = 0;
+  final seen = <Uint8List>[];
+
+  @override
+  Future<Uint8List> signTransaction(Uint8List unsigned) async {
+    asked++;
+    seen.add(Uint8List.fromList(unsigned));
+    final signed = Uint8List.fromList(unsigned)..fillRange(1, 65, 7);
+    if (tamper) signed[signed.length - 1] ^= 1;
+    return signed;
+  }
 }

@@ -24,6 +24,10 @@ import 'package:chumbucket/features/calls/presentation/widgets/call_response_she
 import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/market_picker_sheet.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
+import 'package:chumbucket/features/money/presentation/money_amount_row.dart'
+    show moneyOf;
+import 'package:chumbucket/features/money/presentation/money_balance_pill.dart';
+import 'package:chumbucket/features/money/presentation/money_winnings_card.dart';
 import 'package:chumbucket/features/onboarding/domain/onboarding_data.dart';
 import 'package:chumbucket/features/onboarding/onboarding_controller.dart';
 import 'package:chumbucket/features/people/data/people_models.dart';
@@ -218,6 +222,8 @@ class _CallFeedScreenState extends State<CallFeedScreen>
                       title: 'Home',
                       showAccountActions: false,
                       onSearchTap: _openSearch,
+                      // The balance, when money is on; nothing otherwise.
+                      actions: const [MoneyBalancePill()],
                     ),
                   ),
                 _ModeBar(provider: provider, onCompose: _compose),
@@ -341,7 +347,10 @@ class _CallFeedScreenState extends State<CallFeedScreen>
         final receipt = receipts.firstOrNull;
         final strip = _topCallsStrip(provider);
         final banner = _shownBanner();
+        final winnings = moneyOf(context)?.winnings.items.isNotEmpty ?? false;
         final headers = <Widget>[
+          // Collect $9.20: won money, one tap away.
+          if (winnings) const MoneyWinningsCard(),
           if (banner != null) banner,
           if (receipt != null)
             _ReceiptNudge(entry: receipt, onTap: () => _shareReceipt(receipt)),

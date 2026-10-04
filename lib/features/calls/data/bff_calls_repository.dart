@@ -54,6 +54,8 @@
 /// trade (contract §0 invariant 1).
 library;
 
+import 'dart:async';
+
 import 'dart:developer' as developer;
 
 import 'package:http/http.dart' as http;
@@ -113,7 +115,16 @@ class BffCallsRepository
   String? _snapshotViewer;
 
   @override
-  void bindSnapshotViewer(String? userId) => _snapshotViewer = userId;
+  void bindSnapshotViewer(String? userId) {
+    final previous = _snapshotViewer;
+    _snapshotViewer = userId;
+    // Another account on this phone: what the last one saw (its feed, and
+    // its own pending money calls in it) leaves with it, as on sign-out
+    // (AppSignOutEffects wipes the store then).
+    if (previous != null && userId != null && previous != userId) {
+      unawaited(_snapshots?.clear());
+    }
+  }
 
   /// Who was bound, and the store's generation, when a read started.
   ({String? viewer, int? generation}) _begin() => (
@@ -241,7 +252,9 @@ class BffCallsRepository
       requireJsonMap(data, '$feedProcedure result'),
     );
     // Only the first page: it is what a cold start draws.
-    if (cursor == null) _save(_feedKey(mode, viewer), data, at);
+    if (cursor == null) {
+      _save(_feedKey(mode, viewer), withoutOwnerMoney(data), at);
+    }
     return page;
   }
 
@@ -362,7 +375,7 @@ class BffCallsRepository
     );
     // Your own profile and record only: it is what Profile draws on open.
     if (viewer != null && personRef == viewer) {
-      _save(_personKey(personRef, viewer), data, at);
+      _save(_personKey(personRef, viewer), withoutOwnerMoney(data), at);
     }
     return detail;
   }
@@ -632,4 +645,18 @@ class BffCallsRepository
 
   /// Releases the HTTP client, if this repository created it.
   void close() => _transport.close();
+}
+
+/// [json] with every call's owner-only `money` view taken out: a pending or
+/// expired money call is never written to this phone's disk. It comes back
+/// from the server on the next read; a saved read draws the call without it.
+Object? withoutOwnerMoney(Object? json) {
+  if (json is List) return [for (final item in json) withoutOwnerMoney(item)];
+  if (json is! Map) return json;
+  final isEntry = json.containsKey('call') && json.containsKey('market');
+  return {
+    for (final entry in json.entries)
+      if (!(isEntry && entry.key == 'money'))
+        entry.key: withoutOwnerMoney(entry.value),
+  };
 }

@@ -116,6 +116,8 @@ class _FirstCallScreenState extends State<FirstCallScreen> {
       // "You're on record" asks about notifications, once.
       askForNotifications: false,
       compact: true,
+      // Onboarding's first call stays free.
+      allowMoney: false,
       initialSide: side,
       note: draft != null ? _signedInNote : null,
       initialDraft:
@@ -230,6 +232,7 @@ class _FirstCallScreenState extends State<FirstCallScreen> {
       surface: AnalyticsSurface.onboarding,
       askForNotifications: false,
       note: resumed ? _signedInNote : null,
+      allowMoney: false,
     );
     final own = result?.resultingCall;
     if (own != null && mounted) await _flow.locked(own);

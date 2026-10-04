@@ -34,7 +34,11 @@ import 'package:chumbucket/features/chumbucket_wallet/privy_chumbucket_wallet_ba
 import 'package:chumbucket/features/authentication/session/app_session_persistence.dart';
 import 'package:chumbucket/features/authentication/session/app_sign_out.dart';
 import 'package:chumbucket/features/authentication/presentation/widgets/account_session_host.dart';
+import 'package:chumbucket/features/calls/data/calls_bff_transport.dart'
+    show resolveCallsBffBaseUrl;
 import 'package:chumbucket/features/calls/data/calls_repository_factory.dart';
+import 'package:chumbucket/features/money/data/money_client.dart';
+import 'package:chumbucket/features/money/money_controller.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/features/notifications/data/bff_notifications_repository.dart';
 import 'package:chumbucket/features/notifications/data/mock_notifications_repository.dart';
@@ -239,6 +243,31 @@ void main() async {
                 update:
                     (_, session, calls) => calls!..setViewer(session.userId),
               ),
+              // Money v1: the balance pill, calls with an amount, deposits,
+              // cash out and winnings. Only in a build with
+              // MONEY_CALLS_ENABLED, and hidden until the server's
+              // money.status says on; otherwise absent, and every reader of
+              // MoneyController? sees null.
+              if (AppConfig.moneyCallsEnabled)
+                if (Uri.tryParse(resolveCallsBffBaseUrl()) case final base?
+                    when base.scheme == 'https' && base.host.isNotEmpty)
+                  ChangeNotifierProxyProvider<ChumbucketSession, MoneyController>(
+                    create:
+                        (context) => MoneyController(
+                          createClient:
+                              () => MoneyClient(
+                                baseUri: base,
+                                token:
+                                    context
+                                        .read<ChumbucketSession>()
+                                        .bffAuthToken,
+                              ),
+                        ),
+                    update: (_, session, money) {
+                      money!.bind(session.isReady ? session.userId : null);
+                      return money;
+                    },
+                  ),
               // The calls inbox (`inbox.*` on the same BFF, same session token).
               // The recipient is the session, never a wallet. The mock is only
               // ever the explicit CALLS_BACKEND=mock build, as for calls.

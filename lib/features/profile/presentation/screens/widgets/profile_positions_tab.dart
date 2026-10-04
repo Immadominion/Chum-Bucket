@@ -14,13 +14,14 @@ import 'package:provider/provider.dart';
 import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
-import 'package:chumbucket/features/authentication/session/panta_mwa_wallet.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_transport.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_detail_screen.dart';
 import 'package:chumbucket/features/chumbucket_wallet/chumbucket_signers.dart';
 import 'package:chumbucket/features/chumbucket_wallet/chumbucket_wallet_controller.dart';
+import 'package:chumbucket/features/chumbucket_wallet/chumbucket_wallet_of.dart';
 import 'package:chumbucket/features/embedded_wallet/embedded_wallet_controller.dart';
 import 'package:chumbucket/features/embedded_wallet/panta_embedded_claim.dart';
+import 'package:chumbucket/features/embedded_wallet/panta_wallet_app.dart';
 import 'package:chumbucket/features/panta_trading/panta_trading.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_state_view.dart';
 
@@ -34,8 +35,13 @@ PantaSignerResolver profilePantaSigners(
   EmbeddedWalletController? onPhone,
   ChumbucketWalletController? chumbucket,
 ]) => (wallet, intent) {
-  if (auth != null && auth.isAuthenticated && auth.walletAddress == wallet) {
-    return PantaMwaWallet(auth);
+  if (auth != null &&
+      auth.isAuthenticated &&
+      auth.walletAddress == wallet &&
+      intent is PantaClaimSigningIntent &&
+      intent.owner == wallet) {
+    // The claim check runs on this phone before the wallet app opens.
+    return walletAppClaimPort(auth, intent: intent);
   }
   final key = onPhone?.signer;
   if (onPhone != null &&
@@ -95,7 +101,7 @@ class _ProfilePositionsTabState extends State<ProfilePositionsTab> {
     if (session == null) return;
     final auth = context.read<MwaAuthProvider?>();
     final onPhone = context.read<EmbeddedWalletController?>();
-    final chumbucket = context.read<ChumbucketWalletController?>();
+    final chumbucket = chumbucketWalletOf(context);
     try {
       _client = PantaTradingClient(
         baseUri: Uri.parse(resolveCallsBffBaseUrl()),

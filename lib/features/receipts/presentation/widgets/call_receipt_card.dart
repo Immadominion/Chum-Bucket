@@ -167,7 +167,7 @@ class CallReceiptCard extends StatelessWidget {
                       label: 'CALLED ${receipt.side.wire}',
                     ),
                     if (receipt.fundedOnPanta)
-                      const FundedMarker(large: true)
+                      FundedMarker(amount: receipt.fundedAmount, large: true)
                     else if (receipt.free)
                       const FreeMarker(large: true),
                   ],

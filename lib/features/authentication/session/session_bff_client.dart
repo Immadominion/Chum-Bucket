@@ -368,20 +368,34 @@ class SessionBffClient {
   /// The account's Chumbucket wallet as the server has it linked
   /// (`wallet.status`): null when this server runs without it, when the
   /// account has none yet, or for an address that is not a Solana one.
-  Future<String?> chumbucketWallet(String accessToken) async {
+  Future<String?> chumbucketWallet(String accessToken) async =>
+      (await chumbucketWalletStatus(accessToken)).address;
+
+  /// `wallet.status` for THIS account: whether the Chumbucket wallet is on
+  /// for it (the server may turn it on for admins only), and its linked
+  /// address. Anything but an explicit `enabled: true` is off.
+  Future<({bool enabled, String? address})> chumbucketWalletStatus(
+    String accessToken,
+  ) async {
     final data = await _send(
       'wallet.status',
       method: 'POST',
       bearer: accessToken,
       input: const {},
     );
-    if (data is! Map || data['enabled'] != true) return null;
+    if (data is! Map || data['enabled'] != true) {
+      return (enabled: false, address: null);
+    }
     final account = data['account'];
     final address = account is Map ? account['chumbucketWallet'] : null;
-    return address is String &&
-            RegExp(r'^[1-9A-HJ-NP-Za-km-z]{32,44}$').hasMatch(address)
-        ? address
-        : null;
+    return (
+      enabled: true,
+      address:
+          address is String &&
+                  RegExp(r'^[1-9A-HJ-NP-Za-km-z]{32,44}$').hasMatch(address)
+              ? address
+              : null,
+    );
   }
 
   /// The account's ten-minute token for Privy (`wallet.privyToken`): an ES256

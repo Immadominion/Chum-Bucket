@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
+import 'package:chumbucket/features/money/presentation/money_balance_pill.dart';
 import 'package:chumbucket/features/calls/presentation/screens/market_detail_screen.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_market_card.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart'
@@ -287,6 +288,8 @@ class _CallMarketsScreenState extends State<CallMarketsScreen>
                       title: 'Markets',
                       showAccountActions: false,
                       onActivityTap: widget.onActivityTap,
+                      // The balance, when money is on; nothing otherwise.
+                      actions: const [MoneyBalancePill()],
                     )
                   else
                     const SizedBox(height: 16),

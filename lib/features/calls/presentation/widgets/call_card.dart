@@ -76,11 +76,9 @@ class CallCard extends StatelessWidget {
           )
         else
           Text(CallsFormat.untilClose(market.closesAtUtc), style: _meta),
-        // A confirmed Panta fill reads "Funded"; nothing else does.
-        FundingStateBadge(
-          state: entry.isFunded ? FundingState.filled : call.fundingState,
-          quiet: true,
-        ),
+        // A confirmed Panta fill reads "$5 on YES" (or "Funded"); nothing
+        // else does. The owner's own pending money call says pending.
+        CallFundingMark(entry: entry, quiet: true),
         if (call.visibility == CallVisibility.followers)
           const _Fact(
             icon: 'eye-closed-outline',

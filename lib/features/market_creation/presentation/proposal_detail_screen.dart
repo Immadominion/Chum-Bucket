@@ -394,6 +394,12 @@ class _ProposalDetailScreenState extends State<ProposalDetailScreen> {
           ]);
         }
       case ProposalStatus.approved:
+        // Only the proposer publishes, paying from their own wallet; a
+        // reviewer approves and is done (the server refuses anyone else).
+        if (!p.viewerIsProposer) {
+          say('Approved', 'Whoever proposed it publishes it on Panta.');
+          break;
+        }
         say(
           'Approved',
           'Publish it on Panta to make it callable. Publish before ${localTime(p.publishDeadline)}, or trading closes too soon for Panta to accept it.',
@@ -402,10 +408,7 @@ class _ProposalDetailScreenState extends State<ProposalDetailScreen> {
         if (p.canPublish) {
           children.add(
             ChumbucketPrimaryButton(
-              label:
-                  p.viewerIsProposer
-                      ? 'Publish on Panta'
-                      : 'Sponsor and publish',
+              label: 'Publish on Panta',
               busy: busy,
               onPressed: () => _publish(p),
             ),

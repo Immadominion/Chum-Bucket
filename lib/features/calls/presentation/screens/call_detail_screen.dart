@@ -20,13 +20,17 @@ import 'package:chumbucket/features/embedded_wallet/panta_signer_choice.dart';
 import 'package:chumbucket/features/embedded_wallet/presentation/embedded_wallet_sheet.dart';
 import 'package:chumbucket/features/authentication/presentation/screens/widgets/mwa_connect_button.dart'
     show reconnectWalletApp;
-import 'package:chumbucket/features/chumbucket_wallet/chumbucket_wallet_controller.dart';
+import 'package:chumbucket/features/chumbucket_wallet/chumbucket_wallet_of.dart';
 import 'package:chumbucket/features/chumbucket_wallet/presentation/chumbucket_wallet_sheet.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/sign_in_methods_sheet.dart'
     show showSignInMethodsSheet;
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_transport.dart';
 import 'package:chumbucket/features/panta_trading/panta_trading.dart';
+import 'package:chumbucket/features/money/presentation/money_amount_row.dart'
+    show moneyOf;
+import 'package:chumbucket/features/money/presentation/money_pending_card.dart';
+import 'package:chumbucket/features/money/presentation/money_winnings_card.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
@@ -116,7 +120,7 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
     final auth = context.read<MwaAuthProvider>();
     final account = context.read<ChumbucketSession>();
     final onPhone = context.read<EmbeddedWalletController?>();
-    final chumbucket = context.read<ChumbucketWalletController?>();
+    final chumbucket = chumbucketWalletOf(context);
     if (!account.isReady) {
       requestCallSignIn(context, onRequested: widget.onSignInRequested);
       return;
@@ -501,13 +505,7 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           SidePill(side: entry.call.side),
-                          FundingStateBadge(
-                            state:
-                                entry.funding != null
-                                    ? FundingState.filled
-                                    : entry.call.fundingState,
-                            quiet: true,
-                          ),
+                          CallFundingMark(entry: entry, quiet: true),
                           if (entry.call.visibility == CallVisibility.followers)
                             const CallBadge(
                               label: 'Followers only',
@@ -573,10 +571,44 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
                     onTap: () => _openCall(parent.call.id),
                   ),
                 ],
+                // Money v1, the owner's alone: a call whose money is still
+                // pending (never stamped funded), and winnings to collect.
+                if (own && entry.money?.pending == true) ...[
+                  const SizedBox(height: 12),
+                  MoneyPendingCard(
+                    entry: entry,
+                    onChanged:
+                        () => provider.loadCall(widget.callId, force: true),
+                    // Kept free: the fresh free call replaces this one.
+                    onReplaced: (fresh) {
+                      provider.adoptCall(fresh);
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(
+                          builder:
+                              (_) => CallDetailScreen(
+                                callId: fresh.call.id,
+                                onSignInRequested: widget.onSignInRequested,
+                              ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+                if (own &&
+                    (moneyOf(context)?.winnings.forCall(entry.call.id) !=
+                        null)) ...[
+                  const SizedBox(height: 12),
+                  MoneyWinningsCard(callId: entry.call.id),
+                ],
                 // Only the owner sees the established private Panta trade
                 // entry, and only on a market Chumbucket can trade (a
                 // SOL-quoted Panta market takes calls, never trades).
-                if (own && entry.market.tradable) ...[
+                // With money on, the amount goes on the call itself and the
+                // server refuses this path for money calls: not offered.
+                if (own &&
+                    entry.market.tradable &&
+                    entry.money == null &&
+                    moneyOf(context) == null) ...[
                   const SizedBox(height: 12),
                   _TradeCard(
                     side: entry.call.side,
