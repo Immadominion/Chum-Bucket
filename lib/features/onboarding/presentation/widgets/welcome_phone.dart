@@ -282,7 +282,8 @@ class _PreviewFeedState extends State<_PreviewFeed> {
     }
     final markets = widget.feed != null && !widget.feed!.hasCalls;
     // One unit for the strip when every market in it shares one; markets are
-    // quoted in USDC or SOL and a price is never shown in the wrong unit.
+    // quoted in USDC or SOL and a price is never shown in the wrong unit. A
+    // mixed strip shows no unit at all rather than a unitless "per share".
     final quotes = {
       for (final item in items ?? const <LiveItem>[])
         switch (item) {
@@ -293,7 +294,7 @@ class _PreviewFeedState extends State<_PreviewFeed> {
     };
     final unit =
         quotes.length > 1
-            ? 'per share'
+            ? null
             : (quotes.firstOrNull ?? ShareCurrency.usdc).perShare;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -318,15 +319,17 @@ class _PreviewFeedState extends State<_PreviewFeed> {
                   ),
                 ),
               ),
-              const SizedBox(width: 6),
-              Text(
-                unit,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: AppColors.textTertiary,
-                  fontWeight: FontWeight.w500,
+              if (unit != null) ...[
+                const SizedBox(width: 6),
+                Text(
+                  unit,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: AppColors.textTertiary,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),

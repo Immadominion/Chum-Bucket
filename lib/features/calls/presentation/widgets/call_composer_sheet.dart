@@ -374,15 +374,18 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
                         ? 'No close time published'
                         : CallsFormat.timestampUtc(market.closesAtUtc!),
                   ),
-                  Text(
-                    market.venue == MarketVenue.panta
-                        ? '${CallsFormat.nativePrices(_sharePrice)} · ${SharePriceSnapshot.attribution}'
-                            '${_sharePrice == null ? '' : ' · Observed ${CallsFormat.timestampUtc(_sharePrice!.observedAtUtc)}'} · Indicative, not a trade quote'
-                        : widget.snapshot == null
-                        ? 'No venue price published — your call locks without one.'
-                        : 'Venue price: Yes ${CallsFormat.probability(widget.snapshot!.yesProbability)} · No ${CallsFormat.probability(widget.snapshot!.noProbability)} · ${CallsFormat.dataAge(widget.snapshot!.ageAt(DateTime.now()))}',
-                    style: callJourneyBody(12),
-                  ),
+                  // Panta's price: one fact row, in the market's own unit. No
+                  // observed-at stamp or disclaimer prose; a missing price is
+                  // read again on Lock, and the rules below name Panta.
+                  if (market.venue != MarketVenue.panta)
+                    Text(
+                      widget.snapshot == null
+                          ? 'No venue price published — your call locks without one.'
+                          : 'Venue price: Yes ${CallsFormat.probability(widget.snapshot!.yesProbability)} · No ${CallsFormat.probability(widget.snapshot!.noProbability)} · ${CallsFormat.dataAge(widget.snapshot!.ageAt(DateTime.now()))}',
+                      style: callJourneyBody(12),
+                    )
+                  else if (_sharePrice case final price?)
+                    CallJourneyFact('Price', CallsFormat.quietPrices(price)),
                   ExpansionTile(
                     tilePadding: EdgeInsets.zero,
                     title: Text(

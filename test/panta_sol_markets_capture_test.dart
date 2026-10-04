@@ -1,6 +1,7 @@
 // Opt-in: renders the screens SOL-quoted Panta markets touch — the Markets
 // tab with a mixed USDC/SOL catalog, a SOL market's detail, and the author's
-// own call on a SOL market (no trade offered) — at 390dp and 320dp/2x text.
+// own call on a SOL market (no trade offered), and the composer on a SOL
+// market — at 390dp and 320dp/2x text.
 //
 // flutter test --no-pub --update-goldens \
 //   --dart-define=CAPTURE_SOL_MARKETS=true \
@@ -10,12 +11,12 @@ import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_detail_screen.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_markets_screen.dart';
 import 'package:chumbucket/features/calls/presentation/screens/market_detail_screen.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/call_composer_sheet.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_fonts/google_fonts.dart';
 
+import 'onboarding_fakes.dart' show loadBrandFonts;
 import 'panta_sol_markets_test.dart' show PantaOwnCallRepository;
 import 'ui_market_layout_discovery_test.dart'
     show CatalogRepository, market, mount;
@@ -26,27 +27,7 @@ void main() {
   const dir = String.fromEnvironment('CAPTURE_DIR', defaultValue: '/tmp');
 
   setUpAll(() async {
-    GoogleFonts.config.allowRuntimeFetching = false;
-    for (final (family, paths) in [
-      (
-        'PPNeueMachina',
-        [
-          'assets/fonts/PPNeueMachina/PPNeueMachina-Regular.otf',
-          'assets/fonts/PPNeueMachina/PPNeueMachina-Ultrabold.otf',
-        ],
-      ),
-      (
-        'Montserrat_regular',
-        ['assets/fonts/Montserrat/Montserrat-Regular.ttf'],
-      ),
-      ('Montserrat_500', ['assets/fonts/Montserrat/Montserrat-Medium.ttf']),
-    ]) {
-      final loader = FontLoader(family);
-      for (final path in paths) {
-        loader.addFont(rootBundle.load(path));
-      }
-      await loader.load();
-    }
+    if (enabled) await loadBrandFonts();
   });
 
   VenueMarket sol(VenueMarket m) => VenueMarket.fromJson({
@@ -162,6 +143,36 @@ void main() {
       await expectLater(
         find.byKey(const ValueKey('capture')),
         matchesGoldenFile(Uri.file('$dir/sol-market-detail-$tag.png')),
+      );
+    }, skip: !enabled);
+
+    testWidgets('composer on a SOL market ($tag)', (tester) async {
+      final provider = CallsProvider(
+        repository: CatalogRepository(markets, prices: prices),
+      )..setViewer(PantaOwnCallRepository.viewer);
+      addTearDown(provider.dispose);
+      await mount(
+        tester,
+        provider,
+        RepaintBoundary(
+          key: const ValueKey('capture'),
+          child: ColoredBox(
+            color: Colors.white,
+            child: CallComposerSheet(
+              market: markets[2],
+              sharePrice: prices['HYPE'],
+              initialSide: Side.yes,
+            ),
+          ),
+        ),
+        width: width,
+        scale: scale,
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await expectLater(
+        find.byKey(const ValueKey('capture')),
+        matchesGoldenFile(Uri.file('$dir/sol-composer-$tag.png')),
       );
     }, skip: !enabled);
 

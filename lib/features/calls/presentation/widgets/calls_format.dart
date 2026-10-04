@@ -69,6 +69,14 @@ class CallsFormat {
           : 'YES ${sharePrice(value.yesPrice, currency: value.currency)} · '
               'NO ${sharePrice(value.noPrice, currency: value.currency)}';
 
+  /// Both sides at reading precision, named once in the market's own unit:
+  /// `YES 0.67 · NO 0.33 SOL/share`. A side Panta did not publish reads `—`.
+  static String quietPrices(SharePriceSnapshot value) {
+    String side(String? price) => price == null ? '—' : displayPrice(price);
+    return 'YES ${side(value.yesPrice)} · NO ${side(value.noPrice)} '
+        '${value.currency.perShare}';
+  }
+
   static final DateFormat _absolute = DateFormat('d MMM yyyy, HH:mm');
   static final DateFormat _absoluteShort = DateFormat('d MMM, HH:mm');
 

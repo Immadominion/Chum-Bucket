@@ -7,9 +7,12 @@ import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/data/mock_calls_repository.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_detail_screen.dart';
 import 'package:chumbucket/features/calls/presentation/screens/market_detail_screen.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/call_composer_sheet.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
+import 'package:chumbucket/features/onboarding/domain/onboarding_data.dart';
 import 'package:chumbucket/features/onboarding/onboarding_copy.dart';
+import 'package:chumbucket/features/onboarding/presentation/widgets/welcome_phone.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -182,6 +185,143 @@ void main() {
     }
   });
 
+  group('no USDC anywhere a SOL market is read', () {
+    // A tall viewport lays out every section, so nothing hides below a fold.
+    Future<void> tall(WidgetTester tester, CallsProvider provider, Widget w) =>
+        mount(tester, provider, w).then((_) async {
+          tester.view.physicalSize = const Size(390, 5000);
+          await tester.pumpAndSettle();
+        });
+    final solMarket = VenueMarket.fromJson(_market(quote: 'SOL', tradable: false));
+    final solPrice = SharePriceSnapshot.fromJson({
+      ..._price('SOL'),
+      'observedAt': DateTime.now().millisecondsSinceEpoch,
+    });
+
+    testWidgets('market detail', (tester) async {
+      final m = VenueMarket.fromJson({
+        ...market('M', const Duration(days: 30)).toJson(),
+        'payloadVersion': 2,
+        'quoteCurrency': 'SOL',
+        'tradable': false,
+      });
+      final provider = CallsProvider(
+        repository: CatalogRepository(
+          [m],
+          prices: {
+            'M': SharePriceSnapshot(
+              id: 'p',
+              marketId: 'M',
+              yesPrice: '0.671739755',
+              noPrice: '0.328260245',
+              observedAt: DateTime.now().millisecondsSinceEpoch,
+              currency: ShareCurrency.sol,
+            ),
+          },
+        ),
+      );
+      addTearDown(provider.dispose);
+      await tall(tester, provider, const MarketDetailScreen(marketId: 'M'));
+      expect(find.textContaining('0.67'), findsWidgets);
+      _expectNoUsdc(tester);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('your own call', (tester) async {
+      final provider = CallsProvider(
+        repository: PantaOwnCallRepository(quote: 'SOL', tradable: false),
+      )..setViewer(PantaOwnCallRepository.viewer);
+      addTearDown(provider.dispose);
+      await tall(
+        tester,
+        provider,
+        const CallDetailScreen(callId: 'call_you_fed'),
+      );
+      expect(find.textContaining('SOL/share'), findsWidgets);
+      _expectNoUsdc(tester);
+      expect(tester.takeException(), isNull);
+    });
+
+    for (final compact in [false, true]) {
+      testWidgets('the composer (compact=$compact)', (tester) async {
+        final provider = CallsProvider(
+          repository: MockCallsRepository(latency: Duration.zero),
+        )..setViewer(MockCallsRepository.demoViewerUserId);
+        addTearDown(provider.dispose);
+        await tall(
+          tester,
+          provider,
+          CallComposerSheet(
+            market: solMarket,
+            sharePrice: solPrice,
+            initialSide: Side.yes,
+            compact: compact,
+          ),
+        );
+        expect(find.textContaining('SOL/share'), findsWidgets);
+        _expectNoUsdc(tester);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  });
+
+  group('welcome phone', () {
+    // The approved onboarding phone names one unit for its strip. With USDC
+    // and SOL markets side by side it names none: never a unitless
+    // "per share", never one unit for both.
+    for (final (quotes, label) in [
+      (['USDC', 'USDC'], 'USDC/share'),
+      (['SOL', 'SOL'], 'SOL/share'),
+      (['USDC', 'SOL'], null),
+    ]) {
+      testWidgets('${quotes.join('+')} strip reads ${label ?? 'no unit'}', (
+        tester,
+      ) async {
+        final markets = [
+          for (final (i, q) in quotes.indexed)
+            VenueMarket.fromJson({
+              ...market('W$i', Duration(days: 3 + i)).toJson(),
+              'payloadVersion': q == 'SOL' ? 2 : 1,
+              'quoteCurrency': q,
+              'tradable': q == 'USDC',
+            }),
+        ];
+        final provider = CallsProvider(repository: CatalogRepository(markets));
+        addTearDown(provider.dispose);
+        await mount(
+          tester,
+          provider,
+          Builder(
+            builder:
+                (context) => MediaQuery(
+                  data: MediaQuery.of(
+                    context,
+                  ).copyWith(disableAnimations: true),
+                  child: SizedBox(
+                    height: 760,
+                    child: WelcomePhone(
+                      feed: WelcomeFeed([
+                        for (final m in markets) LiveMarketItem(m),
+                      ]),
+                      now: DateTime.now(),
+                      onOpenCall: (_) {},
+                      onOpenMarket: (_) {},
+                    ),
+                  ),
+                ),
+          ),
+        );
+        if (label == null) {
+          expect(find.textContaining('/share'), findsNothing);
+          expect(find.textContaining('per share'), findsNothing);
+        } else {
+          expect(find.text(label), findsOneWidget);
+        }
+        expect(tester.takeException(), isNull);
+      });
+    }
+  });
+
   group('call detail', () {
     for (final (label, quote, tradable) in [
       ('SOL-quoted', 'SOL', false),
@@ -231,6 +371,27 @@ void main() {
       );
     }
   });
+}
+
+/// Every string a person can see or hear on screen: text, rich text,
+/// selectable text, and semantics labels. Layout-independent on purpose, so a
+/// redesign of these screens still has to keep a SOL price out of USDC.
+List<String> _everything(WidgetTester tester) => [
+  for (final e in find.byType(Text).evaluate()) ...[
+    (e.widget as Text).data ?? (e.widget as Text).textSpan?.toPlainText() ?? '',
+    (e.widget as Text).semanticsLabel ?? '',
+  ],
+  for (final e in find.byType(RichText).evaluate())
+    (e.widget as RichText).text.toPlainText(),
+  for (final e in find.byType(SelectableText).evaluate())
+    (e.widget as SelectableText).data ?? '',
+  for (final e in find.byType(Semantics).evaluate())
+    (e.widget as Semantics).properties.label ?? '',
+];
+
+void _expectNoUsdc(WidgetTester tester) {
+  final usdc = _everything(tester).where((s) => s.contains('USDC')).toList();
+  expect(usdc, isEmpty, reason: 'a SOL-quoted market read in USDC: $usdc');
 }
 
 /// The demo viewer's own call, moved onto a live Panta market of one quote.
