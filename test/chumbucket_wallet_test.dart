@@ -8,19 +8,30 @@
 library;
 
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:chumbucket/features/authentication/session/session_bff_client.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart' show Side;
+import 'package:chumbucket/features/chumbucket_wallet/chumbucket_privy_tokens.dart';
 import 'package:chumbucket/features/chumbucket_wallet/chumbucket_signers.dart';
 import 'package:chumbucket/features/chumbucket_wallet/chumbucket_wallet_backend.dart';
 import 'package:chumbucket/features/chumbucket_wallet/chumbucket_wallet_controller.dart';
+import 'package:chumbucket/features/chumbucket_wallet/privy_chumbucket_wallet_backend.dart'
+    show privyUserIsAccount;
 import 'package:chumbucket/features/chumbucket_wallet/signed_transaction.dart';
 import 'package:chumbucket/features/embedded_wallet/embedded_wallet_key.dart';
 import 'package:chumbucket/features/embedded_wallet/panta_embedded_wallet.dart';
 import 'package:chumbucket/features/embedded_wallet/panta_signer_choice.dart';
 import 'package:chumbucket/features/panta_trading/panta_trading.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:privy_flutter/privy_flutter.dart'
+    show
+        CustomAuthAccount,
+        EmailAccount,
+        EmbeddedSolanaWallet,
+        Privy,
+        PrivyConfig,
+        Success;
 import 'package:solana/base58.dart';
 import 'package:solana/solana.dart' show Ed25519HDPublicKey, verifySignature;
 
@@ -36,25 +47,48 @@ const _market = '6yEBmxJu2oWdubFVKZshVVUpLLsXd61csSfmf8y4Qtwd';
 /// whole signed transaction), as a bare signature, or tampered.
 enum _Answer { whole, bare, rewritten }
 
+/// A provider double that keeps a session the way Privy does: it can outlive
+/// the app (a persisted session for another account), it ends on logout, and
+/// every operation refuses once it is not the account [signIn] named.
 class _KeyBackend implements ChumbucketWalletBackend {
-  _KeyBackend(this.key, {this.hasWallet = false});
+  _KeyBackend(this.key, {this.hasWallet = false, this.session});
   final EmbeddedWalletKey key;
   bool hasWallet;
   _Answer answer = _Answer.whole;
   final calls = <String>[];
-  String? signedInAs;
+
+  /// Whose provider session exists right now (persists across "restarts").
+  String? session;
+  String? _account;
+  int signInDelayMs = 0;
 
   @override
-  Future<void> signIn(String authUserId) async {
-    calls.add('signIn');
-    signedInAs = authUserId;
+  Future<void> signIn(String account) async {
+    calls.add('signIn:$account');
+    if (signInDelayMs > 0) {
+      await Future<void>.delayed(Duration(milliseconds: signInDelayMs));
+    }
+    if (session != null && session != account) calls.add('logout');
+    session = account;
+    _account = account;
+  }
+
+  void _requireSession() {
+    if (_account == null || session != _account) {
+      _account = null;
+      throw ChumbucketWalletException.signedOut;
+    }
   }
 
   @override
-  Future<String?> wallet() async => hasWallet ? key.address : null;
+  Future<String?> wallet() async {
+    _requireSession();
+    return hasWallet ? key.address : null;
+  }
 
   @override
   Future<String> createWallet() async {
+    _requireSession();
     calls.add('createWallet');
     hasWallet = true;
     return key.address;
@@ -62,13 +96,15 @@ class _KeyBackend implements ChumbucketWalletBackend {
 
   @override
   Future<Uint8List> signMessage(String address, Uint8List message) async {
-    calls.add('signMessage');
+    _requireSession();
+    calls.add('signMessage:$session');
     return Uint8List.fromList(await key.sign(message));
   }
 
   @override
   Future<Uint8List> signTransaction(String address, Uint8List unsigned) async {
-    calls.add('signTransaction');
+    _requireSession();
+    calls.add('signTransaction:$session');
     final signature = await key.sign(signatureMessage(unsigned));
     switch (answer) {
       case _Answer.bare:
@@ -86,7 +122,8 @@ class _KeyBackend implements ChumbucketWalletBackend {
   @override
   Future<void> signOut() async {
     calls.add('signOut');
-    signedInAs = null;
+    session = null;
+    _account = null;
   }
 }
 
@@ -194,7 +231,7 @@ void main() {
         final server = _Server(linkedWallet: key.address);
         final backend = _KeyBackend(key, hasWallet: true);
         final wallet = controller(server, backend);
-        await wallet.bind(kCanonicalUserId, kAuthUserId);
+        await wallet.bind(kCanonicalUserId);
         expect(wallet.phase, ChumbucketWalletPhase.ready);
         expect(wallet.address, key.address);
         expect(wallet.signer?.address, key.address);
@@ -210,14 +247,18 @@ void main() {
         final server = _Server();
         final backend = _KeyBackend(key);
         final wallet = controller(server, backend);
-        await wallet.bind(kCanonicalUserId, kAuthUserId);
+        await wallet.bind(kCanonicalUserId);
         expect(wallet.phase, ChumbucketWalletPhase.none);
         expect(wallet.signer, isNull);
 
         final signer = await wallet.ensure();
         expect(signer.address, key.address);
-        expect(backend.signedInAs, kAuthUserId);
-        expect(backend.calls, ['signIn', 'createWallet', 'signMessage']);
+        expect(backend.session, kCanonicalUserId);
+        expect(backend.calls, [
+          'signIn:$kCanonicalUserId',
+          'createWallet',
+          'signMessage:$kCanonicalUserId',
+        ]);
         expect(server.lastWalletType, 'chumbucket');
         expect(await server.linkSignatureVerifies(), isTrue);
         expect(wallet.phase, ChumbucketWalletPhase.ready);
@@ -231,9 +272,12 @@ void main() {
         final server = _Server();
         final backend = _KeyBackend(key, hasWallet: true);
         final wallet = controller(server, backend);
-        await wallet.bind(kCanonicalUserId, kAuthUserId);
+        await wallet.bind(kCanonicalUserId);
         await wallet.ensure();
-        expect(backend.calls, ['signIn', 'signMessage']);
+        expect(backend.calls, [
+          'signIn:$kCanonicalUserId',
+          'signMessage:$kCanonicalUserId',
+        ]);
         wallet.dispose();
       },
     );
@@ -244,13 +288,13 @@ void main() {
         final server = _Server(linkedWallet: key.address);
         final backend = _KeyBackend(key, hasWallet: true);
         final wallet = controller(server, backend);
-        await wallet.bind(kCanonicalUserId, kAuthUserId);
+        await wallet.bind(kCanonicalUserId);
         final signer = wallet.signer!;
         final unsigned = await pantaBuy(key.address, _market);
         await signer.signTransaction(unsigned);
-        expect(backend.signedInAs, kAuthUserId);
+        expect(backend.session, kCanonicalUserId);
 
-        await wallet.bind('usr_other', 'auth-other');
+        await wallet.bind('usr_other');
         expect(backend.calls.last, 'signOut');
         await expectLater(
           signer.signTransaction(unsigned),
@@ -261,12 +305,264 @@ void main() {
     );
   });
 
+  group('the provider session follows the account', () {
+    test(
+      'after a restart, a persisted session for another account is replaced before anything is signed',
+      () async {
+        final server = _Server(linkedWallet: key.address);
+        final backend = _KeyBackend(
+          key,
+          hasWallet: true,
+          session: 'usr_previous',
+        );
+        final wallet = controller(server, backend);
+        await wallet.bind(kCanonicalUserId);
+        // Showing the wallet needed no provider at all.
+        expect(backend.calls, isEmpty);
+        final signed = await wallet.signer!.signTransaction(
+          await pantaBuy(key.address, _market),
+        );
+        expect(signed.length, greaterThan(65));
+        expect(backend.calls, [
+          'signIn:$kCanonicalUserId',
+          'logout',
+          'signTransaction:$kCanonicalUserId',
+        ]);
+        expect(
+          backend.calls.where((c) => c.endsWith(':usr_previous')),
+          isEmpty,
+        );
+        wallet.dispose();
+      },
+    );
+
+    test(
+      'signing out ends the provider session even if this run never signed in',
+      () async {
+        final server = _Server(linkedWallet: key.address);
+        final backend = _KeyBackend(
+          key,
+          hasWallet: true,
+          session: kCanonicalUserId,
+        );
+        final wallet = controller(server, backend);
+        await wallet.bind(kCanonicalUserId);
+        await wallet.bind(null);
+        expect(backend.calls, ['signOut']);
+        expect(backend.session, isNull);
+        wallet.dispose();
+      },
+    );
+
+    test('an app that starts signed out ends a session left behind', () async {
+      final backend = _KeyBackend(key, session: 'usr_previous');
+      final wallet = controller(_Server(), backend);
+      await wallet.bind(null);
+      expect(backend.calls, ['signOut']);
+      expect(backend.session, isNull);
+      wallet.dispose();
+    });
+
+    test(
+      'another account: signed out first, then signed in as the new one',
+      () async {
+        final server = _Server(linkedWallet: key.address);
+        final backend = _KeyBackend(key, hasWallet: true);
+        final wallet = controller(server, backend);
+        await wallet.bind(kCanonicalUserId);
+        await wallet.signer!.signMessage(Uint8List.fromList([1, 2, 3]));
+        await wallet.bind('usr_other');
+        await wallet.signer!.signMessage(Uint8List.fromList([1, 2, 3]));
+        expect(backend.calls, [
+          'signIn:$kCanonicalUserId',
+          'signMessage:$kCanonicalUserId',
+          'signOut',
+          'signIn:usr_other',
+          'signMessage:usr_other',
+        ]);
+        wallet.dispose();
+      },
+    );
+
+    test(
+      'a session the provider ended is signed into again once, then signs',
+      () async {
+        final server = _Server(linkedWallet: key.address);
+        final backend = _KeyBackend(key, hasWallet: true);
+        final wallet = controller(server, backend);
+        await wallet.bind(kCanonicalUserId);
+        final signer = wallet.signer!;
+        await signer.signMessage(Uint8List.fromList([1]));
+        backend.session = null; // expired, or logged out elsewhere
+        await signer.signMessage(Uint8List.fromList([2]));
+        expect(
+          backend.calls.where((c) => c.startsWith('signIn')),
+          hasLength(2),
+        );
+        wallet.dispose();
+      },
+    );
+
+    test('concurrent signatures share one sign-in', () async {
+      final server = _Server(linkedWallet: key.address);
+      final backend = _KeyBackend(key, hasWallet: true)..signInDelayMs = 20;
+      final wallet = controller(server, backend);
+      await wallet.bind(kCanonicalUserId);
+      final signer = wallet.signer!;
+      await Future.wait([
+        signer.signMessage(Uint8List.fromList([1])),
+        signer.signMessage(Uint8List.fromList([2])),
+        signer.signMessage(Uint8List.fromList([3])),
+      ]);
+      expect(backend.calls.where((c) => c.startsWith('signIn')), hasLength(1));
+      wallet.dispose();
+    });
+
+    test('Privy users are matched to the account by the custom-auth id', () {
+      expect(
+        privyUserIsAccount([
+          EmailAccount(emailAddress: 'a@b.c'),
+          CustomAuthAccount(customUserId: kCanonicalUserId),
+        ], kCanonicalUserId),
+        isTrue,
+      );
+      expect(
+        privyUserIsAccount([
+          CustomAuthAccount(customUserId: 'usr_previous'),
+        ], kCanonicalUserId),
+        isFalse,
+      );
+      expect(privyUserIsAccount(const [], kCanonicalUserId), isFalse);
+    });
+  });
+
+  group('the account token for Privy', () {
+    String jwt(String sub) =>
+        'eyJhbGciOiJFUzI1NiJ9.${base64Url.encode(utf8.encode(jsonEncode({'sub': sub}))).replaceAll('=', '')}.c2ln';
+
+    ({
+      FakeBffServer server,
+      ChumbucketPrivyTokens tokens,
+      List<int> mints,
+      void Function(Duration) advance,
+    })
+    rig({String Function()? sub}) {
+      var now = DateTime.utc(2026, 10, 4, 12);
+      final mints = <int>[];
+      final server = FakeBffServer((request) {
+        if (request.procedurePath != 'wallet.privyToken') {
+          return errorResponse(
+            code: 'NOT_FOUND',
+            httpStatus: 404,
+            message: 'nope',
+          );
+        }
+        mints.add(1);
+        return okResponse({
+          'token': jwt(sub?.call() ?? kCanonicalUserId),
+          'expiresAt':
+              now.add(const Duration(minutes: 10)).millisecondsSinceEpoch,
+        });
+      });
+      final tokens = ChumbucketPrivyTokens(
+        bff: SessionBffClient(baseUrl: kSessionBase, httpClient: server.client),
+        authToken: () async => kAccessToken,
+        now: () => now,
+      );
+      return (
+        server: server,
+        tokens: tokens,
+        mints: mints,
+        advance: (d) => now = now.add(d),
+      );
+    }
+
+    test(
+      'minted for the bound account, held until a minute before expiry',
+      () async {
+        final r = rig();
+        expect(await r.tokens.current(), isNull); // no account yet
+        r.tokens.bind(kCanonicalUserId);
+        final first = await r.tokens.current();
+        expect(ChumbucketPrivyTokens.subjectOf(first!), kCanonicalUserId);
+        expect(await r.tokens.current(), first);
+        expect(r.mints, hasLength(1));
+        r.advance(const Duration(minutes: 9, seconds: 1));
+        await r.tokens.current();
+        expect(r.mints, hasLength(2));
+        // The BFF's own bearer is the session token; it never reaches Privy.
+        expect(
+          r.server.lastRequest.headers['authorization'],
+          'Bearer $kAccessToken',
+        );
+      },
+    );
+
+    test(
+      'another account drops the held token; a token for anyone else is never handed out',
+      () async {
+        var sub = kCanonicalUserId;
+        final r = rig(sub: () => sub);
+        r.tokens.bind(kCanonicalUserId);
+        await r.tokens.current();
+        r.tokens.bind('usr_other');
+        sub = kCanonicalUserId; // a stale or wrong answer
+        expect(await r.tokens.current(), isNull);
+        sub = 'usr_other';
+        expect(
+          ChumbucketPrivyTokens.subjectOf((await r.tokens.current())!),
+          'usr_other',
+        );
+        r.tokens.bind(null);
+        expect(await r.tokens.current(), isNull);
+      },
+    );
+  });
+
+  group('the Privy method channel', () {
+    const channel = MethodChannel('privy_flutter');
+    const authState = MethodChannel('privy_flutter/authState');
+    TestWidgetsFlutterBinding.ensureInitialized();
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    tearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+      messenger.setMockMethodCallHandler(authState, null);
+    });
+
+    test(
+      'a transaction reaches the platform as a plain list of byte values',
+      () async {
+        Object? sent;
+        messenger.setMockMethodCallHandler(authState, (_) async => null);
+        messenger.setMockMethodCallHandler(channel, (call) async {
+          if (call.method != 'solanaSignTransaction') return null;
+          sent = (call.arguments as Map)['transaction'];
+          return base64Encode([9, 9, 9]);
+        });
+        // The SDK's own start-up (its logger), against the mocked platform.
+        Privy.init(config: PrivyConfig(appId: 'app', appClientId: 'client'));
+        final unsigned = Uint8List.fromList([1, 2, 255, 0]);
+        final result = await EmbeddedSolanaWallet(
+          address: key.address,
+          hdWalletIndex: 0,
+        ).provider.signTransaction(unsigned);
+        expect(result, isA<Success<String>>());
+        // Swift casts `args["transaction"] as? [UInt8]` and Kotlin reads
+        // `List<Int>`: both need a plain list, which a typed Uint8List is not.
+        expect(sent, isA<List<Object?>>());
+        expect(sent, isNot(isA<Uint8List>()));
+        expect(sent, [1, 2, 255, 0]);
+      },
+    );
+  });
+
   group('signing a Panta buy', () {
     Future<(ChumbucketWalletController, _KeyBackend)> ready() async {
       final server = _Server(linkedWallet: key.address);
       final backend = _KeyBackend(key, hasWallet: true);
       final wallet = controller(server, backend);
-      await wallet.bind(kCanonicalUserId, kAuthUserId);
+      await wallet.bind(kCanonicalUserId);
       return (wallet, backend);
     }
 
@@ -324,7 +620,10 @@ void main() {
           ),
         );
       }
-      expect(backend.calls.where((c) => c == 'signTransaction'), isEmpty);
+      expect(
+        backend.calls.where((c) => c.startsWith('signTransaction')),
+        isEmpty,
+      );
       wallet.dispose();
     });
 
@@ -357,7 +656,7 @@ void main() {
       () async {
         final server = _Server();
         final wallet = controller(server, _KeyBackend(key));
-        await wallet.bind(kCanonicalUserId, kAuthUserId);
+        await wallet.bind(kCanonicalUserId);
         expect(
           choosePantaSigner(
             walletApp: null,

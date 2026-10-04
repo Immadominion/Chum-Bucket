@@ -1,11 +1,16 @@
 /// The Chumbucket wallet on Privy: an embedded Solana wallet, non-custodial,
 /// whose key Privy rebuilds in its secure enclave for this account only.
 ///
-/// Privy signs the person in with our own Supabase session (JWT-based custom
-/// auth: Privy verifies the access token against Supabase's JWKS), so the
-/// same `sub` reaches the same wallet on any device with no prompt. The token
-/// provider is the session's `bffAuthToken`, which refreshes a token that is
-/// about to expire; Privy asks for it again whenever it needs one.
+/// Privy signs the person in with the BFF's own account token (JWT-based
+/// custom auth: Privy verifies it against the BFF's JWKS, `sub` = the
+/// account), so every sign-in of one account reaches the same wallet on any
+/// device, with no prompt. The token provider is `ChumbucketPrivyTokens`,
+/// which fetches a fresh one before it expires; Privy asks again whenever it
+/// needs one.
+///
+/// Every read of the Privy user checks it is the account this backend signed
+/// in as: a session left over from another account (an earlier run, a
+/// sign-out that never reached Privy) is never used to sign.
 ///
 /// Signing is sign-only: [signTransaction] returns bytes, and the BFF checks
 /// and broadcasts them. Nothing here sends a transaction.
@@ -22,14 +27,14 @@ class PrivyChumbucketWalletBackend implements ChumbucketWalletBackend {
   PrivyChumbucketWalletBackend({
     required String appId,
     required String clientId,
-    required Future<String?> Function() accessToken,
+    required Future<String?> Function() accountToken,
   }) : _appId = appId,
        _clientId = clientId,
-       _accessToken = accessToken;
+       _accountToken = accountToken;
 
   final String _appId;
   final String _clientId;
-  final Future<String?> Function() _accessToken;
+  final Future<String?> Function() _accountToken;
 
   /// Made on first use: an account that never needs its wallet never starts
   /// a Privy session (Privy prices by monthly active users).
@@ -38,21 +43,30 @@ class PrivyChumbucketWalletBackend implements ChumbucketWalletBackend {
       appId: _appId,
       appClientId: _clientId,
       logLevel: PrivyLogLevel.none,
-      customAuthConfig: LoginWithCustomAuthConfig(tokenProvider: _accessToken),
+      customAuthConfig: LoginWithCustomAuthConfig(tokenProvider: _accountToken),
     ),
   );
 
-  static bool _isFor(PrivyUser user, String authUserId) => user.linkedAccounts
-      .any((a) => a is CustomAuthAccount && a.customUserId == authUserId);
+  /// The account this backend signed in as; null until [signIn] succeeds.
+  String? _account;
 
+  static bool _isFor(PrivyUser user, String account) =>
+      privyUserIsAccount(user.linkedAccounts, account);
+
+  /// The signed-in Privy user, only while it is [_account].
   Future<PrivyUser> _user() async {
+    final account = _account;
+    if (account == null) throw ChumbucketWalletException.signedOut;
     final AuthState state;
     try {
       state = await _privy.getAuthState();
     } catch (_) {
       throw ChumbucketWalletException.unavailable;
     }
-    if (state is Authenticated) return state.user;
+    if (state is Authenticated && _isFor(state.user, account)) {
+      return state.user;
+    }
+    _account = null;
     throw ChumbucketWalletException.signedOut;
   }
 
@@ -64,14 +78,18 @@ class PrivyChumbucketWalletBackend implements ChumbucketWalletBackend {
   }
 
   @override
-  Future<void> signIn(String authUserId) async {
+  Future<void> signIn(String account) async {
+    _account = null;
     final AuthState state;
     try {
       state = await _privy.getAuthState();
     } catch (_) {
       throw ChumbucketWalletException.unavailable;
     }
-    if (state is Authenticated && _isFor(state.user, authUserId)) return;
+    if (state is Authenticated && _isFor(state.user, account)) {
+      _account = account;
+      return;
+    }
     if (state is Authenticated || state is AuthenticatedUnverified) {
       await _privy.logout();
     }
@@ -83,10 +101,11 @@ class PrivyChumbucketWalletBackend implements ChumbucketWalletBackend {
     }
     switch (result) {
       case Success<PrivyUser>(:final value):
-        if (!_isFor(value, authUserId)) {
+        if (!_isFor(value, account)) {
           await _privy.logout();
           throw ChumbucketWalletException.signedOut;
         }
+        _account = account;
       case Failure<PrivyUser>():
         throw ChumbucketWalletException.unavailable;
     }
@@ -124,6 +143,7 @@ class PrivyChumbucketWalletBackend implements ChumbucketWalletBackend {
 
   @override
   Future<void> signOut() async {
+    _account = null;
     try {
       await _privy.logout();
     } catch (_) {
@@ -144,3 +164,8 @@ class PrivyChumbucketWalletBackend implements ChumbucketWalletBackend {
     }
   }
 }
+
+/// Whether a Privy user's linked accounts name exactly [account] as the
+/// custom-auth user (the BFF token's `sub`).
+bool privyUserIsAccount(Iterable<LinkedAccounts> linked, String account) =>
+    linked.any((a) => a is CustomAuthAccount && a.customUserId == account);

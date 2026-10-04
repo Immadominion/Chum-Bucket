@@ -28,6 +28,7 @@ import 'package:chumbucket/features/authentication/session/chumbucket_session.da
 import 'package:chumbucket/features/authentication/session/session_bff_client.dart';
 import 'package:chumbucket/features/embedded_wallet/embedded_wallet_controller.dart';
 import 'package:chumbucket/features/embedded_wallet/embedded_wallet_vault.dart';
+import 'package:chumbucket/features/chumbucket_wallet/chumbucket_privy_tokens.dart';
 import 'package:chumbucket/features/chumbucket_wallet/chumbucket_wallet_controller.dart';
 import 'package:chumbucket/features/chumbucket_wallet/privy_chumbucket_wallet_backend.dart';
 import 'package:chumbucket/features/authentication/session/app_session_persistence.dart';
@@ -193,24 +194,28 @@ void main() async {
                   ChumbucketSession,
                   ChumbucketWalletController
                 >(
-                  create:
-                      (context) => ChumbucketWalletController(
-                        backend: PrivyChumbucketWalletBackend(
-                          appId: appId,
-                          clientId: clientId,
-                          accessToken:
-                              context.read<ChumbucketSession>().bffAuthToken,
-                        ),
-                        bff: SessionBffClient(),
-                        ownsBff: true,
-                        authToken:
-                            context.read<ChumbucketSession>().bffAuthToken,
-                      ),
-                  update: (_, session, wallet) {
-                    wallet!.bind(
-                      session.isReady ? session.userId : null,
-                      session.isReady ? session.authUserId : null,
+                  create: (context) {
+                    final session = context.read<ChumbucketSession>();
+                    final bff = SessionBffClient();
+                    // Privy gets the BFF's account token, never a Supabase one.
+                    final tokens = ChumbucketPrivyTokens(
+                      bff: bff,
+                      authToken: session.bffAuthToken,
                     );
+                    return ChumbucketWalletController(
+                      backend: PrivyChumbucketWalletBackend(
+                        appId: appId,
+                        clientId: clientId,
+                        accountToken: tokens.current,
+                      ),
+                      bff: bff,
+                      ownsBff: true,
+                      tokens: tokens,
+                      authToken: session.bffAuthToken,
+                    );
+                  },
+                  update: (_, session, wallet) {
+                    wallet!.bind(session.isReady ? session.userId : null);
                     return wallet;
                   },
                 ),

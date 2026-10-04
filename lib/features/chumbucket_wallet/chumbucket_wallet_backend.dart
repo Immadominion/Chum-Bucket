@@ -10,11 +10,12 @@ library;
 import 'dart:typed_data';
 
 abstract interface class ChumbucketWalletBackend {
-  /// Signs in to the wallet provider as [authUserId] (the Supabase `sub`)
-  /// with the session's own access token. A provider session that belongs to
+  /// Signs in to the wallet provider as [account] (`public.users.id`, the
+  /// `sub` of the BFF's account token). A provider session that belongs to
   /// anyone else is ended first; a sign-in that answers for anyone else is
-  /// refused.
-  Future<void> signIn(String authUserId);
+  /// refused. Every later call refuses with [ChumbucketWalletException.signedOut]
+  /// once the provider is no longer signed in as [account].
+  Future<void> signIn(String account);
 
   /// The account's Solana wallet at the provider, or null when it has none.
   Future<String?> wallet();

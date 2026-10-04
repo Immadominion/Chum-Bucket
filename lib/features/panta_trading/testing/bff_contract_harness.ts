@@ -209,7 +209,7 @@ const service = new PantaTradingService({ store: ledger, execution,
   maxAmountBaseUnits: "100000000", now: () => now,
   // The BFF quotes a buy only for the account's own proven wallets; here the
   // one synthetic wallet is the synthetic person's only link.
-  wallets: { async owns(id: string, address: string) { return id === userId && address === wallet; } },
+  wallets: { async status(id: string, address: string) { return address !== wallet ? "none" : id === userId ? "active" : "other"; } },
   venue: { async getMarket() { return { venue: "panta", status: "OPEN", opensAt: now - 1000 }; } },
   chain: { async broadcast() { broadcastCount++; } }, // Counter, no RPC/broadcast.
 });

@@ -2,6 +2,10 @@
 /// the account across iPhone, Android and the web, and the default for trades
 /// (behind `CHUMBUCKET_WALLET_ENABLED`).
 ///
+/// One wallet per ACCOUNT: the provider is signed in as the account
+/// (`public.users.id`) with the BFF's own token (`ChumbucketPrivyTokens`), so
+/// every sign-in of one account reaches the same wallet.
+///
 /// What the server already knows comes first and costs nothing: `wallet.status`
 /// names the account's linked Chumbucket wallet, so a returning account shows
 /// its wallet (and its balance) without starting a provider session. The
@@ -21,6 +25,7 @@ import 'package:solana/base58.dart';
 import 'package:chumbucket/core/config/app_config.dart';
 import 'package:chumbucket/features/authentication/session/session_bff_client.dart';
 
+import 'chumbucket_privy_tokens.dart';
 import 'chumbucket_wallet_backend.dart';
 import 'signed_transaction.dart';
 
@@ -61,22 +66,27 @@ class ChumbucketWalletController extends ChangeNotifier {
     required ChumbucketWalletBackend backend,
     required SessionBffClient bff,
     required Future<String?> Function() authToken,
+    ChumbucketPrivyTokens? tokens,
     bool ownsBff = false,
   }) : _backend = backend,
        _bff = bff,
        _authToken = authToken,
+       _tokens = tokens,
        _ownsBff = ownsBff;
 
   final ChumbucketWalletBackend _backend;
   final SessionBffClient _bff;
   final Future<String?> Function() _authToken;
+  final ChumbucketPrivyTokens? _tokens;
   final bool _ownsBff;
 
   String? _userId;
-  String? _authUserId;
+  bool _bound = false;
   int _epoch = 0;
   bool _disposed = false;
   bool _signedIn = false;
+  Future<void>? _signingIn;
+  Future<void>? _signingOut;
   ChumbucketWalletPhase _phase = ChumbucketWalletPhase.idle;
   String? _address;
   String? _error;
@@ -107,19 +117,34 @@ class ChumbucketWalletController extends ChangeNotifier {
 
   bool _current(int epoch) => !_disposed && epoch == _epoch;
 
-  /// Follows the signed-in account. Null signs the provider out too.
-  Future<void> bind(String? userId, String? authUserId) async {
-    if (_disposed || (userId == _userId && authUserId == _authUserId)) return;
+  /// Follows the signed-in account (`public.users.id`).
+  ///
+  /// Signing out, or another account, always ends the provider session —
+  /// even one this run never started (it persists across restarts), and even
+  /// on the very first bind when that first answer is "signed out".
+  Future<void> bind(String? userId) async {
+    if (_disposed || (_bound && userId == _userId)) return;
+    final first = !_bound;
+    final previous = _userId;
+    _bound = true;
     final epoch = ++_epoch;
-    final wasSignedIn = _signedIn;
     _userId = userId;
-    _authUserId = authUserId;
     _address = null;
     _error = null;
     _ensuring = null;
     _signedIn = false;
-    if (wasSignedIn) unawaited(_backend.signOut());
-    if (userId == null || authUserId == null) {
+    _signingIn = null;
+    _tokens?.bind(userId);
+    if (userId == null || (!first && previous != userId)) {
+      final ending = _backend.signOut().catchError((_) {});
+      _signingOut = ending;
+      unawaited(
+        ending.whenComplete(() {
+          if (identical(_signingOut, ending)) _signingOut = null;
+        }),
+      );
+    }
+    if (userId == null) {
       _phase = ChumbucketWalletPhase.idle;
       _notify();
       return;
@@ -162,16 +187,17 @@ class ChumbucketWalletController extends ChangeNotifier {
 
   Future<ChumbucketWalletSigner> _setUp() async {
     final epoch = _epoch;
-    final authUserId = _authUserId;
-    if (_disposed || _userId == null || authUserId == null) {
+    if (_disposed || _userId == null) {
       throw ChumbucketWalletException.signedOut;
     }
     _phase = ChumbucketWalletPhase.settingUp;
     _error = null;
     _notify();
     try {
-      await _signIn(epoch, authUserId);
-      final address = await _backend.wallet() ?? await _backend.createWallet();
+      final address = await _withProvider(
+        epoch,
+        () async => await _backend.wallet() ?? await _backend.createWallet(),
+      );
       _check(epoch);
       await _link(epoch, address);
       _address = address;
@@ -204,11 +230,36 @@ class ChumbucketWalletController extends ChangeNotifier {
     if (!_current(epoch)) throw ChumbucketWalletException.signedOut;
   }
 
-  Future<void> _signIn(int epoch, String authUserId) async {
+  /// Signed in as this account, once: concurrent callers share one sign-in,
+  /// and a sign-out still in flight finishes first.
+  Future<void> _signIn(int epoch) async {
     if (_signedIn) return;
-    await _backend.signIn(authUserId);
+    final ending = _signingOut;
+    if (ending != null) await ending;
+    _check(epoch);
+    final pending =
+        _signingIn ??= _backend.signIn(_userId!).whenComplete(() {
+          _signingIn = null;
+        });
+    await pending;
     _check(epoch);
     _signedIn = true;
+  }
+
+  /// Runs [action] signed in as this account. A "signed out" answer (the
+  /// provider's session ended, or belongs to someone else) forgets the
+  /// sign-in and tries once more after signing in again.
+  Future<T> _withProvider<T>(int epoch, Future<T> Function() action) async {
+    await _signIn(epoch);
+    try {
+      return await action();
+    } on ChumbucketWalletException catch (e) {
+      if (!identical(e, ChumbucketWalletException.signedOut)) rethrow;
+      _signedIn = false;
+      _check(epoch);
+      await _signIn(epoch);
+      return action();
+    }
   }
 
   /// The server's single-use challenge for this account and [address], signed
@@ -219,9 +270,12 @@ class ChumbucketWalletController extends ChangeNotifier {
     if (token == null) throw ChumbucketWalletException.signedOut;
     final proof = await _bff.requestWalletLink(token, address: address);
     _check(epoch);
-    final signature = await _backend.signMessage(
-      address,
-      Uint8List.fromList(utf8.encode(proof.message)),
+    final signature = await _withProvider(
+      epoch,
+      () => _backend.signMessage(
+        address,
+        Uint8List.fromList(utf8.encode(proof.message)),
+      ),
     );
     _check(epoch);
     if (signature.length != 64) throw ChumbucketWalletException.refused;
@@ -241,8 +295,10 @@ class ChumbucketWalletController extends ChangeNotifier {
     Uint8List message,
   ) async {
     _guard(epoch, address);
-    await _signIn(epoch, _authUserId!);
-    final signature = await _backend.signMessage(address, message);
+    final signature = await _withProvider(
+      epoch,
+      () => _backend.signMessage(address, message),
+    );
     _guard(epoch, address);
     if (signature.length != 64) throw ChumbucketWalletException.refused;
     return signature;
@@ -255,8 +311,10 @@ class ChumbucketWalletController extends ChangeNotifier {
     int slot,
   ) async {
     _guard(epoch, address);
-    await _signIn(epoch, _authUserId!);
-    final answer = await _backend.signTransaction(address, unsigned);
+    final answer = await _withProvider(
+      epoch,
+      () => _backend.signTransaction(address, unsigned),
+    );
     _guard(epoch, address);
     try {
       return adoptSignerAnswer(unsigned, answer, slot: slot);
@@ -268,7 +326,7 @@ class ChumbucketWalletController extends ChangeNotifier {
   /// Signed out, another account, or another wallet since the signer was
   /// handed out: refuse.
   void _guard(int epoch, String address) {
-    if (!_current(epoch) || _authUserId == null || this.address != address) {
+    if (!_current(epoch) || _userId == null || this.address != address) {
       throw ChumbucketWalletException.signedOut;
     }
   }
@@ -277,7 +335,6 @@ class ChumbucketWalletController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _epoch++;
-    if (_signedIn) unawaited(_backend.signOut());
     if (_ownsBff) _bff.close();
     super.dispose();
   }

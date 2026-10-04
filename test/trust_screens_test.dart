@@ -19,6 +19,7 @@ import 'package:chumbucket/features/trust/presentation/privacy_data_screen.dart'
 import 'package:chumbucket/features/trust/presentation/safety_actions_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -115,6 +116,44 @@ void main() {
       expect(find.textContaining("It's safe to retry"), findsOneWidget);
       expect(signedOut, 0);
     });
+
+    testWidgets(
+      'money in the Chumbucket wallet: "Cash out first", icon first, nothing deleted',
+      (tester) async {
+        usePhoneSurface(tester);
+        final repo =
+            FakeTrust()
+              ..deleteError = const CallsRejectedException(kCashOutFirst);
+        var signedOut = 0;
+        await tester.pumpWidget(
+          host(
+            DeleteAccountScreen(
+              repository: repo,
+              onDeleted: (_) async => signedOut++,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final button = find.widgetWithText(FilledButton, 'Delete my account');
+        await tester.dragUntilVisible(
+          button,
+          find.byType(ListView),
+          const Offset(0, -200),
+        );
+        await tester.enterText(find.byType(TextField), 'DELETE');
+        await tester.pump();
+        await tester.tap(button);
+        await tester.pumpAndSettle();
+        final row = find.byKey(const ValueKey('delete-account-cash-out-first'));
+        expect(row, findsOneWidget);
+        expect(
+          find.descendant(of: row, matching: find.byType(BasilIcon)),
+          findsOneWidget,
+        );
+        expect(find.text('Cash out first'), findsOneWidget);
+        expect(signedOut, 0);
+      },
+    );
 
     testWidgets('without a session it asks to sign in first', (tester) async {
       usePhoneSurface(tester);

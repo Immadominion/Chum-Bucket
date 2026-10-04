@@ -384,6 +384,37 @@ class SessionBffClient {
         : null;
   }
 
+  /// The account's ten-minute token for Privy (`wallet.privyToken`): an ES256
+  /// JWT the BFF mints with `sub` = the account, so every sign-in of one
+  /// account reaches the same Chumbucket wallet. Throws [SessionException].
+  Future<({String token, DateTime expiresAt})> chumbucketPrivyToken(
+    String accessToken,
+  ) async {
+    final data = await _send(
+      'wallet.privyToken',
+      method: 'POST',
+      bearer: accessToken,
+      input: const {},
+    );
+    final token = data is Map ? data['token'] : null;
+    final expiresAt = data is Map ? data['expiresAt'] : null;
+    if (token is! String || token.split('.').length != 3 || expiresAt is! num) {
+      throw const SessionException(
+        SessionError.network(
+          'Your wallet isn’t reachable right now.',
+          code: SessionErrorCode.unreadable,
+        ),
+      );
+    }
+    return (
+      token: token,
+      expiresAt: DateTime.fromMillisecondsSinceEpoch(
+        expiresAt.toInt(),
+        isUtc: true,
+      ),
+    );
+  }
+
   /// Whether [handle] can be claimed. Public and credential-free: usernames
   /// are public, and the answer carries no profile field.
   Future<UsernameStatus> usernameStatus(String handle) async {
