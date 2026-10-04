@@ -977,6 +977,27 @@ class CallsProvider extends ChangeNotifier {
     }
   }
 
+  /// A call that became the viewer's through the money flow: funded, kept
+  /// free, or still pending (shown to its owner only). [targetCallId] is the
+  /// call a Tail/Fade answered, whose cached detail is now out of date.
+  void adoptCall(
+    CallFeedEntry entry, {
+    CallResponseKind? viaResponse,
+    String? targetCallId,
+    AnalyticsSurface? surface,
+  }) {
+    if (entry.author.id != _viewerUserId) return;
+    final known = _feedEntries.indexWhere((e) => e.call.id == entry.call.id);
+    if (known >= 0) {
+      _feedEntries = [..._feedEntries]..[known] = entry;
+    } else {
+      _onCallCreated(entry, viaResponse: viaResponse, surface: surface);
+    }
+    _callDetails.remove(entry.call.id);
+    if (targetCallId != null) _callDetails.remove(targetCallId);
+    _notify();
+  }
+
   void _onCallCreated(
     CallFeedEntry entry, {
     CallResponseKind? viaResponse,

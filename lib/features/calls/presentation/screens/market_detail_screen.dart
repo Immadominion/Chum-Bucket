@@ -25,6 +25,8 @@ import 'package:chumbucket/features/calls/presentation/widgets/market_state_view
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_person_screen.dart';
 import 'package:chumbucket/features/market_creation/presentation/widgets/market_entry_widgets.dart';
+import 'package:chumbucket/features/money/money_controller.dart';
+import 'package:chumbucket/features/money/presentation/money_amount_row.dart';
 import 'package:chumbucket/features/panta_trading/presentation/panta_market_link.dart';
 import 'package:chumbucket/features/panta_trading/presentation/panta_mark.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
@@ -50,6 +52,9 @@ class _MarketDetailScreenState extends State<MarketDetailScreen>
     with WidgetsBindingObserver {
   Timer? _ticker;
   bool _started = false;
+
+  /// The amount for "Make a call", carried into the composer.
+  MoneyAmount? _amount;
   bool _foreground = true;
   bool _current = true;
 
@@ -110,7 +115,10 @@ class _MarketDetailScreenState extends State<MarketDetailScreen>
       // by Lock itself, once, rather than asking the person to refresh a
       // screen that offers no way to.
       refreshPrice: () => _freshPrice(provider),
+      initialAmount: _amount,
     );
+    // Back to the amount last used (the composer remembers it).
+    if (mounted) setState(() => _amount = null);
     if (entry != null && mounted) {
       await _openCall(entry.call.id);
       if (mounted) {
@@ -118,6 +126,10 @@ class _MarketDetailScreenState extends State<MarketDetailScreen>
       }
     }
   }
+
+  /// Money on, a market that can be traded and is taking calls.
+  MoneyController? _moneyFor(VenueMarket market, bool acceptsCalls) =>
+      market.tradable && acceptsCalls ? moneyOf(context) : null;
 
   Future<SharePriceSnapshot?> _freshPrice(CallsProvider provider) async {
     final detail = await provider.loadMarketDetail(
@@ -414,7 +426,20 @@ class _MarketDetailScreenState extends State<MarketDetailScreen>
                     label: 'View your call',
                     onPressed: () => _openCall(ownCall.call.id),
                   )
-                else
+                else if (_moneyFor(market, acceptsCalls) case final money?) ...[
+                  MoneyAmountRow.of(
+                    money,
+                    value: _amount ??= money.defaultAmount,
+                    onChanged: (amount) => setState(() => _amount = amount),
+                  ),
+                  const SizedBox(height: 10),
+                  // Free: ink with the Free marker. An amount: pink.
+                  MoneyCallButton(
+                    label: 'Make a call',
+                    amount: _amount!,
+                    onPressed: () => _compose(detail),
+                  ),
+                ] else
                   // A free call: the ink button with its Free marker.
                   CallJourneyButton(
                     label: 'Make a call',

@@ -24,6 +24,14 @@ import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:chumbucket/features/panta_trading/presentation/panta_market_link.dart';
 import 'package:chumbucket/features/trust/data/content_policy.dart';
+import 'package:chumbucket/features/money/data/money_models.dart'
+    show MoneyCallKind, MoneyCallState;
+import 'package:chumbucket/features/money/money_call_controller.dart'
+    show MoneyCallRequest;
+import 'package:chumbucket/features/money/money_controller.dart';
+import 'package:chumbucket/features/money/presentation/money_amount_row.dart';
+import 'package:chumbucket/features/money/presentation/money_call_sheet.dart'
+    show runMoneyCall;
 
 Future<CallFeedEntry?> showCallComposer({
   required BuildContext context,
@@ -41,6 +49,8 @@ Future<CallFeedEntry?> showCallComposer({
   AnalyticsSurface? surface,
   bool askForNotifications = true,
   bool compact = false,
+  MoneyAmount? initialAmount,
+  bool allowMoney = true,
 }) => showChumbucketWavySheet<CallFeedEntry>(
   context: context,
   builder:
@@ -59,6 +69,8 @@ Future<CallFeedEntry?> showCallComposer({
         surface: surface,
         askForNotifications: askForNotifications,
         compact: compact,
+        initialAmount: initialAmount,
+        allowMoney: allowMoney,
       ),
 );
 
@@ -117,6 +129,13 @@ class CallComposerSheet extends StatefulWidget {
   /// reason, visibility, confidence or rules (all still defaults: public,
   /// no reason, no confidence); the full composer is everywhere else.
   final bool compact;
+
+  /// The amount picked before the composer opened (market detail's row).
+  final MoneyAmount? initialAmount;
+
+  /// Calls with an amount, when money is on. Onboarding's first call stays
+  /// free: it passes false (and compact never shows the row).
+  final bool allowMoney;
   const CallComposerSheet({
     super.key,
     required this.market,
@@ -133,6 +152,8 @@ class CallComposerSheet extends StatefulWidget {
     this.surface,
     this.askForNotifications = true,
     this.compact = false,
+    this.initialAmount,
+    this.allowMoney = true,
   });
   @override
   State<CallComposerSheet> createState() => _CallComposerSheetState();
@@ -159,10 +180,65 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
   /// Offer "Pick another market" (onboarding): this market can't be called
   /// right now.
   bool _offerAnother = false;
+
+  /// The amount on this call; set once money is known to be on.
+  MoneyAmount? _amount;
+  bool _moneyBusy = false;
+
   @override
   void dispose() {
     _thesis.dispose();
     super.dispose();
+  }
+
+  /// Money for this call, when it is on and this market can be traded.
+  MoneyController? _money(BuildContext context, {bool listen = true}) {
+    if (!widget.allowMoney || widget.compact || !widget.market.tradable) {
+      return null;
+    }
+    final money = moneyOf(context, listen: listen);
+    if (money != null) {
+      _amount ??= widget.initialAmount ?? money.defaultAmount;
+    }
+    return money;
+  }
+
+  Future<void> _submitMoney(Side side, String thesis) async {
+    final provider = context.read<CallsProvider>();
+    final money = moneyOf(context, listen: false);
+    final amount = _amount;
+    if (money == null || amount == null || amount.isFree) return;
+    setState(() => _error = null);
+    final outcome = await runMoneyCall(
+      context,
+      MoneyCallRequest(
+        kind: MoneyCallKind.own,
+        marketId: widget.market.id,
+        side: side,
+        venueMarketId: widget.market.venueMarketId,
+        question: widget.market.question,
+        amountBaseUnits: amount.baseUnits!,
+        confidence: _useConfidence ? _confidence : null,
+        thesis: thesis.isEmpty ? null : thesis,
+        visibility: _visibility,
+      ),
+      onBusy: (busy) {
+        if (mounted) setState(() => _moneyBusy = busy);
+      },
+    );
+    if (!mounted || outcome == null) return;
+    if (outcome.error != null) {
+      setState(() => _error = outcome.error);
+      return;
+    }
+    final entry = outcome.call;
+    if (entry == null) return;
+    unawaited(money.remember(amount));
+    final state = outcome.moneyCall?.state;
+    if (state == MoneyCallState.funded || state == MoneyCallState.free) {
+      provider.adoptCall(entry, surface: widget.surface);
+    }
+    Navigator.of(context).pop(entry);
   }
 
   /// Compact mode's single line: the side and its odds. That it's free is
@@ -182,7 +258,7 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
 
   Future<void> _submit() async {
     final provider = context.read<CallsProvider>();
-    if (provider.isSubmitting || _refreshing) return;
+    if (provider.isSubmitting || _refreshing || _moneyBusy) return;
     final side = _side;
     if (side == null) {
       setState(() => _error = 'Pick a side first.');
@@ -203,6 +279,10 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
         _more = true;
         _error = problem;
       });
+      return;
+    }
+    if (!(_amount?.isFree ?? true) && _money(context, listen: false) != null) {
+      await _submitMoney(side, thesis);
       return;
     }
     if (widget.market.venue == MarketVenue.panta &&
@@ -245,6 +325,9 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
         surface: widget.surface,
       );
       if (!mounted) return;
+      if (_amount case final amount? when amount.isFree) {
+        unawaited(moneyOf(context, listen: false)?.remember(amount));
+      }
       // Outlives this sheet: the in-context notification ask comes after it.
       final root = Navigator.of(context, rootNavigator: true).context;
       Navigator.of(context).pop(entry);
@@ -278,7 +361,7 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
     builder:
         (context, provider, _) => CallJourneySheet(
           title: widget.headline ?? 'Make your call',
-          busy: provider.isSubmitting,
+          busy: provider.isSubmitting || _moneyBusy,
           body:
               !provider.isSignedIn && widget.onSignInRequired == null
                   ? SingleChildScrollView(
@@ -320,7 +403,8 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
   Widget _form(CallsProvider provider) {
     final market = widget.market;
     final open = market.status.acceptsNewCalls;
-    final busy = provider.isSubmitting || _refreshing;
+    final busy = provider.isSubmitting || _refreshing || _moneyBusy;
+    final money = _money(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -397,14 +481,35 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
                   CallInlineError(_error!),
                   const SizedBox(height: 10),
                 ],
-                // A free call: the solid ink button, Free marker inside.
-                CallJourneyButton(
-                  label: _side == null ? 'Call it' : 'Call ${_side!.wire}',
-                  primary: true,
-                  free: true,
-                  busy: busy,
-                  onPressed: _side == null || busy ? null : _submit,
-                ),
+                if (money != null) ...[
+                  MoneyAmountRow.of(
+                    money,
+                    value: _amount!,
+                    enabled: !busy,
+                    onChanged:
+                        (amount) => setState(() {
+                          _amount = amount;
+                          _error = null;
+                        }),
+                  ),
+                  const SizedBox(height: 12),
+                  // Free: the ink button with its Free marker. An amount:
+                  // pink, "Call YES · $5".
+                  MoneyCallButton(
+                    label: _side == null ? 'Call it' : 'Call ${_side!.wire}',
+                    amount: _amount!,
+                    busy: busy,
+                    onPressed: _side == null || busy ? null : _submit,
+                  ),
+                ] else
+                  // A free call: the solid ink button, Free marker inside.
+                  CallJourneyButton(
+                    label: _side == null ? 'Call it' : 'Call ${_side!.wire}',
+                    primary: true,
+                    free: true,
+                    busy: busy,
+                    onPressed: _side == null || busy ? null : _submit,
+                  ),
                 if (_offerAnother && widget.refreshPrice != null)
                   ChumbucketTextAction(
                     label: 'Pick another market',

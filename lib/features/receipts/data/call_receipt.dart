@@ -14,7 +14,10 @@
 ///
 /// **There is no stake field, and there must never be one.** The class is the
 /// enforcement: a widget cannot render an amount it was never handed, and
-/// [CallReceipt.fromEntry] reads nothing money-shaped off the call.
+/// [CallReceipt.fromEntry] reads nothing money-shaped off the call except the
+/// server's confirmed fill, for the stamp alone ([fundedAmount], "$5 on
+/// YES", money v1). An intent, a quote or a pending order never reaches it,
+/// and the share caption never mentions money.
 library;
 
 import 'package:chumbucket/features/calls/data/call_models.dart';
@@ -55,8 +58,11 @@ class CallReceipt {
   final String? venueMarketId;
 
   /// True when the author backed this call with a confirmed Panta fill.
-  /// A yes/no fact only: the receipt never carries an amount.
   final bool fundedOnPanta;
+
+  /// The confirmed fill's stamp, "$5 on YES", when the server sent it
+  /// (`funding.amountBaseUnits` + `funding.side`); null reads "Funded".
+  final String? fundedAmount;
 
   /// A free call (`NONE`, no confirmed fill): the receipt is stamped Free.
   /// A call part-way to funding is neither free nor funded.
@@ -84,6 +90,7 @@ class CallReceipt {
     required this.shareUrl,
     this.venueMarketId,
     this.fundedOnPanta = false,
+    this.fundedAmount,
     // Never assumed: only [fromEntry] proves a call free.
     this.free = false,
   });
@@ -124,6 +131,7 @@ class CallReceipt {
       shareUrl: shareUrl,
       venueMarketId: market.venueMarketId.isEmpty ? null : market.venueMarketId,
       fundedOnPanta: entry.isFunded,
+      fundedAmount: entry.funding?.amountLabel,
       free: !entry.isFunded && call.fundingState.isFree,
     );
   }

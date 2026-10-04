@@ -261,6 +261,8 @@ class _OnboardingHomeEffectsState extends State<OnboardingHomeEffects> {
         snapshot: detail.snapshot,
         surface: AnalyticsSurface.onboarding,
         note: OnboardingCopy.callSignedInNote(handle),
+        // Onboarding's first call stays free.
+        allowMoney: false,
         initialDraft: CallComposerDraft(
           marketId: draft.marketId,
           side: draft.side,
@@ -299,6 +301,7 @@ class _OnboardingHomeEffectsState extends State<OnboardingHomeEffects> {
                 : CallResponseKind.back,
         surface: AnalyticsSurface.onboarding,
         note: OnboardingCopy.callSignedInNote(handle),
+        allowMoney: false,
       );
       locked = result?.resultingCall;
     }

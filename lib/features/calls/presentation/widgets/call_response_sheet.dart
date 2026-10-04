@@ -24,6 +24,14 @@ import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.
 import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/features/trust/data/content_policy.dart';
+import 'package:chumbucket/features/money/data/money_models.dart'
+    show MoneyCallKind, MoneyCallState;
+import 'package:chumbucket/features/money/money_call_controller.dart'
+    show MoneyCallRequest;
+import 'package:chumbucket/features/money/money_controller.dart';
+import 'package:chumbucket/features/money/presentation/money_amount_row.dart';
+import 'package:chumbucket/features/money/presentation/money_call_sheet.dart'
+    show runMoneyCall;
 import 'package:chumbucket/shared/widgets/app_components/app_avatar.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
@@ -36,6 +44,7 @@ Future<CallResponseResult?> showCallResponseSheet({
   String? note,
   AnalyticsSurface? surface,
   bool askForNotifications = true,
+  bool allowMoney = true,
 }) => showChumbucketWavySheet<CallResponseResult>(
   context: context,
   builder:
@@ -45,6 +54,7 @@ Future<CallResponseResult?> showCallResponseSheet({
         note: note,
         surface: surface,
         askForNotifications: askForNotifications,
+        allowMoney: allowMoney,
       ),
 );
 
@@ -78,6 +88,9 @@ class CallResponseSheet extends StatefulWidget {
   /// (lockdown's in-context ask). Onboarding passes false: its "You're on
   /// record" step asks there.
   final bool askForNotifications;
+
+  /// Tail/Fade with an amount, when money is on. Onboarding passes false.
+  final bool allowMoney;
   const CallResponseSheet({
     super.key,
     required this.entry,
@@ -85,6 +98,7 @@ class CallResponseSheet extends StatefulWidget {
     this.note,
     this.surface,
     this.askForNotifications = true,
+    this.allowMoney = true,
   });
   @override
   State<CallResponseSheet> createState() => _CallResponseSheetState();
@@ -112,6 +126,87 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
 
   /// Answers the server says this viewer already sent (a second Dare).
   final Set<CallResponseKind> _answered = {};
+
+  /// The amount on a Tail/Fade; set once money is known to be on.
+  MoneyAmount? _amount;
+  bool _moneyBusy = false;
+
+  /// Money for this answer: on, a Back/Fade (a dare is always free), and a
+  /// market that can be traded.
+  MoneyController? _money(BuildContext context, {bool listen = true}) {
+    if (!widget.allowMoney ||
+        !_kind.createsOwnCall ||
+        !_entry.market.tradable) {
+      return null;
+    }
+    final money = moneyOf(context, listen: listen);
+    if (money != null) _amount ??= money.defaultAmount;
+    return money;
+  }
+
+  bool get _withMoney =>
+      !(_amount?.isFree ?? true) && _money(context, listen: false) != null;
+
+  /// Tail/Fade with an amount: the money flow makes the actor's own call on
+  /// the same (or opposite) side and funds it in one go.
+  Future<void> _submitMoney(String thesis) async {
+    final provider = context.read<CallsProvider>();
+    final money = moneyOf(context, listen: false);
+    final amount = _amount;
+    if (money == null || amount == null || amount.isFree) return;
+    setState(() => _error = null);
+    final kind = _kind;
+    final outcome = await runMoneyCall(
+      context,
+      MoneyCallRequest(
+        kind: kind == CallResponseKind.fade
+            ? MoneyCallKind.fade
+            : MoneyCallKind.back,
+        targetCallId: _entry.call.id,
+        side: _side,
+        venueMarketId: _entry.market.venueMarketId,
+        question: _entry.market.question,
+        amountBaseUnits: amount.baseUnits!,
+        thesis: thesis.isEmpty ? null : thesis,
+        visibility: _visibility,
+      ),
+      onBusy: (busy) {
+        if (mounted) setState(() => _moneyBusy = busy);
+      },
+    );
+    if (!mounted || outcome == null) return;
+    if (outcome.error != null) {
+      setState(() => _error = outcome.error);
+      return;
+    }
+    final own = outcome.call;
+    if (own == null) return;
+    unawaited(money.remember(amount));
+    final state = outcome.moneyCall?.state;
+    if (state == MoneyCallState.funded || state == MoneyCallState.free) {
+      provider.adoptCall(
+        own,
+        viaResponse: kind,
+        targetCallId: _entry.call.id,
+        surface: widget.surface,
+      );
+    }
+    Navigator.of(context).pop(
+      CallResponseResult(
+        // The money answer carries the actor's own call, not the response
+        // row: its fields are that call's (the row's own id is not sent).
+        response: CallResponse(
+          id: own.call.id,
+          actorUserId: own.author.id,
+          targetCallId: _entry.call.id,
+          kind: kind,
+          resultingCallId: own.call.id,
+          createdAt: own.call.createdAt,
+        ),
+        resultingCall: own,
+      ),
+    );
+  }
 
   CallFeedEntry get _entry => widget.entry;
 
@@ -167,7 +262,7 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
 
   Future<void> _submit() async {
     final provider = context.read<CallsProvider>();
-    if (provider.isSubmitting) return;
+    if (provider.isSubmitting || _moneyBusy) return;
     final text = _note.text.trim();
     final problem = contentPolicyProblem(
       text,
@@ -175,6 +270,10 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
     );
     if (problem != null) {
       setState(() => _error = problem);
+      return;
+    }
+    if (_withMoney) {
+      await _submitMoney(text);
       return;
     }
     setState(() => _error = null);
@@ -192,6 +291,9 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
         surface: widget.surface,
       );
       if (!mounted) return;
+      if (_amount case final amount? when amount.isFree && _kind.createsOwnCall) {
+        unawaited(moneyOf(context, listen: false)?.remember(amount));
+      }
       final root = Navigator.of(context, rootNavigator: true).context;
       Navigator.of(context).pop(result);
       if (widget.askForNotifications && root.mounted) {
@@ -228,7 +330,7 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
         // The body already says "That's your call"; the header doesn't
         // repeat it.
         title: own ? 'On record' : 'Your move',
-        busy: provider.isSubmitting,
+        busy: provider.isSubmitting || _moneyBusy,
         body:
             !provider.isSignedIn
                 ? SingleChildScrollView(
@@ -248,8 +350,9 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
   );
 
   Widget _form(CallsProvider provider) {
-    final busy = provider.isSubmitting;
+    final busy = provider.isSubmitting || _moneyBusy;
     final canLock = _canLock(_kind, provider);
+    final money = canLock ? _money(context) : null;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -347,18 +450,40 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
                 CallInlineError(_error!),
                 const SizedBox(height: 10),
               ],
-              CallJourneyButton(
-                key: const ValueKey('response-lock'),
-                label:
-                    _kind == CallResponseKind.challenge
-                        ? 'Send the dare'
-                        : 'Call ${_side.wire}',
-                primary: true,
-                // Back, Fade and a dare are all free: ink, never pink.
-                free: true,
-                busy: busy,
-                onPressed: busy || !canLock ? null : _submit,
-              ),
+              if (money != null) ...[
+                MoneyAmountRow.of(
+                  money,
+                  value: _amount!,
+                  enabled: !busy,
+                  onChanged:
+                      (amount) => setState(() {
+                        _amount = amount;
+                        _error = null;
+                      }),
+                ),
+                const SizedBox(height: 12),
+                // Free: ink with the Free marker. An amount: pink,
+                // "Call YES · $5", trading the same (or opposite) side.
+                MoneyCallButton(
+                  key: const ValueKey('response-lock'),
+                  label: 'Call ${_side.wire}',
+                  amount: _amount!,
+                  busy: busy,
+                  onPressed: busy || !canLock ? null : _submit,
+                ),
+              ] else
+                CallJourneyButton(
+                  key: const ValueKey('response-lock'),
+                  label:
+                      _kind == CallResponseKind.challenge
+                          ? 'Send the dare'
+                          : 'Call ${_side.wire}',
+                  primary: true,
+                  // Back, Fade and a dare are all free: ink, never pink.
+                  free: true,
+                  busy: busy,
+                  onPressed: busy || !canLock ? null : _submit,
+                ),
             ],
           ),
         ),

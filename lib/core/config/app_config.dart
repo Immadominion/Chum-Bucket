@@ -37,6 +37,16 @@ class AppConfig {
     defaultValue: false,
   );
 
+  /// Calls with an amount, the balance pill, deposits, cash out and winnings
+  /// (money v1). Off unless the build passes
+  /// `--dart-define=MONEY_CALLS_ENABLED=true`; even then everything stays
+  /// hidden until the BFF's `money.status` says it is on
+  /// (`MONEY_CALLS_ENABLED` there too).
+  static const bool moneyCallsEnabled = bool.fromEnvironment(
+    'MONEY_CALLS_ENABLED',
+    defaultValue: false,
+  );
+
   /// Every configuration key the client is allowed to carry.
   ///
   /// Adding a key here is a security decision: it makes the value public,

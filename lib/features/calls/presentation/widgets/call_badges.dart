@@ -11,6 +11,9 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
+import 'package:chumbucket/features/calls/data/calls_repository.dart';
+import 'package:chumbucket/features/panta_trading/data/panta_lifecycle_models.dart'
+    show PantaMoney;
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class CallBadge extends StatelessWidget {
@@ -232,6 +235,55 @@ class FundingStateBadge extends StatelessWidget {
       icon: icon,
       quiet: quiet,
     );
+  }
+}
+
+/// The one funding mark a call wears, everywhere it shows:
+///
+///  * a confirmed fill: the [FundedMarker] with its dollars and side
+///    ("$5 on YES"), or "Funded" when the server sent no amount;
+///  * the owner's own money call that is still pending: "$5 · Pending" in
+///    the neutral pending colour, never the pink of money (the server sends
+///    [CallFeedEntry.money] to the owner only; nobody else sees the call);
+///  * otherwise the call's own state: the [FreeMarker] for a free call.
+class CallFundingMark extends StatelessWidget {
+  const CallFundingMark({
+    super.key,
+    required this.entry,
+    this.quiet = false,
+    this.large = false,
+  });
+
+  final CallFeedEntry entry;
+  final bool quiet;
+  final bool large;
+
+  @override
+  Widget build(BuildContext context) {
+    final funding = entry.funding;
+    if (funding != null) {
+      return FundedMarker(
+        large: large,
+        amount:
+            funding.hasAmount
+                ? funding.amountLabel
+                : null,
+      );
+    }
+    final money = entry.money;
+    if (money != null && money.pending) {
+      return CallBadge(
+        key: const ValueKey('money-pending-mark'),
+        label: '${PantaMoney.dollars(money.amountBaseUnits)} · Pending',
+        color: AppColors.onWarningContainer,
+        icon: 'clock-outline',
+        quiet: quiet,
+      );
+    }
+    if (large && entry.call.fundingState == FundingState.none) {
+      return const FreeMarker(large: true);
+    }
+    return FundingStateBadge(state: entry.call.fundingState, quiet: quiet);
   }
 }
 
