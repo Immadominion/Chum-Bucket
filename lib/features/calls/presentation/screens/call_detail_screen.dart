@@ -559,7 +559,7 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
                               .priceFor(entry.call.side)) {
                             final price? => CallsFormat.displayPrice(price),
                             null => null,
-                          })
+                          }, currency: entry.call.entryPrice!.currency)
                           : entry.market.venue == MarketVenue.panta ||
                               entry.call.entryProbability == null
                           ? 'Price not captured'
@@ -706,8 +706,10 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
                   style: callJourneyBody(12),
                 ),
               ],
-              // Only the owner sees the established private Panta trade entry.
-              if (own && entry.market.venue == MarketVenue.panta) ...[
+              // Only the owner sees the established private Panta trade entry,
+              // and only on a market Chumbucket can trade (a SOL-quoted Panta
+              // market takes calls, never trades).
+              if (own && entry.market.tradable) ...[
                 const SizedBox(height: 20),
                 Container(
                   padding: const EdgeInsets.all(18),

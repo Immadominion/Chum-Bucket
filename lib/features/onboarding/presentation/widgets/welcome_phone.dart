@@ -281,6 +281,20 @@ class _PreviewFeedState extends State<_PreviewFeed> {
       });
     }
     final markets = widget.feed != null && !widget.feed!.hasCalls;
+    // One unit for the strip when every market in it shares one; markets are
+    // quoted in USDC or SOL and a price is never shown in the wrong unit.
+    final quotes = {
+      for (final item in items ?? const <LiveItem>[])
+        switch (item) {
+              LiveMarketItem(:final market) => market.quoteCurrency,
+              LiveCallItem(:final entry) => entry.market.quoteCurrency,
+            } ??
+            ShareCurrency.usdc,
+    };
+    final unit =
+        quotes.length > 1
+            ? 'per share'
+            : (quotes.firstOrNull ?? ShareCurrency.usdc).perShare;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -305,8 +319,8 @@ class _PreviewFeedState extends State<_PreviewFeed> {
                 ),
               ),
               const SizedBox(width: 6),
-              const Text(
-                'USDC/share',
+              Text(
+                unit,
                 style: TextStyle(
                   fontSize: 10,
                   color: AppColors.textTertiary,

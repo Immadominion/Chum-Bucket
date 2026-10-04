@@ -222,7 +222,7 @@ class CallCard extends StatelessWidget {
       final price = call.entryPrice!.priceFor(call.side);
       return price == null
           ? '${call.side.wire} price unavailable'
-          : '${call.side.wire} was ${CallsFormat.displayPrice(price)} USDC/share';
+          : '${call.side.wire} was ${CallsFormat.sharePrice(CallsFormat.displayPrice(price), currency: call.entryPrice!.currency)}';
     }
     if (call.entryProbability != null) {
       return 'Locked at ${CallsFormat.probability(call.entryProbability)}';

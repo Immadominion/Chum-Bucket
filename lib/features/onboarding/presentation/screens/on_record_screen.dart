@@ -15,6 +15,7 @@ import 'package:provider/provider.dart';
 import 'package:chumbucket/core/analytics/analytics.dart';
 import 'package:chumbucket/core/services/push_registration.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
+import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_badges.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
@@ -293,7 +294,10 @@ class _OwnCallCard extends StatelessWidget {
     final priceLine =
         price == null
             ? OnboardingCopy.recordPriceNotCaptured
-            : OnboardingCopy.recordLockedAt(price);
+            : OnboardingCopy.recordLockedAt(
+              price,
+              currency: call.entryPrice?.currency ?? ShareCurrency.usdc,
+            );
     return OnbSurface(
       key: ValueKey('record-call-${call.id}'),
       child: Semantics(

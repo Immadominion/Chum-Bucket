@@ -783,6 +783,7 @@ class _DeckCard extends StatelessWidget {
                 child: _AnswerButton(
                   side: Side.yes,
                   price: item.sharePrice.yesPrice,
+                  currency: item.sharePrice.currency,
                   enabled: enabled,
                   onTap: () => onPick(Side.yes),
                 ),
@@ -792,6 +793,7 @@ class _DeckCard extends StatelessWidget {
                 child: _AnswerButton(
                   side: Side.no,
                   price: item.sharePrice.noPrice,
+                  currency: item.sharePrice.currency,
                   enabled: enabled,
                   onTap: () => onPick(Side.no),
                 ),
@@ -808,12 +810,14 @@ class _AnswerButton extends StatelessWidget {
   const _AnswerButton({
     required this.side,
     required this.price,
+    required this.currency,
     required this.enabled,
     required this.onTap,
   });
 
   final Side side;
   final String? price;
+  final ShareCurrency currency;
   final bool enabled;
   final VoidCallback onTap;
 
@@ -826,7 +830,7 @@ class _AnswerButton extends StatelessWidget {
       button: true,
       label:
           'Call ${side.wire}'
-          '${price == null ? '' : ', ${CallsFormat.displayPrice(price!)} USDC per share'}',
+          '${price == null ? '' : ', ${CallsFormat.displayPrice(price!)} ${currency.perShareWords}'}',
       excludeSemantics: true,
       child: Material(
         color: fill,

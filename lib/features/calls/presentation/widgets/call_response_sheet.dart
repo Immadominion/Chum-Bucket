@@ -288,6 +288,7 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
                         ? 'Price not captured'
                         : CallsFormat.sharePrice(
                           entry.call.entryPrice!.priceFor(entry.call.side),
+                          currency: entry.call.entryPrice!.currency,
                         ),
                   ),
                   Text(

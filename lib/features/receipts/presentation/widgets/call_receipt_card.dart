@@ -203,11 +203,17 @@ class CallReceiptCard extends StatelessWidget {
                 if (receipt.entryPrice case final price?) ...[
                   CallJourneyFact(
                     'YES at call',
-                    CallsFormat.sharePrice(price.yesPrice),
+                    CallsFormat.sharePrice(
+                      price.yesPrice,
+                      currency: price.currency,
+                    ),
                   ),
                   CallJourneyFact(
                     'NO at call',
-                    CallsFormat.sharePrice(price.noPrice),
+                    CallsFormat.sharePrice(
+                      price.noPrice,
+                      currency: price.currency,
+                    ),
                   ),
                 ],
                 CallJourneyFact(

@@ -300,7 +300,9 @@ class MarketCatalogLegend extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Text(
-    '${SharePriceSnapshot.attribution} · Prices in USDC/share',
+    // Markets are quoted in USDC or SOL; each price carries its own unit
+    // where it is read in full (detail, composer, receipts).
+    SharePriceSnapshot.attribution,
     style: AppTextStyles.textTheme.bodySmall?.copyWith(
       color: AppColors.textSecondary,
     ),
@@ -524,7 +526,7 @@ class MarketSharePrices extends StatelessWidget {
       semanticsLabel:
           shown == null
               ? 'Price unavailable'
-              : '$shown USDC per share, indicative',
+              : '$shown ${(snapshot?.currency ?? ShareCurrency.usdc).perShareWords}, indicative',
       style:
           shown == null
               ? AppTextStyles.textTheme.bodySmall?.copyWith(
@@ -623,7 +625,7 @@ class MarketSharePrices extends StatelessWidget {
         const SizedBox(height: 8),
         // One caption, as the prototype has it: who, the unit, how fresh.
         Text(
-          '${SharePriceSnapshot.attribution} · USDC per share'
+          '${SharePriceSnapshot.attribution} · ${(snapshot?.currency ?? ShareCurrency.usdc).perShareWords}'
           '${observed != null && fresh ? ' · updated ${CallsFormat.relative(observed)}' : ''}',
           style: AppTextStyles.textTheme.bodySmall?.copyWith(
             color: AppColors.textSecondary,

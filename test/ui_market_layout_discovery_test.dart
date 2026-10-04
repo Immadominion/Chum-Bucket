@@ -284,7 +284,7 @@ void main() {
   });
 
   for (final picker in [false, true]) {
-    testWidgets('Panta attribution and units appear once (picker=$picker)', (
+    testWidgets('Panta attribution appears once, no blanket unit (picker=$picker)', (
       tester,
     ) async {
       final markets = [
@@ -300,7 +300,9 @@ void main() {
         picker ? const MarketPickerSheet() : const CallMarketsScreen(),
       );
       expect(find.textContaining('Powered by Panta'), findsOneWidget);
-      expect(find.textContaining('Prices in USDC/share'), findsOneWidget);
+      // Markets are quoted in USDC or SOL, so the catalog never claims one
+      // unit for every row; each price carries its own unit where read.
+      expect(find.textContaining('Prices in USDC/share'), findsNothing);
       expect(find.byType(CallMarketCard), findsNWidgets(2));
       for (final card in find.byType(CallMarketCard).evaluate()) {
         expect(

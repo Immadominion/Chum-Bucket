@@ -162,7 +162,7 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
     final at =
         price == null
             ? ''
-            : ' at ${CallsFormat.displayPrice(price)} USDC/share';
+            : ' at ${CallsFormat.sharePrice(CallsFormat.displayPrice(price), currency: _sharePrice!.currency)}';
     return 'You’re calling ${side.wire}$at. Free, and it goes on your record.';
   }
 

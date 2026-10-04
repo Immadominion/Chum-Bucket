@@ -147,7 +147,10 @@ class _MarketDetailScreenState extends State<MarketDetailScreen> {
     final ownCall = detail.viewerCall;
     final isOwnCall =
         ownCall != null && ownCall.call.userId == provider.viewerUserId;
-    final canTrade = market.venue == MarketVenue.panta && isOwnCall;
+    // A SOL-quoted Panta market takes calls but is never offered a trade:
+    // no Trade button at all, not a disabled one.
+    final noTrading = market.venue == MarketVenue.panta && !market.tradable;
+    final canTrade = market.tradable && isOwnCall;
     final status =
         closedByTime && market.status == MarketStatus.open
             ? 'Closed · awaiting result'
@@ -381,6 +384,7 @@ class _MarketDetailScreenState extends State<MarketDetailScreen> {
                       ),
                       child: const Text('Trade'),
                     );
+                    if (noTrading) return call;
                     return MediaQuery.textScalerOf(context).scale(14) > 21
                         ? Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -397,7 +401,9 @@ class _MarketDetailScreenState extends State<MarketDetailScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  canTrade
+                  noTrading
+                      ? 'Calling is free.'
+                      : canTrade
                       ? 'Calling is free. Open your call to review a separate Panta trade.'
                       : market.venue.isDemo
                       ? 'Demo market. Trading is unavailable.'
