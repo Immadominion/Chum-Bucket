@@ -28,6 +28,8 @@ import 'package:chumbucket/features/authentication/session/chumbucket_session.da
 import 'package:chumbucket/features/authentication/session/session_bff_client.dart';
 import 'package:chumbucket/features/embedded_wallet/embedded_wallet_controller.dart';
 import 'package:chumbucket/features/embedded_wallet/embedded_wallet_vault.dart';
+import 'package:chumbucket/features/chumbucket_wallet/chumbucket_wallet_controller.dart';
+import 'package:chumbucket/features/chumbucket_wallet/privy_chumbucket_wallet_backend.dart';
 import 'package:chumbucket/features/authentication/session/app_session_persistence.dart';
 import 'package:chumbucket/features/authentication/session/app_sign_out.dart';
 import 'package:chumbucket/features/authentication/presentation/widgets/account_session_host.dart';
@@ -182,6 +184,36 @@ void main() async {
                   return wallet;
                 },
               ),
+              // The Chumbucket wallet (one wallet that follows the account, the
+              // default for trades). Only in a build with
+              // CHUMBUCKET_WALLET_ENABLED and both Privy ids; otherwise absent,
+              // and every reader of ChumbucketWalletController? sees null.
+              if (chumbucketWalletIds() case (final appId, final clientId))
+                ChangeNotifierProxyProvider<
+                  ChumbucketSession,
+                  ChumbucketWalletController
+                >(
+                  create:
+                      (context) => ChumbucketWalletController(
+                        backend: PrivyChumbucketWalletBackend(
+                          appId: appId,
+                          clientId: clientId,
+                          accessToken:
+                              context.read<ChumbucketSession>().bffAuthToken,
+                        ),
+                        bff: SessionBffClient(),
+                        ownsBff: true,
+                        authToken:
+                            context.read<ChumbucketSession>().bffAuthToken,
+                      ),
+                  update: (_, session, wallet) {
+                    wallet!.bind(
+                      session.isReady ? session.userId : null,
+                      session.isReady ? session.authUserId : null,
+                    );
+                    return wallet;
+                  },
+                ),
               // The call/receipt slice. Which repository backs it is a build flag:
               //   --dart-define=CALLS_BACKEND=mock  for the seeded offline catalog.
               // Default is the deployed BFF on real Polymarket markets.

@@ -1,6 +1,7 @@
 /// Which wallet signs a Panta buy for the signed-in account — the one rule
 /// every place that opens a trade should use.
 ///
+/// Without the Chumbucket wallet (`chumbucket` is null, the default build):
 ///  1. A connected wallet app (Phantom, Solflare, Seeker over Mobile Wallet
 ///     Adapter). It shows its own approval and simulation, so it goes first.
 ///  2. Otherwise the account's wallet that lives on this phone — but only once
@@ -8,11 +9,22 @@
 ///     before that), and only for the exact buy that was reviewed.
 ///  3. Otherwise nothing: the caller opens the wallet sheet
 ///     (`showEmbeddedWalletSheet`) so the person can make, link or connect one.
+///
+/// With the Chumbucket wallet (`CHUMBUCKET_WALLET_ENABLED`):
+///  1. The wallet app, only when the person chose it ([useWalletApp]).
+///  2. A wallet already on this phone keeps working, untouched: its money is
+///     there.
+///  3. The Chumbucket wallet, once linked — the default for everyone else.
+///  4. Otherwise nothing: the caller sets the Chumbucket wallet up (first
+///     need) and asks again.
 library;
 
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/authentication/session/panta_mwa_wallet.dart';
 import 'package:chumbucket/features/panta_trading/panta_trading.dart';
+
+import 'package:chumbucket/features/chumbucket_wallet/chumbucket_signers.dart';
+import 'package:chumbucket/features/chumbucket_wallet/chumbucket_wallet_controller.dart';
 
 import 'embedded_wallet_controller.dart';
 import 'panta_embedded_wallet.dart';
@@ -44,11 +56,15 @@ PantaSignerChoice? choosePantaSigner({
   required MwaAuthProvider? walletApp,
   required EmbeddedWalletController? onPhone,
   required PantaReviewedBuy reviewed,
+  ChumbucketWalletController? chumbucket,
+  bool useWalletApp = false,
 }) {
   final app = walletApp;
   final appAddress =
       app != null && app.isAuthenticated ? app.walletAddress : null;
-  if (app != null && appAddress != null) {
+  if (app != null &&
+      appAddress != null &&
+      (chumbucket == null || useWalletApp)) {
     return PantaSignerChoice._(
       address: appAddress,
       port: PantaMwaWallet(app),
@@ -56,6 +72,28 @@ PantaSignerChoice? choosePantaSigner({
       selectedWallet: () => app.walletAddress,
     );
   }
+  if (chumbucket != null && useWalletApp) return null;
+  final onPhoneChoice = _onPhoneChoice(onPhone, reviewed);
+  if (onPhoneChoice != null || chumbucket == null) return onPhoneChoice;
+  final wallet = chumbucket.signer;
+  if (wallet == null) return null;
+  return PantaSignerChoice._(
+    address: wallet.address,
+    port: PantaChumbucketWallet(
+      // Re-read at signing: signed out or another account means no signer.
+      signer: () => chumbucket.signer,
+      address: wallet.address,
+      reviewed: reviewed,
+    ),
+    kind: PantaSigner.chumbucket,
+    selectedWallet: () => chumbucket.address,
+  );
+}
+
+PantaSignerChoice? _onPhoneChoice(
+  EmbeddedWalletController? onPhone,
+  PantaReviewedBuy reviewed,
+) {
   final phone = onPhone;
   final key = phone?.signer;
   if (phone == null || key == null) return null;

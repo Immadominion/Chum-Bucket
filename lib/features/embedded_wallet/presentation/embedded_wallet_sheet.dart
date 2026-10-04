@@ -21,6 +21,9 @@ import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
+import 'package:chumbucket/features/chumbucket_wallet/chumbucket_wallet_controller.dart';
+import 'package:chumbucket/features/chumbucket_wallet/presentation/chumbucket_wallet_sheet.dart';
+
 import '../embedded_wallet_controller.dart';
 import '../secure_window.dart';
 
@@ -59,6 +62,18 @@ class EmbeddedWalletSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final wallet = context.watch<EmbeddedWalletController>();
+    // With the Chumbucket wallet on, a new wallet is never made on this
+    // phone: the account's Chumbucket wallet is shown instead. A wallet
+    // already here keeps its sheet, untouched.
+    final chumbucket = context.watch<ChumbucketWalletController?>();
+    if (chumbucket != null &&
+        !wallet.hasWallet &&
+        wallet.phase != EmbeddedWalletPhase.loading) {
+      return ChangeNotifierProvider<ChumbucketWalletController>.value(
+        value: chumbucket,
+        child: const ChumbucketWalletSheet(),
+      );
+    }
     return ChumbucketWavySheet(
       title: 'Your wallet',
       subtitle: wallet.hasWallet ? 'Lives on this phone' : null,

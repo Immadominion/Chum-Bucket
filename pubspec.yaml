@@ -25,6 +25,10 @@ dependencies:
   rive: ^0.13.20
   # MWA - Mobile Wallet Adapter for Solana Mobile (replaces Privy)
   solana_mobile_client: ^0.1.2
+  # The Chumbucket wallet (behind CHUMBUCKET_WALLET_ENABLED): a Privy embedded
+  # Solana wallet, signed in with the Supabase session. Needs iOS 17 and
+  # Android API 28 (see ios/Podfile, android/app/build.gradle.kts).
+  privy_flutter: ^0.11.0
   lottie: ^3.3.1
   flutter_dotenv: ^6.0.0
   flutter_otp_text_field: ^1.5.1+1

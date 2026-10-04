@@ -17,6 +17,8 @@ import 'package:chumbucket/features/authentication/session/chumbucket_session.da
 import 'package:chumbucket/features/authentication/session/panta_mwa_wallet.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_transport.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_detail_screen.dart';
+import 'package:chumbucket/features/chumbucket_wallet/chumbucket_signers.dart';
+import 'package:chumbucket/features/chumbucket_wallet/chumbucket_wallet_controller.dart';
 import 'package:chumbucket/features/embedded_wallet/embedded_wallet_controller.dart';
 import 'package:chumbucket/features/embedded_wallet/panta_embedded_claim.dart';
 import 'package:chumbucket/features/panta_trading/panta_trading.dart';
@@ -25,10 +27,12 @@ import 'package:chumbucket/shared/widgets/chumbucket_state_view.dart';
 /// The signers this device can offer for a Panta approval on [wallet], in
 /// `choosePantaSigner`'s order: a connected wallet app for its own address,
 /// else the linked wallet on this phone (its `signer` is null until the
-/// server confirmed it is the account's) for a win claim on its own address.
+/// server confirmed it is the account's) for a win claim on its own address,
+/// else the linked Chumbucket wallet, likewise.
 PantaSignerResolver profilePantaSigners(
   MwaAuthProvider? auth, [
   EmbeddedWalletController? onPhone,
+  ChumbucketWalletController? chumbucket,
 ]) => (wallet, intent) {
   if (auth != null && auth.isAuthenticated && auth.walletAddress == wallet) {
     return PantaMwaWallet(auth);
@@ -42,6 +46,16 @@ PantaSignerResolver profilePantaSigners(
     return PantaEmbeddedClaimWallet(
       // Re-read at signing: signed out or another account means no key.
       signer: () => onPhone.signer,
+      intent: intent,
+    );
+  }
+  // The linked Chumbucket wallet, for a win claim on its own address.
+  if (chumbucket != null &&
+      chumbucket.address == wallet &&
+      intent is PantaClaimSigningIntent &&
+      intent.owner == wallet) {
+    return PantaChumbucketClaimWallet(
+      signer: () => chumbucket.signer,
       intent: intent,
     );
   }
@@ -81,6 +95,7 @@ class _ProfilePositionsTabState extends State<ProfilePositionsTab> {
     if (session == null) return;
     final auth = context.read<MwaAuthProvider?>();
     final onPhone = context.read<EmbeddedWalletController?>();
+    final chumbucket = context.read<ChumbucketWalletController?>();
     try {
       _client = PantaTradingClient(
         baseUri: Uri.parse(resolveCallsBffBaseUrl()),
@@ -94,7 +109,7 @@ class _ProfilePositionsTabState extends State<ProfilePositionsTab> {
       );
       _controller = PantaPositionsController(
         client: _client!,
-        signerFor: profilePantaSigners(auth, onPhone),
+        signerFor: profilePantaSigners(auth, onPhone, chumbucket),
       );
     } on ArgumentError {
       // A build without an HTTPS calls server cannot reach funded positions.

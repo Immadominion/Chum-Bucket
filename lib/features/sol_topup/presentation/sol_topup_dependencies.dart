@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_transport.dart';
+import 'package:chumbucket/features/chumbucket_wallet/chumbucket_signers.dart';
+import 'package:chumbucket/features/chumbucket_wallet/chumbucket_wallet_controller.dart';
 import 'package:chumbucket/features/embedded_wallet/embedded_wallet_controller.dart';
 
 import '../data/sol_topup_client.dart';
@@ -43,6 +45,7 @@ class SolTopUpDependencies {
     }
     final walletApp = context.read<MwaAuthProvider?>();
     final onPhone = context.read<EmbeddedWalletController?>();
+    final chumbucket = context.read<ChumbucketWalletController?>();
     return SolTopUpDependencies(
       createClient:
           () => SolTopUpClient(baseUri: base, token: session.bffAuthToken),
@@ -50,6 +53,7 @@ class SolTopUpDependencies {
           (wallet) => solTopUpSignerFor(
             walletApp: walletApp,
             onPhone: onPhone,
+            chumbucket: chumbucket,
             wallet: wallet,
           ),
     );
@@ -57,11 +61,13 @@ class SolTopUpDependencies {
 }
 
 /// The same rule as Panta trades (`choosePantaSigner`): a connected wallet app
-/// first, else the wallet on this phone once the server has linked it — and
-/// only for the exact wallet being topped up.
+/// first, else the wallet on this phone once the server has linked it, else
+/// the linked Chumbucket wallet — and only for the exact wallet being topped
+/// up.
 SolTopUpSigner? solTopUpSignerFor({
   required MwaAuthProvider? walletApp,
   required EmbeddedWalletController? onPhone,
+  ChumbucketWalletController? chumbucket,
   required String wallet,
 }) {
   final app = walletApp;
@@ -72,6 +78,12 @@ SolTopUpSigner? solTopUpSignerFor({
   if (onPhone != null && key != null && key.address == wallet) {
     return EmbeddedSolTopUpSigner(
       signer: () => onPhone.signer,
+      address: wallet,
+    );
+  }
+  if (chumbucket != null && chumbucket.address == wallet) {
+    return ChumbucketSolTopUpSigner(
+      signer: () => chumbucket.signer,
       address: wallet,
     );
   }
