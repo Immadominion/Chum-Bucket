@@ -345,20 +345,22 @@ class PantaCallOrder {
 abstract final class PantaMoney {
   static final _million = BigInt.from(1000000);
 
-  /// `12.5 USDC`, `-3.25 USDC` (or `+3.25 USDC` with [signed]).
-  static String usdc(BigInt baseUnits, {bool signed = false}) {
+  /// Money as dollars (USDC is pegged one to one): `$5`, `$12.50`, `-$3.25`
+  /// (or `+$3.25` with [signed]). Every base unit is kept (`$0.000001`):
+  /// money is never rounded away.
+  static String dollars(BigInt baseUnits, {bool signed = false}) {
     final negative = baseUnits.isNegative;
     final abs = baseUnits.abs();
     final whole = abs ~/ _million;
     var fraction = (abs % _million).toString().padLeft(6, '0');
     fraction = fraction.replaceFirst(RegExp(r'0+$'), '');
-    if (fraction.length < 2) fraction = fraction.padRight(2, '0');
+    if (fraction.isNotEmpty && fraction.length < 2) {
+      fraction = fraction.padRight(2, '0');
+    }
     final sign = negative ? '-' : (signed && abs > BigInt.zero ? '+' : '');
-    return '$sign${_group(whole.toString())}.$fraction USDC';
+    return '$sign\$${_group(whole.toString())}'
+        '${fraction.isEmpty ? '' : '.$fraction'}';
   }
-
-  /// A USDC/share decimal, trimmed to at most 4 places: `0.52`, `1`.
-  static String price(String decimal) => _trim(decimal, 4);
 
   /// A share count, trimmed to at most 4 places.
   static String shares(String decimal) => _trim(decimal, 4);

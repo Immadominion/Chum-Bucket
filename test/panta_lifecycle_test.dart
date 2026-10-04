@@ -8,6 +8,7 @@ import 'package:chumbucket/core/theme/app_theme.dart';
 import 'package:chumbucket/features/panta_trading/panta_trading.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -282,17 +283,20 @@ void main() {
       );
     });
 
-    test('money and prices display exactly', () {
-      expect(PantaMoney.usdc(BigInt.from(2000000)), '2.00 USDC');
+    test('money reads as exact dollars, prices as odds', () {
+      expect(PantaMoney.dollars(BigInt.from(5000000)), '\$5');
+      expect(PantaMoney.dollars(BigInt.from(9200000)), '\$9.20');
       expect(
-        PantaMoney.usdc(BigInt.from(-1500000), signed: true),
-        '-1.50 USDC',
+        PantaMoney.dollars(BigInt.from(-1500000), signed: true),
+        '-\$1.50',
       );
-      expect(PantaMoney.usdc(BigInt.from(1000000), signed: true), '+1.00 USDC');
-      expect(PantaMoney.usdc(BigInt.parse('1234567890')), '1,234.56789 USDC');
-      expect(PantaMoney.usdc(BigInt.from(1)), '0.000001 USDC');
-      expect(PantaMoney.price('0.520000'), '0.52');
-      expect(PantaMoney.price('1'), '1');
+      expect(PantaMoney.dollars(BigInt.from(1000000), signed: true), '+\$1');
+      expect(PantaMoney.dollars(BigInt.zero, signed: true), '\$0');
+      expect(PantaMoney.dollars(BigInt.parse('1234567890')), '\$1,234.56789');
+      // Never rounded away.
+      expect(PantaMoney.dollars(BigInt.from(1)), '\$0.000001');
+      expect(CallsFormat.odds('0.520000'), '52%');
+      expect(CallsFormat.odds('1'), '100%');
       expect(
         pantaMarketUri('abc').toString(),
         'https://panta.market/market/abc',
@@ -687,8 +691,11 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(find.text('Your Panta positions'), findsOneWidget);
-        expect(find.text('3.00 USDC'), findsOneWidget);
-        expect(find.text('+1.00 USDC'), findsOneWidget);
+        // Money as dollars (the total and each card), prices as odds.
+        expect(find.text('\$3'), findsOneWidget);
+        expect(find.text('+\$1'), findsWidgets);
+        expect(find.text('50%'), findsWidgets);
+        expect(find.textContaining('USDC'), findsNothing);
         expect(find.text('Won · ready to claim'), findsOneWidget);
         expect(
           find.byKey(const ValueKey('panta-claim-ord_won')),
@@ -781,13 +788,13 @@ void main() {
       // A pending row animates a spinner, so settle on short pumps only.
       await settle(tester);
       expect(
-        find.textContaining('Order submitted · 2.00 USDC on YES'),
+        find.textContaining('Order submitted · \$2 on YES'),
         findsOneWidget,
       );
       expect(find.textContaining('Funded'), findsNothing);
       await tester.pump(const Duration(seconds: 9));
       await settle(tester);
-      expect(find.text('Funded · 2.00 USDC on YES'), findsOneWidget);
+      expect(find.text('Funded · \$2 on YES'), findsOneWidget);
       expect(rig.inputs('callOrder'), hasLength(2));
       // Confirmed: no more polling.
       await tester.pump(const Duration(seconds: 60));

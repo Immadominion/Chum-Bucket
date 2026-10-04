@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart';
 import 'package:chumbucket/features/deposits/presentation/trade_funds_check.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
@@ -361,7 +362,13 @@ class _PantaTradeSheetState extends State<PantaTradeSheet> {
                 'Estimated shares',
                 '${review.expectedShares} ${controller.side.wire}',
               ),
-              _reviewRow('Average price', '${review.avgPrice} USDC/share'),
+              // As odds; a price no percent can honestly express (above a
+              // whole share) is shown exactly instead, never hidden.
+              _reviewRow(
+                'Average price',
+                CallsFormat.odds(review.avgPrice) ??
+                    '${review.avgPrice} USDC/share',
+              ),
               _reviewRow('Venue fee', '${review.feeUsdc} USDC'),
               _reviewRow('Maximum slippage', '${review.maxSlippageBps / 100}%'),
               const Divider(color: AppColors.divider),

@@ -1,7 +1,8 @@
 /// Profile → Positions: the person's real Panta positions, from the BFF.
 ///
-/// Figures are exact (USDC base units and Panta's decimal prices); a figure
-/// whose source is missing says so instead of showing zero. Claims run in the
+/// Money reads as exact dollars (USDC base units, never rounded away) and a
+/// price as odds ("52%"); a figure whose source is missing says so instead
+/// of showing zero. Claims run in the
 /// app where the BFF and the wallet allow it; selling, and anything the app
 /// cannot do, opens the market on panta.market.
 library;
@@ -11,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_badges.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_state_view.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
@@ -181,12 +183,14 @@ class _SummaryCard extends StatelessWidget {
             children: [
               _figure(
                 'Value',
-                page.counted == 0 ? '—' : PantaMoney.usdc(page.totalValue),
+                page.counted == 0 ? '—' : PantaMoney.dollars(page.totalValue),
                 Colors.white,
               ),
               _figure(
                 'P&L',
-                page.counted == 0 ? '—' : PantaMoney.usdc(pnl, signed: true),
+                page.counted == 0
+                    ? '—'
+                    : PantaMoney.dollars(pnl, signed: true),
                 pnlColor,
               ),
             ],
@@ -197,7 +201,7 @@ class _SummaryCard extends StatelessWidget {
                 ? '—'
                 : '${page.positions.length} position${page.positions.length == 1 ? '' : 's'}'
                     ' · $open still open'
-                    '${page.counted == 0 ? '' : ' · cost ${PantaMoney.usdc(page.totalCost)}'}',
+                    '${page.counted == 0 ? '' : ' · cost ${PantaMoney.dollars(page.totalCost)}'}',
             style: styles.bodySmall?.copyWith(color: Colors.white70),
           ),
         ],
@@ -269,30 +273,22 @@ class _PositionCard extends StatelessWidget {
           const SizedBox(height: 14),
           _FiguresRow(
             figures: [
-              (
-                'Cost',
-                PantaMoney.usdc(p.costBaseUnits).replaceAll(' USDC', ''),
-              ),
-              (
-                'Entry',
-                p.entryPrice == null ? '—' : PantaMoney.price(p.entryPrice!),
-              ),
+              ('Cost', PantaMoney.dollars(p.costBaseUnits)),
+              // Prices as odds ("52%"), money as dollars.
+              ('Entry', CallsFormat.odds(p.entryPrice) ?? '—'),
               (
                 p.status.isSettled ? 'Settles' : 'Now',
                 p.currentPrice == null
                     ? (p.status == PantaPositionStatus.pending
                         ? 'Pending'
                         : '—')
-                    : PantaMoney.price(p.currentPrice!),
+                    : CallsFormat.odds(p.currentPrice) ?? '—',
               ),
               (
                 'P&L',
                 pnl == null
                     ? '—'
-                    : PantaMoney.usdc(
-                      pnl,
-                      signed: true,
-                    ).replaceAll(' USDC', ''),
+                    : PantaMoney.dollars(pnl, signed: true),
               ),
             ],
             pnlColor:
@@ -333,7 +329,7 @@ class _PositionCard extends StatelessWidget {
       PantaPositionStatus.awaitingResult =>
         '${shares ?? 'Shares unknown'} · waiting for Panta’s result',
       PantaPositionStatus.wonClaimable =>
-        '${shares ?? 'Winning shares'} · about 1 USDC per winning share',
+        '${shares ?? 'Winning shares'} · about \$1 per winning share',
       PantaPositionStatus.won =>
         claimStatusKnown
             ? 'Won · Panta hasn’t opened the claim yet'
@@ -342,7 +338,7 @@ class _PositionCard extends StatelessWidget {
       PantaPositionStatus.claimed =>
         p.claim?.payoutBaseUnits == null
             ? 'Claimed on Panta'
-            : 'Claimed ${PantaMoney.usdc(p.claim!.payoutBaseUnits!)}',
+            : 'Claimed ${PantaMoney.dollars(p.claim!.payoutBaseUnits!)}',
       PantaPositionStatus.lost => 'This side lost · settles at 0',
       PantaPositionStatus.voided => 'Market cancelled · see Panta',
       PantaPositionStatus.open =>

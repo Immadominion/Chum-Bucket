@@ -138,7 +138,7 @@ class _PantaOrderStatusRowState extends State<PantaOrderStatusRow> {
   Widget build(BuildContext context) {
     final order = _order;
     if (order == null) return const SizedBox.shrink();
-    final amount = PantaMoney.usdc(BigInt.parse(order.amountBaseUnits));
+    final amount = PantaMoney.dollars(BigInt.parse(order.amountBaseUnits));
     final styles = AppTextStyles.textTheme;
     final (fill, ink, icon, title, body) = switch (order.fundingState) {
       PantaFundingState.filled => (
