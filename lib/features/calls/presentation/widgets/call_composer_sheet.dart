@@ -356,18 +356,21 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
                           })
                           : null,
                 ),
-                const SizedBox(height: 10),
-                Semantics(
-                  liveRegion: true,
-                  child: Text(
-                    _side == null
-                        ? 'Choose your YES or NO.'
-                        : widget.compact
-                        ? _compactLine(_side!)
-                        : 'You’re calling ${_side!.wire}.',
-                    style: callJourneyBody(),
+                // The chosen side already shows on its button and on Lock,
+                // so the full composer says nothing more once one is picked.
+                if (_side == null || widget.compact) ...[
+                  const SizedBox(height: 10),
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      _side == null
+                          ? 'Choose your YES or NO.'
+                          : _compactLine(_side!),
+                      style: callJourneyBody(),
+                    ),
                   ),
-                ),
+                ] else
+                  const SizedBox(height: 6),
                 if (!widget.compact) ...[
                   const SizedBox(height: 4),
                   _MoreOptionsToggle(

@@ -378,6 +378,21 @@ void main() {
       );
     }, skip: skip);
 
+    // The server keeps a challenge's words in `note` and drops `thesis`: a
+    // Dare's message must arrive in the invitation, not vanish.
+    test('a Dare\'s words reach the person dared', () async {
+      final result = await as('synthetic-ann').respondToCall(
+        input: RespondToCallInput(
+          targetCallId: openCallId,
+          kind: CallResponseKind.challenge,
+          note: 'Say it again on Friday.',
+        ),
+        viewerUserId: 'user-ann',
+      );
+      expect(result.resultingCall, isNull);
+      expect(result.invitation?.note, 'Say it again on Friday.');
+    }, skip: skip);
+
     // Last: it adds a call to the shared harness.
     test(
       'anyone else Fades with the exact payload and gets their own call',

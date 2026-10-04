@@ -88,7 +88,14 @@ class CallResponseSheet extends StatefulWidget {
 }
 
 class _CallResponseSheetState extends State<CallResponseSheet> {
-  late CallResponseKind _kind = widget.initialKind ?? CallResponseKind.back;
+  /// On a market that stopped taking calls only a Dare can go out, so the
+  /// sheet opens on it rather than on a Lock that can't be pressed.
+  late CallResponseKind _kind = switch (widget.initialKind ??
+      CallResponseKind.back) {
+    final kind when kind.createsOwnCall && _closed() =>
+      CallResponseKind.challenge,
+    final kind => kind,
+  };
   final _note = TextEditingController();
   bool _showReason = false;
   CallVisibility _visibility = CallVisibility.public;
@@ -99,6 +106,9 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
 
   /// The server said the viewer already has a live call on this market.
   bool _alreadyOnRecord = false;
+
+  /// Answers the server says this viewer already sent (a second Dare).
+  final Set<CallResponseKind> _answered = {};
 
   CallFeedEntry get _entry => widget.entry;
 
@@ -141,9 +151,11 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
       _entry.viewerHasCalled ||
       provider.marketDetail(_entry.market.id)?.viewerHasCalled == true;
 
-  /// Back and Fade need an open market and no call of yours on it yet.
+  /// Back and Fade need an open market and no call of yours on it yet; any
+  /// answer, once the server says it was already sent, is done.
   bool _canLock(CallResponseKind kind, CallsProvider provider) =>
-      !kind.createsOwnCall || (!_closed() && !_alreadyCalled(provider));
+      !_answered.contains(kind) &&
+      (!kind.createsOwnCall || (!_closed() && !_alreadyCalled(provider)));
 
   void _choose(CallResponseKind kind) => setState(() {
     _kind = kind;
@@ -168,7 +180,10 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
         RespondToCallInput(
           targetCallId: _entry.call.id,
           kind: _kind,
-          thesis: text.isEmpty ? null : text,
+          // A Back/Fade's reason goes on the new call; a Dare's words are
+          // the note the person dared reads.
+          thesis: _kind.createsOwnCall && text.isNotEmpty ? text : null,
+          note: !_kind.createsOwnCall && text.isNotEmpty ? text : null,
           visibility: _visibility,
         ),
         surface: widget.surface,
@@ -189,6 +204,9 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
           case CallRefusal.alreadyOnRecord:
             _alreadyOnRecord = true;
             _error = callRefusalMessage(e);
+          case CallRefusal.alreadyAnswered:
+            _answered.add(_kind);
+            _error = callRefusalMessage(e);
           default:
             _error = callRefusalMessage(e);
         }
@@ -204,7 +222,9 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
     builder: (context, provider, _) {
       final own = provider.isSignedIn && _isOwn(provider);
       return CallJourneySheet(
-        title: own ? 'Your call' : 'Your move',
+        // The body already says "That's your call"; the header doesn't
+        // repeat it.
+        title: own ? 'On record' : 'Your move',
         busy: provider.isSubmitting,
         body:
             !provider.isSignedIn
@@ -741,8 +761,9 @@ class _OwnCallState extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 6),
+        // One line, and it asks for nothing the one button doesn't do.
         Text(
-          'Share it and see who backs or fades you.',
+          'Only others can back or fade it.',
           textAlign: TextAlign.center,
           style: callJourneyBody(13),
         ),

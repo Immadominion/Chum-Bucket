@@ -50,6 +50,26 @@ class _FailingRepository extends MockCallsRepository {
   }
 }
 
+/// Records what the sheet sends, and answers as the mock does.
+class _CapturingRepository extends MockCallsRepository {
+  final sent = <RespondToCallInput>[];
+  ChallengeInvitation? invitation;
+
+  @override
+  Future<CallResponseResult> respondToCall({
+    required RespondToCallInput input,
+    required String? viewerUserId,
+  }) async {
+    sent.add(input);
+    final result = await super.respondToCall(
+      input: input,
+      viewerUserId: viewerUserId,
+    );
+    invitation = result.invitation;
+    return result;
+  }
+}
+
 Widget _host(CallsProvider provider, Widget child) =>
     ChangeNotifierProvider.value(
       value: provider,
@@ -345,6 +365,148 @@ void main() {
         ),
         CallRefusal.closed,
       );
+      expect(
+        classifyCallRefusal(
+          const CallsRejectedException(
+            'you have already challengeed this call',
+          ),
+        ),
+        CallRefusal.alreadyAnswered,
+      );
+      expect(
+        classifyCallRefusal(
+          const CallsRejectedException(
+            'New calls and responses use Panta only. This historical call '
+            'remains available to read and share.',
+          ),
+        ),
+        CallRefusal.closed,
+      );
+    });
+
+    test('a machine\'s words are never shown, a sentence is', () {
+      for (final error in <CallsException>[
+        // A strict input check's issue list, as tRPC words a BAD_REQUEST.
+        const CallsRejectedException(
+          '[{"code":"unrecognized_keys","keys":["extra"],"path":[],'
+          '"message":"Unrecognized key(s) in object: \'extra\'"}]',
+        ),
+        const CallsFailure('calls.respond: column "x" does not exist'),
+        const CallsFailure(
+          'The server sent something we could not read (calls.respond, '
+          'status 502).',
+        ),
+        const CallsRejectedException('   '),
+      ]) {
+        expect(callRefusalMessage(error), kCallUnexpectedFailure);
+      }
+      expect(
+        callRefusalMessage(
+          const CallsRejectedException('Slow down a little and try again.'),
+        ),
+        'Slow down a little and try again.',
+      );
+    });
+  });
+
+  group('a dare', () {
+    testWidgets('its words travel as the note the person dared reads', (
+      tester,
+    ) async {
+      _phone(tester);
+      final repo = _CapturingRepository();
+      final (provider, entry) = await _rig(repo);
+      await tester.pumpWidget(
+        _host(
+          provider,
+          CallResponseSheet(
+            entry: entry,
+            initialKind: CallResponseKind.challenge,
+            askForNotifications: false,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('response-add-reason')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Say it on Friday.');
+      await tester.tap(find.text('Send the dare'));
+      await tester.pumpAndSettle();
+
+      final sent = repo.sent.single;
+      expect(sent.kind, CallResponseKind.challenge);
+      expect(sent.toJson()['note'], 'Say it on Friday.');
+      expect(sent.toJson()['thesis'], isNull);
+      expect(repo.invitation?.note, 'Say it on Friday.');
+    });
+
+    test('a Back/Fade sends its reason as the thesis, and no note', () {
+      const fade = RespondToCallInput(
+        targetCallId: 'c1',
+        kind: CallResponseKind.fade,
+        thesis: 'Funding is too hot.',
+      );
+      expect(fade.toJson()['thesis'], 'Funding is too hot.');
+      expect(fade.toJson()['note'], isNull);
+      // A caller that put a dare's words in `thesis` still reaches them.
+      const dare = RespondToCallInput(
+        targetCallId: 'c1',
+        kind: CallResponseKind.challenge,
+        thesis: 'Go again.',
+        confidence: .7,
+      );
+      expect(dare.toJson()['note'], 'Go again.');
+      expect(dare.toJson()['thesis'], isNull);
+      expect(dare.toJson()['confidence'], isNull);
+    });
+
+    testWidgets('a second dare is refused once, and Send stops', (
+      tester,
+    ) async {
+      _phone(tester);
+      final repo = _FailingRepository(
+        const CallsRejectedException('you have already challengeed this call'),
+      );
+      final (provider, entry) = await _rig(repo);
+      await tester.pumpWidget(
+        _host(
+          provider,
+          CallResponseSheet(
+            entry: entry,
+            initialKind: CallResponseKind.challenge,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Send the dare'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('You already answered this call.'), findsOneWidget);
+      expect(find.textContaining('challengeed'), findsNothing);
+      expect(_lock(tester).onPressed, isNull);
+      expect(provider.isSubmitting, isFalse);
+    });
+
+    testWidgets('on a closed market the sheet opens on Dare', (tester) async {
+      _phone(tester);
+      final repo = MockCallsRepository();
+      final (provider, entry) = await _rig(repo);
+      final closed = CallFeedEntry(
+        call: entry.call,
+        author: entry.author,
+        market: entry.market.copyWith(
+          status: MarketStatus.closedPendingResolution,
+        ),
+      );
+      await tester.pumpWidget(
+        _host(
+          provider,
+          CallResponseSheet(entry: closed, initialKind: CallResponseKind.back),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Send the dare'), findsOneWidget);
+      expect(_lock(tester).onPressed, isNotNull);
     });
   });
 }

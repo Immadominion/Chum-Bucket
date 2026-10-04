@@ -16,10 +16,15 @@ enum CallRefusal {
   /// One live call per person per market (`CALL_ALREADY_MADE`).
   alreadyOnRecord,
 
+  /// The same answer to the same call twice (`RESPONSE_DUPLICATE`): a
+  /// second Dare, in practice.
+  alreadyAnswered,
+
   /// Panta's price for the market could not be read in time.
   priceUnavailable,
 
-  /// The market stopped taking calls (closed, or inside its cut-off).
+  /// The market stopped taking calls (closed, inside its cut-off, or a
+  /// historical venue that is read-only now).
   closed,
 
   /// The device could not reach the server.
@@ -28,7 +33,7 @@ enum CallRefusal {
   /// The session lapsed.
   signedOut,
 
-  /// Anything else: shown as the server worded it.
+  /// Anything else: shown as the server worded it, when it is a sentence.
   other,
 }
 
@@ -41,6 +46,7 @@ CallRefusal classifyCallRefusal(CallsException error) {
       text.contains('already on record')) {
     return CallRefusal.alreadyOnRecord;
   }
+  if (text.contains('you have already')) return CallRefusal.alreadyAnswered;
   if (text.contains('price') &&
       (text.contains('stale') ||
           text.contains('missing') ||
@@ -48,28 +54,42 @@ CallRefusal classifyCallRefusal(CallsException error) {
     return CallRefusal.priceUnavailable;
   }
   if (text.contains('not accepting new calls') ||
-      text.contains('calls close')) {
+      text.contains('not taking new calls') ||
+      text.contains('call window') ||
+      text.contains('calls close') ||
+      text.contains('use panta only')) {
     return CallRefusal.closed;
   }
   return CallRefusal.other;
 }
 
-/// One short line for the sheet. Never names an internal state.
+/// One short line for the sheet. Never names an internal state, and never
+/// shows a machine's words (an input check's JSON, a status code, a
+/// procedure name).
 String callRefusalMessage(CallsException error) => switch (classifyCallRefusal(
   error,
 )) {
   CallRefusal.ownCall => 'That’s your own call.',
   CallRefusal.alreadyOnRecord => 'You’re already on record here.',
+  CallRefusal.alreadyAnswered => 'You already answered this call.',
   CallRefusal.priceUnavailable =>
     'Panta’s price is updating. Try again in a moment.',
   CallRefusal.closed => 'This market stopped taking calls.',
   CallRefusal.offline => 'No connection. Try again when you’re back.',
   CallRefusal.signedOut => 'Sign in again to lock this.',
   CallRefusal.other =>
-    error.message.trim().isEmpty
-        ? 'That didn’t go through. Try again.'
-        : error.message,
+    _readable(error) ? error.message.trim() : kCallUnexpectedFailure,
 };
+
+/// A refusal the server worded for a person: a [CallsRejectedException]
+/// whose text is a short sentence. A server failure ([CallsFailure]) or an
+/// input check's JSON issue list is not.
+bool _readable(CallsException error) {
+  if (error is! CallsRejectedException) return false;
+  final text = error.message.trim();
+  if (text.isEmpty || text.length > 200) return false;
+  return !text.startsWith('[') && !text.startsWith('{');
+}
 
 /// For a failure that is not a [CallsException] at all: the sheet still
 /// stops and says so.

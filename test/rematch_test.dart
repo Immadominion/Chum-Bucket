@@ -144,7 +144,11 @@ void main() {
         'confidence',
         'thesis',
         'visibility',
+        'note',
       });
+      // A challenge's words are the server's `note`; it keeps no thesis.
+      expect(json['note'], 'Go again.');
+      expect(json['thesis'], isNull);
       for (final key in json.keys) {
         expect(
           key.toLowerCase(),

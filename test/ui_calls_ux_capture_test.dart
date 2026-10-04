@@ -65,6 +65,33 @@ class _PantaRepository extends MockCallsRepository {
   }
 }
 
+/// Your own call on a live Panta market (the detail shows its trade card).
+class _PantaCallRepository extends _PantaRepository {
+  @override
+  Future<CallDetail> fetchCall({
+    required String callId,
+    String? viewerUserId,
+  }) async {
+    final detail = await super.fetchCall(
+      callId: callId,
+      viewerUserId: viewerUserId,
+    );
+    final entry = detail.entry;
+    return CallDetail(
+      entry: CallFeedEntry(
+        call: entry.call,
+        author: entry.author,
+        market: entry.market.copyWith(
+          venue: MarketVenue.panta,
+          status: MarketStatus.open,
+        ),
+      ),
+      parent: detail.parent,
+      responses: detail.responses,
+    );
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -283,6 +310,20 @@ void main() {
         await shot(tester, 'detail-$id-$size');
       }, skip: _outDir.isEmpty);
     }
+
+    testWidgets('detail own Panta call $size', (tester) async {
+      final (provider, _) = await rig(repository: _PantaCallRepository());
+      await mountScene(
+        tester,
+        provider,
+        const CallDetailScreen(callId: 'call_you_fed'),
+        width: width,
+        scale: scale,
+      );
+      await tester.drag(find.byType(ListView).first, const Offset(0, -600));
+      await tester.pumpAndSettle();
+      await shot(tester, 'detail-own-panta-$size');
+    }, skip: _outDir.isEmpty);
 
     testWidgets('feed cards $size', (tester) async {
       final (provider, repo) = await rig();

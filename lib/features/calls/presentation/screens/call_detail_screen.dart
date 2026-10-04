@@ -206,9 +206,7 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
       _openCall(own.call.id);
     } else if (result.invitation != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Invitation sent. No call or position was created.'),
-        ),
+        SnackBar(content: Text('Dare sent to @${entry.author.handle}.')),
       );
     }
     await provider.loadCall(widget.callId, force: true);
@@ -432,8 +430,11 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
                     children: [
                       CallJourneyPerson(
                         person: entry.author,
+                        // Your own call's banner already carries the instant.
                         subtitle:
-                            '@${entry.author.handle} · ${CallsFormat.relative(entry.call.createdAtUtc)}',
+                            own
+                                ? '@${entry.author.handle}'
+                                : '@${entry.author.handle} · ${CallsFormat.relative(entry.call.createdAtUtc)}',
                         onTap:
                             () => Navigator.of(context).push(
                               MaterialPageRoute(
@@ -603,8 +604,9 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
             ? CallsFormat.probability(call.entryProbability)
             : null,
     };
+    // When it locked is said once: beside the name (and, on your own call,
+    // in the "You're on record" banner), never again as a tile.
     return [
-      _Fact('lock-outline', 'Locked', CallsFormat.shortWhen(call.lockedAtUtc)),
       if (price != null)
         _Fact('chart-pie-outline', '${call.side.wire} at', price),
       if (entry.market.closesAtUtc case final closes?)
@@ -1013,12 +1015,6 @@ class _TradeCard extends StatelessWidget {
                   ? 'View your Panta funding'
                   : 'Review a ${side.wire} trade',
           onPressed: onPressed,
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Powered by Panta',
-          textAlign: TextAlign.center,
-          style: callJourneyBody(11).copyWith(color: AppColors.textMuted),
         ),
       ],
     ),
