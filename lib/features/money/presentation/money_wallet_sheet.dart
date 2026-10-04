@@ -289,8 +289,12 @@ class _MoneyWalletSheetState extends State<MoneyWalletSheet> {
           MoneyTransferStep.submitting ||
           MoneyTransferStep.sent ||
           MoneyTransferStep.confirming:
-        final ready = t.ready!;
-        final amount = moneyDollars(ready.review.amountBaseUnits);
+        // The review, or (picked up after the fact) the transfer itself.
+        final ready = t.ready;
+        final to = ready?.review.to ?? t.transfer!.to;
+        final amount = moneyDollars(
+          ready?.review.amountBaseUnits ?? t.transfer!.amountBaseUnits,
+        );
         final pending =
             t.step == MoneyTransferStep.confirming ||
             t.step == MoneyTransferStep.submitting;
@@ -308,7 +312,7 @@ class _MoneyWalletSheetState extends State<MoneyWalletSheet> {
                 _line(
                   context,
                   'send-outline',
-                  ready.review.to,
+                  to,
                   key: const ValueKey('cash-out-review-to'),
                 ),
                 _line(

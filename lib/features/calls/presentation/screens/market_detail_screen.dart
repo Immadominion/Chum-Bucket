@@ -214,7 +214,8 @@ class _MarketDetailScreenState extends State<MarketDetailScreen>
         ownCall != null && ownCall.call.userId == provider.viewerUserId;
     // A SOL-quoted Panta market takes calls but is never offered a trade:
     // no Trade button at all, not a disabled one, even beside your own call.
-    final canTrade = market.tradable && isOwnCall;
+    // With money on the amount rides on the call: no separate Trade path.
+    final canTrade = market.tradable && isOwnCall && moneyOf(context) == null;
     final status =
         closedByTime && market.status == MarketStatus.open
             ? 'Closed · awaiting result'

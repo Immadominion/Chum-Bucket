@@ -119,15 +119,21 @@ class MoneyTransferController extends ChangeNotifier {
       try {
         result = await _prepareOnce(from, to, amountBaseUnits);
       } on MoneyException catch (e) {
-        // The server is still sending one of ours: watch that one instead.
-        if (e.kind == MoneyErrorKind.conflict && _transfer != null) {
-          _resumeInFlight();
+        // Another transfer from this wallet is still going through: watch
+        // that one (the server names it) instead of starting a second.
+        final flying = e.inFlightTransferId;
+        if (e.kind == MoneyErrorKind.conflict && flying != null) {
+          await _watch(flying);
           return;
         }
         rethrow;
       }
       if (_disposed) return;
       switch (result) {
+        case TransferSent(:final transfer):
+          // This key was already signed: its actual state, never a review.
+          _adopt(transfer);
+          return;
         case TransferInvalid(:final message):
           // The server's words: "That's a token account, not a wallet."
           _keyFor = null;
@@ -182,6 +188,25 @@ class MoneyTransferController extends ChangeNotifier {
   bool get _inFlight =>
       _signed != null ||
       (_transfer?.state == TransferState.submitted);
+
+  /// Picks up a transfer already on its way, by the server's id.
+  Future<void> _watch(String transferId) async {
+    final view = await _client.transferStatus(transferId);
+    if (_disposed) return;
+    if (view.transferId != transferId) {
+      throw const MoneyException(MoneyErrorKind.invalidResponse);
+    }
+    _adopt(view);
+  }
+
+  void _adopt(TransferView view) {
+    _ready = null;
+    _expected = null;
+    _transfer = view;
+    _applyState(view);
+    if (!view.settled) _startPolling();
+    if (!_disposed) notifyListeners();
+  }
 
   void _resumeInFlight() {
     _step =
@@ -276,7 +301,7 @@ class MoneyTransferController extends ChangeNotifier {
   }
 
   Future<void> refreshStatus() async {
-    final id = _ready?.transfer.transferId;
+    final id = _transfer?.transferId ?? _ready?.transfer.transferId;
     if (_disposed || id == null) return;
     try {
       final view = await _client.transferStatus(id);
@@ -289,14 +314,23 @@ class MoneyTransferController extends ChangeNotifier {
   }
 
   void _accept(TransferView view) {
-    final ready = _ready!;
-    if (view.transferId != ready.transfer.transferId ||
-        view.from != ready.review.from ||
-        view.to != ready.review.to ||
-        view.amountBaseUnits != ready.review.amountBaseUnits) {
-      throw const MoneyException(MoneyErrorKind.invalidResponse);
-    }
+    final ready = _ready;
+    final same =
+        ready != null
+            ? view.transferId == ready.transfer.transferId &&
+                view.from == ready.review.from &&
+                view.to == ready.review.to &&
+                view.amountBaseUnits == ready.review.amountBaseUnits
+            : view.transferId == _transfer?.transferId &&
+                view.from == _transfer?.from &&
+                view.to == _transfer?.to &&
+                view.amountBaseUnits == _transfer?.amountBaseUnits;
+    if (!same) throw const MoneyException(MoneyErrorKind.invalidResponse);
     _transfer = view;
+    _applyState(view);
+  }
+
+  void _applyState(TransferView view) {
     switch (view.state) {
       case TransferState.confirmed:
         _stopPolling();
@@ -356,8 +390,14 @@ class MoneyTransferController extends ChangeNotifier {
         _ => const MoneyException(MoneyErrorKind.invalidResponse).message,
       };
       if (_step == MoneyTransferStep.preparing) {
+        // No answer we could read: the review may exist under this key, so
+        // the next try asks again with it (a replay is safe for 60 s, then
+        // the server says start again and a new key follows).
         _replyLost =
-            error is MoneyException && error.kind == MoneyErrorKind.connection;
+            error is MoneyException &&
+            (error.kind == MoneyErrorKind.connection ||
+                error.kind == MoneyErrorKind.provider ||
+                error.kind == MoneyErrorKind.invalidResponse);
         _step = MoneyTransferStep.idle;
       }
     } finally {

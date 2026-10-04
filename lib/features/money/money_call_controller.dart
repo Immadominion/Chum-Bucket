@@ -318,10 +318,20 @@ class MoneyCallController extends ChangeNotifier {
       if (quoteExpired) {
         // Quoted again under the same call; the new numbers are reviewed.
         final call = _moneyCall;
-        if (call == null) {
-          await _prepareOnce();
-        } else {
-          await _retryOnce(call);
+        try {
+          if (call == null) {
+            await _prepareOnce();
+          } else {
+            await _retryOnce(call);
+          }
+        } on MoneyException catch (e) {
+          // The price moved past the slippage, or the window closed: only a
+          // new call can follow this one.
+          if (e.kind == MoneyErrorKind.unavailable && call != null) {
+            _retryRefused = true;
+            _step = MoneyCallStep.failed;
+          }
+          rethrow;
         }
         return;
       }

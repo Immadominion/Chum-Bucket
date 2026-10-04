@@ -249,6 +249,17 @@ class MoneyClient {
                 !raw.trimLeft().startsWith('{')
             ? raw
             : null;
+    final rawDetails = data is Map ? data['details'] : null;
+    final details =
+        rawDetails is Map
+            ? {
+              for (final entry in rawDetails.entries)
+                if (entry.key is String &&
+                    entry.value is String &&
+                    (entry.value as String).length <= 128)
+                  entry.key as String: entry.value as String,
+            }
+            : null;
     final kind = switch (code) {
       'UNAUTHORIZED' => MoneyErrorKind.signedOut,
       'FORBIDDEN' => MoneyErrorKind.forbidden,
@@ -268,6 +279,7 @@ class MoneyClient {
               kind == MoneyErrorKind.invalidResponse
           ? null
           : message,
+      details,
     );
   }
 

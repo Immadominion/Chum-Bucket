@@ -70,7 +70,7 @@ class _RecordingBackend implements ChumbucketWalletBackend {
   Future<void> signOut() async => calls.add('signOut');
 }
 
-ChumbucketWalletController walletFor(
+ChumbucketWalletController _walletFor(
   bool enabled,
   _RecordingBackend backend,
 ) => ChumbucketWalletController(
@@ -102,7 +102,7 @@ void main() {
   group('the Chumbucket wallet follows wallet.status for this account', () {
     test('a non-admin: off, no wallet, no provider session', () async {
       final backend = _RecordingBackend();
-      final wallet = walletFor(false, backend);
+      final wallet = _walletFor(false, backend);
       addTearDown(wallet.dispose);
       await wallet.bind(kCanonicalUserId);
       expect(wallet.enabled, isFalse);
@@ -117,7 +117,7 @@ void main() {
 
     test('an admin: on, with the linked wallet', () async {
       final backend = _RecordingBackend();
-      final wallet = walletFor(true, backend);
+      final wallet = _walletFor(true, backend);
       addTearDown(wallet.dispose);
       await wallet.bind(kCanonicalUserId);
       expect(wallet.enabled, isTrue);
@@ -126,8 +126,8 @@ void main() {
     });
 
     testWidgets('every reader sees no wallet for a non-admin', (tester) async {
-      final off = walletFor(false, _RecordingBackend());
-      final on = walletFor(true, _RecordingBackend());
+      final off = _walletFor(false, _RecordingBackend());
+      final on = _walletFor(true, _RecordingBackend());
       addTearDown(off.dispose);
       addTearDown(on.dispose);
       await off.bind(kCanonicalUserId);

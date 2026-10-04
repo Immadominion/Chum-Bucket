@@ -37,9 +37,24 @@ enum MoneyErrorKind {
 
 /// The server's own short copy when it sent one, else fixed local copy.
 class MoneyException implements Exception {
-  const MoneyException(this.kind, [this.serverMessage]);
+  const MoneyException(this.kind, [this.serverMessage, this.details]);
   final MoneyErrorKind kind;
   final String? serverMessage;
+
+  /// The server's machine-readable details (`data.details`): our own ids and
+  /// codes only, e.g. `{reason: TRANSFER_IN_FLIGHT, transferId}`.
+  final Map<String, String>? details;
+
+  /// The transfer still going through from the same wallet, when that is why
+  /// a new one was refused.
+  String? get inFlightTransferId {
+    final id = details?['transferId'];
+    return details?['reason'] == 'TRANSFER_IN_FLIGHT' &&
+            id != null &&
+            _uuid.hasMatch(id)
+        ? id
+        : null;
+  }
 
   String get message =>
       serverMessage ??
@@ -695,6 +710,10 @@ sealed class TransferPrepareResult {
   factory TransferPrepareResult.fromJson(Object? value) {
     final json = moneyObject(value);
     switch (json['status']) {
+      case 'SENT':
+        // The same key again after it was signed: its actual state, never
+        // a new review.
+        return TransferSent(TransferView.fromJson(json['transfer']));
       case 'INVALID':
         return TransferInvalid(
           reason: _string(json, 'reason', max: 64),
@@ -725,6 +744,11 @@ sealed class TransferPrepareResult {
         return _invalid();
     }
   }
+}
+
+class TransferSent extends TransferPrepareResult {
+  const TransferSent(this.transfer);
+  final TransferView transfer;
 }
 
 class TransferInvalid extends TransferPrepareResult {

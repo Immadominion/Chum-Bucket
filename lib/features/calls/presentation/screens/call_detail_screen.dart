@@ -603,7 +603,12 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
                 // Only the owner sees the established private Panta trade
                 // entry, and only on a market Chumbucket can trade (a
                 // SOL-quoted Panta market takes calls, never trades).
-                if (own && entry.market.tradable && entry.money == null) ...[
+                // With money on, the amount goes on the call itself and the
+                // server refuses this path for money calls: not offered.
+                if (own &&
+                    entry.market.tradable &&
+                    entry.money == null &&
+                    moneyOf(context) == null) ...[
                   const SizedBox(height: 12),
                   _TradeCard(
                     side: entry.call.side,
