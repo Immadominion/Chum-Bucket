@@ -378,52 +378,6 @@ class ArenaBackendService {
     });
   }
 
-  /// List the Venmo-style "pending, resolves automatically" targets [wallet]
-  /// has created (e.g. friends added by X handle who haven't linked a wallet
-  /// yet). Public read - no signature required.
-  Future<List<ArenaPendingTarget>> fetchPendingTargets({
-    required String wallet,
-    int limit = 50,
-  }) async {
-    final inputJson = jsonEncode({
-      'json': {'wallet': wallet, 'limit': limit},
-    });
-    final uri = Uri.parse(
-      '$baseUrl/pendingTargets',
-    ).replace(queryParameters: {'input': inputJson});
-    log('🏟️ ArenaBackendService: GET $uri');
-
-    final response = await http.get(uri).timeout(const Duration(seconds: 15));
-    final json = _decodeTrpcResponse(response, procedurePath: 'pendingTargets');
-    final list = json as List<dynamic>;
-    return list
-        .map((e) => ArenaPendingTarget.fromJson(e as Map<String, dynamic>))
-        .toList();
-  }
-
-  /// Add a friend by an off-chain identity (X handle) that hasn't linked a
-  /// wallet yet. If that handle already resolved to a wallet, the backend
-  /// hands it straight back (`alreadyResolved: true`); otherwise it's
-  /// recorded and resolves automatically once that handle links a wallet.
-  Future<ArenaCreatePendingTargetResult> createPendingTarget({
-    required String wallet,
-    required String providerUsername,
-    required int timestamp,
-    required String signature,
-    String provider = 'twitter',
-  }) async {
-    final json = await _postMutation('createPendingTarget', {
-      'wallet': wallet,
-      'providerUsername': providerUsername,
-      'provider': provider,
-      'timestamp': timestamp,
-      'signature': signature,
-    });
-    return ArenaCreatePendingTargetResult.fromJson(
-      json as Map<String, dynamic>,
-    );
-  }
-
   /// Mirror a wallet-submitted Arena call into the canonical social activity
   /// layer. The on-chain transaction remains the funds source of truth; this is
   /// the product read model that powers feeds, profiles, and "my positions".
@@ -452,9 +406,8 @@ class ArenaBackendService {
   }
 
   /// Returns the decoded `result.data.json` payload — most callers ignore it
-  /// (fire-and-forget mutations), but mutations that hand back a value (e.g.
-  /// [createPendingTarget]) reuse this instead of duplicating the POST/decode
-  /// plumbing.
+  /// (fire-and-forget mutations); one that hands back a value reuses this
+  /// instead of duplicating the POST/decode plumbing.
   Future<dynamic> _postMutation(
     String procedurePath,
     Map<String, dynamic> input,

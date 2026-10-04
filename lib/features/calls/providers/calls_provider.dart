@@ -22,6 +22,7 @@ import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/people/data/people_models.dart';
 import 'package:chumbucket/features/people/data/people_repository.dart';
+import 'package:chumbucket/features/people/data/person_finder.dart';
 
 /// The states every list surface in this slice must be able to reach.
 enum CallsLoadState {
@@ -585,49 +586,92 @@ class CallsProvider extends ChangeNotifier {
         viewerUserId: viewer,
       );
       if (!_isCurrent(key, request)) throw _accountChanged;
-      for (final ref in _personDetails.keys.toList()) {
-        final cached = _personDetails[ref];
-        if (cached?.person.id != personId) continue;
-        _personDetails[ref] = cached!.copyWith(
-          calls:
-              confirmed
-                  ? cached.calls
-                  : cached.calls
-                      .where(
-                        (entry) =>
-                            entry.call.visibility == CallVisibility.public,
-                      )
-                      .toList(),
-          viewerIsFollowing: confirmed,
-        );
-      }
-      // The follow list changed; read it again rather than editing it here.
-      // A read already in flight predates this change, so it is discarded
-      // rather than allowed to refill the list with the old membership.
-      _requests.remove('following');
-      _isLoadingFollowing = false;
-      _followingError = null;
-      _following = null;
-      if (!confirmed) {
-        _callDetails.removeWhere(
-          (_, cached) =>
-              cached.entry.author.id == personId &&
-              cached.entry.call.visibility == CallVisibility.followers,
-        );
-      }
-      // A follow changes BOTH Following membership and Global visibility of
-      // followers-only calls. Invalidate old pages and in-flight pagination so
-      // an unfollow never leaves a private row visible from a stale cache.
-      _requests.remove('feed');
-      _requests.remove('more');
-      _isLoadingFeed = false;
-      _isLoadingMore = false;
-      _feedEntries = const [];
-      _feedServedAt = null;
-      _feedNextCursor = null;
-      _notify();
+      _applyFollowChange(personId, confirmed);
       await loadPerson(personId, force: true);
       await loadFeed(force: true);
+      return confirmed;
+    } finally {
+      if (_isCurrent(key, request)) {
+        _requests.remove(key);
+        _followsInFlight.remove(personId);
+        _notify();
+      }
+    }
+  }
+
+  /// Every cache a confirmed follow or unfollow of [personId] touches.
+  void _applyFollowChange(String personId, bool confirmed) {
+    for (final ref in _personDetails.keys.toList()) {
+      final cached = _personDetails[ref];
+      if (cached?.person.id != personId) continue;
+      _personDetails[ref] = cached!.copyWith(
+        calls:
+            confirmed
+                ? cached.calls
+                : cached.calls
+                    .where(
+                      (entry) => entry.call.visibility == CallVisibility.public,
+                    )
+                    .toList(),
+        viewerIsFollowing: confirmed,
+      );
+    }
+    // The follow list changed; read it again rather than editing it here.
+    // A read already in flight predates this change, so it is discarded
+    // rather than allowed to refill the list with the old membership.
+    _requests.remove('following');
+    _isLoadingFollowing = false;
+    _followingError = null;
+    _following = null;
+    if (!confirmed) {
+      _callDetails.removeWhere(
+        (_, cached) =>
+            cached.entry.author.id == personId &&
+            cached.entry.call.visibility == CallVisibility.followers,
+      );
+    }
+    // A follow changes BOTH Following membership and Global visibility of
+    // followers-only calls. Invalidate old pages and in-flight pagination so
+    // an unfollow never leaves a private row visible from a stale cache.
+    _requests.remove('feed');
+    _requests.remove('more');
+    _isLoadingFeed = false;
+    _isLoadingMore = false;
+    _feedEntries = const [];
+    _feedServedAt = null;
+    _feedNextCursor = null;
+    _notify();
+  }
+
+  /// Follow or unfollow one canonical person by id, from a card that is not
+  /// their profile (Add a friend). The same durable, never-optimistic write
+  /// as [setFollowing]: the state changes only once the BFF acknowledges it.
+  /// The feed is read again in the background, so the card answers at once.
+  /// No wallet signature: the session is the authority.
+  Future<bool> setFollowingById(String personId, bool following) async {
+    final viewer = _viewerUserId;
+    if (viewer == null || viewer.isEmpty) throw const CallsSignedOutException();
+    if (personId == viewer) {
+      throw const CallsRejectedException("You can't follow yourself.");
+    }
+    if (_followsInFlight.contains(personId)) {
+      throw const CallsRejectedException(
+        'That follow is already being updated.',
+      );
+    }
+    final key = 'follow:$personId';
+    final request = _beginRequest(key);
+    _followsInFlight.add(personId);
+    _notify();
+    try {
+      final confirmed = await _repository.setFollowing(
+        personId: personId,
+        following: following,
+        viewerUserId: viewer,
+      );
+      if (!_isCurrent(key, request)) throw _accountChanged;
+      _applyFollowChange(personId, confirmed);
+      unawaited(loadFeed(force: true));
       return confirmed;
     } finally {
       if (_isCurrent(key, request)) {
@@ -1047,6 +1091,24 @@ class CallsProvider extends ChangeNotifier {
     final results = await people.searchPeople(query);
     if (_disposed || viewer != _viewerUserId) throw _accountChanged;
     return results;
+  }
+
+  /// Whether this build can look a person up before adding them.
+  bool get supportsPersonFinder => _repository is PersonFinderRepository;
+
+  /// `people.find`: who an X handle, @username or wallet belongs to, for the
+  /// Add a friend card. Session only; writes nothing. A result for a viewer
+  /// who has since changed is discarded rather than shown.
+  Future<PersonLookup> findPerson(String query) async {
+    final Object repository = _repository;
+    if (repository is! PersonFinderRepository) {
+      throw const PersonFinderUnavailable();
+    }
+    final viewer = _viewerUserId;
+    if (viewer == null || viewer.isEmpty) throw const CallsSignedOutException();
+    final lookup = await repository.findPerson(query);
+    if (_disposed || viewer != _viewerUserId) throw _accountChanged;
+    return lookup;
   }
 
   /// Append to the viewer's own call's thesis, then re-read the call so the

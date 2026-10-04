@@ -33,6 +33,7 @@
 /// | `fetchFollowing` | `people.following` | query |
 /// | `fetchTopCalls` | `calls.top` | query |
 /// | `appendThesisUpdate` | `calls.addUpdate` | mutation |
+/// | `findPerson` | `people.find` | mutation (the query, which may be a wallet, stays out of URLs) |
 ///
 /// ## Identity
 ///
@@ -62,13 +63,15 @@ import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/people/data/people_models.dart';
 import 'package:chumbucket/features/people/data/people_repository.dart';
 import 'package:chumbucket/features/people/data/people_suggestions.dart';
+import 'package:chumbucket/features/people/data/person_finder.dart';
 
 class BffCallsRepository
     implements
         CallsRepository,
         CallsCatalogRepository,
         PeopleRepository,
-        PeopleSuggestionsRepository {
+        PeopleSuggestionsRepository,
+        PersonFinderRepository {
   /// [httpClient] is the test seam: inject one and no socket is ever opened.
   /// [authToken] supplies the session; returning null simply means signed out.
   BffCallsRepository({
@@ -111,6 +114,7 @@ class BffCallsRepository
   static const String topCallsProcedure = 'calls.top';
   static const String suggestedPeopleProcedure = 'people.suggested';
   static const String addUpdateProcedure = 'calls.addUpdate';
+  static const String findPersonProcedure = 'people.find';
 
   /// Where this repository is pointed. Useful in a debug screen; never a
   /// hardcoded host.
@@ -422,6 +426,32 @@ class BffCallsRepository
     } on CallsRejectedException catch (e) {
       if (_missingProcedure.hasMatch(e.message)) {
         throw const PeopleSuggestionsUnavailable();
+      }
+      rethrow;
+    }
+  }
+
+  /// `people.find`. Session only; writes nothing. A mutation so the query —
+  /// which may be a wallet — travels in the body, never in a URL. A server
+  /// without it raises [PersonFinderUnavailable].
+  @override
+  Future<PersonLookup> findPerson(String query) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) {
+      throw const CallsRejectedException(
+        'Enter their X handle, Chumbucket @username or Solana wallet.',
+      );
+    }
+    try {
+      final data = await _transport.mutate(findPersonProcedure, {
+        'query': trimmed.length > 200 ? trimmed.substring(0, 200) : trimmed,
+      });
+      return PersonLookup.fromJson(
+        requireJsonMap(data, '$findPersonProcedure result'),
+      );
+    } on CallsRejectedException catch (e) {
+      if (_missingProcedure.hasMatch(e.message)) {
+        throw const PersonFinderUnavailable();
       }
       rethrow;
     }

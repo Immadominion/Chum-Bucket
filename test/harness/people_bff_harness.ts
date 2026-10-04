@@ -69,8 +69,26 @@ function resolve(id: string, resolution: "YES" | "NO") {
   }, now);
 }
 
+// Who signed in with which X account, and who holds which wallet — what
+// person_x_identities_v1 / person_for_wallet_v1 answer in production.
+// Synthetic: Ann signed in with X as @AnnOnX; Bob holds one wallet.
+const BOB_WALLET = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
+const annX = {
+  userId: "user-ann", xHandle: "AnnOnX",
+  xAvatarUrl: "https://pbs.twimg.com/profile_images/1/ann_400x400.jpg", seenAt: now,
+};
+const identities = {
+  async byXHandle(handle: string) { return handle === "annonx" ? [annX] : []; },
+  async xIdentitiesOf(ids: readonly string[]) { return ids.includes("user-ann") ? [annX] : []; },
+  async personForWallet(wallet: string) { return wallet === BOB_WALLET ? "user-bob" : null; },
+};
+// No network: an X handle nobody here has comes back without a picture.
+const xAvatars = { async avatarFor() { return null; } };
+
 let seq = 0;
 const rt = buildCallsRuntime(undefined, {
+  identities,
+  xAvatars,
   store: calls,
   markets: predictionStoreReader(venue),
   clock,

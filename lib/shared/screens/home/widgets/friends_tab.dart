@@ -13,6 +13,7 @@ import 'package:chumbucket/features/profile/presentation/screens/widgets/profile
 import 'package:chumbucket/shared/screens/home/widgets/challenges_preview.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
+import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/shared/services/unified_database_service.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
@@ -193,14 +194,6 @@ class _FriendsTabState extends State<FriendsTab>
 
     debugPrint('FriendsTab: Loading friends for user: $walletAddress');
 
-    // Best-effort: load this wallet's pending "added by X handle, not
-    // joined yet" targets so the section below the grid can show them.
-    unawaited(
-      context.read<ArenaProvider>().loadPendingTargets(
-        walletAddress: walletAddress,
-      ),
-    );
-
     // Load friends from Supabase
     final friendsData = await UnifiedDatabaseService.getUserFriends(
       walletAddress,
@@ -330,6 +323,10 @@ class _FriendsTabState extends State<FriendsTab>
 
     final styles = AppTextStyles.textTheme;
     final connected = authProvider.walletAddress != null;
+    // A Chumbucket account of any kind (wallet, Google or X).
+    final signedIn =
+        context.watch<ChumbucketSession?>()?.isReady == true ||
+        context.watch<CallsProvider?>()?.isSignedIn == true;
     return RefreshIndicator(
       color: AppColors.primary,
       onRefresh: _retryLoadFriends,
@@ -358,12 +355,15 @@ class _FriendsTabState extends State<FriendsTab>
                           const SizedBox(height: 8),
                           Text(
                             // A Google or X account has no wallet friends; say
-                            // where people show up instead of asking for one.
-                            context.watch<ChumbucketSession?>()?.isReady == true
-                                ? 'Friends you added with a wallet appear '
-                                    'here when that wallet is connected. '
-                                    'People you follow are under Following.'
-                                : 'Connect your existing account to load your friends.',
+                            // where the people they add show up instead.
+                            signedIn
+                                ? 'Friends you add are listed under '
+                                    'Following, and their calls fill your '
+                                    'Following feed. Friends from the old app '
+                                    'appear here when their wallet is '
+                                    'connected.'
+                                : 'Sign in to add friends and see the ones '
+                                    'you already have.',
                             style: styles.bodyMedium,
                           ),
                           const SizedBox(height: 12),
@@ -427,25 +427,26 @@ class _FriendsTabState extends State<FriendsTab>
                         ],
                       ),
             ),
-            if (connected) ...[
-              const SizedBox(height: 16),
-              // The comp's call to action (img1's "Challenge a new friend"):
-              // white label on the vertical gradient, shared with the sheets.
-              ChumbucketPrimaryButton(
-                label: 'Add a friend',
-                onPressed: widget.onAddFriend,
-                leading: const BasilIcon(
-                  'plus-outline',
-                  size: 20,
-                  color: AppColors.onPrimary,
-                ),
+            // Every account can add a friend — wallet, Google or X: adding
+            // follows a real Chumbucket person, confirmed on a card first
+            // (add_friend_sheet.dart). Signed out, the button opens sign-in.
+            const SizedBox(height: 16),
+            // The comp's call to action (img1's "Challenge a new friend"):
+            // white label on the vertical gradient, shared with the sheets.
+            ChumbucketPrimaryButton(
+              label: 'Add a friend',
+              onPressed: widget.onAddFriend,
+              leading: const BasilIcon(
+                'plus-outline',
+                size: 20,
+                color: AppColors.onPrimary,
               ),
-              const _PendingInvitesSection(),
-            ],
+            ),
             const SizedBox(height: 16),
             Text(
-              'Friends are mutual connections. Tap one to see their calls and '
-              'back, fade or dare them. Following adds people’s calls to Home.',
+              'Adding a friend follows them: you’ll see who they are first, '
+              'then their calls show up in your Following feed. Tap a friend '
+              'to see their calls and back, fade or dare them.',
               style: styles.bodySmall?.copyWith(
                 color: AppColors.textSecondary,
                 height: 1.6,
@@ -478,61 +479,6 @@ class _FriendsTabState extends State<FriendsTab>
           ],
         ),
       ),
-    );
-  }
-}
-
-/// Existing add-by-handle requests. These are not delivered call invitations.
-class _PendingInvitesSection extends StatelessWidget {
-  const _PendingInvitesSection();
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<ArenaProvider>(
-      builder: (context, arena, _) {
-        final unresolved =
-            arena.pendingTargets.where((t) => !t.isResolved).toList();
-        if (unresolved.isEmpty) return const SizedBox.shrink();
-        final styles = AppTextStyles.textTheme;
-        return Container(
-          margin: const EdgeInsets.only(top: 16),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.primaryContainer,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Waiting to join', style: styles.titleMedium),
-              const SizedBox(height: 8),
-              Text(
-                'These friend requests are waiting for the person to join with their X account.',
-                style: styles.bodySmall?.copyWith(
-                  color: AppColors.onPrimaryContainer,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 12),
-              for (final target in unresolved)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '@${target.providerUsername}',
-                        style: styles.titleMedium,
-                      ),
-                      const SizedBox(height: 4),
-                      Text('Not joined yet', style: styles.bodySmall),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        );
-      },
     );
   }
 }

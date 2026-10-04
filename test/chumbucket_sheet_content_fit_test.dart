@@ -159,23 +159,25 @@ void main() {
   });
 
   testWidgets(
-    'friend confirmation contracts after successful fake submission',
+    'add friend hugs its content from the form to the confirmed card',
     (tester) async {
       final service = FakeFriends();
       await mountSheetSystem(
         tester,
         AddFriendSheet(service: service, onFriendAdded: () {}),
       );
-      final initialHeight = tester.getSize(surface).height;
       await enter(tester, '@ada');
-      await submit(tester, 'Continue with @ada');
-      expect(service.handles, ['ada']);
+      await submit(tester);
+      expect(service.finds, ['@ada']);
+      await submit(tester, 'Add friend');
+      expect(service.follows, ['u-irf:true']);
       expect(find.text('Done').hitTestable(), findsOneWidget);
-      expect(tester.getSize(surface).height, lessThan(initialHeight));
-      final action = tester.getRect(
-        find.widgetWithText(ChumbucketPrimaryButton, 'Done'),
+      // The last action sits the body's 24dp above the sheet's edge: no
+      // empty space under a short result.
+      final last = tester.getRect(
+        find.widgetWithText(ChumbucketTextAction, 'Add another friend'),
       );
-      expect(action.bottom, closeTo(tester.getRect(surface).bottom - 24, .01));
+      expect(last.bottom, closeTo(tester.getRect(surface).bottom - 24, .01));
       expect(tester.takeException(), isNull);
     },
   );

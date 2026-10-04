@@ -251,4 +251,42 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets(
+    'a Google or X account (no wallet) can add a friend from Friends',
+    (tester) async {
+      final calls = CallsProvider(repository: FriendsRepository())
+        ..setViewer('viewer');
+      final arena = QuietArena();
+      addTearDown(calls.dispose);
+      addTearDown(arena.dispose);
+      var adds = 0;
+      await mountPeople(
+        tester,
+        Scaffold(
+          body: FriendsHubTab(
+            refreshKey: 0,
+            onAddFriend: () => adds++,
+            onFriendSelected: (_) {},
+            buildViewMoreItem: (_, count) => Text('View $count more'),
+            onViewAllChallenges: () {},
+            onMarkChallengeCompleted: (_, __) async {},
+          ),
+        ),
+        wrap: (child) => hub(calls, arena, child),
+      );
+      // No wallet is connected, and the action is still there.
+      await revealPeopleText(tester, 'Add a friend');
+      expect(find.text('Add a friend').hitTestable(), findsOneWidget);
+      await tester.tap(find.text('Add a friend'));
+      expect(adds, 1);
+      expect(
+        find.textContaining('Friends you add are listed under Following'),
+        findsOneWidget,
+      );
+      // The old add-by-handle queue is gone: nothing promises a join.
+      expect(find.text('Waiting to join'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

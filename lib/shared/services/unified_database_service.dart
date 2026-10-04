@@ -273,10 +273,11 @@ class UnifiedDatabaseService {
 
   // Friends operations
   //
-  // Adding a friend by wallet is NOT done here any more: it created a users
-  // row for someone else's wallet, named by the adder, through the anon
-  // client (prod readiness M1). It goes through the BFF
-  // (`AccountApi.addWalletFriend`) — see friend_connection_service.dart.
+  // Adding a friend is NOT done here any more: it created a users row for
+  // someone else's wallet, named by the adder, through the anon client (prod
+  // readiness M1). Adding a friend now follows a real Chumbucket person,
+  // confirmed on a card first (`people.find` + `people.follow`) — see
+  // add_friend_sheet.dart. This keeps reading the old app's friends.
 
   /// Get all friends for a user
   /// Note: userPrivyId can be either a privy_id or wallet_address (for MWA auth)

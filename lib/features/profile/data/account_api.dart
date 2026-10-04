@@ -66,17 +66,6 @@ class AccountProfile {
   }
 }
 
-/// `account.addWalletFriend`'s answer.
-@immutable
-class AddWalletFriendResult {
-  const AddWalletFriendResult({
-    required this.friendUserId,
-    required this.alreadyFriends,
-  });
-  final String friendUserId;
-  final bool alreadyFriends;
-}
-
 abstract interface class AccountApi {
   Future<AccountProfile> me();
 
@@ -85,14 +74,6 @@ abstract interface class AccountApi {
     String? displayName,
     String? bio,
     int? avatarId,
-  });
-
-  /// [nickname] is the caller's own label for the friend, kept on the caller's
-  /// friendship edge — it never becomes the friend's name. It is not secret:
-  /// the legacy friends table it lives on is readable.
-  Future<AddWalletFriendResult> addWalletFriend({
-    required String walletAddress,
-    String? nickname,
   });
 
   /// Returns whether the server will actually send pushes (it says so
@@ -120,7 +101,6 @@ class BffAccountApi implements AccountApi {
 
   static const String mePath = 'account.me';
   static const String updateProfilePath = 'account.updateProfile';
-  static const String addWalletFriendPath = 'account.addWalletFriend';
   static const String registerPushTokenPath = 'account.registerPushToken';
   static const String unregisterPushTokenPath = 'account.unregisterPushToken';
   static const String pushStatusPath = 'account.pushStatus';
@@ -145,27 +125,6 @@ class BffAccountApi implements AccountApi {
     }
     return AccountProfile.fromJson(
       await _transport.mutate(updateProfilePath, input),
-    );
-  }
-
-  @override
-  Future<AddWalletFriendResult> addWalletFriend({
-    required String walletAddress,
-    String? nickname,
-  }) async {
-    final raw = await _transport.mutate(addWalletFriendPath, {
-      'walletAddress': walletAddress,
-      if (nickname != null && nickname.trim().isNotEmpty)
-        'nickname': nickname.trim(),
-    });
-    final json = raw is Map ? raw : const {};
-    final id = json['friendUserId'];
-    if (id is! String) {
-      throw const CallsFailure('The server did not confirm the friend.');
-    }
-    return AddWalletFriendResult(
-      friendUserId: id,
-      alreadyFriends: json['alreadyFriends'] == true,
     );
   }
 
