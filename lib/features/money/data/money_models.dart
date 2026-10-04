@@ -307,8 +307,9 @@ class MoneyCallView {
     };
     final state = MoneyCallState.fromWire(json['state']);
     final filled = _nullableUnits(json, 'filledBaseUnits');
-    // Funded only with its fill; nothing else carries one.
-    _expect((state == MoneyCallState.funded) == (filled != null));
+    // Only a funded call carries a fill (and may not, when the server could
+    // not read its amount: then it reads "Funded", never an invented one).
+    _expect(filled == null || state == MoneyCallState.funded);
     final target = _nullableString(json, 'targetCallId');
     _expect((kind == MoneyCallKind.own) == (target == null));
     final amount = _units(json, 'amountBaseUnits');
@@ -510,13 +511,15 @@ class MoneyWalletInfo {
     final wallet = MoneyWalletRef.nullable(json['wallet']);
     final balance =
         json['balance'] == null ? null : moneyObject(json['balance']);
-    final gas = moneyObject(json['gas']);
+    // Null: no wallet yet, or fees could not be checked just now.
+    final gas = json['gas'] == null ? null : moneyObject(json['gas']);
+    _expect((wallet == null) == (balance == null));
     return MoneyWalletInfo(
       wallet: wallet,
       usdcBaseUnits: balance == null ? null : _units(balance, 'usdcBaseUnits'),
       lamports: balance == null ? null : _units(balance, 'lamports'),
-      needsTopUp: _bool(gas, 'needsTopUp'),
-      topUpBaseUnits: _topUp(gas['topUp']),
+      needsTopUp: gas == null ? false : _bool(gas, 'needsTopUp'),
+      topUpBaseUnits: gas == null ? null : _topUp(gas['topUp']),
     );
   }
 }
@@ -679,6 +682,8 @@ class TransferView {
     );
   }
 }
+
+const _usdcMint = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 
 final _uuid = RegExp(
   r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
@@ -881,14 +886,21 @@ class DepositOptions {
     if (send != null) {
       _expect(send['network'] == 'solana-mainnet');
       final address = _wallet(send, 'address');
+      final mint = _wallet(send, 'mint');
       final uri = _string(send, 'uri', max: 512);
-      // The QR must pay the address shown, nothing else.
-      _expect(uri.startsWith('solana:$address'));
-      sendUsdc = SendUsdcOption(
-        address: address,
-        mint: _wallet(send, 'mint'),
-        uri: uri,
+      // The QR pays exactly the address shown, in mainnet USDC, nothing else.
+      final parsed = Uri.tryParse(uri);
+      _expect(
+        mint == _usdcMint &&
+            parsed != null &&
+            parsed.scheme == 'solana' &&
+            parsed.path == address &&
+            parsed.queryParameters['spl-token'] == mint &&
+            parsed.queryParameters.keys.every(
+              (key) => key == 'spl-token' || key == 'amount',
+            ),
       );
+      sendUsdc = SendUsdcOption(address: address, mint: mint, uri: uri);
     }
     final card = moneyObject(json['card']);
     final presets = card['presetsUsd'];

@@ -71,9 +71,12 @@ class MoneyTransferController extends ChangeNotifier {
   bool _disposed = false;
   Timer? _poll;
 
-  /// One key per reviewed request; a new amount or address is a new one.
+  /// One key per review. Reused only to repeat a request whose reply never
+  /// arrived; a review lives 60 s on the server, so anything else (a new
+  /// amount or address, an expired or refused review) starts a new one.
   String? _key;
   String? _keyFor;
+  bool _replyLost = false;
 
   MoneyTransferStep get step => _step;
   TransferReady? get ready => _ready;
@@ -97,10 +100,11 @@ class MoneyTransferController extends ChangeNotifier {
     required BigInt amountBaseUnits,
   }) => _run(() async {
     final request = '$from>$to:$amountBaseUnits';
-    if (_keyFor != request) {
+    if (_keyFor != request || !_replyLost) {
       _key = _newKey();
       _keyFor = request;
     }
+    _replyLost = false;
     _ready = null;
     _expected = null;
     _set(MoneyTransferStep.preparing);
@@ -308,7 +312,11 @@ class MoneyTransferController extends ChangeNotifier {
           'That transfer didn’t match. Nothing was signed.',
         _ => const MoneyException(MoneyErrorKind.invalidResponse).message,
       };
-      if (_step == MoneyTransferStep.preparing) _step = MoneyTransferStep.idle;
+      if (_step == MoneyTransferStep.preparing) {
+        _replyLost =
+            error is MoneyException && error.kind == MoneyErrorKind.connection;
+        _step = MoneyTransferStep.idle;
+      }
     } finally {
       _busy = false;
       if (!_disposed) notifyListeners();

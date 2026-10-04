@@ -390,10 +390,11 @@ class _MoneyCallSheetState extends State<MoneyCallSheet> {
           Center(
             child: FundedMarker(
               key: const ValueKey('money-funded'),
-              amount: moneyOnSide(
-                money.filledBaseUnits ?? money.amountBaseUnits,
-                money.side,
-              ),
+              // The confirmed fill; "Funded" when its amount is unknown.
+              amount: switch (money.filledBaseUnits) {
+                final filled? => moneyOnSide(filled, money.side),
+                null => null,
+              },
               large: true,
             ),
           ),
