@@ -45,6 +45,15 @@ import 'ui_people_layout_friends_test.dart' show QuietArena, friendsScreen;
 
 const _viewer = MockCallsRepository.demoViewerUserId;
 
+/// Home's tabs sit on the app's grey canvas, not a white Scaffold: draw the
+/// capture the way the phone does, so white rows read as rows.
+Widget _onCanvas(Widget child) => Theme(
+  data: AppTheme.lightTheme.copyWith(
+    scaffoldBackgroundColor: AppColors.background,
+  ),
+  child: child,
+);
+
 class _EmptyInbox implements NotificationsRepository {
   @override
   Future<NotificationPage> fetchNotifications({
@@ -235,7 +244,7 @@ void main() {
             create: (_) => ConnectedWallet(),
           ),
         ],
-        child: app,
+        child: _onCanvas(app),
       );
 
   Widget friends(
@@ -251,7 +260,7 @@ void main() {
         create: (_) => ConnectedWallet(),
       ),
     ],
-    child: friendsScreen(),
+    child: _onCanvas(friendsScreen()),
   );
 
   testWidgets('captures', (tester) async {
@@ -401,192 +410,200 @@ void main() {
     });
   }, skip: outDir.isEmpty);
 
-  testWidgets('captures: positions, offline Home, signed-out Profile, dares', (
-    tester,
-  ) async {
-    // --- Positions with money in them -------------------------------------
-    // A pending order keeps a refresh timer: dispose inside the test body.
-    final disposeAtEnd = <void Function()>[];
-    PantaPositionsController positions() {
-      final client = PantaTradingClient(
-        baseUri: Uri.parse('https://bff.invalid/trpc'),
-        session:
-            () => const PantaSession(
-              accountId: 'acct',
-              accessToken: 'synthetic-token',
+  testWidgets(
+    'captures: positions, offline Home, signed-out Profile, dares',
+    (tester) async {
+      // --- Positions with money in them -------------------------------------
+      // A pending order keeps a refresh timer: dispose inside the test body.
+      final disposeAtEnd = <void Function()>[];
+      PantaPositionsController positions() {
+        final client = PantaTradingClient(
+          baseUri: Uri.parse('https://bff.invalid/trpc'),
+          session:
+              () => const PantaSession(
+                accountId: 'acct',
+                accessToken: 'synthetic-token',
+              ),
+          client: MockClient(
+            (_) async => syntheticWire(
+              pageJson([
+                positionJson(),
+                positionJson(
+                  orderId: 'ord_won',
+                  status: 'won_claimable',
+                  current: '1',
+                  value: '4000000',
+                  pnl: '2000000',
+                ),
+                positionJson(
+                  orderId: 'ord_pending',
+                  status: 'pending',
+                  current: null,
+                  value: null,
+                  pnl: null,
+                ),
+              ]),
             ),
-        client: MockClient(
-          (_) async => syntheticWire(
-            pageJson([
-              positionJson(),
-              positionJson(
-                orderId: 'ord_won',
-                status: 'won_claimable',
-                current: '1',
-                value: '4000000',
-                pnl: '2000000',
-              ),
-              positionJson(
-                orderId: 'ord_pending',
-                status: 'pending',
-                current: null,
-                value: null,
-                pnl: null,
-              ),
-            ]),
           ),
-        ),
-      );
-      final controller = PantaPositionsController(
-        client: client,
-        signerFor: (_, _) => null,
-        now: () => DateTime.fromMillisecondsSinceEpoch(syntheticTime),
-        refreshEvery: const Duration(hours: 1),
-      );
-      disposeAtEnd.add(() {
-        controller.dispose();
-        client.close();
-      });
-      return controller;
-    }
-
-    await both(
-      tester,
-      'positions-data',
-      () => Scaffold(
-        backgroundColor: AppColors.background,
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: PantaPositionsView(controller: positions()),
-        ),
-      ),
-      height: 1400,
-    );
-
-    // --- Home, offline over saved calls -------------------------------------
-    await both(tester, 'home-offline', () {
-      final repo = MockCallsRepository(latency: Duration.zero);
-      final calls = CallsProvider(repository: repo)..setViewer(_viewer);
-      addTearDown(calls.dispose);
-      return ChangeNotifierProvider<CallsProvider>.value(
-        value: calls,
-        child: const Scaffold(
-          backgroundColor: AppColors.background,
-          body: CallFeedScreen(showHeader: false),
-        ),
-      );
-    }, then: () async {
-      final calls = tester
-          .element(find.byType(CallFeedScreen))
-          .read<CallsProvider>();
-      (calls.repository as MockCallsRepository).simulateOffline = true;
-      await calls.loadFeed(force: true);
-      await tester.pumpAndSettle();
-    });
-
-    // --- Friends on the seeded build: your people, and a dare -----------------
-    final arena = QuietArena();
-    addTearDown(arena.dispose);
-    await both(tester, 'friends-dares', () {
-      final calls = CallsProvider(
-        repository: MockCallsRepository(latency: Duration.zero),
-      )..setViewer(_viewer);
-      addTearDown(calls.dispose);
-      return MultiProvider(
-        providers: [
-          ChangeNotifierProvider<CallsProvider>.value(value: calls),
-          ChangeNotifierProvider<ArenaProvider>.value(value: arena),
-          ChangeNotifierProvider<MwaAuthProvider>.value(value: _NoWallet()),
-          ChangeNotifierProvider<MwaWalletProvider>(
-            create: (_) => ConnectedWallet(),
-          ),
-        ],
-        child: Theme(
-          data: AppTheme.lightTheme.copyWith(
-            scaffoldBackgroundColor: AppColors.background,
-          ),
-          child: friendsScreen(),
-        ),
-      );
-    });
-
-    // --- Profile, signed out ---------------------------------------------------
-    await both(tester, 'profile-signed-out', () {
-      final calls = CallsProvider(repository: PeopleFake());
-      final wallet = ConnectedWallet();
-      final existing = ExistingProfile();
-      final none = ChallengeStateProvider(loadChallenges: (_) async => []);
-      for (final n in <ChangeNotifier>[calls, wallet, existing, none]) {
-        addTearDown(n.dispose);
+        );
+        final controller = PantaPositionsController(
+          client: client,
+          signerFor: (_, _) => null,
+          now: () => DateTime.fromMillisecondsSinceEpoch(syntheticTime),
+          refreshEvery: const Duration(hours: 1),
+        );
+        disposeAtEnd.add(() {
+          controller.dispose();
+          client.close();
+        });
+        return controller;
       }
-      return MultiProvider(
-        providers: [
-          ChangeNotifierProvider<ProfileProvider>.value(value: existing),
-          ChangeNotifierProvider<MwaAuthProvider>.value(value: _NoWallet()),
-          ChangeNotifierProvider<MwaWalletProvider>.value(value: wallet),
-          ChangeNotifierProvider<CallsProvider>.value(value: calls),
-          ChangeNotifierProvider<ChallengeStateProvider>.value(value: none),
-          ChangeNotifierProvider<ArenaProvider>.value(value: arena),
-        ],
-        child: ProfileScreen(embedded: true, onOpenChallenges: () {}),
-      );
-    }, height: 1000);
 
-    await tester.pumpWidget(const SizedBox());
-    for (final dispose in disposeAtEnd) {
-      dispose();
-    }
-  }, skip: outDir.isEmpty);
-
-  testWidgets('captures: someone else\'s profile with the server record', (
-    tester,
-  ) async {
-    // The live build: the server sends a public record. It is drawn as the
-    // same compact numbers as your own Profile, its scope behind a tap.
-    Widget person(PublicRecord record) {
-      final repo =
-          PeopleFake()
-            ..personRecord = record
-            ..followers = 128
-            ..followingCount = 12;
-      final calls = CallsProvider(repository: repo)..setViewer(_viewer);
-      addTearDown(calls.dispose);
-      return ChangeNotifierProvider<CallsProvider>.value(
-        value: calls,
-        child: const CallPersonScreen(personRef: 'user_ada'),
-      );
-    }
-
-    await both(
-      tester,
-      'person-record',
-      () => person(
-        const PublicRecord(
-          correct: 47,
-          incorrect: 3,
-          voided: 1,
-          decided: 50,
-          pending: 2,
-          minimumDecided: 10,
-          accuracy: 0.94,
+      await both(
+        tester,
+        'positions-data',
+        () => Scaffold(
+          backgroundColor: AppColors.background,
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: PantaPositionsView(controller: positions()),
+          ),
         ),
-      ),
-      height: 1100,
-    );
-    await both(
-      tester,
-      'person-record-building',
-      () => person(
-        const PublicRecord(
-          correct: 3,
-          incorrect: 1,
-          voided: 0,
-          decided: 4,
-          pending: 2,
-          minimumDecided: 10,
+        height: 1400,
+      );
+
+      // --- Home, offline over saved calls -------------------------------------
+      await both(
+        tester,
+        'home-offline',
+        () {
+          final repo = MockCallsRepository(latency: Duration.zero);
+          final calls = CallsProvider(repository: repo)..setViewer(_viewer);
+          addTearDown(calls.dispose);
+          return ChangeNotifierProvider<CallsProvider>.value(
+            value: calls,
+            child: const Scaffold(
+              backgroundColor: AppColors.background,
+              body: CallFeedScreen(showHeader: false),
+            ),
+          );
+        },
+        then: () async {
+          final calls =
+              tester.element(find.byType(CallFeedScreen)).read<CallsProvider>();
+          (calls.repository as MockCallsRepository).simulateOffline = true;
+          await calls.loadFeed(force: true);
+          await tester.pumpAndSettle();
+        },
+      );
+
+      // --- Friends on the seeded build: your people, and a dare -----------------
+      final arena = QuietArena();
+      addTearDown(arena.dispose);
+      await both(tester, 'friends-dares', () {
+        final calls = CallsProvider(
+          repository: MockCallsRepository(latency: Duration.zero),
+        )..setViewer(_viewer);
+        addTearDown(calls.dispose);
+        return MultiProvider(
+          providers: [
+            ChangeNotifierProvider<CallsProvider>.value(value: calls),
+            ChangeNotifierProvider<ArenaProvider>.value(value: arena),
+            ChangeNotifierProvider<MwaAuthProvider>.value(value: _NoWallet()),
+            ChangeNotifierProvider<MwaWalletProvider>(
+              create: (_) => ConnectedWallet(),
+            ),
+          ],
+          child: Theme(
+            data: AppTheme.lightTheme.copyWith(
+              scaffoldBackgroundColor: AppColors.background,
+            ),
+            child: friendsScreen(),
+          ),
+        );
+      });
+
+      // --- Profile, signed out ---------------------------------------------------
+      await both(tester, 'profile-signed-out', () {
+        final calls = CallsProvider(repository: PeopleFake());
+        final wallet = ConnectedWallet();
+        final existing = ExistingProfile();
+        final none = ChallengeStateProvider(loadChallenges: (_) async => []);
+        for (final n in <ChangeNotifier>[calls, wallet, existing, none]) {
+          addTearDown(n.dispose);
+        }
+        return MultiProvider(
+          providers: [
+            ChangeNotifierProvider<ProfileProvider>.value(value: existing),
+            ChangeNotifierProvider<MwaAuthProvider>.value(value: _NoWallet()),
+            ChangeNotifierProvider<MwaWalletProvider>.value(value: wallet),
+            ChangeNotifierProvider<CallsProvider>.value(value: calls),
+            ChangeNotifierProvider<ChallengeStateProvider>.value(value: none),
+            ChangeNotifierProvider<ArenaProvider>.value(value: arena),
+          ],
+          child: ProfileScreen(embedded: true, onOpenChallenges: () {}),
+        );
+      }, height: 1000);
+
+      await tester.pumpWidget(const SizedBox());
+      for (final dispose in disposeAtEnd) {
+        dispose();
+      }
+    },
+    skip: outDir.isEmpty,
+  );
+
+  testWidgets(
+    'captures: someone else\'s profile with the server record',
+    (tester) async {
+      // The live build: the server sends a public record. It is drawn as the
+      // same compact numbers as your own Profile, its scope behind a tap.
+      Widget person(PublicRecord record) {
+        final repo =
+            PeopleFake()
+              ..personRecord = record
+              ..followers = 128
+              ..followingCount = 12;
+        final calls = CallsProvider(repository: repo)..setViewer(_viewer);
+        addTearDown(calls.dispose);
+        return ChangeNotifierProvider<CallsProvider>.value(
+          value: calls,
+          child: const CallPersonScreen(personRef: 'user_ada'),
+        );
+      }
+
+      await both(
+        tester,
+        'person-record',
+        () => person(
+          const PublicRecord(
+            correct: 47,
+            incorrect: 3,
+            voided: 1,
+            decided: 50,
+            pending: 2,
+            minimumDecided: 10,
+            accuracy: 0.94,
+          ),
         ),
-      ),
-      height: 1100,
-    );
-  }, skip: outDir.isEmpty);
+        height: 1100,
+      );
+      await both(
+        tester,
+        'person-record-building',
+        () => person(
+          const PublicRecord(
+            correct: 3,
+            incorrect: 1,
+            voided: 0,
+            decided: 4,
+            pending: 2,
+            minimumDecided: 10,
+          ),
+        ),
+        height: 1100,
+      );
+    },
+    skip: outDir.isEmpty,
+  );
 }
