@@ -29,6 +29,7 @@ import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 import '../data/money_client.dart';
 import '../data/money_models.dart';
+import '../domain/usdc_transfer_check.dart' show usdcMint;
 import '../money_controller.dart';
 import '../money_transfer_controller.dart';
 import 'money_amount_row.dart' show moneyOf;
@@ -89,6 +90,9 @@ class _MoneyDepositSheetState extends State<MoneyDepositSheet> {
   )..addListener(_changed);
 
   DepositOptions? _options;
+
+  /// The trading wallet as money.wallet reported it: the only destination.
+  String? _tradingWallet;
   bool _loading = true;
   String? _loadError;
   BigInt? _baseline;
@@ -148,6 +152,20 @@ class _MoneyDepositSheetState extends State<MoneyDepositSheet> {
       );
       final wallet = await _client.wallet();
       if (!mounted) return;
+      // Every address on this sheet must be the trading wallet the app knows
+      // on its own (money.wallet), never only what this answer says.
+      final known = wallet.wallet?.address;
+      if (known == null ||
+          options.tradingWallet?.address != known ||
+          (options.sendUsdc != null &&
+              (options.sendUsdc!.address != known ||
+                  options.sendUsdc!.mint != usdcMint))) {
+        throw const MoneyException(
+          MoneyErrorKind.invalidResponse,
+          'We couldn’t confirm your wallet. Nothing was sent.',
+        );
+      }
+      _tradingWallet = known;
       _options = options;
       _baseline = wallet.usdcBaseUnits;
       widget.money?.adoptWallet(wallet);
@@ -186,10 +204,7 @@ class _MoneyDepositSheetState extends State<MoneyDepositSheet> {
   }
 
   void _close() {
-    if (_transfer.step == MoneyTransferStep.signing ||
-        _transfer.step == MoneyTransferStep.submitting) {
-      return;
-    }
+    if (!_transfer.canDismiss) return;
     if (_stage != _Stage.options) {
       setState(() => _stage = _Stage.options);
       _transfer.reset();
@@ -203,9 +218,7 @@ class _MoneyDepositSheetState extends State<MoneyDepositSheet> {
   Widget build(BuildContext context) => ChumbucketWavySheet(
     title: 'Add funds',
     value: widget.shortfall == null ? null : moneyDollars(_suggested()),
-    canDismiss:
-        _transfer.step != MoneyTransferStep.signing &&
-        _transfer.step != MoneyTransferStep.submitting,
+    canDismiss: _transfer.canDismiss,
     onClose: _close,
     body: SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
@@ -250,7 +263,7 @@ class _MoneyDepositSheetState extends State<MoneyDepositSheet> {
     }
     return switch (_stage) {
       _Stage.options => _optionList(context, options),
-      _Stage.sendUsdc => _sendUsdc(context, options.sendUsdc!),
+      _Stage.sendUsdc => _sendUsdc(context, _tradingWallet!),
       _Stage.fromWallet => _fromWallet(context, options),
     };
   }
@@ -316,12 +329,13 @@ class _MoneyDepositSheetState extends State<MoneyDepositSheet> {
     final landed = await open(
       context,
       shortfall: widget.shortfall,
-      wallet: options.tradingWallet?.address,
+      wallet: _tradingWallet,
     );
     if (landed && mounted) await _check();
   }
 
-  List<Widget> _sendUsdc(BuildContext context, SendUsdcOption send) => [
+  /// The QR is built here, from the checked address and mainnet USDC only.
+  List<Widget> _sendUsdc(BuildContext context, String address) => [
     Center(
       child: Container(
         padding: const EdgeInsets.all(12),
@@ -332,7 +346,7 @@ class _MoneyDepositSheetState extends State<MoneyDepositSheet> {
         ),
         child: QrImageView(
           key: const ValueKey('deposit-qr'),
-          data: send.uri,
+          data: 'solana:$address?spl-token=$usdcMint',
           size: 180,
           backgroundColor: Colors.white,
         ),
@@ -346,7 +360,7 @@ class _MoneyDepositSheetState extends State<MoneyDepositSheet> {
         key: const ValueKey('deposit-copy'),
         borderRadius: BorderRadius.circular(16),
         onTap: () async {
-          await Clipboard.setData(ClipboardData(text: send.address));
+          await Clipboard.setData(ClipboardData(text: address));
           if (!context.mounted) return;
           ScaffoldMessenger.maybeOf(
             context,
@@ -358,7 +372,7 @@ class _MoneyDepositSheetState extends State<MoneyDepositSheet> {
             children: [
               Expanded(
                 child: Text(
-                  send.address,
+                  address,
                   style: callJourneyBody(
                     12,
                   ).copyWith(color: AppColors.textPrimary),
@@ -397,7 +411,7 @@ class _MoneyDepositSheetState extends State<MoneyDepositSheet> {
     final deps = widget.dependencies;
     final app = deps.walletApp?.call();
     final known = options.fromWallets.any((w) => w.address == app);
-    final to = options.tradingWallet?.address;
+    final to = _tradingWallet;
     final t = _transfer;
     if (app == null || !known) {
       return [
@@ -431,6 +445,14 @@ class _MoneyDepositSheetState extends State<MoneyDepositSheet> {
         t.step == MoneyTransferStep.confirming ||
         t.step == MoneyTransferStep.confirmed;
     return [
+      // Where it goes: the trading wallet this app knows, shown in full.
+      if (to != null)
+        _ReviewLine(
+          key: const ValueKey('deposit-destination'),
+          icon: 'wallet-outline',
+          label: to,
+        ),
+      const SizedBox(height: 8),
       if (!reviewing && !inFlight)
         Wrap(
           spacing: 8,
@@ -564,7 +586,7 @@ class _OptionTile extends StatelessWidget {
 }
 
 class _ReviewLine extends StatelessWidget {
-  const _ReviewLine({required this.icon, required this.label});
+  const _ReviewLine({super.key, required this.icon, required this.label});
   final String icon;
   final String label;
 

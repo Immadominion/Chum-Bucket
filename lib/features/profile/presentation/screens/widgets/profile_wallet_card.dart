@@ -5,6 +5,7 @@ import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/chumbucket_wallet/chumbucket_wallet_controller.dart';
+import 'package:chumbucket/features/chumbucket_wallet/chumbucket_wallet_of.dart';
 import 'package:chumbucket/features/chumbucket_wallet/presentation/chumbucket_wallet_sheet.dart';
 import 'package:chumbucket/features/embedded_wallet/embedded_wallet_controller.dart';
 import 'package:chumbucket/features/embedded_wallet/presentation/embedded_wallet_sheet.dart';
@@ -38,7 +39,7 @@ class ProfileWalletCard extends StatelessWidget {
     final connected = wallet?.walletAddress != null;
     final onPhone = context.watch<EmbeddedWalletController?>();
     final account = context.watch<ChumbucketSession?>();
-    final chumbucket = context.watch<ChumbucketWalletController?>();
+    final chumbucket = chumbucketWalletOf(context, listen: true);
     // The Chumbucket wallet is the account's wallet, unless this phone
     // already holds an on-phone one (that keeps working, untouched).
     if (chumbucket != null &&

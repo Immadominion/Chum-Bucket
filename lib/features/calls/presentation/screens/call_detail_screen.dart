@@ -20,7 +20,7 @@ import 'package:chumbucket/features/embedded_wallet/panta_signer_choice.dart';
 import 'package:chumbucket/features/embedded_wallet/presentation/embedded_wallet_sheet.dart';
 import 'package:chumbucket/features/authentication/presentation/screens/widgets/mwa_connect_button.dart'
     show reconnectWalletApp;
-import 'package:chumbucket/features/chumbucket_wallet/chumbucket_wallet_controller.dart';
+import 'package:chumbucket/features/chumbucket_wallet/chumbucket_wallet_of.dart';
 import 'package:chumbucket/features/chumbucket_wallet/presentation/chumbucket_wallet_sheet.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/sign_in_methods_sheet.dart'
     show showSignInMethodsSheet;
@@ -120,7 +120,7 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
     final auth = context.read<MwaAuthProvider>();
     final account = context.read<ChumbucketSession>();
     final onPhone = context.read<EmbeddedWalletController?>();
-    final chumbucket = context.read<ChumbucketWalletController?>();
+    final chumbucket = chumbucketWalletOf(context);
     if (!account.isReady) {
       requestCallSignIn(context, onRequested: widget.onSignInRequested);
       return;
@@ -579,6 +579,19 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
                     entry: entry,
                     onChanged:
                         () => provider.loadCall(widget.callId, force: true),
+                    // Kept free: the fresh free call replaces this one.
+                    onReplaced: (fresh) {
+                      provider.adoptCall(fresh);
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(
+                          builder:
+                              (_) => CallDetailScreen(
+                                callId: fresh.call.id,
+                                onSignInRequested: widget.onSignInRequested,
+                              ),
+                        ),
+                      );
+                    },
                   ),
                 ],
                 if (own &&

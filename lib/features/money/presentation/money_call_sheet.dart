@@ -270,6 +270,13 @@ class _MoneyCallSheetState extends State<MoneyCallSheet> {
     }
   }
 
+  /// Lets this call go and returns to where the call was made.
+  Future<void> _newCall() async {
+    final navigator = Navigator.of(context);
+    if (c.moneyCall?.canDiscard ?? false) await c.discard();
+    navigator.pop();
+  }
+
   String get _sideLabel => 'Call ${c.request.side.wire}';
   String get _amount => moneyDollars(c.request.amountBaseUnits);
 
@@ -423,7 +430,17 @@ class _MoneyCallSheetState extends State<MoneyCallSheet> {
             style: callJourneyBody(13),
           ),
           const SizedBox(height: 16),
-          if (money?.canRetry ?? false)
+          if (c.retryRefused)
+            // The price moved past the slippage (or time is up): a new call
+            // at today's price is the way on. This one goes.
+            ChumbucketPrimaryButton(
+              key: const ValueKey('money-new-call'),
+              label: 'New call',
+              neutral: true,
+              busy: c.busy,
+              onPressed: c.busy ? null : _newCall,
+            )
+          else if (money?.canRetry ?? false)
             ChumbucketPrimaryButton(
               key: const ValueKey('money-retry'),
               label: 'Try again · $_amount',
@@ -556,7 +573,7 @@ class _StateLine extends StatelessWidget {
   );
 }
 
-/// Pending: neither free nor funded yet, never the pink of money.
+/// Pending: neither free nor funded yet. Grey, never the pink of money.
 class _PendingBadge extends StatelessWidget {
   const _PendingBadge();
 
@@ -564,7 +581,7 @@ class _PendingBadge extends StatelessWidget {
   Widget build(BuildContext context) => const CallBadge(
     key: ValueKey('money-pending'),
     label: 'Pending',
-    color: AppColors.onWarningContainer,
+    color: AppColors.textMuted,
     icon: 'clock-outline',
   );
 }

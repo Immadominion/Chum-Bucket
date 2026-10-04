@@ -133,10 +133,7 @@ class _MoneyWalletSheetState extends State<MoneyWalletSheet> {
 
   void _close() {
     final step = _cashOut.step;
-    if (step == MoneyTransferStep.signing ||
-        step == MoneyTransferStep.submitting) {
-      return;
-    }
+    if (!_cashOut.canDismiss) return;
     if (_stage == _Stage.cashOut &&
         step != MoneyTransferStep.confirmed &&
         step != MoneyTransferStep.confirming &&
@@ -157,9 +154,7 @@ class _MoneyWalletSheetState extends State<MoneyWalletSheet> {
     return ChumbucketWavySheet(
       title: _stage == _Stage.cashOut ? 'Cash out' : 'Balance',
       value: balance == null ? null : moneyDollars(balance),
-      canDismiss:
-          _cashOut.step != MoneyTransferStep.signing &&
-          _cashOut.step != MoneyTransferStep.submitting,
+      canDismiss: _cashOut.canDismiss,
       onClose: _close,
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
@@ -309,8 +304,19 @@ class _MoneyWalletSheetState extends State<MoneyWalletSheet> {
             ),
             child: Column(
               children: [
-                _line(context, 'send-outline', _short(ready.review.to)),
-                _line(context, 'wallet-outline', amount),
+                // The full address and the exact amount that will be signed.
+                _line(
+                  context,
+                  'send-outline',
+                  ready.review.to,
+                  key: const ValueKey('cash-out-review-to'),
+                ),
+                _line(
+                  context,
+                  'wallet-outline',
+                  amount,
+                  key: const ValueKey('cash-out-review-amount'),
+                ),
               ],
             ),
           ),
@@ -474,16 +480,23 @@ class _MoneyWalletSheetState extends State<MoneyWalletSheet> {
         ),
       );
 
-  Widget _line(BuildContext context, String icon, String text) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 8),
-    child: Row(
-      children: [
-        BasilIcon(icon, size: 18, color: AppColors.textMuted),
-        const SizedBox(width: 10),
-        Expanded(child: Text(text, style: callJourneyHeading(context, 15))),
-      ],
-    ),
-  );
+  Widget _line(BuildContext context, String icon, String text, {Key? key}) =>
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            BasilIcon(icon, size: 18, color: AppColors.textMuted),
+            const SizedBox(width: 10),
+            Expanded(
+              child: SelectableText(
+                text,
+                key: key,
+                style: callJourneyHeading(context, 15),
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 String _short(String address) =>

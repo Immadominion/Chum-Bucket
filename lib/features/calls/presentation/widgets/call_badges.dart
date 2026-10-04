@@ -243,7 +243,7 @@ class FundingStateBadge extends StatelessWidget {
 ///  * a confirmed fill: the [FundedMarker] with its dollars and side
 ///    ("$5 on YES"), or "Funded" when the server sent no amount;
 ///  * the owner's own money call that is still pending: "$5 · Pending" in
-///    the neutral pending colour, never the pink of money (the server sends
+///    grey, never the pink of money (the server sends
 ///    [CallFeedEntry.money] to the owner only; nobody else sees the call);
 ///  * otherwise the call's own state: the [FreeMarker] for a free call.
 class CallFundingMark extends StatelessWidget {
@@ -275,7 +275,8 @@ class CallFundingMark extends StatelessWidget {
       return CallBadge(
         key: const ValueKey('money-pending-mark'),
         label: '${PantaMoney.dollars(money.amountBaseUnits)} · Pending',
-        color: AppColors.onWarningContainer,
+        // Grey: pending is never the pink funded style.
+        color: AppColors.textMuted,
         icon: 'clock-outline',
         quiet: quiet,
       );

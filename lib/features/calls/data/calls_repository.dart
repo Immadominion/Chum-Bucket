@@ -237,16 +237,21 @@ class CallFunding {
   }
 }
 
-/// The owner's own money call that is not public: pending (until FILLED, or
-/// kept free) or expired. Never a funded stamp.
+/// The owner's own money call that is not public: pending (until FILLED),
+/// expired, or replaced by a fresh free call (kept free). Never a funded
+/// stamp.
 class CallMoneyIntent {
   final bool pending;
+
+  /// Kept free: this call was withdrawn and a new free call made instead.
+  final bool keptFree;
   final BigInt amountBaseUnits;
   final Side side;
   final int expiresAt;
 
   const CallMoneyIntent({
     required this.pending,
+    this.keptFree = false,
     required this.amountBaseUnits,
     required this.side,
     required this.expiresAt,
@@ -258,7 +263,7 @@ class CallMoneyIntent {
     final amount = value['amountBaseUnits'];
     final side = _wireSide(value['side']);
     final expires = value['expiresAt'];
-    if ((state != 'PENDING' && state != 'EXPIRED') ||
+    if ((state != 'PENDING' && state != 'EXPIRED' && state != 'FREE') ||
         amount is! String ||
         !_wireBaseUnits.hasMatch(amount) ||
         side == null ||
@@ -267,6 +272,7 @@ class CallMoneyIntent {
     }
     return CallMoneyIntent(
       pending: state == 'PENDING',
+      keptFree: state == 'FREE',
       amountBaseUnits: BigInt.parse(amount),
       side: side,
       expiresAt: expires,

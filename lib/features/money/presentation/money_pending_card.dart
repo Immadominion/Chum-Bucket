@@ -21,12 +21,16 @@ class MoneyPendingCard extends StatefulWidget {
     super.key,
     required this.entry,
     required this.onChanged,
+    this.onReplaced,
   });
 
   final CallFeedEntry entry;
 
-  /// The call changed (funded, kept free, discarded): read it again.
+  /// The call changed (funded, discarded): read it again.
   final VoidCallback onChanged;
+
+  /// Kept free: a NEW free call replaced this one. Go to it.
+  final ValueChanged<CallFeedEntry>? onReplaced;
 
   @override
   State<MoneyPendingCard> createState() => _MoneyPendingCardState();
@@ -47,6 +51,13 @@ class _MoneyPendingCardState extends State<MoneyPendingCard> {
       _busy = false;
       _error = outcome?.error;
     });
+    final replaced = outcome?.call;
+    if (replaced != null &&
+        replaced.call.id != widget.entry.call.id &&
+        widget.onReplaced != null) {
+      widget.onReplaced!(replaced);
+      return;
+    }
     widget.onChanged();
   }
 
@@ -82,7 +93,7 @@ class _MoneyPendingCardState extends State<MoneyPendingCard> {
               ),
               const CallBadge(
                 label: 'Pending',
-                color: AppColors.onWarningContainer,
+                color: AppColors.textMuted,
                 icon: 'clock-outline',
               ),
             ],

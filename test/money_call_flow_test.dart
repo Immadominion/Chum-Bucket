@@ -15,6 +15,7 @@ import 'package:http/http.dart' as http;
 import 'money_fakes.dart';
 
 const tapKey = 'tap-key-000000000001';
+const freshCallId = '88888888-8888-4888-8888-888888888888';
 
 void main() {
   late FakeMoneyServer server;
@@ -207,7 +208,8 @@ void main() {
       ..on('money.keepFree', [
         {
           'moneyCall': moneyCallJson(state: 'FREE', trade: 'FAILED', canDiscard: false),
-          'call': pantaEntryJson(),
+          // A NEW free call at today's price; the pending one is withdrawn.
+          'call': pantaEntryJson(id: freshCallId),
         },
       ]);
     final c = controller();
@@ -226,7 +228,61 @@ void main() {
 
     await c.keepFree();
     expect(c.step, MoneyCallStep.free);
-    expect(c.call!.call.id, moneyCallId);
+    expect(c.call!.call.id, freshCallId);
+  });
+
+  test('keep free that answers with the old call is refused', () async {
+    server
+      ..on('money.prepareCall', [readyJson()])
+      ..on('money.keepFree', [
+        {
+          'moneyCall': moneyCallJson(state: 'FREE', canDiscard: false),
+          'call': pantaEntryJson(),
+        },
+      ]);
+    final c = controller();
+    await c.prepare();
+    await c.keepFree();
+    expect(c.step, isNot(MoneyCallStep.free));
+    expect(c.error, isNotNull);
+  });
+
+  test('keep free after the buy filled after all: funded', () async {
+    server
+      ..on('money.prepareCall', [readyJson()])
+      ..on('money.keepFree', [
+        {
+          'moneyCall': moneyCallJson(state: 'FUNDED', trade: 'FILLED', canDiscard: false),
+          'call': pantaEntryJson(),
+        },
+      ]);
+    final c = controller();
+    await c.prepare();
+    await c.keepFree();
+    expect(c.step, MoneyCallStep.funded);
+  });
+
+  test('the price moved: no retry, only a new call', () async {
+    server
+      ..on('money.prepareCall', [readyJson()])
+      ..on('pantaTrading.submit', [venueOrderJson()])
+      ..on('money.callStatus', [
+        callStatusJson(trade: 'FAILED', canRetry: true, canDiscard: true),
+      ])
+      ..on('money.retry', [
+        moneyError(
+          'PRECONDITION_FAILED',
+          'The price moved since you made this call. Make a new call.',
+        ),
+      ]);
+    final c = controller();
+    await c.prepare();
+    await c.sign();
+    await c.refreshStatus();
+    await c.retry();
+    expect(c.retryRefused, isTrue);
+    expect(c.step, MoneyCallStep.failed);
+    expect(c.error, 'The price moved since you made this call. Make a new call.');
   });
 
   test('discard ends a pending call for good', () async {

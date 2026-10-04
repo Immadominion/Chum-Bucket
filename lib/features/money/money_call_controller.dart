@@ -187,6 +187,7 @@ class MoneyCallController extends ChangeNotifier {
   int _gasRuns = 0;
   Timer? _poll;
   bool _polling = false;
+  bool _retryRefused = false;
 
   MoneyCallStep get step => _step;
   MoneyCallView? get moneyCall => _moneyCall;
@@ -197,6 +198,10 @@ class MoneyCallController extends ChangeNotifier {
   MoneyNeedsFunds? get needsFunds => _needsFunds;
   String? get error => _error;
   bool get busy => _busy;
+
+  /// The server refused a fresh quote (the price moved past the slippage,
+  /// or the call's time is up): only a new call can follow.
+  bool get retryRefused => _retryRefused;
 
   /// The idempotency key of this tap, reused on every retry of it.
   String get idempotencyKey => _key;
@@ -457,7 +462,12 @@ class MoneyCallController extends ChangeNotifier {
       _gasRuns = 0;
       _set(MoneyCallStep.preparing);
       await _anchorAccount();
-      await _retryOnce(call);
+      try {
+        await _retryOnce(call);
+      } on MoneyException catch (e) {
+        if (e.kind == MoneyErrorKind.unavailable) _retryRefused = true;
+        rethrow;
+      }
     });
   }
 
@@ -467,22 +477,32 @@ class MoneyCallController extends ChangeNotifier {
     await _accept(result, again: () => _retryOnce(call));
   }
 
-  /// The call becomes a public free call, exactly as locked.
+  /// Go free instead: the pending call is withdrawn and a NEW free call is
+  /// made at today's price and time ([call] becomes that new call). If the
+  /// buy filled after all, the server answers with the funded call.
   Future<void> keepFree() {
     final call = _moneyCall;
     if (call == null || _busy) return Future.value();
     return _run(() async {
       final kept = await _client.keepFree(call.callId);
       if (_disposed) return;
+      final state = kept.moneyCall.state;
       _require(
         kept.moneyCall.callId == call.callId &&
-            kept.call.call.id == call.callId &&
-            kept.moneyCall.state == MoneyCallState.free,
+            (state == MoneyCallState.free || state == MoneyCallState.funded) &&
+            kept.call.call.side == request.side &&
+            (state == MoneyCallState.funded
+                ? kept.call.call.id == call.callId
+                : kept.call.call.id != call.callId),
       );
       _moneyCall = kept.moneyCall;
       _call = kept.call;
       _stopPolling();
-      _set(MoneyCallStep.free);
+      _set(
+        state == MoneyCallState.funded
+            ? MoneyCallStep.funded
+            : MoneyCallStep.free,
+      );
     });
   }
 

@@ -5,7 +5,7 @@ import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.d
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_transport.dart';
 import 'package:chumbucket/features/chumbucket_wallet/chumbucket_signers.dart';
-import 'package:chumbucket/features/chumbucket_wallet/chumbucket_wallet_controller.dart';
+import 'package:chumbucket/features/chumbucket_wallet/chumbucket_wallet_of.dart';
 import 'package:chumbucket/features/embedded_wallet/embedded_wallet_controller.dart';
 
 import '../add_funds_controller.dart';
@@ -87,7 +87,7 @@ class DepositsDependencies {
 DepositWalletSource? depositWalletSourceOf(BuildContext context) {
   final auth = context.read<MwaAuthProvider?>();
   final onPhone = context.read<EmbeddedWalletController?>();
-  final chumbucket = context.read<ChumbucketWalletController?>();
+  final chumbucket = chumbucketWalletOf(context);
   final walletApp =
       auth != null && auth.isAuthenticated && auth.walletAddress != null
           ? MwaDepositWalletSource(auth)

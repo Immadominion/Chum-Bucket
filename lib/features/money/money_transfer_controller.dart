@@ -99,29 +99,33 @@ class MoneyTransferController extends ChangeNotifier {
     required String to,
     required BigInt amountBaseUnits,
   }) => _run(() async {
+    // A signed transfer that hasn't settled is never followed by another:
+    // keep sending (or watching) that one.
+    if (_inFlight) {
+      _resumeInFlight();
+      return;
+    }
     final request = '$from>$to:$amountBaseUnits';
     if (_keyFor != request || !_replyLost) {
       _key = _newKey();
       _keyFor = request;
     }
     _replyLost = false;
-    _ready = null;
     _expected = null;
     _set(MoneyTransferStep.preparing);
     var gasRuns = 0;
     while (true) {
-      final result = switch (kind) {
-        MoneyTransferKind.cashOut => await _client.cashOutPrepare(
-          destination: to,
-          amountBaseUnits: amountBaseUnits,
-          idempotencyKey: _key!,
-        ),
-        MoneyTransferKind.fromWallet => await _client.depositFromWalletPrepare(
-          fromWallet: from,
-          amountBaseUnits: amountBaseUnits,
-          idempotencyKey: _key!,
-        ),
-      };
+      final TransferPrepareResult result;
+      try {
+        result = await _prepareOnce(from, to, amountBaseUnits);
+      } on MoneyException catch (e) {
+        // The server is still sending one of ours: watch that one instead.
+        if (e.kind == MoneyErrorKind.conflict && _transfer != null) {
+          _resumeInFlight();
+          return;
+        }
+        rethrow;
+      }
       if (_disposed) return;
       switch (result) {
         case TransferInvalid(:final message):
@@ -155,6 +159,45 @@ class MoneyTransferController extends ChangeNotifier {
       }
     }
   });
+
+  Future<TransferPrepareResult> _prepareOnce(
+    String from,
+    String to,
+    BigInt amountBaseUnits,
+  ) => switch (kind) {
+    MoneyTransferKind.cashOut => _client.cashOutPrepare(
+      destination: to,
+      amountBaseUnits: amountBaseUnits,
+      idempotencyKey: _key!,
+    ),
+    MoneyTransferKind.fromWallet => _client.depositFromWalletPrepare(
+      fromWallet: from,
+      amountBaseUnits: amountBaseUnits,
+      idempotencyKey: _key!,
+    ),
+  };
+
+  /// Signed bytes we hold, or a transfer the server is sending: either way
+  /// nothing new may be prepared until it confirms or fails.
+  bool get _inFlight =>
+      _signed != null ||
+      (_transfer?.state == TransferState.submitted);
+
+  void _resumeInFlight() {
+    _step =
+        _signed != null && _transfer?.state != TransferState.submitted
+            ? MoneyTransferStep.sent
+            : MoneyTransferStep.confirming;
+    _startPolling();
+    if (!_disposed) notifyListeners();
+  }
+
+  /// While the outcome of signed bytes is unknown the sheet stays: closing
+  /// would drop the only copy that may be resent.
+  bool get canDismiss =>
+      _step != MoneyTransferStep.signing &&
+      _step != MoneyTransferStep.submitting &&
+      _step != MoneyTransferStep.sent;
 
   /// Checks the exact bytes on this phone, signs them, and hands them over.
   Future<void> sign() {

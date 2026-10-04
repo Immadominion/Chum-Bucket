@@ -17,6 +17,7 @@ import 'package:chumbucket/features/authentication/session/chumbucket_session.da
 import 'package:chumbucket/features/authentication/session/panta_mwa_wallet.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_transport.dart';
 import 'package:chumbucket/features/chumbucket_wallet/chumbucket_wallet_controller.dart';
+import 'package:chumbucket/features/chumbucket_wallet/chumbucket_wallet_of.dart';
 import 'package:chumbucket/features/chumbucket_wallet/presentation/chumbucket_wallet_sheet.dart';
 import 'package:chumbucket/features/deposits/presentation/add_funds_sheet.dart';
 import 'package:chumbucket/features/embedded_wallet/embedded_wallet_controller.dart';
@@ -106,7 +107,7 @@ class MoneyDependencies {
     }
     final auth = context.read<MwaAuthProvider?>();
     final onPhone = context.read<EmbeddedWalletController?>();
-    final chumbucket = context.read<ChumbucketWalletController?>();
+    final chumbucket = chumbucketWalletOf(context);
     return MoneyDependencies(
       createClient:
           () => MoneyClient(baseUri: base, token: session.bffAuthToken),

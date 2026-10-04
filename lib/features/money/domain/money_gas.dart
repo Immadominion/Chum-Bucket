@@ -27,6 +27,15 @@ import '../data/money_models.dart';
 typedef MoneyGasTopUp =
     Future<void> Function(String wallet, BigInt amountBaseUnits);
 
+/// The largest silent top-up ever signed here: the server's hard cap on
+/// `SOL_TOPUP_MAX_USDC` ($25).
+final maxGasTopUpBaseUnits = BigInt.from(25000000);
+
+/// The least SOL a dollar must buy, as the transaction itself guarantees:
+/// 1,000,000 lamports per USDC (SOL at $1,000 or less). Anything worse is not
+/// a top-up worth signing without asking.
+final minLamportsPerUsdc = BigInt.from(1000000);
+
 Future<void> runGasTopUp({
   required SolTopUpClient client,
   required SolTopUpSigner? signer,
@@ -36,6 +45,9 @@ Future<void> runGasTopUp({
   DateTime Function() now = DateTime.now,
 }) async {
   if (signer == null || signer.address != wallet) {
+    throw const MoneyException(MoneyErrorKind.unavailable);
+  }
+  if (amountBaseUnits <= BigInt.zero || amountBaseUnits > maxGasTopUpBaseUnits) {
     throw const MoneyException(MoneyErrorKind.unavailable);
   }
   final TopUpOrder order;
@@ -69,6 +81,12 @@ Future<void> runGasTopUp({
       ),
     );
   } catch (_) {
+    throw const MoneyException(MoneyErrorKind.invalidResponse);
+  }
+  // What the swap itself guarantees, per dollar spent: never a bad rate.
+  final perUsdc =
+      checked.minOutLamports * BigInt.from(1000000) ~/ amountBaseUnits;
+  if (perUsdc < minLamportsPerUsdc) {
     throw const MoneyException(MoneyErrorKind.invalidResponse);
   }
   if (review.wallet != wallet ||
