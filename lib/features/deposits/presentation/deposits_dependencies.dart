@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_transport.dart';
+import 'package:chumbucket/features/chumbucket_wallet/chumbucket_signers.dart';
+import 'package:chumbucket/features/chumbucket_wallet/chumbucket_wallet_controller.dart';
 import 'package:chumbucket/features/embedded_wallet/embedded_wallet_controller.dart';
 
 import '../add_funds_controller.dart';
@@ -79,26 +81,36 @@ class DepositsDependencies {
 /// spends from. With neither, Add funds still works: the server funds the
 /// account's own verified wallet, and only an ownership signature (above
 /// Crossmint's threshold) needs the device to hold the key.
+///
+/// With the Chumbucket wallet on, the same order as trades then: a wallet
+/// already on this phone, else the Chumbucket wallet, else the wallet app.
 DepositWalletSource? depositWalletSourceOf(BuildContext context) {
   final auth = context.read<MwaAuthProvider?>();
-  if (auth != null && auth.isAuthenticated && auth.walletAddress != null) {
-    return MwaDepositWalletSource(auth);
-  }
   final onPhone = context.read<EmbeddedWalletController?>();
+  final chumbucket = context.read<ChumbucketWalletController?>();
+  final walletApp =
+      auth != null && auth.isAuthenticated && auth.walletAddress != null
+          ? MwaDepositWalletSource(auth)
+          : null;
   final key = onPhone?.signer;
-  if (onPhone != null && key != null) {
-    return DeviceDepositWalletSource(
-      address: key.address,
-      currentAddress: () => onPhone.signer?.address,
-      sign: (message) async {
-        // Re-read: signed out, another account or another wallet since.
-        final signer = onPhone.signer;
-        if (signer == null || signer.address != key.address) {
-          throw const DepositWalletDeclined();
-        }
-        return signer.sign(message);
-      },
-    );
-  }
-  return null;
+  final phone =
+      onPhone != null && key != null
+          ? DeviceDepositWalletSource(
+            address: key.address,
+            currentAddress: () => onPhone.signer?.address,
+            sign: (message) async {
+              // Re-read: signed out, another account or another wallet since.
+              final signer = onPhone.signer;
+              if (signer == null || signer.address != key.address) {
+                throw const DepositWalletDeclined();
+              }
+              return signer.sign(message);
+            },
+          )
+          : null;
+  if (chumbucket == null) return walletApp ?? phone;
+  final own = chumbucket.signer;
+  return phone ??
+      (own != null ? chumbucketDepositWalletSource(chumbucket, own) : null) ??
+      walletApp;
 }

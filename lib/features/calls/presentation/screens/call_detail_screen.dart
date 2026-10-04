@@ -18,6 +18,12 @@ import 'package:chumbucket/features/embedded_wallet/embedded_wallet_controller.d
 import 'package:chumbucket/features/embedded_wallet/panta_embedded_wallet.dart';
 import 'package:chumbucket/features/embedded_wallet/panta_signer_choice.dart';
 import 'package:chumbucket/features/embedded_wallet/presentation/embedded_wallet_sheet.dart';
+import 'package:chumbucket/features/authentication/presentation/screens/widgets/mwa_connect_button.dart'
+    show reconnectWalletApp;
+import 'package:chumbucket/features/chumbucket_wallet/chumbucket_wallet_controller.dart';
+import 'package:chumbucket/features/chumbucket_wallet/presentation/chumbucket_wallet_sheet.dart';
+import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_settings_sheet.dart'
+    show showProfileSettingsSheet;
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_transport.dart';
 import 'package:chumbucket/features/panta_trading/panta_trading.dart';
@@ -96,28 +102,49 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
 
   /// Opens the private Panta trade for the viewer's own call.
   ///
-  /// Signs with the wallet app when one is connected (as before). An account
-  /// without one — Google or X — signs with the wallet that lives on this
-  /// phone, once it exists and the server has confirmed it is theirs; until
-  /// then, this opens that wallet's sheet to make or link it.
-  Future<void> _fund(CallFeedEntry entry) async {
+  /// Without the Chumbucket wallet: signs with the wallet app when one is
+  /// connected (as before). An account without one — Google or X — signs
+  /// with the wallet that lives on this phone, once it exists and the server
+  /// has confirmed it is theirs; until then, this opens that wallet's sheet
+  /// to make or link it.
+  ///
+  /// With the Chumbucket wallet (`CHUMBUCKET_WALLET_ENABLED`): it signs by
+  /// default and is set up here on first need; a wallet app is the explicit
+  /// "Use wallet app" choice ([useWalletApp]); a wallet already on this phone
+  /// keeps working.
+  Future<void> _fund(CallFeedEntry entry, {bool useWalletApp = false}) async {
     final auth = context.read<MwaAuthProvider>();
     final account = context.read<ChumbucketSession>();
     final onPhone = context.read<EmbeddedWalletController?>();
+    final chumbucket = context.read<ChumbucketWalletController?>();
     if (!account.isReady) {
       requestCallSignIn(context, onRequested: widget.onSignInRequested);
       return;
     }
-    final choice = choosePantaSigner(
+    if (chumbucket != null && useWalletApp && !auth.isAuthenticated) {
+      if (!await reconnectWalletApp(context) || !mounted) return;
+    }
+    PantaSignerChoice? choose() => choosePantaSigner(
       walletApp: auth,
       onPhone: onPhone,
+      chumbucket: chumbucket,
+      useWalletApp: useWalletApp,
       reviewed: PantaReviewedBuy(
         venueMarketId: entry.market.venueMarketId,
         side: entry.call.side,
         amountBaseUnits: () => _trade?.prepared?.order.amountBaseUnits,
       ),
     );
+    var choice = choose();
+    if (choice == null && chumbucket != null && !useWalletApp) {
+      // First need: make and link the Chumbucket wallet, then trade from it.
+      if (!await showChumbucketWalletSheet(context, setUp: true) || !mounted) {
+        return;
+      }
+      choice = choose();
+    }
     if (choice == null) {
+      if (chumbucket != null) return;
       if (onPhone == null) {
         // No wallet on this phone in this build: a wallet app is the way.
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
@@ -166,6 +193,15 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
       controller: _trade!,
       marketQuestion: entry.market.question,
       signer: choice.kind,
+      // The Chumbucket wallet is the default; a wallet app stays a choice.
+      payInstead:
+          chumbucket != null && choice.kind != PantaSigner.walletApp
+              ? PantaPayInstead(
+                label: 'Use wallet app',
+                onSelected: () => _fund(entry, useWalletApp: true),
+              )
+              : null,
+      onLinkWallet: () => showProfileSettingsSheet(context),
     );
     if (mounted) setState(() {});
   }

@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
+import 'package:chumbucket/features/chumbucket_wallet/chumbucket_wallet_controller.dart';
+import 'package:chumbucket/features/chumbucket_wallet/presentation/chumbucket_wallet_sheet.dart';
 import 'package:chumbucket/features/embedded_wallet/embedded_wallet_controller.dart';
 import 'package:chumbucket/features/embedded_wallet/presentation/embedded_wallet_sheet.dart';
 import 'package:chumbucket/features/deposits/presentation/add_funds_sheet.dart';
@@ -34,9 +36,36 @@ class ProfileWalletCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final wallet = context.watch<MwaWalletProvider?>();
     final connected = wallet?.walletAddress != null;
-    final styles = AppTextStyles.textTheme;
     final onPhone = context.watch<EmbeddedWalletController?>();
     final account = context.watch<ChumbucketSession?>();
+    final chumbucket = context.watch<ChumbucketWalletController?>();
+    // The Chumbucket wallet is the account's wallet, unless this phone
+    // already holds an on-phone one (that keeps working, untouched).
+    if (chumbucket != null &&
+        account?.isReady == true &&
+        onPhone?.hasWallet != true &&
+        onPhone?.phase != EmbeddedWalletPhase.loading) {
+      final tile = _ChumbucketWalletTile(wallet: chumbucket);
+      if (!connected) return tile;
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          tile,
+          _classic(context, wallet, connected, onPhone, account),
+        ],
+      );
+    }
+    return _classic(context, wallet, connected, onPhone, account);
+  }
+
+  Widget _classic(
+    BuildContext context,
+    MwaWalletProvider? wallet,
+    bool connected,
+    EmbeddedWalletController? onPhone,
+    ChumbucketSession? account,
+  ) {
+    final styles = AppTextStyles.textTheme;
     if (!connected && onPhone != null && account?.isReady == true) {
       final address = onPhone.address;
       // A wallet account back after a reinstall: its wallet app is the one to
@@ -124,6 +153,49 @@ class ProfileWalletCard extends StatelessWidget {
                 ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// "My wallet": the Chumbucket wallet, its short address and balance, or a
+/// one-tap set-up.
+class _ChumbucketWalletTile extends StatelessWidget {
+  const _ChumbucketWalletTile({required this.wallet});
+  final ChumbucketWalletController wallet;
+
+  @override
+  Widget build(BuildContext context) {
+    final styles = AppTextStyles.textTheme;
+    final address = wallet.address;
+    return Material(
+      color: AppColors.surface,
+      child: ListTile(
+        key: const ValueKey('profile-chumbucket-wallet'),
+        contentPadding: EdgeInsets.zero,
+        minVerticalPadding: 12,
+        leading: const BasilIcon(
+          'wallet-outline',
+          color: AppColors.textPrimary,
+        ),
+        title: Text('My wallet', style: styles.titleSmall),
+        subtitle:
+            address == null
+                ? Text(
+                  'Set up',
+                  style: styles.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                )
+                : _BalanceLine(
+                  wallet: address,
+                  lead: shortWalletAddress(address),
+                ),
+        trailing: const BasilIcon(
+          'arrow-right-outline',
+          color: AppColors.textPrimary,
+        ),
+        onTap: () => showChumbucketWalletSheet(context),
       ),
     );
   }
