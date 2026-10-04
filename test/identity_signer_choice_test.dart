@@ -4,9 +4,9 @@
 library;
 
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
-import 'package:chumbucket/features/authentication/session/panta_mwa_wallet.dart';
 import 'package:chumbucket/features/authentication/session/session_bff_client.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart' show Side;
+import 'package:chumbucket/features/embedded_wallet/panta_wallet_app.dart';
 import 'package:chumbucket/features/embedded_wallet/embedded_wallet_controller.dart';
 import 'package:chumbucket/features/embedded_wallet/embedded_wallet_vault.dart';
 import 'package:chumbucket/features/embedded_wallet/panta_embedded_wallet.dart';
@@ -87,7 +87,7 @@ void main() {
       );
       expect(choice!.kind, PantaSigner.walletApp);
       expect(choice.address, _walletApp);
-      expect(choice.port, isA<PantaMwaWallet>());
+      expect(choice.port, isA<CheckedPantaWalletPort>());
       app.wallet = null;
       expect(choice.selectedWallet(), isNull);
     },
