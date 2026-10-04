@@ -514,7 +514,8 @@ class MockCallsRepository implements CallsRepository {
         id: 'invite_zed_you',
         fromUserId: 'user_zed',
         toUserId: demoViewerUserId,
-        marketId: 'market_btc_150k',
+        // As the BFF derives it: the market of the call that was dared.
+        marketId: 'market_fed_cut',
         sourceCallId: 'call_you_fed',
         responseId: 'response_zed_challenge',
         note: 'Rematch. Go on record on BTC.',

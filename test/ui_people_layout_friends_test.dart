@@ -81,6 +81,44 @@ class FriendsRepository extends PeopleRepository {
   }) async => CallDetail(entry: source);
 }
 
+/// The BFF's shape (CallsService.invitations): a dare names the call it
+/// challenged, which is the viewer's own; the sender is read as a person.
+class ServerDareRepository extends FriendsRepository {
+  ServerDareRepository() {
+    invite = true;
+  }
+
+  String get viewer => source.author.id;
+
+  @override
+  Future<List<ChallengeInvitation>> fetchInvitations({
+    required String? viewerUserId,
+  }) async => [
+    ChallengeInvitation(
+      id: 'inv_response',
+      fromUserId: 'user_zed',
+      toUserId: viewerUserId!,
+      marketId: source.market.id,
+      sourceCallId: source.call.id,
+      responseId: 'response',
+      createdAt: 0,
+    ),
+  ];
+
+  @override
+  Future<PersonDetail> fetchPerson({
+    required String personRef,
+    String? viewerUserId,
+  }) async {
+    if (personRef != 'user_zed') throw const CallsRejectedException('nobody');
+    return const PersonDetail(
+      person: Person(id: 'user_zed', handle: 'zed', displayName: 'Zed Musa'),
+      calls: [],
+      servedAt: 0,
+    );
+  }
+}
+
 Widget hub(CallsProvider calls, QuietArena arena, Widget child) =>
     MultiProvider(
       providers: [
@@ -226,6 +264,31 @@ void main() {
       expect(find.text('Free'), findsOneWidget);
       expect(find.text('Accept'), findsNothing);
       expect(find.text('Decline'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'a dare on your own call (the server shape) shows who sent it and opens',
+    (tester) async {
+      final repository = ServerDareRepository();
+      final calls = CallsProvider(repository: repository)
+        ..setViewer(repository.viewer);
+      final arena = QuietArena();
+      addTearDown(calls.dispose);
+      addTearDown(arena.dispose);
+      await mountPeople(
+        tester,
+        friendsScreen(),
+        wrap: (child) => hub(calls, arena, child),
+      );
+      // Before: every server dare was dropped, so Home's "1 open dare
+      // waiting" led to a Friends tab with no dare on it.
+      expect(find.text('Zed Musa dared you'), findsOneWidget);
+      expect(find.text('Free'), findsOneWidget);
+      await tester.tap(find.text('Zed Musa dared you'));
+      await tester.pumpAndSettle();
+      expect(find.byType(FriendsHubTab), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );

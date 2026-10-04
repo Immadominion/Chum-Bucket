@@ -333,8 +333,18 @@ class _CallInvitations extends StatefulWidget {
   State<_CallInvitations> createState() => _CallInvitationsState();
 }
 
+/// One dare to show: the call it points at and who sent it.
+class _Dare {
+  const _Dare({required this.detail, required this.from, required this.onYours});
+  final CallDetail detail;
+  final Person from;
+
+  /// The server's shape: a dare names the call it challenged — yours.
+  final bool onYours;
+}
+
 class _CallInvitationsState extends State<_CallInvitations> {
-  late Future<List<CallDetail>> _invitations;
+  late Future<List<_Dare>> _invitations;
   @override
   void initState() {
     super.initState();
@@ -348,33 +358,46 @@ class _CallInvitationsState extends State<_CallInvitations> {
     if (oldWidget.refreshToken != widget.refreshToken) _invitations = _read();
   }
 
-  Future<List<CallDetail>> _read() async {
+  Future<List<_Dare>> _read() async {
     final viewer = widget.provider.viewerUserId;
     final repository = widget.provider.repository;
     final invites = await repository.fetchInvitations(viewerUserId: viewer);
-    final details = await Future.wait(
+    final dares = await Future.wait(
       invites.where((invite) => invite.toUserId == viewer).map((invite) async {
         try {
           final detail = await repository.fetchCall(
             callId: invite.sourceCallId,
             viewerUserId: viewer,
           );
-          if (detail.entry.author.id != invite.fromUserId ||
-              detail.entry.market.id != invite.marketId) {
-            return null;
+          if (detail.entry.market.id != invite.marketId) return null;
+          final author = detail.entry.author.id;
+          // The BFF's calls.invitations names the call that was dared — the
+          // viewer's own (CallsService.invitations). An inviter's own call
+          // is the older shape. Anything else is not this dare.
+          if (author == invite.fromUserId) {
+            return _Dare(
+              detail: detail,
+              from: detail.entry.author,
+              onYours: false,
+            );
           }
-          return detail;
+          if (author != viewer) return null;
+          final from = await repository.fetchPerson(
+            personRef: invite.fromUserId,
+            viewerUserId: viewer,
+          );
+          return _Dare(detail: detail, from: from.person, onYours: true);
         } catch (_) {
           return null;
-        } // Private/deleted/blocked source stays hidden.
+        } // Private/deleted/blocked source, or an unreadable sender, stays hidden.
       }),
     );
-    return details.whereType<CallDetail>().toList(growable: false);
+    return dares.whereType<_Dare>().toList(growable: false);
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<CallDetail>>(
+    return FutureBuilder<List<_Dare>>(
       future: _invitations,
       builder: (context, snapshot) {
         // Loading or failed: nothing here. The list below stays usable and a
@@ -386,10 +409,10 @@ class _CallInvitationsState extends State<_CallInvitations> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              for (final detail in invitations)
+              for (final dare in invitations)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
-                  child: _InvitationRow(detail: detail),
+                  child: _InvitationRow(dare: dare),
                 ),
             ],
           ),
@@ -400,14 +423,18 @@ class _CallInvitationsState extends State<_CallInvitations> {
 }
 
 class _InvitationRow extends StatelessWidget {
-  const _InvitationRow({required this.detail});
-  final CallDetail detail;
+  const _InvitationRow({required this.dare});
+  final _Dare dare;
 
   @override
   Widget build(BuildContext context) {
-    final author = detail.entry.author;
+    final detail = dare.detail;
+    final author = dare.from;
     final market = detail.entry.market;
-    final title = '${author.displayName} invited you to call';
+    final title =
+        dare.onYours
+            ? '${author.displayName} dared you'
+            : '${author.displayName} invited you to call';
     return Semantics(
       button: true,
       label:
