@@ -711,6 +711,7 @@ SessionError sessionErrorForTrpcError({
     case 'LINK_RATE_LIMITED':
     case 'SIGN_IN_IN_USE':
     case 'SIGN_IN_NOT_FOUND':
+    case 'CHUMBUCKET_WALLET_KEPT':
     case 'FOLD_NEEDS_PRIMARY_SIGN_IN':
     case 'FOLD_WALLET_CONFLICT':
     case 'LINK_PREVIEW_CHANGED':

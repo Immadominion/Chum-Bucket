@@ -56,6 +56,7 @@ class SignInMethodRow {
     required this.current,
     this.unlink,
     this.alsoUnlinks = const [],
+    this.chumbucket = false,
   });
 
   final String id;
@@ -72,6 +73,10 @@ class SignInMethodRow {
 
   /// Other kinds on the same sign-in, which go with it.
   final List<SignInMethodKind> alsoUnlinks;
+
+  /// The Chumbucket wallet: a read-only row. It follows the account, so it is
+  /// never unlinked and is no linked wallet app.
+  final bool chumbucket;
 
   /// "@name", the email, or a short wallet.
   String get display {
@@ -115,7 +120,7 @@ class SignInMethods {
       linking
           ? [
             for (final kind in SignInMethodKind.values)
-              if (!rows.any((r) => r.kind == kind)) kind,
+              if (!rows.any((r) => r.kind == kind && !r.chumbucket)) kind,
           ]
           : const [];
 
@@ -139,13 +144,17 @@ class SignInMethods {
         }
       }
       final also = raw['alsoUnlinks'];
+      final chumbucket =
+          kind == SignInMethodKind.wallet && raw['chumbucket'] == true;
       rows.add(
         SignInMethodRow(
           id: id,
           kind: kind,
           label: label is String && label.isNotEmpty ? label : null,
           current: raw['current'] == true,
-          unlink: route,
+          // Never an unlink for the Chumbucket wallet, whatever arrives.
+          unlink: chumbucket ? null : route,
+          chumbucket: chumbucket,
           alsoUnlinks: [
             if (also is List)
               for (final k in also)
@@ -274,6 +283,7 @@ String signInLinkCopy(String code) => switch (code) {
   'LINK_RATE_LIMITED' => 'Too many tries. Wait a minute.',
   'SIGN_IN_IN_USE' => 'You’re signed in with that one.',
   'SIGN_IN_NOT_FOUND' => 'Already unlinked.',
+  'CHUMBUCKET_WALLET_KEPT' => 'Your Chumbucket wallet stays with your account.',
   'WALLET_OWNED_BY_ANOTHER_USER' ||
   'WALLET_REQUIRES_TRANSFER' => 'That wallet is on another account.',
   'identity_already_exists' => 'That one is on another account.',

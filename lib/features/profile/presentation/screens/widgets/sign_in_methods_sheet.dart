@@ -162,6 +162,17 @@ class _MethodListState extends State<_MethodList> {
                       size: 20.w,
                       color: AppColors.primary,
                     )
+                    // The Chumbucket wallet follows the account: read-only.
+                    : row.chumbucket
+                    ? Text(
+                      'Chumbucket wallet',
+                      key: ValueKey('chumbucket-wallet-${row.id}'),
+                      style: TextStyle(
+                        fontSize: 12.sp,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                      ),
+                    )
                     : (methods!.linking && row.unlink != null)
                     ? IconButton(
                       tooltip: 'Unlink ${row.kind.title}',

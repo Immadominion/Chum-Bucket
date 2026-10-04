@@ -31,11 +31,28 @@ const _wallet = 'F7rhCwoPyU5H1p48sddDmGb1ax25CwmxiwHL8Xj5RJ3E';
 const _signIn = '5a1e0000-0000-4000-8000-000000000001';
 final _ticket = 'ab' * 32;
 
+const _chumbucketWallet = '9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin';
+
 /// The owner's account after the fold, as `auth.signInMethods` answers.
-Map<String, Object?> ownerMethods({bool linking = true}) => {
+/// [chumbucket]: with the account's Chumbucket wallet, a read-only row.
+Map<String, Object?> ownerMethods({
+  bool linking = true,
+  bool chumbucket = false,
+}) => {
   'linking': linking,
   'fold': linking,
   'methods': [
+    if (chumbucket)
+      {
+        'id': 'w:$_chumbucketWallet',
+        'kind': 'wallet',
+        'label': _chumbucketWallet,
+        'current': false,
+        // Never honoured for the Chumbucket wallet, even if a server sent it.
+        'unlink': {'mode': 'server', 'ref': 'w:$_chumbucketWallet'},
+        'alsoUnlinks': <String>[],
+        'chumbucket': true,
+      },
     {
       'id': 'id-web3',
       'kind': 'wallet',
@@ -156,10 +173,11 @@ FakeBffServer linkServer({
   Map<String, Object?>? preview,
   String? completeError,
   String? linkWalletError,
+  Map<String, Object?>? methods,
 }) => FakeBffServer((request) {
   switch (request.procedurePath) {
     case 'auth.signInMethods':
-      return okResponse(ownerMethods());
+      return okResponse(methods ?? ownerMethods());
     case 'auth.startSignInLink':
       return okResponse({
         'ticket': 'ab' * 32,
@@ -224,6 +242,30 @@ void main() {
       // Linking off: nothing is offered.
       expect(SignInMethods.parse(ownerMethods(linking: false))!.missing, []);
       expect(SignInMethods.parse({'methods': 'nope'}), isNull);
+    });
+
+    test('the Chumbucket wallet is read-only, and Link Wallet stays', () {
+      final methods = SignInMethods.parse(ownerMethods(chumbucket: true))!;
+      final own = methods.rows.firstWhere((r) => r.chumbucket);
+      expect(own.kind, SignInMethodKind.wallet);
+      expect(own.display, '9xQe…VFin');
+      expect(own.unlink, isNull);
+      expect(methods.rows.where((r) => r.chumbucket), hasLength(1));
+      // Only a wallet row the BFF marks counts as the Chumbucket wallet.
+      expect(methods.current!.chumbucket, isFalse);
+      // A wallet app can still be linked beside it.
+      final alone =
+          SignInMethods.parse({
+            'linking': true,
+            'methods': [
+              (ownerMethods(chumbucket: true)['methods'] as List).first,
+            ],
+          })!;
+      expect(alone.missing, SignInMethodKind.values);
+      expect(
+        signInLinkCopy('CHUMBUCKET_WALLET_KEPT'),
+        'Your Chumbucket wallet stays with your account.',
+      );
     });
 
     test('a preview names both accounts and why not, when not', () {
@@ -437,13 +479,14 @@ void main() {
   group('the sheet', () {
     Future<SignInMethodsController> pump(
       WidgetTester tester,
-      FakeLinkPort port,
-    ) async {
+      FakeLinkPort port, {
+      Map<String, Object?>? methods,
+    }) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      final c = controllerFor(linkServer(), port);
+      final c = controllerFor(linkServer(methods: methods), port);
       await tester.pumpWidget(
         ScreenUtilInit(
           designSize: const Size(390, 844),
@@ -474,6 +517,36 @@ void main() {
       // The way in being used has no unlink.
       expect(find.byTooltip('Unlink Wallet'), findsNothing);
     });
+
+    testWidgets(
+      'the Chumbucket wallet: icon, short address, label, no unlink',
+      (tester) async {
+        await pump(
+          tester,
+          FakeLinkPort(),
+          methods: ownerMethods(chumbucket: true),
+        );
+        final row = find.byKey(const ValueKey('sign-in-w:$_chumbucketWallet'));
+        expect(row, findsOneWidget);
+        expect(
+          find.descendant(of: row, matching: find.text('9xQe…VFin')),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(of: row, matching: find.text('Chumbucket wallet')),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(of: row, matching: find.byType(IconButton)),
+          findsNothing,
+        );
+        // The other rows keep their rules; a wallet app can still be linked.
+        expect(find.byTooltip('Unlink X'), findsOneWidget);
+        expect(find.byTooltip('Unlink Wallet'), findsNothing);
+        expect(find.byKey(const ValueKey('link-wallet')), findsNothing);
+        expect(find.byKey(const ValueKey('link-google')), findsOneWidget);
+      },
+    );
 
     testWidgets('a move shows both accounts before anything happens', (
       tester,
