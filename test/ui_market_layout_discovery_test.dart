@@ -516,8 +516,10 @@ void main() {
           scale: 2,
         );
         await reveal(tester, find.text('Try again'));
+        // One short line (the reason, when the server gave a short one)
+        // under the brand art, and one action.
         expect(
-          find.text(offline ? "You're offline" : "That didn't load"),
+          find.text(offline ? "You're offline" : 'Could not load test catalog.'),
           findsOneWidget,
         );
         expect(find.text('Try again'), findsOneWidget);

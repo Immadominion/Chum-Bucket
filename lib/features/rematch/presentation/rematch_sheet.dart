@@ -85,6 +85,7 @@ class _RematchSheetState extends State<RematchSheet> {
           if (!provider.isSignedIn) {
             return const SingleChildScrollView(
               child: CallsSignedOutView(
+                title: 'Sign in to send a free rematch',
                 message:
                     'Sign in to send a rematch. It is free — no wallet, no '
                     'stake, nothing to fund.',

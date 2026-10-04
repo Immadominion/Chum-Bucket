@@ -1,21 +1,27 @@
-/// The six states every surface in this slice must be able to reach:
-/// empty, loading, stale, offline, error and signed-out.
+/// The states every surface in this slice must be able to reach: empty,
+/// loading, offline, error and signed-out. (Stale is not a state the person
+/// sees: saved content stays on screen and refreshes silently.)
 ///
 /// They live in one file so they stay visually consistent and so a reviewer can
-/// see at a glance that all six exist and that none of them is a spinner with
-/// no exit.
+/// see at a glance that all of them exist and that none of them is a spinner
+/// with no exit. The empty / error / offline / signed-out views are drawn by
+/// the app-wide [ChumbucketStateView].
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
-import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_state_view.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
-export 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
+export 'package:chumbucket/shared/widgets/chumbucket_state_view.dart';
 
-/// Shared shell: icon, headline, one explanatory line, at most one action.
+/// Shared shell, drawn by the app-wide [ChumbucketStateView]: the art, ONE
+/// short line ([title]) and at most one action. [message] is no longer drawn —
+/// the owner asked for art and a line, not a paragraph — but screen readers
+/// still hear it as a hint, so nothing a caller passes is lost.
 class CallsStateView extends StatelessWidget {
   final String icon;
   final String title;
@@ -38,75 +44,65 @@ class CallsStateView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final art = artwork;
     return Center(
       child: SingleChildScrollView(
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 32.w, vertical: 28.h),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (artwork != null)
-                ChumbucketStateArt(artwork!)
-              else
-                Container(
-                  width: 56.w,
-                  height: 56.w,
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.10),
-                    shape: BoxShape.circle,
+        child:
+            art != null
+                ? ChumbucketStateView(
+                  artwork: art,
+                  message: title,
+                  semanticsHint: message.isEmpty ? null : message,
+                  actionLabel: actionLabel,
+                  onAction: onAction,
+                )
+                : Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 24,
                   ),
-                  child: Center(
-                    child: BasilIcon(icon, size: 26.w, color: accent),
-                  ),
-                ),
-              SizedBox(height: 14.h),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 17.sp,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              SizedBox(height: 6.h),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 13.sp,
-                  height: 1.4,
-                ),
-              ),
-              if (actionLabel != null && onAction != null) ...[
-                SizedBox(height: 16.h),
-                TextButton(
-                  onPressed: onAction,
-                  style: TextButton.styleFrom(
-                    foregroundColor: const Color(0xFFB8173B),
-                    minimumSize: const Size(48, 48),
-                    padding: EdgeInsets.symmetric(
-                      horizontal: 18.w,
-                      vertical: 10.h,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12.r),
-                      side: const BorderSide(color: AppColors.primary),
-                    ),
-                  ),
-                  child: Text(
-                    actionLabel!,
-                    style: TextStyle(
-                      fontSize: 14.sp,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.10),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: BasilIcon(icon, size: 26, color: accent),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Semantics(
+                        hint: message.isEmpty ? null : message,
+                        child: Text(
+                          title,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontFamily: 'PPNeueMachina',
+                            color: AppColors.textPrimary,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                      if (actionLabel != null && onAction != null) ...[
+                        const SizedBox(height: 20),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 260),
+                          child: ChumbucketPrimaryButton(
+                            label: actionLabel!,
+                            onPressed: onAction,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-              ],
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -214,23 +210,32 @@ class CallsEmptyView extends StatelessWidget {
   );
 }
 
-/// Error — the request failed and there is nothing cached underneath.
+/// Error — the request failed and there is nothing cached underneath. The
+/// one line is the server's own short reason when it has one ("This profile
+/// is private."), otherwise a plain "Couldn't load this".
 class CallsErrorView extends StatelessWidget {
   final String message;
   final VoidCallback? onRetry;
 
   const CallsErrorView({super.key, required this.message, this.onRetry});
 
+  /// Longer than this, a reason is read to screen readers, not drawn.
+  static const int _maxLine = 90;
+
   @override
-  Widget build(BuildContext context) => CallsStateView(
-    icon: 'info-triangle-outline',
-    artwork: ChumbucketStateArtwork.error,
-    accent: AppColors.error,
-    title: 'That didn\'t load',
-    message: message,
-    actionLabel: onRetry == null ? null : 'Try again',
-    onAction: onRetry,
-  );
+  Widget build(BuildContext context) {
+    final reason = message.trim();
+    final short = reason.isNotEmpty && reason.length <= _maxLine;
+    return CallsStateView(
+      icon: 'info-triangle-outline',
+      artwork: ChumbucketStateArtwork.error,
+      accent: AppColors.error,
+      title: short ? reason : 'Couldn\u2019t load this',
+      message: short ? '' : reason,
+      actionLabel: onRetry == null ? null : 'Try again',
+      onAction: onRetry,
+    );
+  }
 }
 
 /// Offline with nothing cached.
@@ -245,9 +250,7 @@ class CallsOfflineView extends StatelessWidget {
     artwork: ChumbucketStateArtwork.offline,
     accent: AppColors.warning,
     title: 'You\'re offline',
-    message:
-        'We can\'t reach anything right now. Your calls are safe — nothing is '
-        'lost while you\'re away.',
+    message: 'Nothing is lost while you\'re away.',
     actionLabel: onRetry == null ? null : 'Try again',
     onAction: onRetry,
   );
@@ -256,11 +259,16 @@ class CallsOfflineView extends StatelessWidget {
 /// Signed out. Reading is fine; this only gates writing, and it asks for an
 /// account — never a wallet.
 class CallsSignedOutView extends StatelessWidget {
+  /// The one line on screen. Say what signing in is for here.
+  final String title;
+
+  /// Read to screen readers with [title].
   final String message;
   final VoidCallback? onSignIn;
 
   const CallsSignedOutView({
     super.key,
+    this.title = 'Sign in to make a call',
     this.message =
         'Sign in to go on record. No wallet, no money — just your call, '
             'timestamped.',
@@ -271,21 +279,25 @@ class CallsSignedOutView extends StatelessWidget {
   Widget build(BuildContext context) => CallsStateView(
     icon: 'user-outline',
     artwork: ChumbucketStateArtwork.access,
-    title: 'Sign in to make a call',
+    title: title,
     message: message,
     actionLabel: onSignIn == null ? null : 'Sign in',
     onAction: onSignIn,
   );
 }
 
-/// A thin inline banner. Used for the stale, offline-with-cache and demo-data
-/// notices that sit above content rather than replacing it.
+/// A thin inline banner for the few facts that must sit above content, such
+/// as demo data. Staleness is never one of them: the app refreshes on its own
+/// and does not narrate it ("last updated…", "Refresh") — see
+/// `ChumbucketStateView`'s rules. Offline with saved content is a small pill,
+/// not a banner, and has no retry: the next open, resume or pull refreshes.
 class CallsNotice extends StatelessWidget {
   final String icon;
   final String message;
   final Color color;
   final String? actionLabel;
   final VoidCallback? onAction;
+  final bool _pill;
 
   const CallsNotice({
     super.key,
@@ -294,28 +306,20 @@ class CallsNotice extends StatelessWidget {
     required this.color,
     this.actionLabel,
     this.onAction,
-  });
+  }) : _pill = false;
 
-  /// Content is on screen but older than the provider's staleness window.
-  factory CallsNotice.stale({
-    required String message,
-    VoidCallback? onRefresh,
-  }) => CallsNotice(
-    icon: 'clock-outline',
-    message: message,
-    color: AppColors.warning,
-    actionLabel: onRefresh == null ? null : 'Refresh',
-    onAction: onRefresh,
-  );
+  const CallsNotice._pill()
+    : icon = 'cloud-off-outline',
+      message = 'Offline',
+      color = AppColors.warning,
+      actionLabel = null,
+      onAction = null,
+      _pill = true;
 
-  /// Content is on screen but it is cached, not live.
-  factory CallsNotice.offline({VoidCallback? onRetry}) => CallsNotice(
-    icon: 'cloud-off-outline',
-    message: 'Offline — showing what we already had.',
-    color: AppColors.warning,
-    actionLabel: onRetry == null ? null : 'Retry',
-    onAction: onRetry,
-  );
+  /// Content is on screen but it is saved, not live. [onRetry] is accepted
+  /// for older callers and ignored: there is no retry button.
+  factory CallsNotice.offline({VoidCallback? onRetry}) =>
+      const CallsNotice._pill();
 
   /// Demo (fixture) venue data. Never allowed to present as a live result.
   factory CallsNotice.demoData() => const CallsNotice(
@@ -326,6 +330,15 @@ class CallsNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (_pill) {
+      return Padding(
+        padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 8.h),
+        child: const Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: ChumbucketOfflinePill(),
+        ),
+      );
+    }
     return Container(
       margin: EdgeInsets.fromLTRB(16.w, 0, 16.w, 10.h),
       padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
