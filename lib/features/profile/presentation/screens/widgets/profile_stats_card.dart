@@ -30,19 +30,75 @@ class ProfileStatsCard extends StatelessWidget {
         publicEntries == null
             ? null
             : PersonRecord.fromEntries(publicEntries).overall;
+    // Not read yet (or not readable): the same four tiles with a quiet "—",
+    // so nothing jumps when it lands and no internal state is narrated.
+    String count(int? n) => n == null ? '\u2014' : '$n';
+    final tiles = LayoutBuilder(
+      builder: (context, constraints) {
+        // Four across; two by two at large text.
+        final columns = MediaQuery.textScalerOf(context).scale(12) > 18 ? 2 : 4;
+        final width = (constraints.maxWidth - 8 * (columns - 1)) / columns;
+        final correct = record?.tallies[0].count;
+        final voided = record?.tallies[2].count;
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _Stat(
+              key: const ValueKey('record-correct'),
+              width: width,
+              icon: 'check-outline',
+              color: const Color(0xFF07644C),
+              value: count(correct),
+              label: 'Correct',
+              semantics:
+                  record == null
+                      ? null
+                      : '$correct correct of ${record.decided} decided',
+            ),
+            _Stat(
+              key: const ValueKey('record-incorrect'),
+              width: width,
+              icon: 'cross-outline',
+              color: const Color(0xFF334155),
+              value: count(record?.tallies[1].count),
+              label: 'Incorrect',
+            ),
+            _Stat(
+              key: const ValueKey('record-pending'),
+              width: width,
+              icon: 'sand-watch-outline',
+              color: AppColors.onWarningContainer,
+              value: count(record?.pending),
+              label: 'Pending',
+            ),
+            _Stat(
+              key: const ValueKey('record-void'),
+              width: width,
+              icon: 'cancel-outline',
+              color: AppColors.textSecondary,
+              value: count(voided),
+              label: 'Void',
+              semantics: record == null ? null : '$voided void, not scored',
+              info: record != null,
+            ),
+          ],
+        );
+      },
+    );
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(12, 10, 4, 12),
       color: AppColors.outlineVariant,
       child:
           record == null
-              ? Padding(
-                padding: const EdgeInsets.fromLTRB(4, 4, 12, 0),
-                child: Text(
-                  'Public call record unavailable',
-                  style: styles.bodySmall?.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
+              ? Semantics(
+                container: true,
+                label: 'Call record not loaded',
+                excludeSemantics: true,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: tiles,
                 ),
               )
               : Column(
@@ -57,64 +113,7 @@ class ProfileStatsCard extends StatelessWidget {
                     showDuration: const Duration(seconds: 6),
                     child: Padding(
                       padding: const EdgeInsets.only(right: 8),
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          // Four across; two by two at large text.
-                          final columns =
-                              MediaQuery.textScalerOf(context).scale(12) > 18
-                                  ? 2
-                                  : 4;
-                          final width =
-                              (constraints.maxWidth - 8 * (columns - 1)) /
-                              columns;
-                          final decided = record.decided;
-                          return Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              _Stat(
-                                key: const ValueKey('record-correct'),
-                                width: width,
-                                icon: 'check-outline',
-                                color: const Color(0xFF07644C),
-                                value: '${record.tallies[0].count}',
-                                label: 'Correct',
-                                semantics:
-                                    '${record.tallies[0].count} correct of '
-                                    '$decided decided',
-                              ),
-                              _Stat(
-                                key: const ValueKey('record-incorrect'),
-                                width: width,
-                                icon: 'cross-outline',
-                                color: const Color(0xFF334155),
-                                value: '${record.tallies[1].count}',
-                                label: 'Incorrect',
-                              ),
-                              _Stat(
-                                key: const ValueKey('record-pending'),
-                                width: width,
-                                icon: 'sand-watch-outline',
-                                color: AppColors.onWarningContainer,
-                                value: '${record.pending}',
-                                label: 'Pending',
-                              ),
-                              _Stat(
-                                key: const ValueKey('record-void'),
-                                width: width,
-                                icon: 'cancel-outline',
-                                color: AppColors.textSecondary,
-                                value: '${record.tallies[2].count}',
-                                label: 'Void',
-                                semantics:
-                                    '${record.tallies[2].count} void, not '
-                                    'scored',
-                                info: true,
-                              ),
-                            ],
-                          );
-                        },
-                      ),
+                      child: tiles,
                     ),
                   ),
                   if (publicEntries!.any((e) => e.market.venue.isDemo)) ...[

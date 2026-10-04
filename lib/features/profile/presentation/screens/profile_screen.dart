@@ -276,7 +276,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 : null,
                         footer: const ProfileWalletCard(),
                       ),
-                      ProfileStatsCard(entries: detail?.calls),
+                      // Signed out there is no record to show: the Calls
+                      // tab below offers sign-in instead of empty tiles.
+                      if (userId != null)
+                        ProfileStatsCard(entries: detail?.calls),
                     ],
                   ),
                 ),

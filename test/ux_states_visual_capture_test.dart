@@ -15,7 +15,11 @@ import 'package:chumbucket/core/config/app_config.dart';
 import 'package:chumbucket/core/theme/app_theme.dart';
 import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
+import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/calls/data/mock_calls_repository.dart';
+import 'package:chumbucket/features/calls/presentation/screens/call_feed_screen.dart';
+import 'package:chumbucket/features/panta_trading/panta_trading.dart';
+import 'package:http/testing.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/features/notifications/data/mock_notifications_repository.dart';
 import 'package:chumbucket/features/notifications/data/notifications_repository.dart';
@@ -31,6 +35,8 @@ import 'package:chumbucket/features/wallet/providers/mwa_wallet_provider.dart';
 import 'package:chumbucket/shared/models/models.dart';
 import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
 
+import 'panta_lifecycle_test.dart' show pageJson, positionJson;
+import 'panta_trading_controller_test.dart' show syntheticTime, syntheticWire;
 import 'people_layer_ui_test.dart' show PeopleFake, card, record, sampleBoard;
 import 'ui_people_layout_continuity_test.dart'
     show ConnectedAuth, ConnectedWallet, ExistingProfile, walletFixture;
@@ -392,5 +398,142 @@ void main() {
         child: const PeopleSearchScreen(),
       );
     });
+  }, skip: outDir.isEmpty);
+
+  testWidgets('captures: positions, offline Home, signed-out Profile, dares', (
+    tester,
+  ) async {
+    // --- Positions with money in them -------------------------------------
+    // A pending order keeps a refresh timer: dispose inside the test body.
+    final disposeAtEnd = <void Function()>[];
+    PantaPositionsController positions() {
+      final client = PantaTradingClient(
+        baseUri: Uri.parse('https://bff.invalid/trpc'),
+        session:
+            () => const PantaSession(
+              accountId: 'acct',
+              accessToken: 'synthetic-token',
+            ),
+        client: MockClient(
+          (_) async => syntheticWire(
+            pageJson([
+              positionJson(),
+              positionJson(
+                orderId: 'ord_won',
+                status: 'won_claimable',
+                current: '1',
+                value: '4000000',
+                pnl: '2000000',
+              ),
+              positionJson(
+                orderId: 'ord_pending',
+                status: 'pending',
+                current: null,
+                value: null,
+                pnl: null,
+              ),
+            ]),
+          ),
+        ),
+      );
+      final controller = PantaPositionsController(
+        client: client,
+        signerFor: (_, _) => null,
+        now: () => DateTime.fromMillisecondsSinceEpoch(syntheticTime),
+        refreshEvery: const Duration(hours: 1),
+      );
+      disposeAtEnd.add(() {
+        controller.dispose();
+        client.close();
+      });
+      return controller;
+    }
+
+    await both(
+      tester,
+      'positions-data',
+      () => Scaffold(
+        backgroundColor: AppColors.background,
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: PantaPositionsView(controller: positions()),
+        ),
+      ),
+      height: 1400,
+    );
+
+    // --- Home, offline over saved calls -------------------------------------
+    await both(tester, 'home-offline', () {
+      final repo = MockCallsRepository(latency: Duration.zero);
+      final calls = CallsProvider(repository: repo)..setViewer(_viewer);
+      addTearDown(calls.dispose);
+      return ChangeNotifierProvider<CallsProvider>.value(
+        value: calls,
+        child: const Scaffold(
+          backgroundColor: AppColors.background,
+          body: CallFeedScreen(showHeader: false),
+        ),
+      );
+    }, then: () async {
+      final calls = tester
+          .element(find.byType(CallFeedScreen))
+          .read<CallsProvider>();
+      (calls.repository as MockCallsRepository).simulateOffline = true;
+      await calls.loadFeed(force: true);
+      await tester.pumpAndSettle();
+    });
+
+    // --- Friends on the seeded build: your people, and a dare -----------------
+    final arena = QuietArena();
+    addTearDown(arena.dispose);
+    await both(tester, 'friends-dares', () {
+      final calls = CallsProvider(
+        repository: MockCallsRepository(latency: Duration.zero),
+      )..setViewer(_viewer);
+      addTearDown(calls.dispose);
+      return MultiProvider(
+        providers: [
+          ChangeNotifierProvider<CallsProvider>.value(value: calls),
+          ChangeNotifierProvider<ArenaProvider>.value(value: arena),
+          ChangeNotifierProvider<MwaAuthProvider>.value(value: _NoWallet()),
+          ChangeNotifierProvider<MwaWalletProvider>(
+            create: (_) => ConnectedWallet(),
+          ),
+        ],
+        child: Theme(
+          data: AppTheme.lightTheme.copyWith(
+            scaffoldBackgroundColor: AppColors.background,
+          ),
+          child: friendsScreen(),
+        ),
+      );
+    });
+
+    // --- Profile, signed out ---------------------------------------------------
+    await both(tester, 'profile-signed-out', () {
+      final calls = CallsProvider(repository: PeopleFake());
+      final wallet = ConnectedWallet();
+      final existing = ExistingProfile();
+      final none = ChallengeStateProvider(loadChallenges: (_) async => []);
+      for (final n in <ChangeNotifier>[calls, wallet, existing, none]) {
+        addTearDown(n.dispose);
+      }
+      return MultiProvider(
+        providers: [
+          ChangeNotifierProvider<ProfileProvider>.value(value: existing),
+          ChangeNotifierProvider<MwaAuthProvider>.value(value: _NoWallet()),
+          ChangeNotifierProvider<MwaWalletProvider>.value(value: wallet),
+          ChangeNotifierProvider<CallsProvider>.value(value: calls),
+          ChangeNotifierProvider<ChallengeStateProvider>.value(value: none),
+          ChangeNotifierProvider<ArenaProvider>.value(value: arena),
+        ],
+        child: ProfileScreen(embedded: true, onOpenChallenges: () {}),
+      );
+    }, height: 1000);
+
+    await tester.pumpWidget(const SizedBox());
+    for (final dispose in disposeAtEnd) {
+      dispose();
+    }
   }, skip: outDir.isEmpty);
 }

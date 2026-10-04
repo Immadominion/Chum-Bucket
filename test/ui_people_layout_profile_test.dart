@@ -128,7 +128,9 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('My wallet'), findsOneWidget);
       expect(find.textContaining(' SOL'), findsNothing);
-      expect(find.text('Public call record unavailable'), findsOneWidget);
+      // Not loaded: four quiet dashes, never a sentence about it.
+      expect(find.textContaining('unavailable'), findsNothing);
+      expect(find.text('\u2014'), findsNWidgets(4));
       expect(
         tester.getSize(find.byTooltip('Edit profile')).shortestSide,
         greaterThanOrEqualTo(48),
