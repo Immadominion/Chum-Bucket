@@ -281,21 +281,6 @@ class _PreviewFeedState extends State<_PreviewFeed> {
       });
     }
     final markets = widget.feed != null && !widget.feed!.hasCalls;
-    // One unit for the strip when every market in it shares one; markets are
-    // quoted in USDC or SOL and a price is never shown in the wrong unit. A
-    // mixed strip shows no unit at all rather than a unitless "per share".
-    final quotes = {
-      for (final item in items ?? const <LiveItem>[])
-        switch (item) {
-              LiveMarketItem(:final market) => market.quoteCurrency,
-              LiveCallItem(:final entry) => entry.market.quoteCurrency,
-            } ??
-            ShareCurrency.usdc,
-    };
-    final unit =
-        quotes.length > 1
-            ? null
-            : (quotes.firstOrNull ?? ShareCurrency.usdc).shownUnit;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -319,17 +304,6 @@ class _PreviewFeedState extends State<_PreviewFeed> {
                   ),
                 ),
               ),
-              if (unit != null) ...[
-                const SizedBox(width: 6),
-                Text(
-                  unit,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: AppColors.textTertiary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
             ],
           ),
         ),
@@ -426,6 +400,11 @@ class _MiniCallCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final author = entry.author;
     final price = OnbFormat.lockedPrice(entry.call);
+    final free = !entry.isFunded && entry.call.fundingState.isFree;
+    final facts = [
+      if (price != null) '${entry.call.side.wire} · $price',
+      if (_settled(entry)) entry.result!.outcome.label,
+    ].join(' · ');
     return _MiniCard(
       onTap: onTap,
       label:
@@ -466,18 +445,22 @@ class _MiniCallCard extends StatelessWidget {
               style: _question,
             ),
           ),
-          if (price != null || _settled(entry))
-            Text(
-              [
-                if (price != null) '${entry.call.side.wire} at $price',
-                if (_settled(entry)) entry.result!.outcome.label,
-              ].join(' · '),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 10,
-                color: AppColors.textSecondary,
-              ),
+          if (facts.isNotEmpty || free)
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    facts,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+                if (free) const FreeMarker(),
+              ],
             ),
         ],
       ),
@@ -565,7 +548,7 @@ class _PriceCell extends StatelessWidget {
             ),
           ),
           Text(
-            value == null ? '—' : CallsFormat.displayPrice(value!),
+            CallsFormat.odds(value) ?? '—',
             style: TextStyle(
               fontFamily: 'PPNeueMachina',
               fontSize: 12,

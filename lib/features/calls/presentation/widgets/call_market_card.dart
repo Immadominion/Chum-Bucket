@@ -503,11 +503,10 @@ class MarketGlyph extends StatelessWidget {
   };
 }
 
-/// The venue's two independent prices. Each side is its own decimal string —
-/// NO is never derived from YES, and a side the venue did not publish (or a
-/// price older than [marketPriceShownFor]) reads "—", never zero and never a
-/// warning. Prices read rounded to two decimals ([CallsFormat.displayPrice]);
-/// market detail keeps the venue's exact figures behind its details.
+/// The venue's two independent prices, read as odds ("62%",
+/// [CallsFormat.odds]). Each side is its own decimal string — NO is never
+/// derived from YES, and a side the venue did not publish (or a price older
+/// than [marketPriceShownFor]) reads "—", never zero and never a warning.
 /// Catalog prices are indicative, never executable quotes.
 class MarketSharePrices extends StatelessWidget {
   const MarketSharePrices({super.key, this.snapshot, this.expanded = false});
@@ -529,7 +528,7 @@ class MarketSharePrices extends StatelessWidget {
     if (now.toUtc().difference(snap.observedAtUtc) > marketPriceShownFor) {
       return null;
     }
-    return CallsFormat.displayPrice(value);
+    return CallsFormat.odds(value);
   }
 
   Widget _cell(Side side, DateTime now, {required bool large}) {
@@ -547,10 +546,7 @@ class MarketSharePrices extends StatelessWidget {
     final figure = Text(
       shown ?? '—',
       textAlign: large ? TextAlign.start : TextAlign.end,
-      semanticsLabel:
-          shown == null
-              ? 'Price unavailable'
-              : '$shown ${(snapshot?.currency ?? ShareCurrency.usdc).perShareWords}, indicative',
+      semanticsLabel: shown == null ? 'Odds unavailable' : '$shown chance',
       style: TextStyle(
         fontFamily: 'PPNeueMachina',
         fontSize: large ? 26 : 14,
@@ -616,22 +612,15 @@ class MarketSharePrices extends StatelessWidget {
     );
     if (!expanded) return pair;
     // Detail names the venue once — Panta's API terms (§6) ask for the
-    // attribution on the market module — and the unit beside it: markets are
-    // quoted in USDC or SOL, and 0.67 SOL is not 0.67 USDC, so a figure is
-    // never left to be read in the wrong one. No unit when no price came.
-    final unit =
-        snapshot?.currency.shownUnit == null
-            ? null
-            : snapshot!.currency.perShareWords;
+    // attribution on the market module. Odds carry no unit, USDC and SOL
+    // markets alike.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         pair,
         const SizedBox(height: 8),
         Text(
-          unit == null
-              ? SharePriceSnapshot.attribution
-              : '${SharePriceSnapshot.attribution} · $unit',
+          SharePriceSnapshot.attribution,
           style: AppTextStyles.textTheme.bodySmall?.copyWith(
             color: AppColors.textSecondary,
           ),

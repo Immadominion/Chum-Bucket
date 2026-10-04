@@ -58,6 +58,10 @@ class CallReceipt {
   /// A yes/no fact only: the receipt never carries an amount.
   final bool fundedOnPanta;
 
+  /// A free call (`NONE`, no confirmed fill): the receipt is stamped Free.
+  /// A call part-way to funding is neither free nor funded.
+  final bool free;
+
   final String shareUrl;
 
   const CallReceipt({
@@ -80,6 +84,7 @@ class CallReceipt {
     required this.shareUrl,
     this.venueMarketId,
     this.fundedOnPanta = false,
+    this.free = true,
   });
 
   /// Panta's public market page, never the authenticated API URL.
@@ -118,6 +123,7 @@ class CallReceipt {
       shareUrl: shareUrl,
       venueMarketId: market.venueMarketId.isEmpty ? null : market.venueMarketId,
       fundedOnPanta: entry.isFunded,
+      free: !entry.isFunded && call.fundingState.isFree,
     );
   }
 
@@ -140,6 +146,7 @@ class CallReceipt {
     final demo = venueIsDemo ? ' [DEMO DATA — not a real market result]' : '';
     final source =
         venueLabel == 'Panta' ? ' ${SharePriceSnapshot.attribution}.' : '';
-    return '$verdict $marketQuestion — I said $sideLabel.$demo$source $shareUrl';
+    final stamp = free ? ' · Free call' : '';
+    return '$verdict $marketQuestion — I said $sideLabel$stamp.$demo$source $shareUrl';
   }
 }

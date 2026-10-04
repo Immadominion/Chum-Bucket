@@ -12,76 +12,41 @@ import 'package:chumbucket/features/calls/data/call_models.dart';
 class CallsFormat {
   CallsFormat._();
 
-  /// A share price in its market's own unit: `0.52 USDC/share`,
-  /// `0.67 SOL/share`. Never converted to USD.
-  static String sharePrice(
-    String? value, {
-    ShareCurrency currency = ShareCurrency.usdc,
-  }) =>
-      value == null
-          ? 'Unavailable'
-          : currency.shownUnit == null
-          ? value
-          : '$value ${currency.shownUnit}';
-
-  /// A venue share price for reading, at two decimals: `0.500096044` reads
-  /// `0.50`. Rounded half-up on the DECIMAL STRING, never through a double, so
-  /// a venue value is never altered by float conversion; `1.25` stays above
-  /// one; a positive price under a cent reads `<0.01`, never `0.00`.
+  /// A Panta share price as the odds people read: `0.62` reads `62%`.
   ///
-  /// Display only. The exact venue string stays on the market's detail, and
-  /// anything executable (quotes, trade review) keeps its full precision.
-  /// A value this cannot parse is returned unchanged rather than guessed at.
-  static String displayPrice(String value) {
-    final match = RegExp(r'^(\d+)(?:\.(\d*))?$').firstMatch(value.trim());
-    if (match == null) return value;
-    final whole = match.group(1)!;
-    final fraction = (match.group(2) ?? '').padRight(3, '0');
-    var cents = BigInt.parse('$whole${fraction.substring(0, 2)}');
-    if (int.parse(fraction[2]) >= 5) cents += BigInt.one;
-    if (cents == BigInt.zero) {
-      final positive = RegExp(
-        r'[1-9]',
-      ).hasMatch('$whole${match.group(2) ?? ''}');
-      return positive ? '<0.01' : '0.00';
+  /// USDC and SOL markets alike: both price a share on Panta's 0..1 scale
+  /// (the program's `last_yes_price` over its 1e9 PRICE_SCALE, which is what
+  /// panta.market shows as the odds), so the percent never carries a unit.
+  /// Rounded half-up on the DECIMAL STRING, never through a double; a
+  /// positive price under half a percent reads `<1%` and one just short of a
+  /// whole share `>99%`, never `0%` / `100%`. Null when there is nothing
+  /// honest to show (no price, an unparseable one, or one above a share).
+  ///
+  /// Display only: the venue string itself is never altered or re-sent.
+  static String? odds(String? price) {
+    if (price == null) return null;
+    final match = RegExp(r'^(\d+)(?:\.(\d*))?$').firstMatch(price.trim());
+    if (match == null) return null;
+    final whole = BigInt.parse(match.group(1)!);
+    final digits = match.group(2) ?? '';
+    final anyFraction = RegExp(r'[1-9]').hasMatch(digits);
+    if (whole > BigInt.one || (whole == BigInt.one && anyFraction)) {
+      return null;
     }
-    final digits = cents.toString().padLeft(3, '0');
-    return '${digits.substring(0, digits.length - 2)}.'
-        '${digits.substring(digits.length - 2)}';
+    if (whole == BigInt.one) return '100%';
+    if (!anyFraction) return '0%';
+    final fraction = digits.padRight(3, '0');
+    var percent = int.parse(fraction.substring(0, 2));
+    if (int.parse(fraction[2]) >= 5) percent += 1;
+    if (percent == 0) return '<1%';
+    if (percent >= 100) return '>99%';
+    return '$percent%';
   }
 
-  /// True when [displayPrice] shows less than the venue supplied, so the exact
-  /// figure needs to be shown alongside it.
-  static bool priceWasRounded(String value) {
-    final shown = displayPrice(value);
-    // Unparseable values come back unchanged: nothing was rounded.
-    if (shown == value) return false;
-    String trimZeros(String v) {
-      final s = v.trim();
-      if (!s.contains('.')) return s;
-      return s
-          .replaceFirst(RegExp(r'0+$'), '')
-          .replaceFirst(RegExp(r'\.$'), '');
-    }
-
-    // `0.5` -> `0.50` and `1` -> `1.00` add zeros; they do not round.
-    return trimZeros(shown) != trimZeros(value);
-  }
-
-  static String nativePrices(SharePriceSnapshot? value) =>
-      value == null
-          ? 'Panta prices unavailable.'
-          : 'YES ${sharePrice(value.yesPrice, currency: value.currency)} · '
-              'NO ${sharePrice(value.noPrice, currency: value.currency)}';
-
-  /// Both sides at reading precision, named once in the market's own unit:
-  /// `YES 0.67 · NO 0.33 SOL/share`. A side Panta did not publish reads `—`.
-  static String quietPrices(SharePriceSnapshot value) {
-    String side(String? price) => price == null ? '—' : displayPrice(price);
-    final unit = value.currency.shownUnit;
-    return 'YES ${side(value.yesPrice)} · NO ${side(value.noPrice)}'
-        '${unit == null ? '' : ' $unit'}';
-  }
+  /// Both sides as odds: `YES 62% · NO 38%`. A side Panta did not publish
+  /// reads `—`.
+  static String sidesOdds(SharePriceSnapshot value) =>
+      'YES ${odds(value.yesPrice) ?? '—'} · NO ${odds(value.noPrice) ?? '—'}';
 
   static final DateFormat _absolute = DateFormat('d MMM yyyy, HH:mm');
   static final DateFormat _absoluteShort = DateFormat('d MMM, HH:mm');

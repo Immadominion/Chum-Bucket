@@ -89,7 +89,7 @@ class CallResponseSheet extends StatefulWidget {
 
 class _CallResponseSheetState extends State<CallResponseSheet> {
   /// On a market that stopped taking calls only a Dare can go out, so the
-  /// sheet opens on it rather than on a Lock that can't be pressed.
+  /// sheet opens on it rather than on a button that can’t be pressed.
   late CallResponseKind _kind = switch (widget.initialKind ??
       CallResponseKind.back) {
     final kind when kind.createsOwnCall && _closed() =>
@@ -349,17 +349,13 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
                 label:
                     _kind == CallResponseKind.challenge
                         ? 'Send the dare'
-                        : 'Lock my ${_side.wire} call',
+                        : 'Call ${_side.wire}',
                 primary: true,
                 busy: busy,
                 onPressed: busy || !canLock ? null : _submit,
               ),
               const SizedBox(height: 8),
-              CallFinePrint(
-                _kind.createsOwnCall
-                    ? 'Free · final once locked'
-                    : 'Free · no money moves',
-              ),
+              const CallFreeLine(),
             ],
           ),
         ),
@@ -367,19 +363,13 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
     );
   }
 
-  /// Panta's current price for the side being locked, when it is fresh.
+  /// The odds of the side being called, from Panta's price when it is
+  /// fresh ("62%", USDC and SOL markets alike).
   String? _currentPrice(CallsProvider provider) {
     if (!_kind.createsOwnCall) return null;
     final price = provider.marketDetail(_entry.market.id)?.sharePrice;
     if (price == null || !price.isUsableAt(DateTime.now())) return null;
-    final side = price.priceFor(_side);
-    // In the market's own unit: 0.67 SOL is not 0.67 USDC.
-    return side == null
-        ? null
-        : CallsFormat.sharePrice(
-          CallsFormat.displayPrice(side),
-          currency: price.currency,
-        );
+    return CallsFormat.odds(price.priceFor(_side));
   }
 }
 
@@ -622,7 +612,7 @@ class _AnswerTile extends StatelessWidget {
   }
 }
 
-/// Exactly what Lock will do, in one line.
+/// Exactly what the button will do, in one line.
 class _Locking extends StatelessWidget {
   const _Locking({
     required this.entry,
@@ -666,7 +656,7 @@ class _Locking extends StatelessWidget {
       fill = CallSideColors.fill(side);
       spoken =
           'Your own call: ${side.wire}'
-          '${price == null ? '' : ', at $price'}';
+          '${price == null ? '' : ', $price'}';
       content = _line(
         context,
         icon: 'lock-outline',
@@ -689,7 +679,7 @@ class _Locking extends StatelessWidget {
             ),
           ),
           if (price != null)
-            Text('at $price', style: callJourneyBody(13).copyWith(color: ink)),
+            Text(price!, style: callJourneyBody(13).copyWith(color: ink)),
         ],
       );
     } else {

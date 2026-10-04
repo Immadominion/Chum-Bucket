@@ -256,7 +256,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(CallsSignedOutView), findsOneWidget);
-      expect(find.text('Lock my call'), findsNothing);
+      expect(find.text('Call it'), findsNothing);
     });
 
     testWidgets(
@@ -282,15 +282,16 @@ void main() {
 
         expect(find.text('Yes — it prints 150k'), findsOneWidget);
         expect(find.text('No — it never gets there'), findsOneWidget);
-        expect(find.text('Lock my call'), findsOneWidget);
+        expect(find.text('Call it'), findsOneWidget);
         // The venue price IS shown, on each side's button — that is what the
         // call gets stamped with.
         expect(find.text('38%'), findsOneWidget);
         expect(find.text('62%'), findsOneWidget);
         // The crowd's split is not.
         expect(find.textContaining('EVERYONE ELSE'), findsNothing);
-        // Free, said once, under the button.
-        expect(find.text('Free · final once locked'), findsOneWidget);
+        // Free, marked once, under the button: the one Free marker.
+        expect(find.byKey(const ValueKey('free-marker')), findsOneWidget);
+        expect(find.textContaining('lock'), findsNothing);
 
         // Reason, visibility and confidence wait behind one disclosure.
         expect(find.byType(TextField), findsNothing);
@@ -320,7 +321,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining(closed.status.label), findsWidgets);
-      expect(find.text('Lock my call'), findsNothing);
+      expect(find.text('Call it'), findsNothing);
     });
   });
 
@@ -358,7 +359,7 @@ void main() {
           .join(' | ');
       expect(rendered, isNot(contains('copy')));
       // Back is preselected.
-      expect(find.text('Lock my YES call'), findsOneWidget);
+      expect(find.text('Call YES'), findsOneWidget);
     });
 
     testWidgets('Fade puts the responder on the opposite side', (tester) async {
@@ -376,7 +377,7 @@ void main() {
 
       // The target called YES, so a fade is NO — no separate side picker.
       expect(entry.call.side, Side.yes);
-      expect(find.text('Lock my NO call'), findsOneWidget);
+      expect(find.text('Call NO'), findsOneWidget);
       expect(find.bySemanticsLabel('Your own call: NO'), findsOneWidget);
       expect(find.byType(CallJourneySides), findsNothing);
     });
@@ -396,7 +397,7 @@ void main() {
 
       expect(find.text('Send the dare'), findsOneWidget);
       expect(find.text('Free dare to @ada'), findsOneWidget);
-      expect(find.text('Free · no money moves'), findsOneWidget);
+      expect(find.byKey(const ValueKey('free-marker')), findsOneWidget);
       // A challenge makes no call for the actor, so no side banner.
       expect(find.text('Your call'), findsNothing);
     });

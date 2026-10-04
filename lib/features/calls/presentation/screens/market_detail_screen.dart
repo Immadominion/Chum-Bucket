@@ -351,13 +351,7 @@ class _MarketDetailScreenState extends State<MarketDetailScreen>
                   const _LockNote('Call it to see how others called'),
                   const SizedBox(height: 14),
                 ],
-                _DetailsBlock(
-                  market: market,
-                  sharePrice:
-                      detail.sharePrice?.marketId == market.id
-                          ? detail.sharePrice
-                          : null,
-                ),
+                _DetailsBlock(market: market),
               ],
             ),
           ),
@@ -611,11 +605,10 @@ class _LockNote extends StatelessWidget {
 
 /// Everything a careful reader checks, behind one disclosure: the venue's
 /// exact rules (never summarised — no rule-summary field exists, and none is
-/// invented), who resolves it, when, the exact venue prices and the IDs.
+/// invented), who resolves it, when, and the IDs.
 class _DetailsBlock extends StatelessWidget {
-  const _DetailsBlock({required this.market, this.sharePrice});
+  const _DetailsBlock({required this.market});
   final VenueMarket market;
-  final SharePriceSnapshot? sharePrice;
 
   @override
   Widget build(BuildContext context) {
@@ -633,11 +626,6 @@ class _DetailsBlock extends StatelessWidget {
         ],
       ),
     );
-    final yes = sharePrice?.yesPrice;
-    final no = sharePrice?.noPrice;
-    final rounded =
-        (yes != null && CallsFormat.priceWasRounded(yes)) ||
-        (no != null && CallsFormat.priceWasRounded(no));
     final panta =
         market.venue == MarketVenue.panta && market.venueMarketId.isNotEmpty;
     return _surface(
@@ -711,16 +699,6 @@ class _DetailsBlock extends StatelessWidget {
                     ),
                   ),
             ),
-            // What the figures above are: indicative venue prices in the
-            // market's own unit (USDC or SOL per share) — the venue's own
-            // values, unrounded.
-            if (sharePrice case final price? when yes != null || no != null)
-              fact(
-                rounded
-                    ? 'Exact venue prices (${price.currency.perShareWords}, indicative)'
-                    : 'Venue prices (${price.currency.perShareWords}, indicative)',
-                'YES ${yes ?? 'unavailable'} · NO ${no ?? 'unavailable'}',
-              ),
             fact('Venue market ID', market.venueMarketId),
             fact('Chumbucket market ID', market.id),
           ],

@@ -599,13 +599,10 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
   /// cost then, when the market closes, and where the result stands.
   List<_Fact> _facts(CallFeedEntry entry) {
     final call = entry.call;
-    // A Panta price reads in its market's own unit (USDC or SOL per share),
-    // never converted and never a percent.
+    // The odds its side had when it locked, as a percent (USDC and SOL
+    // markets alike).
     final price = switch (call.entryPrice?.priceFor(call.side)) {
-      final value? => CallsFormat.sharePrice(
-        CallsFormat.displayPrice(value),
-        currency: call.entryPrice!.currency,
-      ),
+      final value? => CallsFormat.odds(value),
       null =>
         entry.market.venue != MarketVenue.panta && call.entryProbability != null
             ? CallsFormat.probability(call.entryProbability)
@@ -614,8 +611,7 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
     // When it locked is said once: beside the name (and, on your own call,
     // in the "You're on record" banner), never again as a tile.
     return [
-      if (price != null)
-        _Fact('chart-pie-outline', '${call.side.wire} at', price),
+      if (price != null) _Fact('chart-pie-outline', call.side.wire, price),
       if (entry.market.closesAtUtc case final closes?)
         switch (CallsFormat.timeLeft(closes)) {
           final left? => _Fact('clock-outline', 'Closes', 'in $left'),

@@ -5,15 +5,13 @@
 /// Panta settles; usernames can't be changed yet.
 ///
 /// Never: "play money", "practice", "bet", "win money", "earn", "risk-free",
-/// "safe", "guaranteed", "odds", "chance", "%" for prices, "airdrop",
-/// "jackpot". Never a promise of a notification nobody sends.
+/// "safe", "guaranteed", "chance", "airdrop", "jackpot", a per-share price
+/// ("0.62", "USDC/share", "¢": a price reads as a percent, "62%"). Never a
+/// promise of a notification nobody sends.
 /// `test/onboarding_copy_test.dart` holds every string to those rules.
 ///
 /// Strings marked (identity) are fleet/identity's own, reused verbatim.
 library;
-
-import 'package:chumbucket/features/calls/data/call_models.dart'
-    show ShareCurrency;
 
 abstract final class OnboardingCopy {
   // ── S0 / B2 ──────────────────────────────────────────────────────────────
@@ -127,8 +125,8 @@ abstract final class OnboardingCopy {
   static const callLater = 'I’ll do this later';
   static String callSignedInNote(String? handle) =>
       handle == null
-          ? 'You’re signed in. Lock it when you’re ready.'
-          : 'Signed in as @$handle. Lock it when you’re ready.';
+          ? 'You’re signed in.'
+          : 'Signed in as @$handle.';
   static const callStale =
       'Panta hasn’t sent a fresh price for this market. Pick another one, or '
       'try again in a minute.';
@@ -143,7 +141,7 @@ abstract final class OnboardingCopy {
   static const callLoading = 'Finding markets open on Panta…';
 
   // ── A1 Sign in / B1 Welcome back ─────────────────────────────────────────
-  static const signInTitleCall = 'Sign in to lock your call';
+  static const signInTitleCall = 'Sign in to make your call';
   static String signInTitleFollow(int n, String? name) =>
       n == 1 && name != null
           ? 'Sign in to follow $name'
@@ -151,7 +149,7 @@ abstract final class OnboardingCopy {
   static const signInTitleDefault = 'Sign in to go on record';
   static const signInSubtitle =
       'One Chumbucket account. Use your wallet, Google or X.'; // (identity)
-  static const signInDraftNote = 'Saved on this phone until you lock it.';
+  static const signInDraftNote = 'Saved on this phone until you call it.';
   static const signInLastUsed = 'Last used';
   static const signInNoWallet =
       'Needs a Solana wallet app, like Phantom, Solflare or Seed Vault Wallet';
@@ -221,7 +219,7 @@ abstract final class OnboardingCopy {
   static const recordTitle = 'You’re on record';
   static const recordTitleAlready = 'You already called this one';
   static String recordBody(String side, String question, String time) =>
-      '$side on “$question”. Locked $time. When Panta settles the market, '
+      '$side on “$question”. Called $time. When Panta settles the market, '
       'you’ll get a receipt, right or wrong.';
 
   /// Under the title when the call itself is shown right below (side,
@@ -247,14 +245,10 @@ abstract final class OnboardingCopy {
       'No problem. You can turn notifications on in Settings.';
   static const recordDone = 'Done';
   static const recordShare = 'Share your call';
-  static String recordLockedAt(
-    String price, {
-    ShareCurrency currency = ShareCurrency.usdc,
-  }) =>
-      currency.shownUnit == null
-          ? 'Locked at $price'
-          : 'Locked at $price ${currency.shownUnit}';
-  static const recordPriceNotCaptured = 'Price not captured';
+  /// The odds the call was stamped at, as a percent ("62%"), USDC and SOL
+  /// markets alike. That it's free is the card's Free marker.
+  static String recordCalledAt(String odds) => 'Called at $odds';
+  static const recordPriceNotCaptured = 'Odds not captured';
 
   // ── U1 What's new ────────────────────────────────────────────────────────
   static const upgradeTitle = 'Chumbucket is now about calls';
@@ -291,8 +285,8 @@ abstract final class OnboardingCopy {
   // ── Pending call offered again on Home ───────────────────────────────────
   static const pendingCallTitle = 'Your call is waiting';
   static String pendingCallBody(String side, String question) =>
-      '$side on “$question”. Saved on this phone until you lock it.';
-  static const pendingCallCta = 'Review and lock';
+      '$side on “$question”. Saved on this phone until you call it.';
+  static const pendingCallCta = 'Review and call';
   static const pendingCallDiscard = 'Discard';
 
   // ── Settings ─────────────────────────────────────────────────────────────

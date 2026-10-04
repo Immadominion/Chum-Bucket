@@ -1,6 +1,6 @@
 /// Plain-language times and prices for onboarding (onboarding spec §4.5):
-/// "Closes in 2 days", "YES 0.50 · NO 0.50 USDC/share". Never a percent,
-/// never odds, never "chance".
+/// "Closes in 2 days", and a price as a percent, "62%" (never a per-share
+/// figure, never "chance").
 library;
 
 import 'package:chumbucket/features/calls/data/call_models.dart';
@@ -31,11 +31,9 @@ abstract final class OnbFormat {
     return until == null ? 'Panta' : 'Closes $until · Panta';
   }
 
-  /// The price a call locked at, on its own side: "0.50".
-  static String? lockedPrice(Call call) {
-    final value = call.entryPrice?.priceFor(call.side);
-    return value == null ? null : CallsFormat.displayPrice(value);
-  }
+  /// The odds a call was stamped at, on its own side: "50%".
+  static String? lockedPrice(Call call) =>
+      CallsFormat.odds(call.entryPrice?.priceFor(call.side));
 
   /// "14:05 UTC, 2 Oct" — the server's lock time, exactly.
   static String lockedAt(Call call) =>

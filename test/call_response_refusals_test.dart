@@ -148,7 +148,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Lock my NO call'));
+        await tester.tap(find.text('Call NO'));
         await tester.pumpAndSettle();
 
         expect(repo.attempts, 1);
@@ -186,7 +186,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Lock my YES call'));
+      await tester.tap(find.text('Call YES'));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const ValueKey('response-own-call')), findsOneWidget);
@@ -208,7 +208,7 @@ void main() {
       final (provider, entry) = await _rig(repo);
       await tester.pumpWidget(_host(provider, CallResponseSheet(entry: entry)));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Lock my YES call'));
+      await tester.tap(find.text('Call YES'));
       await tester.pumpAndSettle();
 
       expect(find.text('You’re already on record here'), findsOneWidget);
@@ -230,7 +230,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('response-add-reason')));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'proof at scam.com');
-      await tester.tap(find.text('Lock my YES call'));
+      await tester.tap(find.text('Call YES'));
       await tester.pumpAndSettle();
 
       expect(repo.attempts, 0);
@@ -255,7 +255,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('That’s your call'), findsOneWidget);
-      for (final label in ['Back', 'Fade', 'Dare', 'Lock my NO call']) {
+      for (final label in ['Back', 'Fade', 'Dare', 'Call NO']) {
         expect(find.text(label), findsNothing, reason: label);
       }
       // One way out, and it closes the sheet.
@@ -314,7 +314,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Lock my NO call'));
+      await tester.tap(find.text('Call NO'));
       await tester.pumpAndSettle();
 
       expect(repo.attempts, 1);

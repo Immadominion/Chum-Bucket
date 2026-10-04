@@ -278,9 +278,9 @@ void main() {
           expect(find.byType(OutlinedButton), findsNothing);
           await tester.tap(find.byTooltip('Activity'));
           expect(activity, 1);
-          // Rows read at two decimals; the exact venue strings are on detail.
-          await reveal(tester, find.text('0.62'));
-          expect(find.text('0.43'), findsOneWidget);
+          // Rows read as odds; never the venue's per-share strings.
+          await reveal(tester, find.text('62%'));
+          expect(find.text('43%'), findsOneWidget);
           expect(find.text('0.620000000000000001'), findsNothing);
           expect(repo.reads, 1);
           expect(tester.takeException(), isNull);
@@ -396,8 +396,8 @@ void main() {
     expect(question.maxLines, isNull);
     expect(question.overflow, isNot(TextOverflow.ellipsis));
     expect(
-      tester.widget<Text>(find.text('0.62')).semanticsLabel,
-      '0.62 USDC per share, indicative',
+      tester.widget<Text>(find.text('62%')).semanticsLabel,
+      '62% chance',
     );
     // Time left, not a timestamp; the exact close is its spoken label.
     expect(find.text('11h left'), findsOneWidget);
@@ -459,7 +459,7 @@ void main() {
     final question = tester.widget<Text>(find.text(m.question));
     expect(question.maxLines, isNull);
     expect(question.overflow, isNot(TextOverflow.ellipsis));
-    await reveal(tester, find.text('0.43'));
+    await reveal(tester, find.text('43%'));
     expect(tester.takeException(), isNull);
   });
 
@@ -491,23 +491,23 @@ void main() {
       scale: 2,
     );
     // First row: YES shows, NO is a dash. Second row (2h old): both dashes.
-    expect(find.text('0.62'), findsOneWidget);
+    expect(find.text('62%'), findsOneWidget);
     expect(find.text('—'), findsNWidgets(3));
     expect(
       tester
           .widgetList<Text>(find.text('—'))
           .map((t) => t.semanticsLabel)
           .toSet(),
-      {'Price unavailable'},
+      {'Odds unavailable'},
     );
     for (final text in ['Last updated', 'stale', 'incomplete', 'unavailable']) {
       expect(find.textContaining(text), findsNothing, reason: text);
     }
-    expect(find.text('0.38'), findsNothing);
+    expect(find.text('38%'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('market detail keeps exact figures behind its details and '
+  testWidgets('market detail reads odds, keeps no per-share figures and '
       'withholds ungated crowd', (tester) async {
     final m = market('BTC', const Duration(hours: 12));
     final provider = CallsProvider(
@@ -526,8 +526,8 @@ void main() {
       scale: 2,
     );
     expect(find.text('Make a call'), findsOneWidget);
-    // Detail reads at two decimals and names the venue once.
-    expect(find.text('0.62'), findsOneWidget);
+    // Detail reads as odds and names the venue once.
+    expect(find.text('62%'), findsOneWidget);
     expect(find.textContaining('Powered by Panta'), findsOneWidget);
     // No refresh button, no "updated" line, no scary price state.
     expect(find.byTooltip('Refresh market'), findsNothing);
@@ -549,10 +549,9 @@ void main() {
       tester.widget<SelectableText>(find.byType(SelectableText)).data,
       m.rulesText,
     );
-    expect(
-      find.text('YES 0.620000000000000001 · NO 0.430000000000000001'),
-      findsOneWidget,
-    );
+    // Not even behind the disclosure: a price is a percent everywhere.
+    expect(find.textContaining('0.620000000000000001'), findsNothing);
+    expect(find.textContaining('per share'), findsNothing);
     expect(find.text('How people called'), findsNothing);
     expect(find.textContaining('100 calls'), findsNothing);
     expect(tester.takeException(), isNull);
@@ -946,9 +945,9 @@ void main() {
           .widgetList<Text>(find.text('—'))
           .map((t) => t.semanticsLabel)
           .toSet(),
-      {'Price unavailable'},
+      {'Odds unavailable'},
     );
-    expect(find.text('0.00'), findsNothing);
+    expect(find.text('0%'), findsNothing);
   });
 
   testWidgets('Most active is a sort in the sheet, offered only with volume', (

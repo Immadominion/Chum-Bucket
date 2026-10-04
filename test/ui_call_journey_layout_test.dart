@@ -240,14 +240,14 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(repo.debugCalls.length, before);
-      expect(find.text('Lock my NO call'), findsOneWidget);
+      expect(find.text('Call NO'), findsOneWidget);
       expect(find.bySemanticsLabel('Your own call: NO'), findsOneWidget);
       // The side is implied by Back/Fade: no separate YES/NO picker.
       expect(find.byType(CallJourneySides), findsNothing);
       await tester.tap(find.byKey(const ValueKey('response-back')));
       await tester.pumpAndSettle();
       expect(find.bySemanticsLabel('Your own call: YES'), findsOneWidget);
-      expect(find.text('Lock my YES call'), findsOneWidget);
+      expect(find.text('Call YES'), findsOneWidget);
       expect(repo.debugCalls.length, before);
     },
   );
@@ -291,7 +291,7 @@ void main() {
       await tester.enterText(find.byType(TextField), 'My independent reason');
       await reveal(tester, find.text('Followers only'));
       await tester.tap(find.text('Followers only'));
-      await tester.tap(find.text('Lock my NO call'));
+      await tester.tap(find.text('Call NO'));
       await tester.pump();
       expect(repo.writes, 1);
       expect(result, isNull);
@@ -328,7 +328,7 @@ void main() {
     await reveal(tester, find.byType(TextField));
     await tester.enterText(find.byType(TextField), 'Keep my reason');
     repo.simulateOffline = true;
-    await tester.tap(find.text('Lock my YES call'));
+    await tester.tap(find.text('Call YES'));
     await tester.pumpAndSettle();
     // The spinner stopped and the reason is said beside the button.
     expect(find.byKey(const ValueKey('call-inline-error')), findsOneWidget);
@@ -373,7 +373,7 @@ void main() {
       await tester.pumpAndSettle();
       await reveal(tester, find.byType(TextField));
       await tester.enterText(find.byType(TextField), 'Keep this draft');
-      await tester.tap(find.text('Lock my YES call'));
+      await tester.tap(find.text('Call YES'));
       await tester.pumpAndSettle();
       expect(repo.attempts, 1);
       expect(
@@ -411,7 +411,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('You’re already on record here'), findsOneWidget);
       final lock = tester.widget<CallJourneyButton>(
-        find.widgetWithText(CallJourneyButton, 'Lock my YES call'),
+        find.widgetWithText(CallJourneyButton, 'Call YES'),
       );
       expect(lock.onPressed, isNull);
       final closed = repo.debugMarkets.firstWhere(
@@ -422,7 +422,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.textContaining(closed.status.label), findsOneWidget);
-      expect(find.text('Lock my call'), findsNothing);
+      expect(find.text('Call it'), findsNothing);
     },
   );
 

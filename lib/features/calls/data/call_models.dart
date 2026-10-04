@@ -200,26 +200,15 @@ enum MarketVenue {
 }
 
 /// The asset a Panta market is quoted in. Panta's partner API serves USDC
-/// markets; SOL-quoted ones are read from Panta's program by the server. A
-/// price is always shown in its own unit, never converted to USD.
+/// markets; SOL-quoted ones are read from Panta's program by the server.
+/// Either way a share's price is on Panta's 0..1 scale, so it is shown as
+/// odds ([CallsFormat.odds]: "62%") with no unit, and never converted.
 enum ShareCurrency {
   usdc('USDC'),
   sol('SOL');
 
   const ShareCurrency(this.wire);
   final String wire;
-
-  /// "USDC/share", "SOL/share".
-  String get perShare => '$wire/share';
-
-  /// "USDC per share", for screen readers.
-  String get perShareWords => '$wire per share';
-
-  /// The unit as it reads beside a figure. USDC is the default and reads
-  /// bare (the owner's call: less text); a SOL price always says SOL/share
-  /// so 0.67 SOL is never read as 0.67 USDC. Screen readers always get
-  /// [perShareWords]; money flows (trade review) keep USDC explicit.
-  String? get shownUnit => this == ShareCurrency.sol ? perShare : null;
 
   static ShareCurrency? tryWire(Object? value) => switch (value) {
     'USDC' => ShareCurrency.usdc,

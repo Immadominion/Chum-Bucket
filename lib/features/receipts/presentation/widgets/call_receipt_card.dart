@@ -156,12 +156,21 @@ class CallReceiptCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 14),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: SidePill(
-                    side: receipt.side,
-                    label: 'CALLED ${receipt.side.wire}',
-                  ),
+                // The side, stamped Free or Funded beside it.
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    SidePill(
+                      side: receipt.side,
+                      label: 'CALLED ${receipt.side.wire}',
+                    ),
+                    if (receipt.fundedOnPanta)
+                      const FundedMarker(large: true)
+                    else if (receipt.free)
+                      const FreeMarker(large: true),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -186,36 +195,21 @@ class CallReceiptCard extends StatelessWidget {
                 ],
                 const _DashedRule(),
                 CallJourneyFact(
-                  'Locked',
+                  'Called',
                   CallsFormat.timestampUtc(receipt.lockedAt),
                 ),
-                if (receipt.entryPrice == null)
-                  CallJourneyFact(
-                    receipt.venueLabel == 'Panta' ||
-                            receipt.entryProbability == null
-                        ? 'Price at call'
-                        : 'Entry probability',
-                    receipt.venueLabel == 'Panta' ||
-                            receipt.entryProbability == null
-                        ? 'Price not captured'
-                        : CallsFormat.probability(receipt.entryProbability),
-                  ),
-                if (receipt.entryPrice case final price?) ...[
-                  CallJourneyFact(
-                    'YES at call',
-                    CallsFormat.sharePrice(
-                      price.yesPrice,
-                      currency: price.currency,
-                    ),
-                  ),
-                  CallJourneyFact(
-                    'NO at call',
-                    CallsFormat.sharePrice(
-                      price.noPrice,
-                      currency: price.currency,
-                    ),
-                  ),
-                ],
+                // Odds as a percent, USDC and SOL markets alike.
+                CallJourneyFact(
+                  'Odds at call',
+                  switch (receipt.entryPrice) {
+                    final price? => CallsFormat.sidesOdds(price),
+                    null =>
+                      receipt.venueLabel == 'Panta' ||
+                              receipt.entryProbability == null
+                          ? 'Not captured'
+                          : CallsFormat.probability(receipt.entryProbability),
+                  },
+                ),
                 CallJourneyFact(
                   'Venue outcome',
                   receipt.resolution == null
@@ -230,12 +224,6 @@ class CallReceiptCard extends StatelessWidget {
                     'Resolved',
                     CallsFormat.timestampUtc(receipt.resolvedAt!),
                   ),
-                Text(
-                  receipt.fundedOnPanta
-                      ? 'Backed with a confirmed Panta position. Chumbucket doesn’t show the amount.'
-                      : 'Free call. No stake, no position, no money.',
-                  style: proofStyle,
-                ),
                 const _DashedRule(),
                 // The exact record behind the facts above, for anyone checking.
                 Text('Proof', style: callJourneyHeading(context, 13)),
@@ -246,16 +234,12 @@ class CallReceiptCard extends StatelessWidget {
                 ),
                 if (receipt.entryPrice case final price?) ...[
                   CallJourneyFact(
-                    'Price observed',
+                    'Odds observed',
                     price.observedAtUtc.toIso8601String(),
                   ),
                   const CallJourneyFact(
-                    'Price source',
+                    'Odds source',
                     SharePriceSnapshot.attribution,
-                  ),
-                  const CallJourneyFact(
-                    'Price type',
-                    'Indicative, not a trade quote',
                   ),
                 ],
                 // Panta's public page, never its authenticated API URL.

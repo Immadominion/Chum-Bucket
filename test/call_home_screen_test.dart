@@ -335,7 +335,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
       await tester.tap(find.text('YES').hitTestable());
       await tester.pump();
-      await tester.tap(find.text('Lock my YES call'));
+      await tester.tap(find.text('Call YES'));
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
       expect(find.byType(CallDetailScreen), findsOneWidget);
@@ -425,7 +425,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     await tester.tap(find.text('YES').hitTestable());
     await tester.pump();
-    await tester.tap(find.text('Lock my YES call'));
+    await tester.tap(find.text('Call YES'));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     expect(find.byType(CallDetailScreen), findsOneWidget);

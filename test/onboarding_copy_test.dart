@@ -4,7 +4,6 @@
 import 'package:chumbucket/core/services/push_registration.dart';
 import 'package:chumbucket/features/onboarding/onboarding_copy.dart';
 import 'package:flutter/material.dart';
-import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Every string the onboarding screens can show, including the templated
@@ -133,7 +132,7 @@ final List<String> _all = [
   OnboardingCopy.notifyDenied,
   OnboardingCopy.recordDone,
   OnboardingCopy.recordShare,
-  OnboardingCopy.recordLockedAt('0.50'),
+  OnboardingCopy.recordCalledAt('50%'),
   OnboardingCopy.recordPriceNotCaptured,
   OnboardingCopy.upgradeTitle,
   OnboardingCopy.upgradeBody,
@@ -173,9 +172,9 @@ final Map<String, RegExp> _banned = {
   'risk-free': RegExp(r'risk[- ]free', caseSensitive: false),
   'safe': RegExp(r'\bsafe', caseSensitive: false),
   'guaranteed': RegExp(r'guarantee', caseSensitive: false),
-  'odds': RegExp(r'\bodds\b', caseSensitive: false),
   'chance': RegExp(r'\bchance', caseSensitive: false),
-  '%': RegExp(r'%'),
+  // A price reads as a percent; never per share, in cents or with a unit.
+  'per-share price': RegExp(r'/share|per share|¢|\b0\.\d+\b'),
   'airdrop': RegExp(r'airdrop', caseSensitive: false),
   'jackpot': RegExp(r'jackpot', caseSensitive: false),
   // Chumbucket never holds anyone's money.
@@ -272,14 +271,16 @@ void main() {
     expect(OnboardingCopy.recordNoPush, isNot(contains('notif')));
   });
 
-  test(
-    'a USDC price reads bare, a SOL price names its unit; never a probability',
-    () {
-      expect(OnboardingCopy.recordLockedAt('0.38'), 'Locked at 0.38');
-      expect(
-        OnboardingCopy.recordLockedAt('0.67', currency: ShareCurrency.sol),
-        'Locked at 0.67 SOL/share',
-      );
-    },
-  );
+  test('a stamped price reads as a percent, USDC and SOL alike', () {
+    expect(OnboardingCopy.recordCalledAt('38%'), 'Called at 38%');
+    expect(OnboardingCopy.recordPriceNotCaptured, 'Odds not captured');
+  });
+
+  test('nothing in onboarding says "lock": a free call is called', () {
+    final lock = [
+      for (final t in _all)
+        if (RegExp(r'\block', caseSensitive: false).hasMatch(t)) t,
+    ];
+    expect(lock, isEmpty);
+  });
 }

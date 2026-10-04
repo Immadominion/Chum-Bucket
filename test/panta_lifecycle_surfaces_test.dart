@@ -159,10 +159,9 @@ void main() {
         expect(find.textContaining(_priceId), findsNothing);
         expect(find.textContaining(_resultId), findsNothing);
         expect(find.textContaining('Call $_callId'), findsNothing);
-        expect(
-          find.text('Free call. No stake, no position, no money.'),
-          findsOneWidget,
-        );
+        // Stamped Free, with Panta's prices as odds.
+        expect(find.byKey(const ValueKey('free-marker')), findsOneWidget);
+        expect(find.textContaining('%'), findsWidgets);
         await tester.ensureVisible(find.text('Record IDs'));
         await tester.tap(find.text('Record IDs'));
         await tester.pumpAndSettle();
@@ -179,26 +178,25 @@ void main() {
       expect(receipt.fundedOnPanta, isTrue);
       await tester.pumpWidget(app(CallReceiptCard(receipt: receipt)));
       await tester.pumpAndSettle();
-      expect(
-        find.text(
-          'Backed with a confirmed Panta position. Chumbucket doesn’t show the amount.',
-        ),
-        findsOneWidget,
-      );
-      // Share prices read "USDC/share"; no amount of USDC appears anywhere.
+      // Stamped Funded (pink), never Free; no amount is known, so none shows.
+      expect(find.byKey(const ValueKey('funded-marker')), findsOneWidget);
+      expect(find.byKey(const ValueKey('free-marker')), findsNothing);
+      expect(find.text('Funded'), findsOneWidget);
+      // Prices read as odds: no USDC, no per-share figure, no dollars.
       expect(
         find.byWidgetPredicate(
           (w) =>
               w is Text &&
-              (w.data ?? '').replaceAll('USDC/share', '').contains('USDC'),
+              RegExp(r'USDC|/share|\$').hasMatch(w.data ?? ''),
         ),
         findsNothing,
       );
       expect(receipt.shareCaption, isNot(contains('USDC')));
+      expect(receipt.shareCaption, isNot(contains('Free')));
     });
   });
 
-  testWidgets('a funded call card reads Funded; a free one reads Free call', (
+  testWidgets('a funded call card reads Funded; a free one is marked Free', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -213,7 +211,9 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Funded'), findsOneWidget);
-    expect(find.text('Free call'), findsOneWidget);
+    expect(find.byKey(const ValueKey('funded-marker')), findsOneWidget);
+    expect(find.byKey(const ValueKey('free-marker')), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('Free call')), findsOneWidget);
   });
 
   group('market detail', () {

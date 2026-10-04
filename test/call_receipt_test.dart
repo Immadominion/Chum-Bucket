@@ -145,11 +145,10 @@ void main() {
       await tester.tap(find.text('Record IDs'));
       await tester.pumpAndSettle();
       expect(find.textContaining('res_fomc_sep_2026'), findsOneWidget);
-      // And the explicit denial of a stake.
-      expect(
-        find.text('Free call. No stake, no position, no money.'),
-        findsOneWidget,
-      );
+      // And the stamp: Free, beside the side, and nothing money-shaped.
+      expect(find.byKey(const ValueKey('free-marker')), findsOneWidget);
+      expect(find.byKey(const ValueKey('funded-marker')), findsNothing);
+      expect(receipt.shareCaption, contains('Free call'));
     });
 
     testWidgets('an incorrect receipt reads unmistakably as a loss', (

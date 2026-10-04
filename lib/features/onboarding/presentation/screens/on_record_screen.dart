@@ -294,16 +294,14 @@ class _OwnCallCard extends StatelessWidget {
     final priceLine =
         price == null
             ? OnboardingCopy.recordPriceNotCaptured
-            : OnboardingCopy.recordLockedAt(
-              price,
-              currency: call.entryPrice?.currency ?? ShareCurrency.usdc,
-            );
+            : OnboardingCopy.recordCalledAt(price);
+    final free = call.fundingState.isFree;
     return OnbSurface(
       key: ValueKey('record-call-${call.id}'),
       child: Semantics(
         label:
             '${OnboardingCopy.recordBody(call.side.wire, entry.market.question, OnbFormat.lockedAt(call))} '
-            '$priceLine.',
+            '$priceLine.${free ? ' ${FundingState.none.label}.' : ''}',
         excludeSemantics: true,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -311,12 +309,10 @@ class _OwnCallCard extends StatelessWidget {
             Row(
               children: [
                 SidePill(side: call.side),
+                if (free) ...[const SizedBox(width: 8), const FreeMarker()],
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    'Locked ${OnbFormat.lockedAt(call)}',
-                    style: OnbText.meta,
-                  ),
+                  child: Text(OnbFormat.lockedAt(call), style: OnbText.meta),
                 ),
               ],
             ),
@@ -336,7 +332,8 @@ class _OwnCallCard extends StatelessWidget {
   }
 }
 
-/// "Powered by Panta" under a stamped price.
+/// "Powered by Panta" under a stamped price. That the call is free is the
+/// card's Free marker.
 abstract final class SharedPriceAttribution {
-  static const text = 'Powered by Panta · free call, no money involved';
+  static const text = SharePriceSnapshot.attribution;
 }

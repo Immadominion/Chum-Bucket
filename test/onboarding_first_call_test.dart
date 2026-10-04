@@ -231,7 +231,7 @@ void main() {
       find.descendant(
         of: _answer(first.id, Side.no),
         matching: find.text(
-          CallsFormat.displayPrice(markets[0].sharePrice.noPrice!),
+          CallsFormat.odds(markets[0].sharePrice.noPrice)!,
         ),
       ),
       findsOneWidget,
@@ -299,10 +299,10 @@ void main() {
         findsOneWidget,
       );
       _expectCompact(tester);
-      expect(_inComposer(find.text('Lock my NO call')), findsOneWidget);
+      expect(_inComposer(find.text('Call NO')), findsOneWidget);
       expect(rig.repo.created, isEmpty, reason: 'never locked on its own');
 
-      await tester.tap(_inComposer(find.text('Lock my NO call')));
+      await tester.tap(_inComposer(find.text('Call NO')));
       await settle(tester, const Duration(milliseconds: 2600));
 
       // R shows the server's own record of the call.
@@ -318,7 +318,19 @@ void main() {
       );
       // The server's stamped price for the side called (NO), not the draft.
       expect(
-        find.text(OnboardingCopy.recordLockedAt(own.call.entryPrice!.noPrice!)),
+        find.text(
+          OnboardingCopy.recordCalledAt(
+            CallsFormat.odds(own.call.entryPrice!.noPrice)!,
+          ),
+        ),
+        findsOneWidget,
+      );
+      // Stamped Free on the card, beside the side.
+      expect(
+        find.descendant(
+          of: find.byKey(ValueKey('record-call-${own.call.id}')),
+          matching: find.byKey(const ValueKey('free-marker')),
+        ),
         findsOneWidget,
       );
       expect(find.byKey(const ValueKey('record-price')), findsOneWidget);
@@ -367,7 +379,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('draft-review')));
       await settle(tester);
       expect(find.byType(CallComposerSheet), findsOneWidget);
-      expect(_inComposer(find.text('Lock my NO call')), findsOneWidget);
+      expect(_inComposer(find.text('Call NO')), findsOneWidget);
       expect(rig.repo.created, isEmpty, reason: 'still a fresh tap to lock');
     },
   );
@@ -393,17 +405,21 @@ void main() {
       expect(
         _inComposer(
           find.text(
-            'You’re calling YES at '
-            '${CallsFormat.displayPrice(item.sharePrice.yesPrice!)}. '
-            'Free, and it goes on your record.',
+            'You’re calling YES · '
+            '${CallsFormat.odds(item.sharePrice.yesPrice)!}',
           ),
         ),
+        findsOneWidget,
+      );
+      // That it's free is the one marker, under the button.
+      expect(
+        _inComposer(find.byKey(const ValueKey('free-marker'))),
         findsOneWidget,
       );
       _expectCompact(tester);
       expect(rig.repo.created, isEmpty, reason: 'nothing before Lock');
 
-      await tester.tap(_inComposer(find.text('Lock my YES call')));
+      await tester.tap(_inComposer(find.text('Call YES')));
       await settle(tester, const Duration(milliseconds: 2600));
       expect(rig.repo.created.single.marketId, item.market.id);
       expect(rig.repo.created.single.side, Side.yes);
@@ -444,13 +460,11 @@ void main() {
         expect(_inComposer(find.text(market.question)), findsOneWidget);
         expect(_inComposer(find.text('YES')), findsWidgets);
         expect(_inComposer(find.text('NO')), findsWidgets);
-        expect(_inComposer(find.text('Lock my YES call')), findsOneWidget);
+        expect(_inComposer(find.text('Call YES')), findsOneWidget);
         if (compact) {
           _expectCompact(tester);
           expect(
-            _inComposer(
-              find.textContaining('Free, and it goes on your record'),
-            ),
+            _inComposer(find.byKey(const ValueKey('free-marker'))),
             findsOneWidget,
           );
         } else {
@@ -493,7 +507,7 @@ void main() {
       find
           .descendant(
             of: find.byType(CallResponseSheet),
-            matching: find.textContaining('Lock'),
+            matching: find.byKey(const ValueKey('response-lock')),
           )
           .last,
     );

@@ -562,7 +562,10 @@ class DraftCallCard extends StatelessWidget {
           Text(draft.question!, style: OnbText.question),
         ],
         const SizedBox(height: 10),
-        OnbIconLine(icon: 'lock-outline', text: OnboardingCopy.signInDraftNote),
+        OnbIconLine(
+          icon: 'mobile-phone-outline',
+          text: OnboardingCopy.signInDraftNote,
+        ),
         if (onOpen != null) ...[
           const SizedBox(height: 8),
           ChumbucketPrimaryButton(
@@ -792,8 +795,7 @@ class _DeckCard extends StatelessWidget {
               Expanded(
                 child: _AnswerButton(
                   side: Side.yes,
-                  price: item.sharePrice.yesPrice,
-                  currency: item.sharePrice.currency,
+                  price: CallsFormat.odds(item.sharePrice.yesPrice),
                   enabled: enabled,
                   onTap: () => onPick(Side.yes),
                 ),
@@ -802,8 +804,7 @@ class _DeckCard extends StatelessWidget {
               Expanded(
                 child: _AnswerButton(
                   side: Side.no,
-                  price: item.sharePrice.noPrice,
-                  currency: item.sharePrice.currency,
+                  price: CallsFormat.odds(item.sharePrice.noPrice),
                   enabled: enabled,
                   onTap: () => onPick(Side.no),
                 ),
@@ -820,14 +821,13 @@ class _AnswerButton extends StatelessWidget {
   const _AnswerButton({
     required this.side,
     required this.price,
-    required this.currency,
     required this.enabled,
     required this.onTap,
   });
 
   final Side side;
+  /// The side's odds, already a percent ("62%"), or null.
   final String? price;
-  final ShareCurrency currency;
   final bool enabled;
   final VoidCallback onTap;
 
@@ -840,7 +840,7 @@ class _AnswerButton extends StatelessWidget {
       button: true,
       label:
           'Call ${side.wire}'
-          '${price == null ? '' : ', ${CallsFormat.displayPrice(price!)} ${currency.perShareWords}'}',
+          '${price == null ? '' : ', $price'}',
       excludeSemantics: true,
       child: Material(
         color: fill,
@@ -866,7 +866,7 @@ class _AnswerButton extends StatelessWidget {
                 ),
                 if (price != null)
                   Text(
-                    CallsFormat.displayPrice(price!),
+                    price!,
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,

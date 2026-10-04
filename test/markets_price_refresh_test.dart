@@ -192,7 +192,7 @@ void main() {
     addTearDown(screenProvider.dispose);
     await mount(tester, screenProvider, const CallMarketsScreen());
     expect(screenRepo.reads, 1);
-    expect(find.text('0.61'), findsOneWidget);
+    expect(find.text('61%'), findsOneWidget);
     expect(find.byTooltip('Refresh'), findsNothing);
     expect(find.textContaining('updated'), findsNothing);
     // Within the window: the timer ticks, nothing is due, nothing is read.
@@ -204,7 +204,7 @@ void main() {
     await tester.pump(CallMarketsScreen.tick);
     await tester.pumpAndSettle();
     expect(screenRepo.reads, 2);
-    expect(find.text('0.62'), findsOneWidget);
+    expect(find.text('62%'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -226,7 +226,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(screenRepo.catalogReads, 2);
     expect(screenRepo.reads, 2);
-    expect(find.text('0.62'), findsOneWidget);
+    expect(find.text('62%'), findsOneWidget);
     // Consumed: later rebuilds go back to reading only what is due.
     await tester.pump(CallMarketsScreen.tick);
     await tester.pumpAndSettle();
@@ -245,13 +245,13 @@ void main() {
     addTearDown(screenProvider.dispose);
     await mount(tester, screenProvider, MarketDetailScreen(marketId: btc.id));
     expect(screenRepo.reads, 1);
-    expect(find.text('0.61'), findsOneWidget);
+    expect(find.text('61%'), findsOneWidget);
     expect(find.byTooltip('Refresh market'), findsNothing);
     now = now.add(CallsProvider.priceRefreshAfter);
     await tester.pump(MarketDetailScreen.tick);
     await tester.pumpAndSettle();
     expect(screenRepo.reads, 2);
-    expect(find.text('0.62'), findsOneWidget);
+    expect(find.text('62%'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -268,7 +268,7 @@ void main() {
     expect(screenRepo.reads, 1);
     await mount(tester, screenProvider, MarketDetailScreen(marketId: btc.id));
     expect(screenRepo.reads, 2);
-    expect(find.text('0.62'), findsOneWidget);
+    expect(find.text('62%'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -307,7 +307,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Lock my YES call'));
+    await tester.tap(find.text('Call YES'));
     await tester.pumpAndSettle();
   }
 
@@ -341,7 +341,7 @@ void main() {
       );
       expect(screenRepo.reads, 1);
       // Shown (inside the hour lists keep a last good price), not lockable.
-      expect(find.text('0.61'), findsOneWidget);
+      expect(find.text('61%'), findsOneWidget);
       await tester.tap(find.text('Make a call'));
       await tester.pumpAndSettle();
       screenRepo.priceAge = Duration.zero;

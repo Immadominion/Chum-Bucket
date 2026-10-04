@@ -45,8 +45,10 @@ void main() {
     final p = SharePriceSnapshot.fromJson(priceJson());
     expect(p.toJson(), priceJson());
     expect(p.priceFor(Side.no), '0.35');
-    expect(CallsFormat.sharePrice(p.yesPrice), '1.250000000000000001');
-    expect(CallsFormat.nativePrices(p), isNot(contains('%')));
+    // A price above a whole share is kept verbatim but has no honest odds.
+    expect(p.yesPrice, '1.250000000000000001');
+    expect(CallsFormat.odds(p.yesPrice), isNull);
+    expect(CallsFormat.sidesOdds(p), 'YES — · NO 35%');
     expect(MarketVenue.fromWire('panta'), MarketVenue.panta);
   });
   for (final patch in <Map<String, dynamic>>[
@@ -84,7 +86,7 @@ void main() {
       }).isUsableAt(DateTime.fromMillisecondsSinceEpoch(kNowMs)),
       isFalse,
     );
-    expect(CallsFormat.sharePrice(null), 'Unavailable');
+    expect(CallsFormat.odds(null), isNull);
   });
   test(
     'call pins native prices while historical probability calls still parse',
@@ -136,7 +138,7 @@ void main() {
     },
   );
   testWidgets(
-    'existing receipt card shows exact unit prices, timestamp and Panta attribution',
+    'receipt card shows the odds at call, timestamp and Panta attribution',
     (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(390, 844);
@@ -155,11 +157,16 @@ void main() {
       );
       await tester.pumpWidget(app(CallReceiptCard(receipt: receipt)));
       await tester.pumpAndSettle();
-      expect(find.text('1.250000000000000001'), findsOneWidget);
-      expect(find.text('0.35'), findsOneWidget);
+      // Odds, never a per-share figure: a side above a whole share has no
+      // honest percent and reads "—".
+      expect(find.text('Odds at call'), findsOneWidget);
+      expect(find.text('YES — · NO 35%'), findsOneWidget);
+      expect(find.text('1.250000000000000001'), findsNothing);
+      expect(find.text('0.35'), findsNothing);
       expect(find.text('Entry probability'), findsNothing);
       expect(find.text('Powered by Panta'), findsOneWidget);
-      expect(find.text('Price observed'), findsOneWidget);
+      expect(find.text('Odds observed'), findsOneWidget);
+      expect(find.byKey(const ValueKey('free-marker')), findsOneWidget);
       expect(receipt.shareCaption, contains('Powered by Panta'));
       expect(tester.takeException(), isNull);
     },
@@ -196,7 +203,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Lock my YES call'));
+      await tester.tap(find.text('Call YES'));
       await tester.pumpAndSettle();
       // No price on the phone is not a reason to refuse here: the server
       // stamps (and, when it lapsed, re-reads) Panta's price itself. This

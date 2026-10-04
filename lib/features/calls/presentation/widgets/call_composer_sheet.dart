@@ -92,18 +92,18 @@ class CallComposerSheet extends StatefulWidget {
   /// Restores a draft composed before sign-in (side, reason, visibility).
   final CallComposerDraft? initialDraft;
 
-  /// Signed out: instead of the sign-in prompt, the form is shown and Lock
+  /// Signed out: instead of the sign-in prompt, the form is shown and Call
   /// hands the draft here (the sheet closes). Onboarding saves it and asks
   /// for sign-in at that moment.
   final ValueChanged<CallComposerDraft>? onSignInRequired;
 
-  /// Re-reads the venue price once when it is missing or stale at Lock.
+  /// Re-reads the venue price once when it is missing or stale at Call.
   final Future<SharePriceSnapshot?> Function()? refreshPrice;
 
   /// The server says this person already has a live call on this market.
   final VoidCallback? onAlreadyCalled;
 
-  /// A note above the form ("Signed in as @ada. Lock it when you're ready.").
+  /// A note above the form ("Signed in as @ada.").
   final String? note;
 
   /// Where the call was made, for analytics.
@@ -113,7 +113,7 @@ class CallComposerSheet extends StatefulWidget {
   /// ask). Onboarding passes false: its "You're on record" step asks there.
   final bool askForNotifications;
 
-  /// Onboarding's one-tap confirm: the question, the side and Lock. No
+  /// Onboarding's one-tap confirm: the question, the side and Call. No
   /// reason, visibility, confidence or rules (all still defaults: public,
   /// no reason, no confidence); the full composer is everywhere else.
   final bool compact;
@@ -165,14 +165,11 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
     super.dispose();
   }
 
-  /// Compact mode's single line: the side, Panta's price, and that it's free.
+  /// Compact mode's single line: the side and its odds. That it's free is
+  /// the [FreeMarker] under the button.
   String _compactLine(Side side) {
-    final price = _sharePrice?.priceFor(side);
-    final at =
-        price == null
-            ? ''
-            : ' at ${CallsFormat.sharePrice(CallsFormat.displayPrice(price), currency: _sharePrice!.currency)}';
-    return 'You’re calling ${side.wire}$at. Free, and it goes on your record.';
+    final odds = CallsFormat.odds(_sharePrice?.priceFor(side));
+    return 'You’re calling ${side.wire}${odds == null ? '' : ' · $odds'}';
   }
 
   CallComposerDraft _draft(Side side) => CallComposerDraft(
@@ -293,9 +290,8 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
         ),
   );
 
-  /// What each side costs now, on its button: Panta's share price, or a
-  /// legacy venue's probability. The unit is named once under the buttons
-  /// ([_priceUnit]), not on each: at large text it would break the figure.
+  /// Each side's odds now, on its button: Panta's price as a percent (USDC
+  /// and SOL markets alike), or a legacy venue's probability.
   Map<Side, String>? _sideSubs() {
     final market = widget.market;
     if (market.venue == MarketVenue.panta) {
@@ -303,8 +299,8 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
       if (price == null) return null;
       return {
         for (final side in Side.values)
-          if (price.priceFor(side) case final value?)
-            side: CallsFormat.displayPrice(value),
+          if (CallsFormat.odds(price.priceFor(side)) case final odds?)
+            side: odds,
       };
     }
     final snapshot = widget.snapshot;
@@ -319,20 +315,6 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
     final price = _sharePrice;
     if (price == null || !price.isUsableAt(DateTime.now())) return null;
     return price;
-  }
-
-  /// The unit of the prices on the side buttons, once: markets are quoted in
-  /// USDC or SOL, and 0.67 SOL is not 0.67 USDC. Never converted.
-  String? _priceUnit() {
-    if (widget.compact || widget.market.venue != MarketVenue.panta) {
-      return null;
-    }
-    final price = _usablePrice();
-    if (price == null || (price.yesPrice == null && price.noPrice == null)) {
-      return null;
-    }
-    final unit = price.currency.shownUnit;
-    return unit == null ? null : 'Prices in $unit';
   }
 
   Widget _form(CallsProvider provider) {
@@ -377,11 +359,7 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
                           })
                           : null,
                 ),
-                if (_priceUnit() case final unit?) ...[
-                  const SizedBox(height: 6),
-                  Text(unit, style: callJourneyBody(12)),
-                ],
-                // The chosen side already shows on its button and on Lock,
+                // The chosen side already shows on its button and on Call,
                 // so the full composer says nothing more once one is picked.
                 if (_side == null || widget.compact) ...[
                   const SizedBox(height: 10),
@@ -420,10 +398,7 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
                   const SizedBox(height: 10),
                 ],
                 CallJourneyButton(
-                  label:
-                      _side == null
-                          ? 'Lock my call'
-                          : 'Lock my ${_side!.wire} call',
+                  label: _side == null ? 'Call it' : 'Call ${_side!.wire}',
                   primary: true,
                   busy: busy,
                   onPressed: _side == null || busy ? null : _submit,
@@ -434,9 +409,9 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
                     color: AppColors.pinkInk,
                     onPressed: () => Navigator.of(context).maybePop(),
                   )
-                else if (!widget.compact) ...[
+                else ...[
                   const SizedBox(height: 8),
-                  const CallFinePrint('Free · final once locked'),
+                  const CallFreeLine(),
                 ],
               ],
             ),
@@ -573,35 +548,13 @@ class CallInlineError extends StatelessWidget {
   );
 }
 
-/// One small line under a Lock button.
-class CallFinePrint extends StatelessWidget {
-  const CallFinePrint(this.text, {super.key});
-  final String text;
+/// Under a free call's button: the [FreeMarker], and nothing else to read.
+class CallFreeLine extends StatelessWidget {
+  const CallFreeLine({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // At large text the sheet's body needs every line; the button above
-    // already says what it does.
-    if (MediaQuery.textScalerOf(context).scale(11) > 16) {
-      return const SizedBox.shrink();
-    }
-    return _line();
-  }
-
-  Widget _line() => Row(
-    mainAxisAlignment: MainAxisAlignment.center,
-    children: [
-      const BasilIcon('lock-outline', size: 12, color: AppColors.textMuted),
-      const SizedBox(width: 6),
-      Flexible(
-        child: Text(
-          text,
-          textAlign: TextAlign.center,
-          style: callJourneyBody(11).copyWith(color: AppColors.textMuted),
-        ),
-      ),
-    ],
-  );
+  Widget build(BuildContext context) =>
+      const Center(child: FreeMarker(large: true));
 }
 
 // Presentation helpers local to the call journey; shared app primitives stay intact.

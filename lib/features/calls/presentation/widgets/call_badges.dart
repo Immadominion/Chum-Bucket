@@ -1,8 +1,9 @@
 /// Badges whose whole job is that free / funded / pending / resolved / void
 /// can never be confused for one another.
 ///
-/// Each badge takes its copy from the FROZEN enum's own `label`, so there is
-/// exactly one place the word "Funded" can come from — [FundingState.filled].
+/// Free and funded each have exactly one mark: [FreeMarker] (outline, a gift,
+/// "Free") and [FundedMarker] (solid pink, the dollars). The word "Funded"
+/// comes only from [FundingState.filled].
 library;
 
 import 'package:flutter/material.dart';
@@ -93,8 +94,105 @@ class CallBadge extends StatelessWidget {
   }
 }
 
-/// Free vs funded. `NONE` reads "Free call"; only [FundingState.filled] may
-/// read "Funded", and that copy lives on the enum.
+/// The one mark a free call carries everywhere it shows: cards, call
+/// screens, sheets and receipts. Outline, never filled (solid pink is money),
+/// a gift and one word.
+class FreeMarker extends StatelessWidget {
+  const FreeMarker({super.key, this.large = false});
+
+  /// A touch bigger, for a receipt's stamp or a sheet's action.
+  final bool large;
+
+  static const ink = AppColors.textMuted;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: FundingState.none.label,
+    excludeSemantics: true,
+    child: Container(
+      key: const ValueKey('free-marker'),
+      padding: EdgeInsets.symmetric(
+        horizontal: large ? 10 : 7,
+        vertical: large ? 4 : 2,
+      ),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.outline),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          BasilIcon('present-outline', size: large ? 15 : 13, color: ink),
+          SizedBox(width: large ? 5 : 4),
+          Text(
+            'Free',
+            maxLines: 1,
+            style: TextStyle(
+              color: ink,
+              fontSize: large ? 13 : 12,
+              fontWeight: FontWeight.w700,
+              height: 1.2,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Money behind a call: solid pink with its dollars ("$5"), or "Funded"
+/// where the amount isn't known. Only ever for a confirmed fill. Ink on
+/// coral, as on the web: white on coral is under 4.5:1 at this size.
+class FundedMarker extends StatelessWidget {
+  const FundedMarker({super.key, this.amount, this.large = false});
+
+  /// Dollars, already formatted ("$5"); null reads "Funded".
+  final String? amount;
+  final bool large;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: amount == null ? FundingState.filled.label : 'Funded, $amount',
+    excludeSemantics: true,
+    child: Container(
+      key: const ValueKey('funded-marker'),
+      padding: EdgeInsets.symmetric(
+        horizontal: large ? 10 : 7,
+        vertical: large ? 4 : 2,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.primary,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.primary),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          BasilIcon(
+            'wallet-solid',
+            size: large ? 15 : 13,
+            color: AppColors.textPrimary,
+          ),
+          SizedBox(width: large ? 5 : 4),
+          Text(
+            amount ?? FundingState.filled.label,
+            maxLines: 1,
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: large ? 13 : 12,
+              fontWeight: FontWeight.w800,
+              height: 1.2,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Free vs funded. `NONE` is the [FreeMarker]; only [FundingState.filled]
+/// is the [FundedMarker], and its word lives on the enum. Every state in
+/// between keeps its own plain badge: neither free nor money yet.
 class FundingStateBadge extends StatelessWidget {
   final FundingState state;
   final bool quiet;
@@ -103,8 +201,10 @@ class FundingStateBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (state == FundingState.none) return const FreeMarker();
+    if (state == FundingState.filled) return const FundedMarker();
     final (color, icon) = switch (state) {
-      FundingState.none => (AppColors.textSecondary, 'comment-outline'),
+      FundingState.none => (AppColors.textSecondary, 'present-outline'),
       FundingState.quoted => (AppColors.textSecondary, 'info-circle-outline'),
       FundingState.submitted => (AppColors.onWarningContainer, 'clock-outline'),
       FundingState.filled => (AppColors.onSuccessContainer, 'check-outline'),

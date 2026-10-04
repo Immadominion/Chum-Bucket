@@ -89,24 +89,17 @@ void main() {
       }
     });
 
-    test('a price reads in its own unit, never converted', () {
+    test('a SOL price reads as the same odds a USDC one does, no unit', () {
+      // The program's last_yes_price over its 1e9 PRICE_SCALE, and its
+      // complement for NO: panta.market shows exactly these as the odds.
       final sol = SharePriceSnapshot.fromJson(_price('SOL'));
-      expect(
-        CallsFormat.sharePrice('0.67', currency: sol.currency),
-        '0.67 SOL/share',
-      );
-      // USDC is the default and reads bare; SOL always names its unit.
-      expect(CallsFormat.sharePrice('0.52'), '0.52');
-      expect(
-        CallsFormat.nativePrices(sol),
-        'YES 0.671739755 SOL/share · NO 0.328260245 SOL/share',
-      );
-      expect(
-        OnboardingCopy.recordLockedAt('0.67', currency: ShareCurrency.sol),
-        'Locked at 0.67 SOL/share',
-      );
-      expect(CallsFormat.nativePrices(sol), isNot(contains('USDC')));
-      expect(CallsFormat.nativePrices(sol), isNot(contains('%')));
+      expect(sol.yesPrice, '0.671739755');
+      expect(CallsFormat.sidesOdds(sol), 'YES 67% · NO 33%');
+      expect(CallsFormat.odds('0.67'), CallsFormat.odds('0.670'));
+      expect(OnboardingCopy.recordCalledAt('67%'), 'Called at 67%');
+      expect(CallsFormat.sidesOdds(sol), isNot(contains('SOL')));
+      expect(CallsFormat.sidesOdds(sol), isNot(contains('USDC')));
+      expect(CallsFormat.sidesOdds(sol), isNot(contains('share')));
     });
   });
 
@@ -147,7 +140,7 @@ void main() {
     // own call is pinned by the next group.
     for (final (quote, tradable) in [('SOL', false), ('USDC', true)]) {
       testWidgets(
-        'a $quote market without your call: one Make a call, its own unit',
+        'a $quote market without your call: one Make a call, odds, no unit',
         (tester) async {
           final m = VenueMarket.fromJson({
             ...market('M', const Duration(days: 30)).toJson(),
@@ -179,11 +172,11 @@ void main() {
           await tester.pumpAndSettle();
           expect(find.text('Trade'), findsNothing);
           expect(find.textContaining('Make a call'), findsOneWidget);
-          // SOL names its unit; USDC, the default, reads bare.
-          expect(
-            find.textContaining('$quote per share'),
-            quote == 'SOL' ? findsOneWidget : findsNothing,
-          );
+          // Both read as the same odds, with no unit.
+          expect(find.text('67%'), findsOneWidget);
+          expect(find.text('33%'), findsOneWidget);
+          expect(find.textContaining('per share'), findsNothing);
+          expect(find.textContaining('/share'), findsNothing);
           if (!tradable) {
             expect(find.textContaining('Trading'), findsNothing);
           }
@@ -280,7 +273,8 @@ void main() {
       );
       addTearDown(provider.dispose);
       await tall(tester, provider, const MarketDetailScreen(marketId: 'M'));
-      expect(find.textContaining('0.67'), findsWidgets);
+      expect(find.text('67%'), findsWidgets);
+      expect(find.textContaining('SOL/share'), findsNothing);
       _expectNoUsdc(tester);
       expect(tester.takeException(), isNull);
     });
@@ -295,7 +289,8 @@ void main() {
         provider,
         const CallDetailScreen(callId: 'call_you_fed'),
       );
-      expect(find.textContaining('SOL/share'), findsWidgets);
+      expect(find.textContaining('%'), findsWidgets);
+      expect(find.textContaining('SOL/share'), findsNothing);
       _expectNoUsdc(tester);
       // Whatever a redesign calls the trade box, none of it reaches a SOL call.
       final offer =
@@ -325,7 +320,9 @@ void main() {
             compact: compact,
           ),
         );
-        expect(find.textContaining('SOL/share'), findsWidgets);
+        // The side's odds, as a USDC market's would read: no unit.
+        expect(find.textContaining('67%'), findsWidgets);
+        expect(find.textContaining('SOL/share'), findsNothing);
         _expectNoUsdc(tester);
         expect(tester.takeException(), isNull);
       });
@@ -333,17 +330,14 @@ void main() {
   });
 
   group('welcome phone', () {
-    // The approved onboarding phone names one unit for its strip. With USDC
-    // and SOL markets side by side it names none: never a unitless
-    // "per share", never one unit for both.
-    for (final (quotes, label) in [
-      (['USDC', 'USDC'], null),
-      (['SOL', 'SOL'], 'SOL/share'),
-      (['USDC', 'SOL'], null),
+    // Odds carry no unit, so the onboarding phone names none for any strip:
+    // USDC, SOL or both side by side.
+    for (final quotes in [
+      ['USDC', 'USDC'],
+      ['SOL', 'SOL'],
+      ['USDC', 'SOL'],
     ]) {
-      testWidgets('${quotes.join('+')} strip reads ${label ?? 'no unit'}', (
-        tester,
-      ) async {
+      testWidgets('${quotes.join('+')} strip names no unit', (tester) async {
         final markets = [
           for (final (i, q) in quotes.indexed)
             VenueMarket.fromJson({
@@ -378,12 +372,8 @@ void main() {
                 ),
           ),
         );
-        if (label == null) {
-          expect(find.textContaining('/share'), findsNothing);
-          expect(find.textContaining('per share'), findsNothing);
-        } else {
-          expect(find.text(label), findsOneWidget);
-        }
+        expect(find.textContaining('/share'), findsNothing);
+        expect(find.textContaining('per share'), findsNothing);
         expect(tester.takeException(), isNull);
       });
     }
@@ -420,12 +410,9 @@ void main() {
             ),
           );
           await tester.pumpAndSettle();
-          // The call's own price reads in its market's unit, near the top.
-          // SOL names its unit; USDC, the default, reads bare.
-          expect(
-            find.textContaining('$quote/share'),
-            quote == 'SOL' ? findsWidgets : findsNothing,
-          );
+          // The call's own odds, near the top, with no unit either way.
+          expect(find.textContaining('%'), findsWidgets);
+          expect(find.textContaining('/share'), findsNothing);
           final offer = find.textContaining('Trade it on Panta');
           final list = find.byType(Scrollable).first;
           for (var i = 0; i < 12 && offer.evaluate().isEmpty; i++) {

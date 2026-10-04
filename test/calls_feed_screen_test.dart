@@ -93,7 +93,7 @@ void main() {
     expect(find.text('Call'), findsOneWidget);
   });
 
-  testWidgets('every visible call is labelled "Free call", never "Funded"', (
+  testWidgets('every visible call carries the Free marker, never "Funded"', (
     tester,
   ) async {
     usePhoneSurface(tester);
@@ -101,7 +101,9 @@ void main() {
     await tester.pumpWidget(harness(provider));
     await tester.pumpAndSettle();
 
-    expect(find.text(FundingState.none.label), findsWidgets);
+    expect(find.byKey(const ValueKey('free-marker')), findsWidgets);
+    expect(find.text('Free'), findsWidgets);
+    expect(find.byKey(const ValueKey('funded-marker')), findsNothing);
     expect(find.text(FundingState.filled.label), findsNothing);
     expect(find.byType(FundingStateBadge), findsWidgets);
   });

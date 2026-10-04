@@ -113,7 +113,8 @@ void main() {
         .join(' ');
     expect(copy, isNot(contains('people answered')));
     expect(copy, isNot(contains('accurate')));
-    expect(copy, contains('Free call'));
+    expect(copy, contains('Free'));
+    expect(find.byKey(const ValueKey('free-marker')), findsOneWidget);
     expect(copy, contains('DEMO DATA'));
     expect(
       tester.getSize(find.widgetWithText(TextButton, 'Back')).height,
@@ -295,7 +296,7 @@ void main() {
         CallResponseKind.fade,
       );
       final side = parent.call.side == Side.yes ? Side.no : Side.yes;
-      await tester.tap(find.text('Lock my ${side.wire} call'));
+      await tester.tap(find.text('Call ${side.wire}'));
       await tester.pumpAndSettle();
       expect(find.byType(CallDetailScreen), findsOneWidget);
       final screen = tester.widget<CallDetailScreen>(
