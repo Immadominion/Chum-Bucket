@@ -325,9 +325,9 @@ class MoneyCallController extends ChangeNotifier {
             await _retryOnce(call);
           }
         } on MoneyException catch (e) {
-          // The price moved past the slippage, or the window closed: only a
+          // The price moved past the slippage, or the window passed: only a
           // new call can follow this one.
-          if (e.kind == MoneyErrorKind.unavailable && call != null) {
+          if (e.needsNewCall && call != null) {
             _retryRefused = true;
             _step = MoneyCallStep.failed;
           }
@@ -475,7 +475,21 @@ class MoneyCallController extends ChangeNotifier {
       try {
         await _retryOnce(call);
       } on MoneyException catch (e) {
-        if (e.kind == MoneyErrorKind.unavailable) _retryRefused = true;
+        switch (e.reason) {
+          case _ when e.needsNewCall:
+            _retryRefused = true;
+          case MoneyReason.inFlight:
+            // A buy for this call is already going through: watch it.
+            _step = MoneyCallStep.pending;
+            _startPolling();
+            return;
+          case MoneyReason.state:
+            // Funded, free or expired since: show what it is now.
+            _step = MoneyCallStep.pending;
+            _startPolling();
+            await refreshStatus();
+            return;
+        }
         rethrow;
       }
     });

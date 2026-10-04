@@ -273,6 +273,7 @@ void main() {
         moneyError(
           'PRECONDITION_FAILED',
           'The price moved since you made this call. Make a new call.',
+          reason: 'PRICE_MOVED',
         ),
       ]);
     final c = controller();
@@ -385,6 +386,48 @@ void main() {
     expect(input['targetCallId'], targetCallId);
     expect(input.containsKey('marketId'), isFalse);
     expect(input.containsKey('side'), isFalse);
+  });
+
+  test('the same wording without its reason is not a price move', () async {
+    server
+      ..on('money.prepareCall', [readyJson()])
+      ..on('pantaTrading.submit', [venueOrderJson()])
+      ..on('money.callStatus', [
+        callStatusJson(trade: 'FAILED', canRetry: true, canDiscard: true),
+      ])
+      ..on('money.retry', [
+        moneyError(
+          'PRECONDITION_FAILED',
+          'The price moved since you made this call. Make a new call.',
+        ),
+      ]);
+    final c = controller();
+    await c.prepare();
+    await c.sign();
+    await c.refreshStatus();
+    await c.retry();
+    expect(c.retryRefused, isFalse, reason: 'branch on reason, not words');
+  });
+
+  test('a buy already going through: retry watches it instead', () async {
+    server
+      ..on('money.prepareCall', [readyJson()])
+      ..on('pantaTrading.submit', [venueOrderJson()])
+      ..on('money.callStatus', [
+        callStatusJson(trade: 'FAILED', canRetry: true, canDiscard: true),
+        callStatusJson(state: 'FUNDED', trade: 'FILLED'),
+      ])
+      ..on('money.retry', [
+        moneyError('CONFLICT', r'Your $5 is still going through.', reason: 'IN_FLIGHT'),
+      ]);
+    final c = controller();
+    await c.prepare();
+    await c.sign();
+    await c.refreshStatus();
+    await c.retry();
+    expect(c.step, MoneyCallStep.pending);
+    await c.refreshStatus();
+    expect(c.step, MoneyCallStep.funded);
   });
 
   test('server refusals come back in its own words', () async {

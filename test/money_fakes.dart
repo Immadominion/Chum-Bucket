@@ -320,14 +320,22 @@ http.Response moneyOk(Object? data) => http.Response(
   headers: {'content-type': 'application/json'},
 );
 
-http.Response moneyError(String code, String message, {int status = 400}) =>
-    http.Response(
+http.Response moneyError(
+  String code,
+  String message, {
+  int status = 400,
+  String? reason,
+}) => http.Response(
       jsonEncode({
         'error': {
           'json': {
             'message': message,
             'code': -32600,
-            'data': {'code': code, 'httpStatus': status},
+            'data': {
+              'code': code,
+              'httpStatus': status,
+              if (reason != null) 'details': {'reason': reason},
+            },
           },
         },
       }),

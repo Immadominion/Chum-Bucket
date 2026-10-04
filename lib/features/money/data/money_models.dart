@@ -45,11 +45,20 @@ class MoneyException implements Exception {
   /// codes only, e.g. `{reason: TRANSFER_IN_FLIGHT, transferId}`.
   final Map<String, String>? details;
 
+  /// The server's stable refusal code (`data.details.reason`): what the app
+  /// branches on, never the message wording.
+  String? get reason => details?['reason'];
+
+  /// Only a new call can follow: the price moved past the call's slippage,
+  /// or its window passed.
+  bool get needsNewCall =>
+      reason == MoneyReason.priceMoved || reason == MoneyReason.callExpired;
+
   /// The transfer still going through from the same wallet, when that is why
   /// a new one was refused.
   String? get inFlightTransferId {
     final id = details?['transferId'];
-    return details?['reason'] == 'TRANSFER_IN_FLIGHT' &&
+    return reason == MoneyReason.transferInFlight &&
             id != null &&
             _uuid.hasMatch(id)
         ? id
@@ -74,6 +83,17 @@ class MoneyException implements Exception {
 
   @override
   String toString() => 'MoneyException(${kind.name})';
+}
+
+/// The money refusal reasons the app branches on (docs/money-api.md).
+abstract final class MoneyReason {
+  static const priceMoved = 'PRICE_MOVED';
+  static const callExpired = 'CALL_EXPIRED';
+  static const marketClosed = 'MARKET_CLOSED';
+  static const state = 'STATE';
+  static const inFlight = 'IN_FLIGHT';
+  static const transferInFlight = 'TRANSFER_IN_FLIGHT';
+  static const reviewExpired = 'REVIEW_EXPIRED';
 }
 
 Never _invalid() =>

@@ -290,6 +290,21 @@ class MoneyTransferController extends ChangeNotifier {
       );
       if (_disposed) return;
       _accept(view);
+    } on MoneyException catch (e) {
+      if (_disposed) rethrow;
+      // The server answered that these bytes can never be sent (the review
+      // expired, or the approval doesn't match it): drop them, start again.
+      if (e.reason == MoneyReason.reviewExpired || e.reason == 'BAD_SIGNATURE') {
+        _signed = null;
+        _ready = null;
+        _expected = null;
+        _transfer = null;
+        _step = MoneyTransferStep.idle;
+        rethrow;
+      }
+      _step = MoneyTransferStep.sent;
+      _startPolling();
+      rethrow;
     } catch (_) {
       if (!_disposed) {
         _step = MoneyTransferStep.sent;

@@ -187,6 +187,32 @@ void main() {
     expect(c.step, MoneyTransferStep.review);
   });
 
+  test('a review that expired before the submit: drop the bytes, start again', () async {
+    server
+      ..on('money.cashOutPrepare', [_ready()])
+      ..on('money.transferSubmit', [
+        moneyError(
+          'PRECONDITION_FAILED',
+          'This review expired. Nothing was sent. Start again.',
+          reason: 'REVIEW_EXPIRED',
+        ),
+      ]);
+    final c = controller();
+    await prepare(c);
+    await c.sign();
+    expect(c.step, MoneyTransferStep.idle);
+    expect(c.canDismiss, isTrue);
+    expect(c.error, 'This review expired. Nothing was sent. Start again.');
+    server.on('money.cashOutPrepare', [_ready()]);
+    await prepare(c);
+    expect(c.step, MoneyTransferStep.review);
+    final keysSent = server
+        .inputs('money.cashOutPrepare')
+        .map((i) => i['idempotencyKey'])
+        .toSet();
+    expect(keysSent, hasLength(2));
+  });
+
   group('the silent gas top-up', () {
     late FakeTopUpBff bff;
     setUp(() => bff = FakeTopUpBff());
