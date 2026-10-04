@@ -655,7 +655,9 @@ GRANT EXECUTE ON FUNCTION public.account_sign_ins_v1(UUID) TO service_role;
 -- way the person is signed in right now, and the last method can never go.
 -- A wallet and its own sign-ins go together, or the wallet would land here
 -- again at its next sign-in. When the account's legacy wallet column named an
--- unlinked wallet, it moves to another linked wallet or is cleared.
+-- unlinked wallet, it moves to another linked wallet or is cleared. Never the
+-- Chumbucket wallet ('chumbucket'): it follows the account (reason
+-- 'chumbucket_wallet').
 CREATE OR REPLACE FUNCTION public.unlink_sign_in_v1(
   p_user_id                 UUID,
   p_session_auth_user_id    UUID,
@@ -712,6 +714,13 @@ BEGIN
        AND (s.wallet_address = v_wallet OR public.auth_user_holds_wallet_v1(s.auth_user_id, v_wallet));
   END IF;
 
+  -- The Chumbucket wallet follows the account (20261004130000): only the
+  -- account reaches it, so it is never unlinked, by itself or with a sign-in.
+  IF EXISTS (SELECT 1 FROM public.linked_wallets w
+              WHERE w.user_id = p_user_id AND w.revoked_at IS NULL
+                AND w.wallet_type = 'chumbucket' AND w.wallet_address = ANY (v_wallets)) THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'chumbucket_wallet');
+  END IF;
   IF p_session_auth_user_id = ANY (v_auths)
      OR EXISTS (SELECT 1 FROM unnest(v_wallets) x(w)
                  WHERE public.auth_user_holds_wallet_v1(p_session_auth_user_id, x.w)) THEN
