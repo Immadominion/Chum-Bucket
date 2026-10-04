@@ -3,6 +3,7 @@ PODS:
     - Flutter
   - connectivity_plus (0.0.1):
     - Flutter
+  - Factory (2.4.3)
   - Firebase/CoreOnly (11.15.0):
     - FirebaseCore (~> 11.15.0)
   - Firebase/Crashlytics (11.15.0):
@@ -105,6 +106,11 @@ PODS:
   - path_provider_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
+  - privy_flutter (0.0.1):
+    - Factory (= 2.4.3)
+    - Flutter
+    - PrivySDK (= 2.16.2)
+  - PrivySDK (2.16.2)
   - PromisesObjC (2.4.1)
   - PromisesSwift (2.4.1):
     - PromisesObjC (= 2.4.1)
@@ -135,6 +141,7 @@ DEPENDENCIES:
   - flutter_secure_storage (from `.symlinks/plugins/flutter_secure_storage/ios`)
   - integration_test (from `.symlinks/plugins/integration_test/ios`)
   - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
+  - privy_flutter (from `.symlinks/plugins/privy_flutter/ios`)
   - rive_common (from `.symlinks/plugins/rive_common/ios`)
   - share_plus (from `.symlinks/plugins/share_plus/ios`)
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
@@ -144,6 +151,7 @@ DEPENDENCIES:
 
 SPEC REPOS:
   trunk:
+    - Factory
     - Firebase
     - FirebaseCore
     - FirebaseCoreExtension
@@ -156,6 +164,7 @@ SPEC REPOS:
     - GoogleDataTransport
     - GoogleUtilities
     - nanopb
+    - PrivySDK
     - PromisesObjC
     - PromisesSwift
 
@@ -180,6 +189,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/integration_test/ios"
   path_provider_foundation:
     :path: ".symlinks/plugins/path_provider_foundation/darwin"
+  privy_flutter:
+    :path: ".symlinks/plugins/privy_flutter/ios"
   rive_common:
     :path: ".symlinks/plugins/rive_common/ios"
   share_plus:
@@ -196,6 +207,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   app_links: 3dbc685f76b1693c66a6d9dd1e9ab6f73d97dc0a
   connectivity_plus: cb623214f4e1f6ef8fe7403d580fdad517d2f7dd
+  Factory: 9d20d8cb56fc44b341d6dad1cf67dc93e9ae7788
   Firebase: d99ac19b909cd2c548339c2241ecd0d1599ab02e
   firebase_core: 995454a784ff288be5689b796deb9e9fa3601818
   firebase_crashlytics: 30dcd6dfd2fe895c0848af46722a4227346c19aa
@@ -216,6 +228,8 @@ SPEC CHECKSUMS:
   integration_test: 4a889634ef21a45d28d50d622cf412dc6d9f586e
   nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
   path_provider_foundation: 080d55be775b7414fd5a5ef3ac137b97b097e564
+  privy_flutter: 5596a3da3f77360c092699d95e5e6dfc9fecc960
+  PrivySDK: 16d402c35855bfd4521cd57b53ed1ca6f70c8c25
   PromisesObjC: 752c3227f599e3467650e47ea36f433eeb10c273
   PromisesSwift: 217dea0fd5d2ad65222a109c48698add13cc1c5b
   rive_common: dd421daaf9ae69f0125aa761dd96abd278399952
@@ -225,6 +239,6 @@ SPEC CHECKSUMS:
   url_launcher_ios: 694010445543906933d732453a59da0a173ae33d
   webview_flutter_wkwebview: 8ebf4fded22593026f7dbff1fbff31ea98573c8d
 
-PODFILE CHECKSUM: 1857a7cdb7dfafe45f2b0e9a9af44644190f7506
+PODFILE CHECKSUM: e85083f46c2deac967e9814b4af4355fdc1ec5cb
 
 COCOAPODS: 1.16.2

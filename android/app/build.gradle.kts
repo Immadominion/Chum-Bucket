@@ -97,7 +97,8 @@ android {
         applicationId = "dev.cleva.chumbucket"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 27
+        // API 28: privy_flutter (the Chumbucket wallet) requires it.
+        minSdk = 28
         targetSdk = flutter.targetSdkVersion
         // From pubspec.yaml `version:` (name+code). Must exceed the last
         // published code: dApp Store version_code 2, sideloaded builds up to 33.

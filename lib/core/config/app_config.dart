@@ -27,6 +27,16 @@ class AppConfig {
     defaultValue: false,
   );
 
+  /// The Chumbucket wallet: one wallet that follows the account across
+  /// iPhone, Android and the web (a Privy embedded Solana wallet), the default
+  /// for trades. Off unless the build passes
+  /// `--dart-define=CHUMBUCKET_WALLET_ENABLED=true`, matching the BFF's flag of
+  /// the same name, and only used when both Privy ids below are set too.
+  static const bool chumbucketWalletEnabled = bool.fromEnvironment(
+    'CHUMBUCKET_WALLET_ENABLED',
+    defaultValue: false,
+  );
+
   /// Every configuration key the client is allowed to carry.
   ///
   /// Adding a key here is a security decision: it makes the value public,
@@ -56,6 +66,11 @@ class AppConfig {
     // Legacy Privy export bridge only. The app *secret* is server-side.
     'PRIVY_APP_ID',
     'PRIVY_API_URL',
+    // The Chumbucket wallet's Privy app and this app's client in it. Both are
+    // public identifiers (Privy ships them in every client); there is no
+    // Privy secret anywhere in the apps or the BFF for this wallet.
+    'CHUMBUCKET_PRIVY_APP_ID',
+    'CHUMBUCKET_PRIVY_CLIENT_ID',
   ];
 
   /// Name fragments that must never appear in [publicKeys].
@@ -101,6 +116,12 @@ class AppConfig {
     ),
     'PRIVY_APP_ID': String.fromEnvironment('PRIVY_APP_ID'),
     'PRIVY_API_URL': String.fromEnvironment('PRIVY_API_URL'),
+    'CHUMBUCKET_PRIVY_APP_ID': String.fromEnvironment(
+      'CHUMBUCKET_PRIVY_APP_ID',
+    ),
+    'CHUMBUCKET_PRIVY_CLIENT_ID': String.fromEnvironment(
+      'CHUMBUCKET_PRIVY_CLIENT_ID',
+    ),
   };
 
   /// A URL carrying an inline credential, e.g. a Helius RPC endpoint of the
