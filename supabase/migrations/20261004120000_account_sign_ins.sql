@@ -54,9 +54,10 @@
 --             session, a market it paid to create, a legacy prediction
 --             position or claim, a legacy SOL escrow challenge (as creator,
 --             participant, witness or winner, by id, wallet, legacy Privy id
---             or email), or an app-held wallet (embedded, chumbucket, or any
---             type but mwa/imported). A table or column it cannot check
---             refuses (fail closed). The session creators lock the account row
+--             or email, while its escrow may still hold SOL), or an app-held
+--             wallet (embedded, chumbucket, or any type but mwa/imported). A
+--             table or column production has that it cannot find refuses
+--             (fail closed). The session creators lock the account row
 --             (FOR KEY SHARE) and refuse folded accounts, so none slips in
 --             between check and commit;
 --   * also refuses when F or K is deleted or folded, F is K, or what the
@@ -901,10 +902,20 @@ $$;
 REVOKE ALL ON FUNCTION public.account_emails_v1(UUID) FROM PUBLIC, anon, authenticated;
 
 -- Funded activity or money on an account: the first kind found, or NULL.
--- Fail closed: a table or a column this knows to check that is not there
--- answers 'unverifiable', which refuses a fold just the same. Each column is
--- matched by what it holds: the account id, its wallets, its legacy Privy
--- ids, or its emails (the legacy SOL escrow keyed people all four ways).
+-- Each column is matched by what it holds: the account id, its wallets, its
+-- legacy Privy ids, or its emails (the legacy SOL escrow keyed people all
+-- four ways).
+--
+-- Fail closed on what production has (checked 4 Oct 2026): a missing table,
+-- or a missing column it is known to have, answers 'unverifiable', which
+-- refuses a fold just the same. Tables and columns production does not have
+-- (challenge_participants, challenge_transactions, challenges.witness_address)
+-- are checked when they exist and never refuse by being absent ('?').
+--
+-- A legacy escrow challenge counts while its money may still be held: every
+-- status but completed, failed and cancelled — the app's own definition of
+-- an open escrow (challenge_status_utils.dart openStatuses: pending, active,
+-- accepted, funded, expired), with any other or missing status counted.
 CREATE OR REPLACE FUNCTION public.account_money_activity_v1(p_user_id UUID)
 RETURNS TEXT
 LANGUAGE plpgsql
@@ -913,53 +924,70 @@ SECURITY DEFINER
 SET search_path = pg_catalog, public, pg_temp
 AS $$
 DECLARE
-  v_wallets TEXT[] := public.account_wallets_v1(p_user_id);
-  v_privy   TEXT[] := public.account_privy_ids_v1(p_user_id);
-  v_emails  TEXT[] := public.account_emails_v1(p_user_id);
-  v_found   BOOLEAN;
-  v_check   RECORD;
-  v_col     TEXT;
-  v_name    TEXT;
-  v_preds   TEXT[];
+  v_wallets  TEXT[] := public.account_wallets_v1(p_user_id);
+  v_privy    TEXT[] := public.account_privy_ids_v1(p_user_id);
+  v_emails   TEXT[] := public.account_emails_v1(p_user_id);
+  v_found    BOOLEAN;
+  v_check    RECORD;
+  v_table    TEXT;
+  v_optional BOOLEAN;
+  v_col      TEXT;
+  v_name     TEXT;
+  v_preds    TEXT[];
 BEGIN
   FOR v_check IN
     SELECT * FROM (VALUES
-      ('funded_call',         'calls',                    ARRAY['user_id:id'],                         'funding_state <> ''NONE'''),
-      ('venue_order',         'venue_orders',             ARRAY['user_id:id'],                         NULL),
-      ('venue_position',      'venue_positions',          ARRAY['user_id:id'],                         NULL),
-      ('panta_trade',         'panta_trade_sessions',     ARRAY['user_id:id', 'wallet_address:wallet'], NULL),
-      ('panta_claim',         'panta_claim_sessions',     ARRAY['user_id:id', 'wallet_address:wallet'], NULL),
-      ('market_creation',     'market_creation_sessions', ARRAY['publisher_id:id', 'wallet_address:wallet'], NULL),
-      ('prediction_position', 'prediction_positions',     ARRAY['user_id:id', 'wallet_address:wallet'], NULL),
-      ('prediction_claim',    'claims',                   ARRAY['user_id:id', 'wallet_address:wallet'], NULL),
+      ('funded_call',         'calls',                    ARRAY['user_id:id'],
+                              ARRAY['funding_state'], 'funding_state <> ''NONE'''),
+      ('venue_order',         'venue_orders',             ARRAY['user_id:id'], ARRAY[]::TEXT[], NULL),
+      ('venue_position',      'venue_positions',          ARRAY['user_id:id'], ARRAY[]::TEXT[], NULL),
+      ('panta_trade',         'panta_trade_sessions',     ARRAY['user_id:id', 'wallet_address:wallet'], ARRAY[]::TEXT[], NULL),
+      ('panta_claim',         'panta_claim_sessions',     ARRAY['user_id:id', 'wallet_address:wallet'], ARRAY[]::TEXT[], NULL),
+      ('market_creation',     'market_creation_sessions', ARRAY['publisher_id:id', 'wallet_address:wallet'], ARRAY[]::TEXT[], NULL),
+      ('prediction_position', 'prediction_positions',     ARRAY['user_id:id', 'wallet_address:wallet'], ARRAY[]::TEXT[], NULL),
+      ('prediction_claim',    'claims',                   ARRAY['user_id:id', 'wallet_address:wallet'], ARRAY[]::TEXT[], NULL),
       ('escrow_challenge',    'challenges',               ARRAY[
                                 'creator_id:id', 'participant_id:id', 'witness_id:id',
                                 'winner_id:text', 'winner_id:wallet', 'winner_id:privy',
+                                'creator_privy_id:privy', 'participant_privy_id:privy', 'winner_privy_id:privy',
+                                'participant_email:email',
                                 'creator_wallet_address:wallet',
                                 'member1_address:wallet', 'member1_address:privy',
                                 'member2_address:wallet', 'member2_address:privy',
-                                'witness_address:wallet', 'witness_address:privy',
-                                'creator_privy_id:privy', 'participant_privy_id:privy', 'winner_privy_id:privy',
-                                'participant_email:email'], NULL),
-      ('escrow_participant',  'challenge_participants',   ARRAY['wallet_address:wallet', 'wallet_address:privy',
-                                                                'user_privy_id:privy'],          NULL),
-      ('escrow_transaction',  'challenge_transactions',   ARRAY['from_address:wallet', 'to_address:wallet'], NULL),
+                                'witness_address?:wallet', 'witness_address?:privy'],
+                              ARRAY['status'],
+                              'coalesce(lower(status), '''') NOT IN (''completed'', ''failed'', ''cancelled'')'),
+      ('escrow_participant',  '?challenge_participants',  ARRAY['wallet_address?:wallet', 'wallet_address?:privy',
+                                                                'user_privy_id?:privy'], ARRAY[]::TEXT[], NULL),
+      ('escrow_transaction',  '?challenge_transactions',  ARRAY['from_address?:wallet', 'to_address?:wallet'],
+                              ARRAY[]::TEXT[], NULL),
       -- An app-held wallet (embedded, chumbucket, anything but a wallet app
       -- or an import) may hold a balance only this account can reach.
-      ('app_wallet',          'linked_wallets',           ARRAY['user_id:id'],
+      ('app_wallet',          'linked_wallets',           ARRAY['user_id:id'], ARRAY['revoked_at', 'wallet_type'],
                               'revoked_at IS NULL AND wallet_type NOT IN (''mwa'', ''imported'')')
-    ) AS t(kind, tbl, cols, extra)
+    ) AS t(kind, tbl, cols, needs, extra)
   LOOP
-    IF to_regclass('public.' || v_check.tbl) IS NULL THEN
+    v_optional := left(v_check.tbl, 1) = '?';
+    v_table := ltrim(v_check.tbl, '?');
+    IF to_regclass('public.' || v_table) IS NULL THEN
+      IF v_optional THEN CONTINUE; END IF;
       RETURN 'unverifiable';
     END IF;
+    FOREACH v_name IN ARRAY v_check.needs LOOP
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                      WHERE table_schema = 'public' AND table_name = v_table AND column_name = v_name) THEN
+        RETURN 'unverifiable';
+      END IF;
+    END LOOP;
     v_preds := ARRAY[]::TEXT[];
     FOREACH v_col IN ARRAY v_check.cols LOOP
       v_name := split_part(v_col, ':', 1);
       IF NOT EXISTS (SELECT 1 FROM information_schema.columns
-                      WHERE table_schema = 'public' AND table_name = v_check.tbl AND column_name = v_name) THEN
+                      WHERE table_schema = 'public' AND table_name = v_table AND column_name = rtrim(v_name, '?')) THEN
+        IF right(v_name, 1) = '?' THEN CONTINUE; END IF;
         RETURN 'unverifiable';
       END IF;
+      v_name := rtrim(v_name, '?');
       v_preds := v_preds || CASE split_part(v_col, ':', 2)
         WHEN 'id'     THEN format('%I = $1', v_name)
         WHEN 'text'   THEN format('%I::text = $1::text', v_name)
@@ -967,8 +995,12 @@ BEGIN
         WHEN 'privy'  THEN format('%I::text = ANY ($3)', v_name)
         ELSE format('lower(%I::text) = ANY ($4)', v_name) END;
     END LOOP;
+    IF cardinality(v_preds) = 0 THEN
+      IF v_optional THEN CONTINUE; END IF;
+      RETURN 'unverifiable';
+    END IF;
     EXECUTE format('SELECT EXISTS (SELECT 1 FROM public.%I WHERE (%s)%s)',
-                   v_check.tbl, array_to_string(v_preds, ' OR '),
+                   v_table, array_to_string(v_preds, ' OR '),
                    CASE WHEN v_check.extra IS NULL THEN '' ELSE ' AND ' || v_check.extra END)
       INTO v_found USING p_user_id, v_wallets, v_privy, v_emails;
     IF v_found THEN RETURN v_check.kind; END IF;
