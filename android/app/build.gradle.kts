@@ -71,6 +71,14 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.0.12077973"
 
+    packaging {
+        resources {
+            // privy_flutter brings BouncyCastle, whose jar carries the same
+            // OSGi manifest as jspecify's. Neither is read at runtime.
+            excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+        }
+    }
+
     compileOptions {
         // Enable core library desugaring for flutter_local_notifications
         isCoreLibraryDesugaringEnabled = true
