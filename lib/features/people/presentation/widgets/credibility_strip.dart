@@ -1,18 +1,26 @@
-/// A person's credibility at a glance: calls on record, correct over decided,
-/// accuracy once it is earned, and when they joined.
+/// A person's credibility at a glance: accuracy once it is earned, then the
+/// same four numbers your own Profile shows (correct, incorrect, pending,
+/// void).
 ///
 /// Drawn on the neutral half of the joined profile surface, like the stats it
 /// replaces. Every figure is the server's public record — withdrawn calls
-/// included, followers-only and trades excluded — and the percentage cell
-/// says what is still missing instead of printing a number too early.
+/// included, followers-only and trades excluded. What it counts is not printed
+/// under it: tap the record (or the info glyph) to read it; screen readers
+/// hear it with the record.
 library;
 
 import 'package:flutter/material.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
-import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/features/people/data/people_models.dart';
 import 'package:chumbucket/features/people/presentation/widgets/people_format.dart';
+import 'package:chumbucket/features/record/presentation/widgets/record_stat_tiles.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
+
+/// What a person's public record counts, said once behind the record.
+const publicRecordScopeCopy =
+    'Public free calls, misses and withdrawn calls included. Void is never '
+    'scored. Followers-only calls and trades are not counted.';
 
 class CredibilityStrip extends StatelessWidget {
   final PublicRecord record;
@@ -22,75 +30,105 @@ class CredibilityStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final styles = AppTextStyles.textTheme;
     final percent = PeopleFormat.accuracy(record);
     final joined = PeopleFormat.joined(joinedAtUtc);
-    final cells = <(String, String)>[
-      ('${record.total}', 'calls on record'),
-      ('${record.correct}/${record.decided}', 'correct / decided'),
-      percent == null
-          ? ('—', 'accuracy after ${record.minimumDecided} decided')
-          : (percent, 'accuracy'),
-      if (joined != null) (joined.replaceFirst('Joined ', ''), 'joined'),
-    ];
+    const muted = TextStyle(
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
+      color: AppColors.textSecondary,
+    );
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       color: AppColors.outlineVariant,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          LayoutBuilder(
-            builder: (context, constraints) {
-              // Two columns normally; one at large text so no value wraps
-              // mid-figure.
-              final stacked = MediaQuery.textScalerOf(context).scale(12) > 18;
-              final width =
-                  stacked
-                      ? constraints.maxWidth
-                      : (constraints.maxWidth - 12) / 2;
-              return Wrap(
-                spacing: 12,
-                runSpacing: 14,
+      child: Tooltip(
+        key: const ValueKey('person-record-scope'),
+        message: publicRecordScopeCopy,
+        triggerMode: TooltipTriggerMode.tap,
+        showDuration: const Duration(seconds: 6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 0, 0, 8),
+              child: Row(
                 children: [
-                  for (final (value, label) in cells)
-                    SizedBox(
-                      width: width,
-                      child: Semantics(
-                        container: true,
-                        label: '$value $label',
-                        excludeSemantics: true,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              value,
-                              style: styles.headlineSmall?.copyWith(
-                                fontSize: 22,
-                              ),
+                  Expanded(
+                    child: Semantics(
+                      container: true,
+                      label:
+                          percent == null
+                              ? 'No accuracy yet: it shows after '
+                                  '${record.minimumDecided} decided calls'
+                              : '$percent accuracy',
+                      excludeSemantics: true,
+                      child: Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
+                        runSpacing: 2,
+                        children: [
+                          Text(
+                            percent ?? '—',
+                            style: const TextStyle(
+                              fontFamily: 'PPNeueMachina',
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              height: 1.15,
+                              color: AppColors.textPrimary,
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              label,
-                              style: styles.bodySmall?.copyWith(
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                          Text(
+                            percent == null
+                                ? 'accuracy after ${record.minimumDecided} decided'
+                                : 'accuracy',
+                            style: muted,
+                          ),
+                          if (joined != null) Text('· $joined', style: muted),
+                        ],
                       ),
                     ),
+                  ),
+                  const BasilIcon(
+                    'info-circle-outline',
+                    size: 16,
+                    color: AppColors.textTertiary,
+                  ),
                 ],
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          Text(
-            '${record.incorrect} incorrect · ${record.voided} void, not scored · '
-            '${record.pending} awaiting result.',
-            style: styles.bodySmall?.copyWith(color: AppColors.textSecondary),
-          ),
-        ],
+              ),
+            ),
+            RecordStatRow(
+              tiles: [
+                RecordStatTile(
+                  icon: 'check-outline',
+                  color: RecordInk.correct,
+                  value: '${record.correct}',
+                  label: 'Correct',
+                  semantics:
+                      '${record.correct} correct of ${record.decided} decided',
+                ),
+                RecordStatTile(
+                  icon: 'cross-outline',
+                  color: RecordInk.incorrect,
+                  value: '${record.incorrect}',
+                  label: 'Incorrect',
+                ),
+                RecordStatTile(
+                  icon: 'sand-watch-outline',
+                  color: RecordInk.pending,
+                  value: '${record.pending}',
+                  label: 'Pending',
+                ),
+                RecordStatTile(
+                  icon: 'cancel-outline',
+                  color: RecordInk.voided,
+                  value: '${record.voided}',
+                  label: 'Void',
+                  semantics: '${record.voided} void, not scored',
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

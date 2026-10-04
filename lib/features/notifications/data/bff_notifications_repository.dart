@@ -22,18 +22,49 @@ import 'dart:developer' as developer;
 
 import 'package:chumbucket/features/profile/data/avatar_catalog.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
+import 'package:chumbucket/core/cache/snapshot_store.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_transport.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/notifications/data/notification_models.dart';
 import 'package:chumbucket/features/notifications/data/notifications_repository.dart';
 
-class BffNotificationsRepository implements NotificationsRepository {
+class BffNotificationsRepository
+    implements NotificationsRepository, NotificationsSnapshotSource {
+  /// [snapshots] keeps the inbox's first page on this phone (null keeps none).
   BffNotificationsRepository({
     CallsBffTransport? transport,
     CallsBffAuthTokenProvider? authToken,
-  }) : _transport = transport ?? CallsBffTransport(authToken: authToken);
+    SnapshotStore? snapshots,
+  }) : _transport = transport ?? CallsBffTransport(authToken: authToken),
+       _snapshots = snapshots;
 
   final CallsBffTransport _transport;
+  final SnapshotStore? _snapshots;
+
+  static String _snapshotKey(String viewer) =>
+      snapshotKey('inbox', viewer: viewer);
+
+  @override
+  Future<NotificationPage?> savedNotifications({
+    required String viewerUserId,
+  }) async {
+    final store = _snapshots;
+    if (store == null || viewerUserId.isEmpty) return null;
+    final raw = await store.read(_snapshotKey(viewerUserId));
+    if (raw == null) return null;
+    try {
+      final page = _page(raw, viewerUserId);
+      return NotificationPage(
+        notifications: page.notifications,
+        nextCursor: page.nextCursor,
+        servedAt: page.servedAt,
+        unreadCount: page.unreadCount,
+        fromCache: true,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
 
   static const listPath = 'inbox.list';
   static const unreadCountPath = 'inbox.unreadCount';
@@ -47,6 +78,8 @@ class BffNotificationsRepository implements NotificationsRepository {
     int limit = 20,
   }) async {
     final viewer = _requireViewer(viewerUserId);
+    // A sign-out mid-read wipes the store: this page is then not saved.
+    final generation = _snapshots?.generation;
     final raw = await _call(
       () => _transport.query(listPath, {
         'limit': limit,
@@ -54,6 +87,15 @@ class BffNotificationsRepository implements NotificationsRepository {
         if (cursor != null) 'cursor': cursor,
       }),
     );
+    final page = _page(raw, viewer);
+    // The first page of everything is what Activity opens on.
+    if (cursor == null && filter == NotificationFilter.all) {
+      _snapshots?.write(_snapshotKey(viewer), raw, generation: generation);
+    }
+    return page;
+  }
+
+  NotificationPage _page(Object? raw, String viewer) {
     final body = _map(raw, listPath);
     final items = body['items'];
     if (items is! List) {

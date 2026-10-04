@@ -24,6 +24,7 @@ import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/features/people/data/people_models.dart';
 import 'package:chumbucket/features/people/presentation/widgets/people_format.dart';
 import 'package:chumbucket/features/people/presentation/widgets/person_row.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class LeaderboardView extends StatefulWidget {
   /// Clearance for the floating tab bar when embedded in the shell.
@@ -65,35 +66,54 @@ class _LeaderboardViewState extends State<LeaderboardView> {
     }
 
     final children = <Widget>[
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final window in LeaderboardWindow.values)
-            Semantics(
-              button: true,
-              selected: window == _window,
-              label: 'Leaderboard for ${window.phrase}',
-              onTap: () => _select(window),
-              excludeSemantics: true,
-              child: MarketFilterChip(
-                label: window.label,
-                selected: window == _window,
-                onPressed: () => _select(window),
+          Expanded(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final window in LeaderboardWindow.values)
+                  Semantics(
+                    button: true,
+                    selected: window == _window,
+                    label: 'Leaderboard for ${window.phrase}',
+                    onTap: () => _select(window),
+                    excludeSemantics: true,
+                    child: MarketFilterChip(
+                      label: window.label,
+                      selected: window == _window,
+                      onPressed: () => _select(window),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          // How the board ranks, one tap away instead of a paragraph.
+          Tooltip(
+            key: const ValueKey('leaderboard-rule'),
+            message:
+                board?.rule ??
+                'Ranked by accuracy on calls the venue decided. Free public '
+                    'calls only.',
+            triggerMode: TooltipTriggerMode.tap,
+            showDuration: const Duration(seconds: 6),
+            child: const SizedBox(
+              width: 48,
+              height: 48,
+              child: Center(
+                child: BasilIcon(
+                  'info-circle-outline',
+                  size: 20,
+                  color: AppColors.textSecondary,
+                ),
               ),
             ),
+          ),
         ],
       ),
       const SizedBox(height: 12),
-      Text(
-        board?.rule ??
-            'Ranked by accuracy on calls the venue decided. Free public calls only.',
-        style: styles.bodySmall?.copyWith(
-          color: AppColors.textSecondary,
-          height: 1.5,
-        ),
-      ),
-      const SizedBox(height: 16),
     ];
 
     if (board == null) {
@@ -107,17 +127,15 @@ class _LeaderboardViewState extends State<LeaderboardView> {
         children.add(CallsErrorView(message: error, onRetry: _refresh));
       }
     } else {
-      if (loading) {
-        children.add(const LinearProgressIndicator(color: AppColors.primary));
-      }
-      if (error != null) {
+      // A refresh in flight or failed keeps the board on screen, quietly.
+      if (error != null && provider.isOffline) {
         children.add(
-          CallsNotice(
-            icon: 'info-triangle-outline',
-            color: AppColors.onWarningContainer,
-            message: 'Showing the last board. $error',
-            actionLabel: 'Retry',
-            onAction: _refresh,
+          const Padding(
+            padding: EdgeInsets.only(bottom: 12),
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: ChumbucketOfflinePill(),
+            ),
           ),
         );
       }
@@ -146,12 +164,15 @@ class _LeaderboardViewState extends State<LeaderboardView> {
         children.add(const SizedBox(height: 8));
         if (board.ranked.isEmpty) {
           children.add(
-            Text(
-              'Nobody has ${board.minimumDecided} decided calls in '
-              '${board.window.phrase} yet, so nobody is ranked.',
-              style: styles.bodyMedium?.copyWith(
-                color: AppColors.textSecondary,
-                height: 1.5,
+            Semantics(
+              hint:
+                  'A rank needs ${board.minimumDecided} decided calls in '
+                  '${board.window.phrase}.',
+              child: Text(
+                'Nobody ranked yet',
+                style: styles.bodyMedium?.copyWith(
+                  color: AppColors.textSecondary,
+                ),
               ),
             ),
           );
@@ -173,15 +194,11 @@ class _LeaderboardViewState extends State<LeaderboardView> {
         if (board.building.isNotEmpty) {
           children.addAll([
             const SizedBox(height: 24),
-            Text('Building a record', style: styles.titleMedium),
-            const SizedBox(height: 4),
-            Text(
-              'Fewer than ${board.minimumDecided} decided calls, so no '
-              'percentage and no rank yet. Most decided first.',
-              style: styles.bodySmall?.copyWith(
-                color: AppColors.textSecondary,
-                height: 1.5,
-              ),
+            Semantics(
+              hint:
+                  'Fewer than ${board.minimumDecided} decided calls, so no '
+                  'rank yet.',
+              child: Text('Building a record', style: styles.titleMedium),
             ),
             const SizedBox(height: 8),
             PersonRowGroup(
@@ -297,4 +314,37 @@ class _YourRank extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The leaderboard on its own screen, opened from Friends' award icon.
+class LeaderboardScreen extends StatelessWidget {
+  const LeaderboardScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: AppColors.background,
+    appBar: AppBar(
+      backgroundColor: AppColors.background,
+      surfaceTintColor: AppColors.background,
+      elevation: 0,
+      foregroundColor: AppColors.textPrimary,
+      leading: IconButton(
+        tooltip: 'Back',
+        constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+        onPressed: () => Navigator.of(context).maybePop(),
+        icon: const BasilIcon(
+          'arrow-left-outline',
+          color: AppColors.textPrimary,
+        ),
+      ),
+      title: Text(
+        'Leaderboard',
+        style: AppTextStyles.questionTitle.copyWith(
+          fontSize: 20,
+          letterSpacing: 0,
+        ),
+      ),
+    ),
+    body: const SafeArea(top: false, child: LeaderboardView(bottomPadding: 32)),
+  );
 }

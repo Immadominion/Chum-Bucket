@@ -22,7 +22,6 @@ import 'package:chumbucket/features/calls/presentation/screens/call_detail_scree
 import 'package:chumbucket/features/calls/presentation/widgets/call_card.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_response_sheet.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart';
-import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/market_picker_sheet.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/features/onboarding/domain/onboarding_data.dart';
@@ -227,19 +226,10 @@ class _CallFeedScreenState extends State<CallFeedScreen>
 
   List<Widget> _notices(CallsProvider provider) {
     final notices = <Widget>[];
-    // Offline, but there is cached content underneath — say so rather than
-    // presenting it as live.
+    // Saved content stays on screen and refreshes on its own; offline is a
+    // small pill, never a banner with a retry button or a "last updated".
     if (provider.isOffline && provider.feed.isNotEmpty) {
-      notices.add(CallsNotice.offline(onRetry: _refresh));
-    } else if (provider.isFeedStale && provider.feed.isNotEmpty) {
-      final age = provider.feedAge;
-      notices.add(
-        CallsNotice.stale(
-          message:
-              'Last updated ${age == null ? 'a while ago' : CallsFormat.relative(provider.feedServedAtUtc!)}.',
-          onRefresh: _refresh,
-        ),
-      );
+      notices.add(CallsNotice.offline());
     }
     if (provider.invitations.isNotEmpty) {
       notices.add(
@@ -248,8 +238,7 @@ class _CallFeedScreenState extends State<CallFeedScreen>
           color: AppColors.primary,
           message:
               '${provider.invitations.length} open dare'
-              '${provider.invitations.length == 1 ? '' : 's'} waiting. '
-              'No money involved — just go on record.',
+              '${provider.invitations.length == 1 ? '' : 's'} waiting',
         ),
       );
     }

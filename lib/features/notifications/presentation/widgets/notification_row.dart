@@ -1,8 +1,8 @@
 /// One inbox row.
 ///
-/// Renders generically off `title` / `body` / `createdAt` / `isUnread` and
-/// branches on `kind` — the same shape `arena_notifications_sheet.dart` already
-/// uses, so the two inboxes read as one app.
+/// Compact: who (avatar with the kind's glyph), what (title, one line of
+/// body), when (a short age) and an unread dot. The kind is carried by the
+/// glyph and read out to screen readers rather than printed as an eyebrow.
 ///
 /// Reused rather than rebuilt: `AppAvatar` for the actor, `CallOutcomeBadge` so
 /// a settled result is labelled here exactly as it is on a call card, and
@@ -34,45 +34,58 @@ class NotificationRow extends StatelessWidget {
   /// call first). Shows progress in place of the time and ignores taps.
   final bool opening;
 
+  /// Drawn inside a grouped list (Activity): no card of its own, the group
+  /// supplies the white surface and the dividers.
+  final bool grouped;
+
   const NotificationRow({
     super.key,
     required this.notification,
     required this.onTap,
     this.onOpenActor,
     this.opening = false,
+    this.grouped = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final tone = _toneFor(notification);
     final unread = notification.isUnread;
+    final radius = BorderRadius.circular(grouped ? 0 : 18.r);
+    // At large text a side column for the age would squeeze the title to a
+    // word per line, so the age moves under the body and the title gets the
+    // row's full width.
+    final large = MediaQuery.textScalerOf(context).scale(10) > 13;
+    final age = Text(
+      _ago(notification.createdAtUtc),
+      style: const TextStyle(
+        color: AppColors.textTertiary,
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+      ),
+    );
 
     return Semantics(
       button: true,
       label:
           '${opening ? 'Opening. ' : ''}${unread ? 'Unread. ' : ''}'
+          '${notification.kind.label}. '
           '${notification.title}. '
           '${notification.body} ${CallsFormat.relative(notification.createdAtUtc)}.',
       child: Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18.r),
+        color: grouped ? Colors.transparent : Colors.white,
+        borderRadius: radius,
         child: InkWell(
           onTap: opening ? null : onTap,
-          borderRadius: BorderRadius.circular(18.r),
-          child: Container(
-            padding: EdgeInsets.all(14.w),
+          borderRadius: radius,
+          child: Ink(
             decoration: BoxDecoration(
-              // Unread is carried by the border tint, the weight of the title
-              // and an explicit dot — never by colour alone.
-              color: unread ? tone.withValues(alpha: 0.04) : Colors.transparent,
-              borderRadius: BorderRadius.circular(18.r),
-              border: Border.all(
-                color:
-                    unread
-                        ? tone.withValues(alpha: 0.30)
-                        : AppColors.outlineVariant,
-              ),
+              // Unread is carried by the tint, the weight of the title and an
+              // explicit dot — never by colour alone.
+              color: unread ? AppColors.primary.withValues(alpha: 0.05) : null,
+              borderRadius: radius,
             ),
+            padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -81,86 +94,75 @@ class NotificationRow extends StatelessWidget {
                   tone: tone,
                   onOpenActor: onOpenActor,
                 ),
-                SizedBox(width: 11.w),
+                SizedBox(width: 12.w),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              notification.kind.label.toUpperCase(),
-                              style: TextStyle(
-                                color: tone,
-                                fontSize: 10.sp,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                          ),
-                          if (opening)
-                            SizedBox(
-                              key: const ValueKey('notification-opening'),
-                              width: 12.w,
-                              height: 12.w,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 1.6,
-                                color: tone,
-                              ),
-                            )
-                          else
-                            Text(
-                              CallsFormat.relative(notification.createdAtUtc),
-                              style: TextStyle(
-                                color: AppColors.textTertiary,
-                                fontSize: 10.sp,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          if (unread && !opening) ...[
-                            SizedBox(width: 6.w),
-                            Container(
-                              width: 8.w,
-                              height: 8.w,
-                              decoration: BoxDecoration(
-                                color: tone,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      SizedBox(height: 4.h),
                       Text(
                         notification.title,
-                        maxLines: 2,
+                        // Large text gets a third line rather than losing
+                        // the end of "backed your call".
+                        maxLines: large ? 3 : 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: AppColors.textPrimary,
-                          fontSize: 14.sp,
-                          height: 1.25,
+                          fontSize: 14,
+                          height: 1.3,
                           fontWeight:
-                              unread ? FontWeight.w900 : FontWeight.w700,
+                              unread ? FontWeight.w800 : FontWeight.w600,
                         ),
                       ),
-                      SizedBox(height: 4.h),
+                      SizedBox(height: 2.h),
                       Text(
                         notification.body,
-                        maxLines: 3,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: AppColors.textSecondary,
-                          fontSize: 12.sp,
+                          fontSize: 12,
                           height: 1.35,
                         ),
                       ),
+                      if (large && !opening) ...[
+                        SizedBox(height: 2.h),
+                        age,
+                      ],
                       if (notification.outcome != null) ...[
-                        SizedBox(height: 8.h),
+                        SizedBox(height: 6.h),
                         CallOutcomeBadge(outcome: notification.outcome!),
                       ],
                     ],
                   ),
+                ),
+                SizedBox(width: 8.w),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    if (opening)
+                      SizedBox(
+                        key: const ValueKey('notification-opening'),
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 1.8,
+                          color: tone,
+                        ),
+                      )
+                    else if (!large)
+                      age,
+                    if (unread && !opening) ...[
+                      if (!large) SizedBox(height: 6.h),
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
@@ -169,6 +171,34 @@ class NotificationRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// "now", "12m", "3h", "5d", then "27 Sep" (with the year once it is not
+/// this year): a row's age at a glance, short enough for 2x text.
+String _ago(DateTime at, {DateTime? now}) {
+  final reference = (now ?? DateTime.now()).toUtc();
+  final delta = reference.difference(at.toUtc());
+  if (delta.inMinutes < 1) return 'now';
+  if (delta.inMinutes < 60) return '${delta.inMinutes}m';
+  if (delta.inHours < 24) return '${delta.inHours}h';
+  if (delta.inDays < 7) return '${delta.inDays}d';
+  final local = at.toLocal();
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  final day = '${local.day} ${months[local.month - 1]}';
+  return local.year == reference.toLocal().year ? day : '$day ${local.year}';
 }
 
 class _Leading extends StatelessWidget {

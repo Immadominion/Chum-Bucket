@@ -4,9 +4,18 @@ import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/record/data/category_record.dart';
+import 'package:chumbucket/features/record/presentation/widgets/record_stat_tiles.dart';
 
-/// Counts only visible public free calls, never unscoped lifetime aggregates.
-/// A null list means unavailable, never a fabricated zero.
+/// What the record counts, said once behind the info icon instead of under
+/// every profile.
+const recordScopeCopy =
+    'Public free calls only, incorrect ones included. Void calls are not '
+    'scored. Separate from trading.';
+
+/// The public call record at a glance: correct, incorrect, pending and void,
+/// each a number with an icon. Counts only visible public free calls, never
+/// unscoped lifetime aggregates. A null list means unavailable, never a
+/// fabricated zero.
 class ProfileStatsCard extends StatelessWidget {
   final List<CallFeedEntry>? entries;
   const ProfileStatsCard({super.key, this.entries});
@@ -21,78 +30,88 @@ class ProfileStatsCard extends StatelessWidget {
         publicEntries == null
             ? null
             : PersonRecord.fromEntries(publicEntries).overall;
-    final correct = record?.tallies.first.count;
-    final incorrect = record?.tallies[1].count;
+    // Not read yet (or not readable): the same four tiles with a quiet "—",
+    // so nothing jumps when it lands and no internal state is narrated.
+    String count(int? n) => n == null ? '\u2014' : '$n';
+    final correct = record?.tallies[0].count;
     final voided = record?.tallies[2].count;
+    final tiles = RecordStatRow(
+      tiles: [
+        RecordStatTile(
+          key: const ValueKey('record-correct'),
+          icon: 'check-outline',
+          color: RecordInk.correct,
+          value: count(correct),
+          label: 'Correct',
+          semantics:
+              record == null
+                  ? null
+                  : '$correct correct of ${record.decided} decided',
+        ),
+        RecordStatTile(
+          key: const ValueKey('record-incorrect'),
+          icon: 'cross-outline',
+          color: RecordInk.incorrect,
+          value: count(record?.tallies[1].count),
+          label: 'Incorrect',
+        ),
+        RecordStatTile(
+          key: const ValueKey('record-pending'),
+          icon: 'sand-watch-outline',
+          color: RecordInk.pending,
+          value: count(record?.pending),
+          label: 'Pending',
+        ),
+        RecordStatTile(
+          key: const ValueKey('record-void'),
+          icon: 'cancel-outline',
+          color: RecordInk.voided,
+          value: count(voided),
+          label: 'Void',
+          semantics: record == null ? null : '$voided void, not scored',
+          info: record != null,
+        ),
+      ],
+    );
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(12, 10, 4, 12),
       color: AppColors.outlineVariant,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (record == null)
-            Text(
-              'Public call record unavailable',
-              style: styles.bodySmall?.copyWith(color: AppColors.textSecondary),
-            )
-          else ...[
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final stacked = MediaQuery.textScalerOf(context).scale(12) > 18;
-                final width =
-                    stacked
-                        ? constraints.maxWidth
-                        : (constraints.maxWidth - 24) / 3;
-                return Wrap(
-                  spacing: 12,
-                  runSpacing: 16,
-                  children: [
-                    _stat(
-                      styles,
-                      width,
-                      '$correct / ${record.decided}',
-                      'correct / decided',
+      child:
+          record == null
+              ? Semantics(
+                container: true,
+                label: 'Call record not loaded',
+                excludeSemantics: true,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: tiles,
+                ),
+              )
+              : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Tap anywhere on the record for what it counts; screen
+                  // readers hear it with the record.
+                  Tooltip(
+                    key: const ValueKey('record-scope'),
+                    message: recordScopeCopy,
+                    triggerMode: TooltipTriggerMode.tap,
+                    showDuration: const Duration(seconds: 6),
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: tiles,
                     ),
-                    _stat(
-                      styles,
-                      width,
-                      '${record.pending}',
-                      'awaiting result',
+                  ),
+                  if (publicEntries!.any((e) => e.market.venue.isDemo)) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'DEMO DATA · sample call record',
+                      style: styles.bodySmall,
                     ),
-                    _stat(styles, width, '$voided', 'void · not scored'),
                   ],
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            Text(
-              '$incorrect incorrect · ${record.decided} decided. Void excluded.',
-              style: styles.bodySmall?.copyWith(color: AppColors.textSecondary),
-            ),
-            if (publicEntries!.any((e) => e.market.venue.isDemo)) ...[
-              const SizedBox(height: 8),
-              Text('DEMO DATA · sample call record', style: styles.bodySmall),
-            ],
-          ],
-        ],
-      ),
+                ],
+              ),
     );
   }
-
-  Widget _stat(TextTheme styles, double width, String value, String label) =>
-      SizedBox(
-        width: width,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(value, style: styles.headlineSmall?.copyWith(fontSize: 22)),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: styles.bodySmall?.copyWith(color: AppColors.textSecondary),
-            ),
-          ],
-        ),
-      );
 }

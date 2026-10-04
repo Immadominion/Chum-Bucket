@@ -13,6 +13,7 @@
 /// dependency.
 library;
 
+import 'dart:async';
 import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart';
@@ -57,7 +58,8 @@ class NotificationsProvider extends ChangeNotifier {
   final NotificationsRepository _repository;
   final DateTime Function() _clock;
 
-  /// How old served data may be before the UI must say so.
+  /// How old served data may be before a plain [load] reads it again. The UI
+  /// never shows the age; it refreshes silently.
   final Duration staleAfter;
 
   bool _disposed = false;
@@ -189,7 +191,18 @@ class NotificationsProvider extends ChangeNotifier {
 
     _isLoading = true;
     _error = null;
+    final viewer = _viewerUserId;
+    final filter = _filter;
+    final token = ++_loadToken;
     _notify();
+    final paint =
+        _notifications.isEmpty &&
+                _servedAt == null &&
+                filter == NotificationFilter.all &&
+                viewer != null &&
+                viewer.isNotEmpty
+            ? _paintSaved(viewer, token)
+            : null;
     try {
       final page = await _repository.fetchNotifications(
         viewerUserId: _viewerUserId,
@@ -208,21 +221,62 @@ class NotificationsProvider extends ChangeNotifier {
       _unreadCount = 0;
       _error = e.message;
     } on NotificationsOfflineException catch (e) {
+      // A dead network fails in milliseconds: let the saved inbox, still
+      // coming off the disk, land first rather than a full-screen offline.
+      await _settlePaint(paint);
       // Keep whatever is already on screen; it is now explicitly cached.
       developer.log('NotificationsProvider.load offline: $e');
       _isOffline = true;
       _fromCache = _notifications.isNotEmpty;
       _error = e.message;
     } on NotificationsException catch (e) {
+      await _settlePaint(paint);
       developer.log('NotificationsProvider.load failed: $e');
       _error = e.message;
     } catch (e) {
+      await _settlePaint(paint);
       developer.log('NotificationsProvider.load failed: $e');
       _error = const NotificationsFailure().message;
     } finally {
       _isLoading = false;
       _notify();
     }
+  }
+
+  /// Draws the inbox as last read while the live read is in flight. Skipped
+  /// once the live read answered, the viewer or filter changed, or anything is
+  /// already on screen.
+  int _loadToken = 0;
+
+  Future<void> _settlePaint(Future<void>? paint) async {
+    if (paint == null) return;
+    try {
+      await paint;
+    } catch (e) {
+      developer.log('NotificationsProvider: saved read failed: $e');
+    }
+  }
+
+  Future<void> _paintSaved(String viewer, int token) async {
+    final repository = _repository;
+    if (repository is! NotificationsSnapshotSource) return;
+    final saved = await (repository as NotificationsSnapshotSource)
+        .savedNotifications(viewerUserId: viewer);
+    if (saved == null || saved.notifications.isEmpty) return;
+    if (!_isLoading ||
+        token != _loadToken ||
+        _viewerUserId != viewer ||
+        _filter != NotificationFilter.all ||
+        _notifications.isNotEmpty) {
+      return;
+    }
+    _notifications = saved.notifications;
+    _servedAt = saved.servedAt;
+    _nextCursor = saved.nextCursor;
+    _unreadCount = saved.unreadCount;
+    _fromCache = true;
+    _isSignedOut = false;
+    _notify();
   }
 
   Future<void> loadMore() async {

@@ -106,7 +106,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Your calls'), findsOneWidget);
+    // What is new, then what came before — not a "Your calls" heading.
+    expect(find.text('New'), findsOneWidget);
+    expect(find.text('Earlier'), findsOneWidget);
+    expect(find.text('Your calls'), findsNothing);
     expect(find.byType(NotificationRow), findsWidgets);
     // No wallet: the earlier-challenges section is not shown at all.
     expect(find.text('Earlier challenges'), findsNothing);

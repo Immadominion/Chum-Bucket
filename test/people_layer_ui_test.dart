@@ -348,15 +348,21 @@ void main() {
         friendsScreen(),
         wrap: (child) => hub(provider, arena, child),
       );
-      // The record-based board, and never the Arena's wealth ranking.
-      await revealPeopleText(tester, 'Leaderboard');
+      // The record-based board, one tap away on the header's award icon,
+      // and never the Arena's wealth ranking.
+      expect(find.byTooltip('Leaderboard'), findsOneWidget);
       expect(arena.leaderboardLoads, 0);
 
-      await revealPeopleText(tester, 'Following');
-      await tester.tap(find.text('Following'));
-      await tester.pumpAndSettle();
-      expect(find.text('People you follow'), findsOneWidget);
+      // Adding a friend follows them: the people you follow ARE the Friends
+      // list, so there is no separate Following tab to explain.
+      expect(find.text('Following'), findsNothing);
+      await revealPeopleText(tester, 'Ada Okafor');
       expect(find.text('Ada Okafor'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Leaderboard'));
+      await tester.pumpAndSettle();
+      expect(find.byType(LeaderboardScreen), findsOneWidget);
+      expect(find.text('Ace Caller'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
@@ -489,7 +495,31 @@ void main() {
         scale: 1,
       );
       expect(find.text('12 followers · 3 following'), findsOneWidget);
-      expect(find.text('3/4'), findsOneWidget);
+      // The same four numbers as your own Profile, misses and voids beside
+      // the hits; what the record counts is behind a tap, not printed.
+      for (final label in [
+        '3 correct of 4 decided',
+        '1 Incorrect',
+        '2 Pending',
+        '0 void, not scored',
+      ]) {
+        // One readout for the record, its scope read with it.
+        expect(
+          find.bySemanticsLabel(RegExp(RegExp.escape(label))),
+          findsWidgets,
+          reason: label,
+        );
+      }
+      expect(
+        tester
+            .widget<Tooltip>(find.byKey(const ValueKey('person-record-scope')))
+            .message,
+        allOf(
+          contains('Followers-only calls and trades are not counted'),
+          contains('Void is never scored'),
+        ),
+      );
+      expect(find.textContaining('not scored'), findsNothing);
       // Four decided is below the sample: no percentage, and it says why.
       expect(find.text('—'), findsOneWidget);
       expect(find.text('accuracy after 10 decided'), findsOneWidget);
@@ -662,7 +692,8 @@ void main() {
         width: 390,
         scale: 1,
       );
-      expect(find.textContaining('Find a person'), findsOneWidget);
+      // Idle: the search scene and one line, not instructions.
+      expect(find.text('Find people and markets'), findsOneWidget);
 
       await tester.enterText(find.byType(TextField), 'ada');
       await tester.pumpAndSettle();

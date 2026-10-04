@@ -20,6 +20,7 @@ import 'package:chumbucket/features/calls/presentation/screens/call_detail_scree
 import 'package:chumbucket/features/embedded_wallet/embedded_wallet_controller.dart';
 import 'package:chumbucket/features/embedded_wallet/panta_embedded_claim.dart';
 import 'package:chumbucket/features/panta_trading/panta_trading.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_state_view.dart';
 
 /// The signers this device can offer for a Panta approval on [wallet], in
 /// `choosePantaSigner`'s order: a connected wallet app for its own address,
@@ -48,10 +49,17 @@ PantaSignerResolver profilePantaSigners(
 };
 
 class ProfilePositionsTab extends StatefulWidget {
-  const ProfilePositionsTab({super.key, this.controllerOverride});
+  const ProfilePositionsTab({
+    super.key,
+    this.controllerOverride,
+    this.refreshTick = 0,
+  });
 
   /// Tests supply their own controller; the app builds one from the session.
   final PantaPositionsController? controllerOverride;
+
+  /// Profile's pull-to-refresh bumps this; the positions read again quietly.
+  final int refreshTick;
 
   @override
   State<ProfilePositionsTab> createState() => _ProfilePositionsTabState();
@@ -95,6 +103,17 @@ class _ProfilePositionsTabState extends State<ProfilePositionsTab> {
   }
 
   @override
+  void didUpdateWidget(covariant ProfilePositionsTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final controller = _active;
+    if (oldWidget.refreshTick != widget.refreshTick &&
+        controller != null &&
+        !controller.loading) {
+      controller.load();
+    }
+  }
+
+  @override
   void dispose() {
     _controller?.dispose();
     _client?.close();
@@ -125,32 +144,24 @@ class _SignedOut extends StatelessWidget {
   const _SignedOut({required this.onSignIn});
   final VoidCallback onSignIn;
   @override
-  Widget build(BuildContext context) => ListTile(
-    tileColor: Colors.white,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-    contentPadding: const EdgeInsets.all(16),
-    title: const Text('Sign in to see your positions'),
-    subtitle: const Padding(
-      padding: EdgeInsets.only(top: 8),
-      child: Text(
+  Widget build(BuildContext context) => ChumbucketStateView(
+    artwork: ChumbucketStateArtwork.access,
+    message: 'Sign in to see your positions',
+    semanticsHint:
         'Funded Panta positions belong to your account. Free calls are not '
         'positions.',
-      ),
-    ),
-    onTap: onSignIn,
+    actionLabel: 'Sign in',
+    actionIcon: 'login-outline',
+    onAction: onSignIn,
   );
 }
 
 class _Unconfigured extends StatelessWidget {
   const _Unconfigured();
   @override
-  Widget build(BuildContext context) => const ListTile(
-    tileColor: Colors.white,
-    contentPadding: EdgeInsets.all(16),
-    title: Text('Positions are not available in this build'),
-    subtitle: Padding(
-      padding: EdgeInsets.only(top: 8),
-      child: Text('This build has no secure calls server configured.'),
-    ),
+  Widget build(BuildContext context) => const ChumbucketStateView(
+    artwork: ChumbucketStateArtwork.waiting,
+    message: 'Positions are not available in this build',
+    compact: true,
   );
 }

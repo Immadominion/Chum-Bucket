@@ -111,9 +111,10 @@ void main() {
     await tester.pumpWidget(inboxHarness(providerFor(MockNotificationsRepository())));
     await tester.pumpAndSettle();
 
+    // The kind is drawn as the row's glyph and read out as its label.
     for (final kind in CallNotificationKind.values) {
       expect(
-        find.text(kind.label.toUpperCase()),
+        find.bySemanticsLabel(RegExp('${kind.label}\\. ')),
         findsOneWidget,
         reason: '${kind.wire} row is missing',
       );
@@ -273,7 +274,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(CallsSignedOutView), findsOneWidget);
-    expect(find.textContaining('No wallet needed'), findsOneWidget);
+    expect(find.text('Sign in to see who backs you'), findsOneWidget);
+    expect(
+      tester
+          .getSemantics(find.text('Sign in to see who backs you'))
+          .hint,
+      contains('No wallet needed'),
+    );
 
     await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();
@@ -339,10 +346,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(NotificationRow), findsNWidgets(4));
-    expect(
-      find.text('Offline — showing what we already had.'),
-      findsOneWidget,
-    );
+    // Saved rows stay; offline is a small pill with no retry button.
+    expect(find.byType(ChumbucketOfflinePill), findsOneWidget);
+    expect(find.text('Retry'), findsNothing);
   });
 
   testWidgets('a failure is an error state, not a silent empty list', (

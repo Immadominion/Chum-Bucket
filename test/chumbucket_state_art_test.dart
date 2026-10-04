@@ -212,10 +212,9 @@ void main() {
       expect(find.byType(ChumbucketStateArt), findsNothing);
       await _mount(tester, CallsNotice.offline());
       expect(find.byType(ChumbucketStateArt), findsNothing);
-      expect(
-        find.text('Offline — showing what we already had.'),
-        findsOneWidget,
-      );
+      // A small pill over saved content, never a banner with a retry.
+      expect(find.byType(ChumbucketOfflinePill), findsOneWidget);
+      expect(find.text('Offline'), findsOneWidget);
     },
   );
 

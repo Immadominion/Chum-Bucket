@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
-import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
+
+import 'package:chumbucket/shared/widgets/chumbucket_state_view.dart';
 import '../error/error_handler.dart';
 
 /// Error boundary widget that catches and handles widget tree errors
@@ -99,7 +98,7 @@ class _ErrorCatcherState extends State<ErrorCatcher> {
   }
 }
 
-/// Default error widget with retry functionality
+/// Default error widget: the brand error scene, one line, one action.
 class DefaultErrorWidget extends StatelessWidget {
   final AppError error;
   final VoidCallback? onRetry;
@@ -114,88 +113,23 @@ class DefaultErrorWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(16.w),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const ChumbucketStateArt.compact(ChumbucketStateArtwork.error),
-          SizedBox(height: 16.h),
-          Text(
-            'Something went wrong',
-            style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.bold),
-            textAlign: TextAlign.center,
-          ),
-          SizedBox(height: 8.h),
-          Text(
-            customMessage ?? _getUserFriendlyMessage(),
-            style: TextStyle(fontSize: 14.sp, color: Colors.grey.shade600),
-            textAlign: TextAlign.center,
-          ),
-          if (onRetry != null) ...[
-            SizedBox(height: 24.h),
-            ElevatedButton.icon(
-              onPressed: onRetry,
-              icon: const BasilIcon('refresh-outline'),
-              label: const Text('Try Again'),
-            ),
-          ],
-          SizedBox(height: 16.h),
-          ExpansionTile(
-            title: const Text('Error Details'),
-            children: [
-              Container(
-                width: double.infinity,
-                padding: EdgeInsets.all(12.w),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(8.r),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Context: ${error.context ?? 'Unknown'}',
-                      style: TextStyle(
-                        fontSize: 12.sp,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    SizedBox(height: 4.h),
-                    Text(
-                      'Error: ${error.message}',
-                      style: TextStyle(fontSize: 12.sp),
-                    ),
-                    SizedBox(height: 4.h),
-                    Text(
-                      'Time: ${error.timestamp.toLocal()}',
-                      style: TextStyle(fontSize: 12.sp),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
+    return Center(
+      child: SingleChildScrollView(
+        child: ChumbucketStateView(
+          artwork: ChumbucketStateArtwork.error,
+          message: 'Something went wrong',
+          // Only a caller's own sentence is read out; the raw error is
+          // for logs, never for people.
+          semanticsHint: customMessage,
+          actionLabel: onRetry == null ? null : 'Try again',
+          onAction: onRetry,
+        ),
       ),
     );
   }
-
-  String _getUserFriendlyMessage() {
-    switch (error.severity) {
-      case ErrorSeverity.low:
-        return 'A minor issue occurred. The app should continue working normally.';
-      case ErrorSeverity.medium:
-        return 'An error occurred. Please try refreshing or try again later.';
-      case ErrorSeverity.high:
-        return 'An error occurred that prevented this from working properly.';
-      case ErrorSeverity.critical:
-        return 'A serious error occurred. You may need to restart the app.';
-    }
-  }
 }
 
-/// Network error specific widget
+/// Network error: the brand offline scene, one line, one action.
 class NetworkErrorWidget extends StatelessWidget {
   final String? message;
   final VoidCallback? onRetry;
@@ -204,39 +138,21 @@ class NetworkErrorWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(24.w),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const ChumbucketStateArt.compact(ChumbucketStateArtwork.offline),
-          SizedBox(height: 16.h),
-          Text(
-            'Connection Problem',
-            style: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.bold),
-            textAlign: TextAlign.center,
-          ),
-          SizedBox(height: 8.h),
-          Text(
-            message ?? 'Please check your internet connection and try again.',
-            style: TextStyle(fontSize: 14.sp, color: Colors.grey.shade600),
-            textAlign: TextAlign.center,
-          ),
-          if (onRetry != null) ...[
-            SizedBox(height: 24.h),
-            ElevatedButton.icon(
-              onPressed: onRetry,
-              icon: const BasilIcon('refresh-outline'),
-              label: const Text('Try Again'),
-            ),
-          ],
-        ],
+    return Center(
+      child: SingleChildScrollView(
+        child: ChumbucketStateView(
+          artwork: ChumbucketStateArtwork.offline,
+          message: 'You’re offline',
+          semanticsHint: message,
+          actionLabel: onRetry == null ? null : 'Try again',
+          onAction: onRetry,
+        ),
       ),
     );
   }
 }
 
-/// Loading error widget for failed async operations
+/// A failed async load: the brand error scene, one line, one action.
 class LoadingErrorWidget extends StatelessWidget {
   final String? message;
   final VoidCallback? onRetry;
@@ -251,35 +167,16 @@ class LoadingErrorWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(16.w),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const ChumbucketStateArt.compact(ChumbucketStateArtwork.error),
-          SizedBox(height: 12.h),
-          Text(
-            'Failed to Load',
-            style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w600),
-            textAlign: TextAlign.center,
-          ),
-          if (message != null) ...[
-            SizedBox(height: 8.h),
-            Text(
-              message!,
-              style: TextStyle(fontSize: 12.sp, color: Colors.grey.shade600),
-              textAlign: TextAlign.center,
-            ),
-          ],
-          if (onRetry != null) ...[
-            SizedBox(height: 16.h),
-            TextButton.icon(
-              onPressed: onRetry,
-              icon: BasilIcon('refresh-outline', size: 16.w),
-              label: const Text('Retry'),
-            ),
-          ],
-        ],
+    return Center(
+      child: SingleChildScrollView(
+        child: ChumbucketStateView(
+          artwork: ChumbucketStateArtwork.error,
+          message: 'Couldn’t load this',
+          semanticsHint: message,
+          actionLabel: onRetry == null ? null : 'Try again',
+          onAction: onRetry,
+          compact: true,
+        ),
       ),
     );
   }

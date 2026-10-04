@@ -31,6 +31,10 @@ class ChumbucketAppHeader extends StatelessWidget {
   /// Opens people + market search. Null shows no search action.
   final VoidCallback? onSearchTap;
 
+  /// Extra icon actions for this screen, drawn before search (e.g. Friends'
+  /// leaderboard). Icons, not words.
+  final List<Widget> actions;
+
   const ChumbucketAppHeader({
     super.key,
     this.title,
@@ -38,6 +42,7 @@ class ChumbucketAppHeader extends StatelessWidget {
     this.showAccountActions = true,
     this.onActivityTap,
     this.onSearchTap,
+    this.actions = const [],
   });
 
   @override
@@ -50,9 +55,25 @@ class ChumbucketAppHeader extends StatelessWidget {
           if (showAccountActions) _ProfileAvatar(onTap: onProfileTap),
           if (title != null) ...[
             if (showAccountActions) SizedBox(width: 12.w),
-            Expanded(child: Text(title!, style: AppTextStyles.pageTitle)),
+            // One word, one line: at large text the title shrinks to fit
+            // rather than breaking mid-word beside the icons.
+            Expanded(
+              child: Semantics(
+                header: true,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text(
+                    title!,
+                    maxLines: 1,
+                    style: AppTextStyles.pageTitle,
+                  ),
+                ),
+              ),
+            ),
           ] else
             const Spacer(),
+          ...actions,
           if (showAccountActions) ...[
             const _WalletButton(),
             SizedBox(width: 6.w),

@@ -37,13 +37,58 @@ The call detail and market detail screens reuse the same shared error/offline/
 signed-out components. No provider state, data retrieval, status derivation,
 identity, trading eligibility or action callback was changed.
 
+## One state screen, and a stateful app (2026-10-04)
+
+Following the owner's direction ("modern smart layouts over text-heavy
+things"; "having refresh buttons in the app is really bad UI"), every empty,
+error, offline and signed-out state is drawn by one component,
+`lib/shared/widgets/chumbucket_state_view.dart`:
+
+```dart
+ChumbucketStateView(
+  artwork: ChumbucketStateArtwork.inbox,
+  message: 'No activity yet',          // ONE short line
+  semanticsHint: 'Backs, fades, results and dares land here.', // read, not drawn
+  actionLabel: 'Sign in',              // at most one action,
+  onAction: signIn,                    // drawn as the primary button
+);
+ChumbucketStateFill(child: …);         // fills a screen and still pulls to refresh
+const ChumbucketOfflinePill();         // the only trace of "offline" over saved content
+```
+
+`CallsStateView` and its family (`CallsEmptyView`, `CallsErrorView`,
+`CallsOfflineView`, `CallsSignedOutView`) keep their constructors and now draw
+through it: the title is the one line, `message` is read to screen readers
+only. `CallsErrorView` shows the server's own short reason as its line when it
+has one ("This profile is private."), else "Couldn't load this".
+
+The app is stateful: no screen says "last updated …" or offers a Refresh
+button. `CallsNotice.stale` is gone; `CallsNotice.offline()` is now the small
+pill and has no retry. Saved content stays on screen and refreshes on open, on
+pull-to-refresh and on app resume. The last good reads (Home's first page per
+tab, the open catalog, your own profile and record, your follow list, your
+inbox) are kept on the phone (`lib/core/cache/snapshot_store.dart`, keyed by
+account, wiped on sign-out; a read still in flight at sign-out is never
+written back) so a cold start opens on them.
+
+Applied to: Activity (New / Earlier, compact rows, inbox art), Friends (one list
+of the people you follow plus wallet friends, an Add a friend row first, the
+people scene when nobody yet, the leaderboard behind the header's award icon),
+Profile (four-number record with its scope behind a tap, slim "Escrow still
+open" row only while one is, art-led Calls / Positions states), other people's
+profiles (an accuracy headline over the same four tiles, drawn by
+`lib/features/record/presentation/widgets/record_stat_tiles.dart`), Search (idle
+search scene), Settings → History (slim rows), the escrow list, edit profile,
+and the generic error widgets.
+
 ### States that deliberately keep their current treatment
 
 - **Loading:** feed skeletons, list placeholders, spinners and wallet-approval
   progress remain progress indicators. An empty illustration must not imply a
   request has completed.
-- **Stale/offline with cached content:** retain content plus the compact notice.
-  Never replace usable cached rows with an offline illustration.
+- **Stale/offline with cached content:** retain content; offline shows only the
+  small `ChumbucketOfflinePill`, staleness shows nothing. Never replace usable
+  cached rows with an offline illustration.
 - **Inline validation, snackbar feedback, private/deleted invitation rows,
   webview errors and deep-link refusals:** retain concise live text/icons.
   Repeating a 144px illustration in each row would overwhelm the content.

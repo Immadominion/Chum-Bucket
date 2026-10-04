@@ -242,17 +242,6 @@ class _ProposalDetailScreenState extends State<ProposalDetailScreen> {
             color: AppColors.textPrimary,
           ),
         ),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-            onPressed: _refresh,
-            icon: const BasilIcon(
-              'refresh-outline',
-              color: AppColors.textPrimary,
-            ),
-          ),
-        ],
       ),
       body:
           p == null

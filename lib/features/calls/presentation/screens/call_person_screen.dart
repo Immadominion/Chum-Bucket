@@ -331,24 +331,13 @@ class _CallPersonScreenState extends State<CallPersonScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            publicRecord != null
-                ? 'Public free calls, misses and withdrawn calls included. '
-                    'Void is never scored. Followers-only calls and trades are not counted.'
-                : 'Public free calls shown here, including incorrect calls. '
-                    'Void excluded from scored results. Separate from trading performance.',
-            style: styles.bodySmall?.copyWith(
-              color: AppColors.textSecondary,
-              height: 1.5,
-            ),
-          ),
-          if (provider.isOffline ||
-              provider.personError(widget.personRef) != null) ...[
+          // What the record counts lives behind the record's info icon.
+          // Saved calls stay on screen; offline is only a small pill.
+          if (provider.isOffline) ...[
             const SizedBox(height: 12),
-            Text(
-              'Showing saved calls. Pull down to retry.',
-              style: styles.bodySmall,
+            const Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: ChumbucketOfflinePill(),
             ),
           ],
           // No wallet, stakes or arena money profile in a public identity panel.

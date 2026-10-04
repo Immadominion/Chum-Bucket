@@ -1,3 +1,4 @@
+import 'package:chumbucket/shared/widgets/chumbucket_state_view.dart';
 import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
 import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
@@ -283,46 +284,41 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   widget.isRequired ? 'Complete your profile' : 'Edit profile',
                   style: AppTextStyles.pageTitle,
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Your name and bio show next to your calls, on your '
-                  'profile and on receipts you share.',
-                  style: _hint,
-                ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 24),
                 if (_profileLoading) ...[
                   const LinearProgressIndicator(
                     semanticsLabel: 'Loading your profile',
                   ),
-                  const SizedBox(height: 12),
-                  const Text('Loading your profile…'),
                   const SizedBox(height: 20),
                 ],
                 if (_needsSignIn) ...[
-                  Text(
-                    'Sign in to edit your profile. Your name, bio and picture '
-                    'belong to your Chumbucket account, whether you use a '
-                    'wallet, Google or X.',
-                    style: TextStyle(
-                      fontSize: 15.sp,
-                      height: 1.4,
-                      color: Theme.of(context).colorScheme.onSurface,
+                  Center(
+                    child: ChumbucketStateView(
+                      artwork: ChumbucketStateArtwork.access,
+                      message: 'Sign in to edit your profile',
+                      semanticsHint:
+                          'Your name, bio and picture belong to your '
+                          'Chumbucket account: wallet, Google or X.',
+                      actionLabel: 'Sign in',
+                      actionIcon: 'login-outline',
+                      onAction: () => requestCallSignIn(context),
+                      compact: true,
+                      padding: const EdgeInsets.only(bottom: 24),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: () => requestCallSignIn(context),
-                    child: const Text('Sign in'),
-                  ),
-                  const SizedBox(height: 20),
                 ],
                 if (_profileLoadError != null) ...[
-                  Text(_profileLoadError!),
-                  TextButton(
-                    onPressed: _loadUserProfile,
-                    child: const Text('Retry'),
+                  Center(
+                    child: ChumbucketStateView(
+                      artwork: ChumbucketStateArtwork.error,
+                      message: 'Couldn’t load your profile',
+                      semanticsHint: _profileLoadError,
+                      actionLabel: 'Try again',
+                      onAction: _loadUserProfile,
+                      compact: true,
+                      padding: const EdgeInsets.only(bottom: 24),
+                    ),
                   ),
-                  const SizedBox(height: 20),
                 ],
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -430,11 +426,6 @@ final _label = AppTextStyles.textTheme.bodyMedium!.copyWith(
   color: AppColors.textSecondary,
   fontSize: 13,
   fontWeight: FontWeight.w600,
-);
-final _hint = AppTextStyles.textTheme.bodyMedium!.copyWith(
-  color: AppColors.textSecondary,
-  fontSize: 14,
-  height: 1.5,
 );
 final _field = AppTextStyles.textTheme.bodyLarge!.copyWith(
   color: AppColors.textPrimary,

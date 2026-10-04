@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:chumbucket/core/cache/snapshot_store.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
@@ -46,9 +49,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _profileWallet;
   String? _requestedIdentity;
   bool _loadingProfile = false;
-  String? _profileError;
   int _selectedTab = 0;
   int _request = 0;
+
+  /// Bumped by pull-to-refresh so Positions reads again too.
+  int _refreshTick = 0;
+
+  Future<void> _pullToRefresh() async {
+    setState(() => _refreshTick++);
+    await _loadProfileData();
+  }
 
   Future<void> _loadProfileData() async {
     if (!mounted) return;
@@ -57,10 +67,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final userId = calls?.viewerUserId;
     final profileProvider = context.read<ProfileProvider?>();
     final request = ++_request;
-    setState(() {
-      _loadingProfile = true;
-      _profileError = null;
-    });
+    // A sign-out while this reads wipes the store: the account is then not
+    // written back.
+    final generation = SnapshotStore.device.generation;
+    setState(() => _loadingProfile = true);
+    // Your account as last seen draws at once; the live read replaces it.
+    if (userId != null && _ownProfile?.userId != userId) {
+      unawaited(_paintSavedOwnProfile(userId, request));
+    }
     // This is the canonical user id supplied by the existing session, never
     // derived from a wallet. The wallet lookup remains the old profile flow.
     final personRead =
@@ -82,28 +96,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         _profileWallet = wallet;
         _existingProfile = profile;
-        _profileError =
-            wallet != null && profile == null
-                ? 'Your existing profile could not be loaded. Pull down to retry.'
-                : null;
       });
     } catch (_) {
-      if (mounted && request == _request) {
-        setState(
-          () =>
-              _profileError =
-                  'Your profile is unavailable. Pull down to retry.',
-        );
-      }
+      // A failed refresh keeps what is on screen; nothing is narrated.
     } finally {
       await personRead;
       final own = await ownRead;
       if (mounted && request == _request) {
         setState(() {
-          _ownProfile = own != null && own.userId == userId ? own : null;
+          if (own != null && own.userId == userId) {
+            _ownProfile = own;
+          } else if (_ownProfile?.userId != userId) {
+            _ownProfile = null;
+          }
           _loadingProfile = false;
         });
+        if (own != null &&
+            own.userId == userId &&
+            context.read<CallsProvider?>()?.viewerUserId == userId) {
+          unawaited(
+            SnapshotStore.device.write(
+              snapshotKey('account', viewer: userId),
+              own.toJson(),
+              generation: generation,
+            ),
+          );
+        }
       }
+    }
+  }
+
+  Future<void> _paintSavedOwnProfile(String userId, int request) async {
+    final saved = await SnapshotStore.device.read(
+      snapshotKey('account', viewer: userId),
+    );
+    if (saved == null || !mounted || request != _request) return;
+    if (_ownProfile?.userId == userId) return;
+    try {
+      final profile = AccountProfile.fromJson(saved);
+      if (profile.userId != userId) return;
+      setState(() => _ownProfile = profile);
+    } catch (_) {
+      // An unreadable snapshot is ignored.
     }
   }
 
@@ -184,7 +218,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         bottom: false,
         child: RefreshIndicator(
           color: AppColors.primary,
-          onRefresh: _loadProfileData,
+          onRefresh: _pullToRefresh,
           child: ListView(
             key: const PageStorageKey('profile-root'),
             physics: const AlwaysScrollableScrollPhysics(),
@@ -248,64 +282,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 : null,
                         footer: const ProfileWalletCard(),
                       ),
-                      ProfileStatsCard(entries: detail?.calls),
+                      // Signed out there is no record to show: the Calls
+                      // tab below offers sign-in instead of empty tiles.
+                      if (userId != null)
+                        ProfileStatsCard(entries: detail?.calls),
                     ],
                   ),
                 ),
               ),
-              // What the record counts, once there is a record to read.
-              if (detail != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  'Public free calls shown here, including incorrect calls. '
-                  'Separate from trading performance.',
-                  style: styles.bodySmall?.copyWith(
-                    color: AppColors.textSecondary,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-              if (pending) ...[
-                const SizedBox(height: 16),
-                const LinearProgressIndicator(),
-                const SizedBox(height: 8),
-                Text('Loading your existing profile…', style: styles.bodySmall),
-              ],
-              if (_profileError != null && person == null) ...[
-                const SizedBox(height: 12),
-                Text(_profileError!, style: styles.bodyMedium),
-              ],
               if (needsHandle) ...[
                 const SizedBox(height: 16),
                 _ProfileActionRow(
                   key: const ValueKey('profile-claim-handle'),
-                  icon: 'user-plus-outline',
+                  icon: 'at-sign-outline',
                   title: 'Claim your @username',
-                  detail:
-                      'Your calls show a placeholder name until you pick one.',
                   onTap: () => showClaimHandleSheet(context),
                 ),
               ],
               if (openEscrow.isNotEmpty) ...[
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 // Earlier SOL escrow challenges still holding SOL stay one tap
-                // away until they are settled. Only the witness can settle
-                // one, so say who has to act.
+                // away until they are settled: a slim row, shown only while
+                // one is really open. Who has to act is said in its label for
+                // screen readers and on the History screen it opens.
                 _ProfileActionRow(
                   key: const ValueKey('profile-open-escrow'),
-                  icon: 'clock-outline',
+                  icon: 'lock-time-outline',
                   title:
                       openEscrow.length == 1
-                          ? 'Escrow challenge still open'
-                          : '${openEscrow.length} escrow challenges still open',
-                  detail:
+                          ? 'Escrow still open'
+                          : '${openEscrow.length} escrows still open',
+                  semanticsHint:
                       openEscrow.any(
                             (c) => wallet != null && c.witnessAddress == wallet,
                           )
-                          ? 'You’re the witness, so only you can settle it '
-                              'and release the SOL.'
-                          : 'Your SOL stays in escrow until the witness '
-                              'settles it.',
+                          ? 'You’re the witness: only you can settle it.'
+                          : 'Your SOL stays in escrow until the witness settles it.',
+                  tone: AppColors.warningContainer,
                   onTap: widget.onOpenChallenges,
                 ),
               ],
@@ -324,20 +337,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
               // Only the call record needs a signed-in account, so its tab
               // is where signing in is offered.
               if (_selectedTab == 0 && userId == null && !pending)
-                _ProfileActionRow(
-                  icon: 'user-outline',
-                  title: 'Sign in',
-                  detail:
-                      session?.error?.message ??
-                      'Use your wallet, Google or X. Your call record '
-                          'appears here.',
-                  onTap:
+                ChumbucketStateView(
+                  artwork: ChumbucketStateArtwork.record,
+                  message: 'Sign in to keep your record',
+                  semanticsHint: session?.error?.message,
+                  actionLabel: session == null ? null : 'Sign in',
+                  actionIcon: 'login-outline',
+                  onAction:
                       session == null ? null : () => requestCallSignIn(context),
                 )
               else if (_selectedTab == 0 && userId != null)
                 ..._callRecord(calls, detail, userId, styles),
               // Real funded Panta positions, private to this account.
-              if (_selectedTab == 1) const ProfilePositionsTab(),
+              if (_selectedTab == 1)
+                ProfilePositionsTab(refreshTick: _refreshTick),
             ],
           ),
         ),
@@ -353,32 +366,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
   ) {
     if (detail == null) {
       final error = userId == null ? null : provider?.personError(userId);
+      final loading =
+          userId != null && (provider?.isLoadingPerson(userId) ?? false);
+      if (error == null || loading) return const [_CallsSkeleton()];
       return [
-        _ProfileActionRow(
-          icon: 'comment-outline',
-          title: 'Your calls',
-          detail: error ?? 'Your call record is not available yet.',
-          onTap: userId == null ? null : _loadProfileData,
+        ChumbucketStateView(
+          artwork: ChumbucketStateArtwork.error,
+          message: 'Couldn’t load your calls',
+          semanticsHint: CallsErrorView.isHumanReason(error) ? error : null,
+          actionLabel: 'Try again',
+          onAction: _loadProfileData,
         ),
       ];
     }
     if (detail.calls.isEmpty) {
-      return [
-        const CallsEmptyView(
+      return const [
+        ChumbucketStateView(
           artwork: ChumbucketStateArtwork.record,
-          title: 'Nothing on record yet',
-          message:
-              'Your calls will appear here once you make one. Calling is free.',
+          message: 'No calls on record yet',
+          semanticsHint: 'Your calls appear here once you make one.',
         ),
       ];
     }
     return [
-      if (provider?.isOffline == true || provider?.personError(userId!) != null)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Text(
-            'Showing saved calls. Pull down to retry.',
-            style: styles.bodySmall,
+      // Saved calls stay on screen; offline is only a small pill.
+      if (provider?.isOffline == true)
+        const Padding(
+          padding: EdgeInsets.only(bottom: 12),
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: ChumbucketOfflinePill(),
           ),
         ),
       for (final entry in detail.calls)
@@ -399,48 +416,88 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
+/// Two quiet call-shaped placeholders while the first read of your record
+/// runs.
+class _CallsSkeleton extends StatelessWidget {
+  const _CallsSkeleton();
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: 'Loading your calls',
+    child: Column(
+      children: [
+        for (var i = 0; i < 2; i++)
+          Container(
+            height: 120,
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(20),
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
+/// One slim tappable row: icon, a few words, a chevron.
 class _ProfileActionRow extends StatelessWidget {
   final String icon;
   final String title;
-  final String detail;
+  final String? semanticsHint;
+  final Color tone;
   final VoidCallback? onTap;
   const _ProfileActionRow({
     super.key,
     required this.icon,
     required this.title,
-    required this.detail,
     required this.onTap,
+    this.semanticsHint,
+    this.tone = AppColors.surface,
   });
 
   @override
   Widget build(BuildContext context) {
-    final styles = AppTextStyles.textTheme;
-    return Material(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(20),
-      clipBehavior: Clip.antiAlias,
-      child: ListTile(
-        onTap: onTap,
-        contentPadding: const EdgeInsets.all(16),
-        leading: BasilIcon(icon, color: AppColors.textPrimary),
-        title: Text(title, style: styles.titleMedium),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Text(
-            detail,
-            style: styles.bodySmall?.copyWith(
-              color: AppColors.textSecondary,
-              height: 1.5,
+    return Semantics(
+      button: onTap != null,
+      label: title,
+      hint: semanticsHint,
+      excludeSemantics: true,
+      child: Material(
+        color: tone,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 52),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  BasilIcon(icon, size: 20, color: AppColors.textPrimary),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  if (onTap != null)
+                    const BasilIcon(
+                      'arrow-right-outline',
+                      size: 18,
+                      color: AppColors.textPrimary,
+                    ),
+                ],
+              ),
             ),
           ),
         ),
-        trailing:
-            onTap == null
-                ? null
-                : const BasilIcon(
-                  'arrow-right-outline',
-                  color: AppColors.textPrimary,
-                ),
       ),
     );
   }

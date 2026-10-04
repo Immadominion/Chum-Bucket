@@ -8,15 +8,11 @@ import 'package:flutter/material.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/core/theme/app_colors.dart';
-import 'package:chumbucket/core/theme/app_text_styles.dart';
-import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_settings_sheet.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenges_preview.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
-import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
-import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/shared/services/unified_database_service.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
-import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_state_view.dart';
 
 /// Merge in each friend's resolved X-handle/display-name label, when the
 /// wallet-profile cache already has one — leaves the map untouched otherwise
@@ -48,6 +44,28 @@ class FriendsTab extends StatefulWidget {
   final double bottomPadding;
   final Widget? invitations;
 
+  /// The people you follow, drawn above the wallet friends. Null when there
+  /// is nothing to draw (not loaded, none, or signed out).
+  final Widget? followingSection;
+
+  /// Whether the follow list is known to be empty. Null when this build or
+  /// session has no follow list, so it cannot say.
+  final bool? followingEmpty;
+
+  /// The follow list's first read is in flight with nothing to show yet.
+  final bool followingLoading;
+
+  /// The follow list failed with nothing saved to show.
+  final String? followingError;
+
+  /// Pull-to-refresh also re-reads whatever the parent owns (follows,
+  /// invitations).
+  final Future<void> Function()? onRefresh;
+
+  /// Bumped by Home on resume and after a friend is added: the wallet
+  /// friends read again in place, and the list stays on screen meanwhile.
+  final int refreshKey;
+
   const FriendsTab({
     super.key,
     required this.onAddFriend,
@@ -58,6 +76,12 @@ class FriendsTab extends StatefulWidget {
     this.showChallengesPreview = true,
     this.bottomPadding = 0,
     this.invitations,
+    this.followingSection,
+    this.followingEmpty,
+    this.followingLoading = false,
+    this.followingError,
+    this.onRefresh,
+    this.refreshKey = 0,
   });
   @override
   State<FriendsTab> createState() => _FriendsTabState();
@@ -75,7 +99,6 @@ class _FriendsTabState extends State<FriendsTab>
 
   // Caching for performance optimization
   Future<List<Map<String, String>>>? _friendsFuture;
-  ValueKey? _lastRefreshKey;
   DateTime? _lastLoadTime; // Track when we last loaded friends
 
   // Keep state alive when switching tabs
@@ -85,7 +108,6 @@ class _FriendsTabState extends State<FriendsTab>
   @override
   void initState() {
     super.initState();
-    _lastRefreshKey = widget.key is ValueKey ? widget.key as ValueKey : null;
     // Don't load friends immediately - wait for auth state
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -117,11 +139,11 @@ class _FriendsTabState extends State<FriendsTab>
   @override
   void didUpdateWidget(FriendsTab oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Check if we need to refresh based on the widget key
-    final newRefreshKey = widget.key;
-    if (newRefreshKey != _lastRefreshKey && newRefreshKey is ValueKey) {
-      debugPrint('FriendsTab: Refresh key changed, clearing caches');
-      _lastRefreshKey = newRefreshKey;
+    // A refresh reads again in place. (A changed widget key would build a
+    // new, empty State instead, which is why the parent keys this tab by
+    // wallet only and passes the refresh as [refreshKey].)
+    if (oldWidget.refreshKey != widget.refreshKey) {
+      debugPrint('FriendsTab: refresh requested, reading again in place');
       _friendsFuture = null; // Clear cache to force refresh
       hasAttemptedLoad = false; // Reset load flag to allow refresh
       // DON'T clear friends list - keep showing old data while refreshing
@@ -321,164 +343,295 @@ class _FriendsTabState extends State<FriendsTab>
       });
     }
 
-    final styles = AppTextStyles.textTheme;
     final connected = authProvider.walletAddress != null;
-    // A Chumbucket account of any kind (wallet, Google or X).
-    final signedIn =
-        context.watch<ChumbucketSession?>()?.isReady == true ||
-        context.watch<CallsProvider?>()?.isSignedIn == true;
-    return RefreshIndicator(
-      color: AppColors.primary,
-      onRefresh: _retryLoadFriends,
-      child: SingleChildScrollView(
-        key: const PageStorageKey('friends-grid'),
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (widget.invitations != null) widget.invitations!,
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child:
-                  !connected
-                      ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Your existing friends',
-                            style: styles.titleLarge,
+    final walletLoading = connected && friends.isEmpty && !hasAttemptedLoad ||
+        connected && isLoading && friends.isEmpty;
+    final walletFailed = connected && _hasLoadError && friends.isEmpty;
+    final hasWalletFriends = connected && friends.isNotEmpty;
+    final loading = walletLoading || widget.followingLoading;
+    final hasFollowing = widget.followingSection != null;
+    final noFollowList = widget.followingEmpty == null && !hasFollowing;
+    final followsKnownEmpty = widget.followingEmpty == true || noFollowList;
+
+    Future<void> refresh() async {
+      await Future.wait([
+        if (connected) _retryLoadFriends(),
+        if (widget.onRefresh != null) widget.onRefresh!(),
+      ]);
+    }
+
+    // Nothing failed, nothing loading, nobody yet: the people scene, one
+    // line and the one thing to do. Signed out, Add a friend opens sign-in.
+    final nobodyYet =
+        !loading &&
+        !hasWalletFriends &&
+        !walletFailed &&
+        widget.followingError == null &&
+        followsKnownEmpty;
+    // Everything that could show people failed: one full-screen error.
+    final allFailed =
+        !loading &&
+        !hasWalletFriends &&
+        !hasFollowing &&
+        (widget.followingError != null || walletFailed) &&
+        (widget.followingError != null || noFollowList);
+
+    if (nobodyYet || allFailed) {
+      return RefreshIndicator(
+        color: AppColors.primary,
+        onRefresh: refresh,
+        child: CustomScrollView(
+          key: const PageStorageKey('friends-grid'),
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            if (widget.invitations != null)
+              SliverToBoxAdapter(child: widget.invitations!),
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Padding(
+                padding: EdgeInsets.only(bottom: widget.bottomPadding),
+                child: Center(
+                  child:
+                      allFailed
+                          ? ChumbucketStateView(
+                            artwork: ChumbucketStateArtwork.error,
+                            message: 'Couldn’t load your friends',
+                            actionLabel: 'Try again',
+                            onAction: refresh,
+                          )
+                          : ChumbucketStateView(
+                            artwork: ChumbucketStateArtwork.people,
+                            message: 'Add friends to see their calls',
+                            actionLabel: 'Add a friend',
+                            actionIcon: 'user-plus-outline',
+                            onAction: widget.onAddFriend,
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            // A Google or X account has no wallet friends; say
-                            // where the people they add show up instead.
-                            signedIn
-                                ? 'Friends you add are listed under '
-                                    'Following, and their calls fill your '
-                                    'Following feed. Friends from the old app '
-                                    'appear here when their wallet is '
-                                    'connected.'
-                                : 'Sign in to add friends and see the ones '
-                                    'you already have.',
-                            style: styles.bodyMedium,
-                          ),
-                          const SizedBox(height: 12),
-                          TextButton(
-                            style: TextButton.styleFrom(
-                              minimumSize: const Size(48, 48),
-                              foregroundColor: AppColors.textPrimary,
-                            ),
-                            onPressed: () => showProfileSettingsSheet(context),
-                            child: const Text('Account settings'),
-                          ),
-                        ],
-                      )
-                      : Column(
-                        children: [
-                          if (isLoading && friends.isEmpty) ...[
-                            const Padding(
-                              padding: EdgeInsets.all(24),
-                              child: CircularProgressIndicator(
-                                color: AppColors.primary,
-                              ),
-                            ),
-                            Text(
-                              'Loading your friends…',
-                              style: styles.bodySmall,
-                            ),
-                          ] else if (_hasLoadError && friends.isEmpty) ...[
-                            const ChumbucketStateArt.compact(
-                              ChumbucketStateArtwork.error,
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Couldn’t load your friends. Check your connection.',
-                              style: styles.bodyMedium,
-                              textAlign: TextAlign.center,
-                            ),
-                            TextButton(
-                              style: TextButton.styleFrom(
-                                minimumSize: const Size(48, 48),
-                                foregroundColor: AppColors.textPrimary,
-                              ),
-                              onPressed: _retryLoadFriends,
-                              child: const Text('Try again'),
-                            ),
-                          ] else
-                            Consumer<ArenaProvider>(
-                              builder:
-                                  (context, arena, _) => FriendsGrid(
-                                    friends: _withXLabels(friends, arena),
-                                    onFriendSelected: widget.onFriendSelected,
-                                    buildViewMoreItem: widget.buildViewMoreItem,
-                                    onViewMorePressed: _showAllFriends,
-                                    maxVisibleFriends: 5,
-                                  ),
-                            ),
-                          if (_hasLoadError && friends.isNotEmpty)
-                            Text(
-                              'Showing saved friends. Pull down to retry.',
-                              style: styles.bodySmall,
-                            ),
-                        ],
-                      ),
-            ),
-            // Every account can add a friend — wallet, Google or X: adding
-            // follows a real Chumbucket person, confirmed on a card first
-            // (add_friend_sheet.dart). Signed out, the button opens sign-in.
-            const SizedBox(height: 16),
-            // The comp's call to action (img1's "Challenge a new friend"):
-            // white label on the vertical gradient, shared with the sheets.
-            ChumbucketPrimaryButton(
-              label: 'Add a friend',
-              onPressed: widget.onAddFriend,
-              leading: const BasilIcon(
-                'plus-outline',
-                size: 20,
-                color: AppColors.onPrimary,
+                ),
               ),
             ),
-            const SizedBox(height: 16),
-            Text(
-              'Adding a friend follows them: you’ll see who they are first, '
-              'then their calls show up in your Following feed. Tap a friend '
-              'to see their calls and back, fade or dare them.',
-              style: styles.bodySmall?.copyWith(
-                color: AppColors.textSecondary,
-                height: 1.6,
-              ),
-            ),
-            if (widget.showChallengesPreview) ...[
-              const SizedBox(height: 24),
-              Wrap(
-                alignment: WrapAlignment.spaceBetween,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Text('Challenges', style: styles.titleLarge),
-                  TextButton(
-                    style: TextButton.styleFrom(
-                      minimumSize: const Size(48, 48),
-                      foregroundColor: AppColors.textPrimary,
-                    ),
-                    onPressed: widget.onViewAllChallenges,
-                    child: const Text('View all challenges'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              ChallengesPreview(
-                onViewAll: widget.onViewAllChallenges,
-                onMarkChallengeCompleted: widget.onMarkChallengeCompleted,
-              ),
-            ],
-            SizedBox(height: widget.bottomPadding),
           ],
         ),
+      );
+    }
+
+    final labelled = hasFollowing && hasWalletFriends;
+    return RefreshIndicator(
+      color: AppColors.primary,
+      onRefresh: refresh,
+      child: ListView(
+        key: const PageStorageKey('friends-grid'),
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.only(bottom: widget.bottomPadding),
+        children: [
+          if (widget.invitations != null) widget.invitations!,
+          // Every account can add a friend — wallet, Google or X: adding
+          // follows a real Chumbucket person, confirmed on a card first
+          // (add_friend_sheet.dart). Signed out, it opens sign-in.
+          _AddFriendRow(onTap: widget.onAddFriend),
+          const SizedBox(height: 16),
+          if (loading && !hasFollowing && !hasWalletFriends)
+            const _PeopleSkeleton(),
+          if (hasFollowing) ...[
+            if (labelled) const _SectionLabel('Following'),
+            widget.followingSection!,
+          ],
+          if (hasWalletFriends) ...[
+            if (hasFollowing) const SizedBox(height: 20),
+            if (labelled) const _SectionLabel('Wallet friends'),
+            Container(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: Consumer<ArenaProvider>(
+                builder:
+                    (context, arena, _) => FriendsGrid(
+                      friends: _withXLabels(friends, arena),
+                      onFriendSelected: widget.onFriendSelected,
+                      buildViewMoreItem: widget.buildViewMoreItem,
+                      onViewMorePressed: _showAllFriends,
+                      maxVisibleFriends: 5,
+                    ),
+              ),
+            ),
+          ],
+          if (widget.showChallengesPreview) ...[
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                const Expanded(child: _SectionLabel('Challenges')),
+                IconButton(
+                  tooltip: 'View all challenges',
+                  onPressed: widget.onViewAllChallenges,
+                  icon: const BasilIcon(
+                    'arrow-right-outline',
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+            ChallengesPreview(
+              onViewAll: widget.onViewAllChallenges,
+              onMarkChallengeCompleted: widget.onMarkChallengeCompleted,
+            ),
+          ],
+        ],
       ),
     );
   }
+}
+
+/// The way to add someone, always first in the list: a plus in a coral
+/// circle, two words, a chevron.
+class _AddFriendRow extends StatelessWidget {
+  const _AddFriendRow({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: 'Add a friend',
+    excludeSemantics: true,
+    child: Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(22),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        key: const ValueKey('friends-add-friend'),
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 64),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: const BoxDecoration(
+                    gradient: ChumbucketPrimaryButton.gradient,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Center(
+                    child: BasilIcon(
+                      'user-plus-outline',
+                      size: 22,
+                      color: AppColors.onPrimary,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Add a friend',
+                    style: TextStyle(
+                      fontFamily: 'PPNeueMachina',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+                const BasilIcon(
+                  'arrow-right-outline',
+                  size: 18,
+                  color: AppColors.textSecondary,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+    child: Semantics(
+      header: true,
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontFamily: 'PPNeueMachina',
+          color: AppColors.textMuted,
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    ),
+  );
+}
+
+/// Three quiet placeholder rows while the first read of your people runs:
+/// the shape of what is coming, no "Loading…" copy.
+class _PeopleSkeleton extends StatelessWidget {
+  const _PeopleSkeleton();
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: 'Loading your friends',
+    child: Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Column(
+        children: [
+          for (var i = 0; i < 3; i++)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: const BoxDecoration(
+                      color: AppColors.outlineVariant,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        FractionallySizedBox(
+                          widthFactor: .5,
+                          child: Container(
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: AppColors.outlineVariant,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        FractionallySizedBox(
+                          widthFactor: .3,
+                          child: Container(
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: AppColors.outlineVariant,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
 }

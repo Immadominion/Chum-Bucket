@@ -11,7 +11,6 @@ library;
 import 'package:flutter/material.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
-import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/features/arena/presentation/screens/arena_notifications_screen.dart';
 import 'package:chumbucket/features/arena/presentation/screens/my_pots_screen.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
@@ -25,7 +24,6 @@ class LegacyHistoryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final styles = AppTextStyles.textTheme;
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -37,23 +35,16 @@ class LegacyHistoryScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
-          Text(
-            'Earlier Chumbucket features. Nothing new can be started here, '
-            'but what you already have is still yours: an open escrow '
-            'challenge can still be settled by its witness, and Arena '
-            'winnings can still be claimed.',
-            style: styles.bodySmall?.copyWith(
-              color: AppColors.textSecondary,
-              height: 1.5,
-            ),
-          ),
-          const SizedBox(height: 16),
+          // Earlier Chumbucket features: nothing new starts here, and what
+          // you already have stays yours (an open escrow can still be
+          // settled by its witness, Arena winnings can still be claimed).
+          // That is read out per row rather than printed as a paragraph.
           _HistoryRow(
-            icon: 'contacts-outline',
+            icon: 'lock-time-outline',
             title: 'Escrow challenges',
-            detail:
+            hint:
                 onOpenEscrowChallenges == null
-                    ? 'Open this from the Profile tab (Settings → History) to see your SOL escrow challenges and settle any still open.'
+                    ? 'Open this from the Profile tab, Settings, History.'
                     : 'Your SOL escrow challenges with friends. Any still '
                         'open are settled here by their witness.',
             onTap: onOpenEscrowChallenges,
@@ -61,8 +52,9 @@ class LegacyHistoryScreen extends StatelessWidget {
           _HistoryRow(
             icon: 'hotspot-outline',
             title: 'Arena predictions',
-            detail:
-                'Your football predictions, their original terms, and any winnings to claim.',
+            hint:
+                'Your football predictions, their original terms, and any '
+                'winnings to claim.',
             onTap:
                 () => Navigator.of(
                   context,
@@ -71,8 +63,7 @@ class LegacyHistoryScreen extends StatelessWidget {
           _HistoryRow(
             icon: 'notification-outline',
             title: 'Earlier notices',
-            detail:
-                'Notifications from the original challenge and Arena system.',
+            hint: 'Notifications from the original challenge and Arena system.',
             onTap:
                 () => Navigator.of(context).push(
                   MaterialPageRoute(
@@ -90,46 +81,62 @@ class _HistoryRow extends StatelessWidget {
   const _HistoryRow({
     required this.icon,
     required this.title,
-    required this.detail,
+    required this.hint,
     required this.onTap,
   });
 
   final String icon;
   final String title;
-  final String detail;
+  final String hint;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final styles = AppTextStyles.textTheme;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Material(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        clipBehavior: Clip.antiAlias,
-        child: ListTile(
-          onTap: onTap,
-          contentPadding: const EdgeInsets.all(16),
-          leading: BasilIcon(icon, color: AppColors.textPrimary),
-          title: Text(title, style: styles.titleMedium),
-          subtitle: Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Text(
-              detail,
-              style: styles.bodySmall?.copyWith(
-                color: AppColors.textSecondary,
-                height: 1.5,
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Semantics(
+        button: onTap != null,
+        label: title,
+        hint: hint,
+        excludeSemantics: true,
+        child: Material(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(18),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 56),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Row(
+                  children: [
+                    BasilIcon(icon, size: 22, color: AppColors.textPrimary),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    if (onTap != null)
+                      const BasilIcon(
+                        'arrow-right-outline',
+                        size: 18,
+                        color: AppColors.textPrimary,
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
-          trailing:
-              onTap == null
-                  ? null
-                  : const BasilIcon(
-                    'arrow-right-outline',
-                    color: AppColors.textPrimary,
-                  ),
         ),
       ),
     );

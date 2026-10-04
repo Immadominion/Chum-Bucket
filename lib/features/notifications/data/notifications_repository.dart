@@ -123,3 +123,10 @@ abstract class NotificationsRepository {
   /// Marks everything read. Idempotent.
   Future<void> markAllRead({required String? viewerUserId});
 }
+
+/// Optional: the first page of the inbox as last read, saved on this phone,
+/// so Activity opens on it and refreshes silently. Null when nothing is
+/// saved for [viewerUserId]. Never touches the network.
+abstract interface class NotificationsSnapshotSource {
+  Future<NotificationPage?> savedNotifications({required String viewerUserId});
+}

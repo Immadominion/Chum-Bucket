@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
+import 'package:chumbucket/core/cache/snapshot_store.dart';
 import 'package:chumbucket/core/theme/app_theme.dart';
 import 'package:chumbucket/features/arena/providers/arena_provider.dart';
 import 'package:chumbucket/features/onboarding/onboarding_controller.dart';
@@ -218,6 +219,8 @@ void main() async {
                                     context
                                         .read<ChumbucketSession>()
                                         .bffAuthToken,
+                                // Activity opens on the inbox as last read.
+                                snapshots: SnapshotStore.device,
                               ),
                     ),
                 update: (_, session, inbox) {
