@@ -25,7 +25,10 @@
 --       a wallet, a provider subject or a token.
 --   person_for_wallet_v1(p_wallet)
 --       the person holding that wallet (users.wallet_address, then an
---       unrevoked linked_wallets row), or NULL. Never a placeholder.
+--       unrevoked linked_wallets row whose signature was verified), or NULL.
+--       Never a placeholder, and never a linked wallet nobody proved they
+--       hold (verified_at IS NULL: "treat as unproven", 20260913121500) —
+--       the same rule add_wallet_friend_v1 applies.
 --
 -- Both leave out deleted accounts (users.deleted_at) and placeholders. Nothing
 -- is written, no table or column is added, nothing existing changes, and the
@@ -53,6 +56,11 @@ BEGIN
   IF to_regclass('public.linked_identities') IS NULL THEN
     RAISE EXCEPTION 'find_person_identities requires public.linked_identities (20260715134226)';
   END IF;
+  IF (SELECT count(*) FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'linked_identities'
+         AND column_name IN ('provider_username', 'provider_avatar_url', 'verified_at', 'updated_at')) <> 4 THEN
+    RAISE EXCEPTION 'find_person_identities requires linked_identities.provider_username, provider_avatar_url, verified_at and updated_at (20260715134226)';
+  END IF;
   IF to_regclass('public.linked_wallets') IS NULL THEN
     RAISE EXCEPTION 'find_person_identities requires public.linked_wallets (20260913121500)';
   END IF;
@@ -71,6 +79,10 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                   WHERE table_schema = 'public' AND table_name = 'linked_wallets' AND column_name = 'revoked_at') THEN
     RAISE EXCEPTION 'find_person_identities requires linked_wallets.revoked_at (20260913121500)';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_schema = 'public' AND table_name = 'linked_wallets' AND column_name = 'verified_at') THEN
+    RAISE EXCEPTION 'find_person_identities requires linked_wallets.verified_at (20260913121500)';
   END IF;
 END;
 $$;
@@ -168,6 +180,7 @@ AS $$
         JOIN public.users u ON u.id = w.user_id
        WHERE w.wallet_address = btrim(p_wallet)
          AND w.revoked_at IS NULL
+         AND w.verified_at IS NOT NULL
          AND u.deleted_at IS NULL
          AND NOT u.is_placeholder
     ) c
@@ -178,4 +191,4 @@ $$;
 REVOKE ALL ON FUNCTION public.person_for_wallet_v1(TEXT) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.person_for_wallet_v1(TEXT) TO service_role;
 COMMENT ON FUNCTION public.person_for_wallet_v1(TEXT) IS
-  'Service-only, read-only: the real (not placeholder, not deleted) person holding this wallet, as users.wallet_address or an unrevoked linked wallet, or NULL.';
+  'Service-only, read-only: the real (not placeholder, not deleted) person holding this wallet, as users.wallet_address or an unrevoked, signature-verified linked wallet, or NULL.';
