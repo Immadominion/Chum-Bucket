@@ -243,6 +243,81 @@ void main() {
     });
   });
 
+  group('a dead network never beats the saved read to the screen', () {
+    Future<MemorySnapshotStore> warmed() async {
+      final store = MemorySnapshotStore();
+      final warm = FakeBffServer.routes({
+        'calls.feed': feedPageJson(),
+        'people.get': personDetailJson(),
+        'people.following': {'people': const []},
+      });
+      final repo = _repo(warm, store)..bindSnapshotViewer('user_you');
+      await repo.fetchFeed(mode: CallFeedMode.global, viewerUserId: 'user_you');
+      await repo.fetchPerson(personRef: 'user_you');
+      return store;
+    }
+
+    test('Home: an instant failure still ends on the saved feed', () async {
+      final store = _SlowStore(await warmed(), const Duration(milliseconds: 30));
+      final dead = FakeBffServer.routes({})..simulateTransportFailure = true;
+      final provider = CallsProvider(repository: _repo(dead, store))
+        ..setViewer('user_you');
+      addTearDown(provider.dispose);
+      await provider.loadFeed();
+      expect(provider.feedState, CallsLoadState.ready);
+      expect(provider.feed, isNotEmpty);
+      expect(provider.isOffline, isTrue);
+      expect(provider.isFeedFromCache, isTrue);
+    });
+
+    test('Profile: an instant failure still ends on your saved record', () async {
+      final store = _SlowStore(await warmed(), const Duration(milliseconds: 30));
+      final dead = FakeBffServer.routes({})..simulateTransportFailure = true;
+      final provider = CallsProvider(repository: _repo(dead, store))
+        ..setViewer('user_you');
+      addTearDown(provider.dispose);
+      await provider.loadPerson('user_you');
+      expect(provider.personDetail('user_you'), isNotNull);
+    });
+
+    test('Activity: an instant failure still ends on the saved inbox', () async {
+      final page =
+          File('test/fixtures/inbox_page_server.json').readAsStringSync();
+      final memory = MemorySnapshotStore();
+      var offline = false;
+      BffNotificationsRepository repo(SnapshotStore store) =>
+          BffNotificationsRepository(
+            snapshots: store,
+            transport: CallsBffTransport(
+              baseUrl: 'https://bff.test',
+              authToken: () => 'session-token',
+              verbose: false,
+              httpClient: MockClient((request) async {
+                if (offline) {
+                  throw http.ClientException('Connection refused', request.url);
+                }
+                return http.Response(page, 200);
+              }),
+            ),
+          );
+      final first = NotificationsProvider(repository: repo(memory))
+        ..setViewer('u-ann');
+      addTearDown(first.dispose);
+      await first.load();
+      expect(first.notifications, isNotEmpty);
+
+      offline = true;
+      final cold = NotificationsProvider(
+        repository: repo(_SlowStore(memory, const Duration(milliseconds: 30))),
+      )..setViewer('u-ann');
+      addTearDown(cold.dispose);
+      await cold.load();
+      expect(cold.state, NotificationsLoadState.ready);
+      expect(cold.notifications, hasLength(first.notifications.length));
+      expect(cold.isOffline, isTrue);
+    });
+  });
+
   test('Activity opens on the saved inbox when offline', () async {
     final page =
         File('test/fixtures/inbox_page_server.json').readAsStringSync();
@@ -288,3 +363,24 @@ void main() {
     expect(other.notifications, isEmpty);
   });
 }
+
+/// A store that reads from "disk" more slowly than a dead network fails, as a
+/// real phone's file read can: the saved read must still win the screen.
+class _SlowStore implements SnapshotStore {
+  _SlowStore(this._inner, this.delay);
+  final MemorySnapshotStore _inner;
+  final Duration delay;
+
+  @override
+  Future<Object?> read(String key) async {
+    await Future<void>.delayed(delay);
+    return _inner.read(key);
+  }
+
+  @override
+  Future<void> write(String key, Object? json) => _inner.write(key, json);
+
+  @override
+  Future<void> clear() => _inner.clear();
+}
+

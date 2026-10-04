@@ -195,13 +195,14 @@ class NotificationsProvider extends ChangeNotifier {
     final filter = _filter;
     final token = ++_loadToken;
     _notify();
-    if (_notifications.isEmpty &&
-        _servedAt == null &&
-        filter == NotificationFilter.all &&
-        viewer != null &&
-        viewer.isNotEmpty) {
-      unawaited(_paintSaved(viewer, token));
-    }
+    final paint =
+        _notifications.isEmpty &&
+                _servedAt == null &&
+                filter == NotificationFilter.all &&
+                viewer != null &&
+                viewer.isNotEmpty
+            ? _paintSaved(viewer, token)
+            : null;
     try {
       final page = await _repository.fetchNotifications(
         viewerUserId: _viewerUserId,
@@ -220,15 +221,20 @@ class NotificationsProvider extends ChangeNotifier {
       _unreadCount = 0;
       _error = e.message;
     } on NotificationsOfflineException catch (e) {
+      // A dead network fails in milliseconds: let the saved inbox, still
+      // coming off the disk, land first rather than a full-screen offline.
+      await _settlePaint(paint);
       // Keep whatever is already on screen; it is now explicitly cached.
       developer.log('NotificationsProvider.load offline: $e');
       _isOffline = true;
       _fromCache = _notifications.isNotEmpty;
       _error = e.message;
     } on NotificationsException catch (e) {
+      await _settlePaint(paint);
       developer.log('NotificationsProvider.load failed: $e');
       _error = e.message;
     } catch (e) {
+      await _settlePaint(paint);
       developer.log('NotificationsProvider.load failed: $e');
       _error = const NotificationsFailure().message;
     } finally {
@@ -241,6 +247,15 @@ class NotificationsProvider extends ChangeNotifier {
   /// once the live read answered, the viewer or filter changed, or anything is
   /// already on screen.
   int _loadToken = 0;
+
+  Future<void> _settlePaint(Future<void>? paint) async {
+    if (paint == null) return;
+    try {
+      await paint;
+    } catch (e) {
+      developer.log('NotificationsProvider: saved read failed: $e');
+    }
+  }
 
   Future<void> _paintSaved(String viewer, int token) async {
     final repository = _repository;

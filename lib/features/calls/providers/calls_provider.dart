@@ -278,6 +278,18 @@ class CallsProvider extends ChangeNotifier {
     _notify();
   }
 
+  /// A failed live read waits for the saved one still coming off the disk,
+  /// so a dead network (which fails in milliseconds) never beats the saved
+  /// rows to the screen and leaves a full-screen "offline" in their place.
+  Future<void> _settlePaint(Future<void>? paint) async {
+    if (paint == null) return;
+    try {
+      await paint;
+    } catch (e) {
+      developer.log('CallsProvider: saved read failed: $e');
+    }
+  }
+
   Future<void> loadFeed({bool force = false}) async {
     if (_isLoadingFeed) return;
     if (!force && _feedServedAt != null && !isFeedStale) return;
@@ -286,9 +298,10 @@ class CallsProvider extends ChangeNotifier {
     _isLoadingFeed = true;
     _feedError = null;
     _notify();
-    if (_feedEntries.isEmpty && _feedServedAt == null) {
-      unawaited(_paintSavedFeed(request, _feedMode));
-    }
+    final paint =
+        _feedEntries.isEmpty && _feedServedAt == null
+            ? _paintSavedFeed(request, _feedMode)
+            : null;
     try {
       final page = await _repository.fetchFeed(
         mode: _feedMode,
@@ -301,6 +314,7 @@ class CallsProvider extends ChangeNotifier {
       _feedFromCache = page.fromCache;
       _isOffline = false;
     } on CallsOfflineException catch (e) {
+      await _settlePaint(paint);
       if (!_isCurrent('feed', request)) return;
       // Keep whatever is already on screen; it is now explicitly cached.
       developer.log('CallsProvider.loadFeed offline: $e');
@@ -308,10 +322,12 @@ class CallsProvider extends ChangeNotifier {
       _feedFromCache = _feedEntries.isNotEmpty;
       _feedError = e.message;
     } on CallsException catch (e) {
+      await _settlePaint(paint);
       if (!_isCurrent('feed', request)) return;
       developer.log('CallsProvider.loadFeed failed: $e');
       _feedError = e.message;
     } catch (e) {
+      await _settlePaint(paint);
       if (!_isCurrent('feed', request)) return;
       developer.log('CallsProvider.loadFeed failed: $e');
       _feedError = const CallsFailure().message;
@@ -396,9 +412,10 @@ class CallsProvider extends ChangeNotifier {
     _isLoadingOpenMarkets = true;
     _openMarketsError = null;
     _notify();
-    if (_openMarkets.isEmpty && !_catalogServed) {
-      unawaited(_paintSavedCatalog(request));
-    }
+    final paint =
+        _openMarkets.isEmpty && !_catalogServed
+            ? _paintSavedCatalog(request)
+            : null;
     try {
       final repository = _repository;
       final markets =
@@ -411,14 +428,17 @@ class CallsProvider extends ChangeNotifier {
       _catalogServed = true;
       _isOffline = false;
     } on CallVocabularyException {
+      await _settlePaint(paint);
       if (!_isCurrent('catalog', request)) return;
       _openMarketsError =
           'The market data format changed. Please update the app or try again later.';
     } on CallsOfflineException catch (e) {
+      await _settlePaint(paint);
       if (!_isCurrent('catalog', request)) return;
       _isOffline = true;
       _openMarketsError = e.message;
     } on CallsException catch (e) {
+      await _settlePaint(paint);
       if (!_isCurrent('catalog', request)) return;
       _openMarketsError = e.message;
     } finally {
@@ -592,9 +612,10 @@ class CallsProvider extends ChangeNotifier {
     _peopleInFlight.add(ref);
     _personErrors.remove(ref);
     _notify();
-    if (!_personDetails.containsKey(ref) && ref == _viewerUserId) {
-      unawaited(_paintSavedPerson(key, request, ref));
-    }
+    final paint =
+        !_personDetails.containsKey(ref) && ref == _viewerUserId
+            ? _paintSavedPerson(key, request, ref)
+            : null;
     try {
       final detail = await _repository.fetchPerson(
         personRef: ref,
@@ -605,11 +626,13 @@ class CallsProvider extends ChangeNotifier {
       _isOffline = false;
       return detail;
     } on CallsOfflineException catch (e) {
+      await _settlePaint(paint);
       if (!_isCurrent(key, request)) return null;
       _isOffline = true;
       _personErrors[ref] = e.message;
       return _personDetails[ref];
     } on CallsException catch (e) {
+      await _settlePaint(paint);
       if (!_isCurrent(key, request)) return null;
       developer.log('CallsProvider.loadPerson failed: $e');
       _personErrors[ref] = e.message;
@@ -1135,12 +1158,13 @@ class CallsProvider extends ChangeNotifier {
     _isLoadingFollowing = true;
     _followingError = null;
     _notify();
-    if (_following == null) unawaited(_paintSavedFollowing(request));
+    final paint = _following == null ? _paintSavedFollowing(request) : null;
     try {
       final list = await people.fetchFollowing();
       if (!_isCurrent(key, request)) return;
       _following = list;
     } catch (e) {
+      await _settlePaint(paint);
       if (!_isCurrent(key, request)) return;
       developer.log('CallsProvider.loadFollowing failed: $e');
       _followingError = _messageOf(e);
