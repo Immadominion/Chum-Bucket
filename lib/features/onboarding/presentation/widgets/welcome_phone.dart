@@ -295,7 +295,7 @@ class _PreviewFeedState extends State<_PreviewFeed> {
     final unit =
         quotes.length > 1
             ? null
-            : (quotes.firstOrNull ?? ShareCurrency.usdc).perShare;
+            : (quotes.firstOrNull ?? ShareCurrency.usdc).shownUnit;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

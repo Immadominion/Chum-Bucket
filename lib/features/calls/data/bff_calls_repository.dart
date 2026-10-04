@@ -116,8 +116,10 @@ class BffCallsRepository
   void bindSnapshotViewer(String? userId) => _snapshotViewer = userId;
 
   /// Who was bound, and the store's generation, when a read started.
-  ({String? viewer, int? generation}) _begin() =>
-      (viewer: _snapshotViewer, generation: _snapshots?.generation);
+  ({String? viewer, int? generation}) _begin() => (
+    viewer: _snapshotViewer,
+    generation: _snapshots?.generation,
+  );
 
   /// Saves [json] under [key] — unless the session changed while the read
   /// was in flight ([at] is when it started), or the store was wiped since

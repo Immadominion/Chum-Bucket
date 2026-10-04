@@ -567,7 +567,8 @@ class MockCallsRepository implements CallsRepository {
 
   Call _callById(String id) => _calls.firstWhere(
     (c) => c.id == id,
-    orElse: () => throw const CallsRejectedException('That call no longer exists.'),
+    orElse:
+        () => throw const CallsRejectedException('That call no longer exists.'),
   );
 
   bool _viewerCanSee(Call call, String? viewerUserId) {
@@ -631,8 +632,9 @@ class MockCallsRepository implements CallsRepository {
     final nextIndex = start + slice.length;
 
     return CallFeedPage(
-      entries:
-          slice.map((call) => _entryFor(call, viewerUserId)).toList(growable: false),
+      entries: slice
+          .map((call) => _entryFor(call, viewerUserId))
+          .toList(growable: false),
       nextCursor: nextIndex < visible.length ? '$nextIndex' : null,
       servedAt: _nowMs,
     );
@@ -706,10 +708,9 @@ class MockCallsRepository implements CallsRepository {
           parentId == null
               ? null
               : _entryFor(_callById(parentId), viewerUserId),
-      responses:
-          _responses
-              .where((r) => r.targetCallId == callId)
-              .toList(growable: false),
+      responses: _responses
+          .where((r) => r.targetCallId == callId)
+          .toList(growable: false),
     );
   }
 
@@ -736,10 +737,13 @@ class MockCallsRepository implements CallsRepository {
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return PersonDetail(
       person: person,
-      calls:
-          calls.map((c) => _entryFor(c, viewerUserId)).toList(growable: false),
-      viewerIsFollowing: viewerUserId != null &&
-          viewerUserId != person.id && _viewerFollows.contains(person.id),
+      calls: calls
+          .map((c) => _entryFor(c, viewerUserId))
+          .toList(growable: false),
+      viewerIsFollowing:
+          viewerUserId != null &&
+          viewerUserId != person.id &&
+          _viewerFollows.contains(person.id),
       servedAt: _nowMs,
     );
   }
@@ -816,7 +820,9 @@ class MockCallsRepository implements CallsRepository {
     final target = _callById(input.targetCallId);
 
     if (target.userId == actorId) {
-      throw const CallsRejectedException('You can\'t respond to your own call.');
+      throw const CallsRejectedException(
+        'You can\'t respond to your own call.',
+      );
     }
 
     final now = _nowMs;
@@ -850,7 +856,9 @@ class MockCallsRepository implements CallsRepository {
 
     // Back and Fade both mint the responder's OWN immutable call.
     final side =
-        input.kind == CallResponseKind.back ? target.side : target.side.opposite;
+        input.kind == CallResponseKind.back
+            ? target.side
+            : target.side.opposite;
 
     final own = await createCall(
       input: CreateCallInput(

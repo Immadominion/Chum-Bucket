@@ -394,7 +394,7 @@ void main() {
         _inComposer(
           find.text(
             'You’re calling YES at '
-            '${CallsFormat.displayPrice(item.sharePrice.yesPrice!)} USDC/share. '
+            '${CallsFormat.displayPrice(item.sharePrice.yesPrice!)}. '
             'Free, and it goes on your record.',
           ),
         ),

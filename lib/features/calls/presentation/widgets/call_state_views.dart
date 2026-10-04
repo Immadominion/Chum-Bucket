@@ -222,7 +222,9 @@ class CallsErrorView extends StatelessWidget {
   /// Longer than this, a reason is read to screen readers, not drawn.
   static const int _maxLine = 90;
 
-  static final RegExp _machinery = RegExp(r'[:{}\[\]()_<>=/\\]|\d{3}|[a-z]\.[a-z]');
+  static final RegExp _machinery = RegExp(
+    r'[:{}\[\]()_<>=/\\]|\d{3}|[a-z]\.[a-z]',
+  );
   static final RegExp _transportWords = RegExp(
     r'\b(server|envelope|status|exception|null|undefined|json|trpc|'
     r'procedure|http|socket|stack)\b',

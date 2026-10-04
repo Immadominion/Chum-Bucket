@@ -4,6 +4,7 @@
 import 'package:chumbucket/core/services/push_registration.dart';
 import 'package:chumbucket/features/onboarding/onboarding_copy.dart';
 import 'package:flutter/material.dart';
+import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Every string the onboarding screens can show, including the templated
@@ -217,7 +218,7 @@ void main() {
   });
 
   test('calls are free and it says so; no onboarding line asks for or promises '
-      'money, and only a locked price names USDC', () {
+      'money, and none names USDC (USDC prices read bare)', () {
     // W1 no longer carries a money line: the first run never brings up
     // trading at all. Calls are free, and that is said where it matters.
     expect(OnboardingCopy.welcomeTaglineMarkets, contains('free'));
@@ -231,7 +232,7 @@ void main() {
         ).hasMatch(t))
           t,
     ];
-    expect(money, [OnboardingCopy.recordLockedAt('0.50')]);
+    expect(money, isEmpty);
   });
 
   test('W1\'s line says what the phone shows: calls, or markets', () {
@@ -271,7 +272,14 @@ void main() {
     expect(OnboardingCopy.recordNoPush, isNot(contains('notif')));
   });
 
-  test('prices are USDC per share, never a probability', () {
-    expect(OnboardingCopy.recordLockedAt('0.38'), 'Locked at 0.38 USDC/share');
-  });
+  test(
+    'a USDC price reads bare, a SOL price names its unit; never a probability',
+    () {
+      expect(OnboardingCopy.recordLockedAt('0.38'), 'Locked at 0.38');
+      expect(
+        OnboardingCopy.recordLockedAt('0.67', currency: ShareCurrency.sol),
+        'Locked at 0.67 SOL/share',
+      );
+    },
+  );
 }

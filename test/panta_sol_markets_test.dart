@@ -95,7 +95,8 @@ void main() {
         CallsFormat.sharePrice('0.67', currency: sol.currency),
         '0.67 SOL/share',
       );
-      expect(CallsFormat.sharePrice('0.52'), '0.52 USDC/share');
+      // USDC is the default and reads bare; SOL always names its unit.
+      expect(CallsFormat.sharePrice('0.52'), '0.52');
       expect(
         CallsFormat.nativePrices(sol),
         'YES 0.671739755 SOL/share · NO 0.328260245 SOL/share',
@@ -178,7 +179,11 @@ void main() {
           await tester.pumpAndSettle();
           expect(find.text('Trade'), findsNothing);
           expect(find.textContaining('Make a call'), findsOneWidget);
-          expect(find.textContaining('$quote per share'), findsOneWidget);
+          // SOL names its unit; USDC, the default, reads bare.
+          expect(
+            find.textContaining('$quote per share'),
+            quote == 'SOL' ? findsOneWidget : findsNothing,
+          );
           if (!tradable) {
             expect(find.textContaining('Trading'), findsNothing);
           }
@@ -332,7 +337,7 @@ void main() {
     // and SOL markets side by side it names none: never a unitless
     // "per share", never one unit for both.
     for (final (quotes, label) in [
-      (['USDC', 'USDC'], 'USDC/share'),
+      (['USDC', 'USDC'], null),
       (['SOL', 'SOL'], 'SOL/share'),
       (['USDC', 'SOL'], null),
     ]) {
@@ -416,7 +421,11 @@ void main() {
           );
           await tester.pumpAndSettle();
           // The call's own price reads in its market's unit, near the top.
-          expect(find.textContaining('$quote/share'), findsWidgets);
+          // SOL names its unit; USDC, the default, reads bare.
+          expect(
+            find.textContaining('$quote/share'),
+            quote == 'SOL' ? findsWidgets : findsNothing,
+          );
           final offer = find.textContaining('Trade it on Panta');
           final list = find.byType(Scrollable).first;
           for (var i = 0; i < 12 && offer.evaluate().isEmpty; i++) {

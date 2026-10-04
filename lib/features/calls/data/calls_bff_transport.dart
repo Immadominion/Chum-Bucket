@@ -209,10 +209,8 @@ class CallsBffTransport {
   ]) => send(procedurePath, input, method: 'GET');
 
   /// tRPC mutation: `POST $base/$path` with body `{"json":{…}}`.
-  Future<Object?> mutate(
-    String procedurePath,
-    Map<String, dynamic> input,
-  ) => send(procedurePath, input, method: 'POST');
+  Future<Object?> mutate(String procedurePath, Map<String, dynamic> input) =>
+      send(procedurePath, input, method: 'POST');
 
   /// The single round trip. Everything thrown out of here is a
   /// [CallsException]; nothing else escapes.
@@ -258,7 +256,9 @@ class CallsBffTransport {
       throw const CallsOfflineException();
     } catch (error) {
       if (_verbose) {
-        developer.log('📣 CallsBff: transport failure on $procedurePath: $error');
+        developer.log(
+          '📣 CallsBff: transport failure on $procedurePath: $error',
+        );
       }
       throw const CallsOfflineException();
     }

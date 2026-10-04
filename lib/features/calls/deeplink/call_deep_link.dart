@@ -34,10 +34,7 @@ const Set<String> kCallDeepLinkSchemes = {'chumbucket', 'dev.cleva.chumbucket'};
 /// `chumbucket.app` is deliberately absent: it was never registered (NXDOMAIN),
 /// so no working link was ever built on it, and a domain this product does not
 /// own must not be treated as its own.
-const Set<String> kCallDeepLinkHosts = {
-  'chumbucket.fun',
-  'www.chumbucket.fun',
-};
+const Set<String> kCallDeepLinkHosts = {'chumbucket.fun', 'www.chumbucket.fun'};
 
 /// What a shared link points at.
 sealed class CallDeepLink {
@@ -93,8 +90,9 @@ CallDeepLink? parseCallDeepLink(
     ].where((s) => s.isNotEmpty).toList(growable: false);
   } else if (scheme == 'https' || scheme == 'http') {
     if (!hosts.contains(uri.host.toLowerCase())) return null;
-    segments =
-        uri.pathSegments.where((s) => s.isNotEmpty).toList(growable: false);
+    segments = uri.pathSegments
+        .where((s) => s.isNotEmpty)
+        .toList(growable: false);
   } else {
     return null;
   }
@@ -114,7 +112,10 @@ CallDeepLink? parseCallDeepLink(
     case 'u':
     case 'user':
     case 'person':
-      return PersonLinkTarget(_normalizeHandle(raw) ?? raw, sharedByHandle: sharedBy);
+      return PersonLinkTarget(
+        _normalizeHandle(raw) ?? raw,
+        sharedByHandle: sharedBy,
+      );
     case 'm':
     case 'market':
       return MarketLinkTarget(raw, sharedByHandle: sharedBy);
@@ -213,10 +214,7 @@ class CallDeepLinkResolver {
             callId: callId,
             viewerUserId: viewerUserId,
           );
-          return ResolvedCallLink(
-            detail,
-            sharedByHandle: link.sharedByHandle,
-          );
+          return ResolvedCallLink(detail, sharedByHandle: link.sharedByHandle);
         case PersonLinkTarget(:final personRef):
           final detail = await repository.fetchPerson(
             personRef: personRef,

@@ -215,6 +215,12 @@ enum ShareCurrency {
   /// "USDC per share", for screen readers.
   String get perShareWords => '$wire per share';
 
+  /// The unit as it reads beside a figure. USDC is the default and reads
+  /// bare (the owner's call: less text); a SOL price always says SOL/share
+  /// so 0.67 SOL is never read as 0.67 USDC. Screen readers always get
+  /// [perShareWords]; money flows (trade review) keep USDC explicit.
+  String? get shownUnit => this == ShareCurrency.sol ? perShare : null;
+
   static ShareCurrency? tryWire(Object? value) => switch (value) {
     'USDC' => ShareCurrency.usdc,
     'SOL' => ShareCurrency.sol,

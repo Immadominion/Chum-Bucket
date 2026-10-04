@@ -45,10 +45,7 @@ void main() {
     final p = SharePriceSnapshot.fromJson(priceJson());
     expect(p.toJson(), priceJson());
     expect(p.priceFor(Side.no), '0.35');
-    expect(
-      CallsFormat.sharePrice(p.yesPrice),
-      '1.250000000000000001 USDC/share',
-    );
+    expect(CallsFormat.sharePrice(p.yesPrice), '1.250000000000000001');
     expect(CallsFormat.nativePrices(p), isNot(contains('%')));
     expect(MarketVenue.fromWire('panta'), MarketVenue.panta);
   });
@@ -158,8 +155,8 @@ void main() {
       );
       await tester.pumpWidget(app(CallReceiptCard(receipt: receipt)));
       await tester.pumpAndSettle();
-      expect(find.text('1.250000000000000001 USDC/share'), findsOneWidget);
-      expect(find.text('0.35 USDC/share'), findsOneWidget);
+      expect(find.text('1.250000000000000001'), findsOneWidget);
+      expect(find.text('0.35'), findsOneWidget);
       expect(find.text('Entry probability'), findsNothing);
       expect(find.text('Powered by Panta'), findsOneWidget);
       expect(find.text('Price observed'), findsOneWidget);

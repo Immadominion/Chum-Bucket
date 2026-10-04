@@ -17,7 +17,12 @@ class CallsFormat {
   static String sharePrice(
     String? value, {
     ShareCurrency currency = ShareCurrency.usdc,
-  }) => value == null ? 'Unavailable' : '$value ${currency.perShare}';
+  }) =>
+      value == null
+          ? 'Unavailable'
+          : currency.shownUnit == null
+          ? value
+          : '$value ${currency.shownUnit}';
 
   /// A venue share price for reading, at two decimals: `0.500096044` reads
   /// `0.50`. Rounded half-up on the DECIMAL STRING, never through a double, so
@@ -73,8 +78,9 @@ class CallsFormat {
   /// `YES 0.67 · NO 0.33 SOL/share`. A side Panta did not publish reads `—`.
   static String quietPrices(SharePriceSnapshot value) {
     String side(String? price) => price == null ? '—' : displayPrice(price);
-    return 'YES ${side(value.yesPrice)} · NO ${side(value.noPrice)} '
-        '${value.currency.perShare}';
+    final unit = value.currency.shownUnit;
+    return 'YES ${side(value.yesPrice)} · NO ${side(value.noPrice)}'
+        '${unit == null ? '' : ' $unit'}';
   }
 
   static final DateFormat _absolute = DateFormat('d MMM yyyy, HH:mm');

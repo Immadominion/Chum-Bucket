@@ -619,7 +619,10 @@ class MarketSharePrices extends StatelessWidget {
     // attribution on the market module — and the unit beside it: markets are
     // quoted in USDC or SOL, and 0.67 SOL is not 0.67 USDC, so a figure is
     // never left to be read in the wrong one. No unit when no price came.
-    final unit = snapshot?.currency.perShareWords;
+    final unit =
+        snapshot?.currency.shownUnit == null
+            ? null
+            : snapshot!.currency.perShareWords;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

@@ -331,7 +331,8 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
     if (price == null || (price.yesPrice == null && price.noPrice == null)) {
       return null;
     }
-    return 'Prices in ${price.currency.perShare}';
+    final unit = price.currency.shownUnit;
+    return unit == null ? null : 'Prices in $unit';
   }
 
   Widget _form(CallsProvider provider) {

@@ -250,7 +250,10 @@ abstract final class OnboardingCopy {
   static String recordLockedAt(
     String price, {
     ShareCurrency currency = ShareCurrency.usdc,
-  }) => 'Locked at $price ${currency.perShare}';
+  }) =>
+      currency.shownUnit == null
+          ? 'Locked at $price'
+          : 'Locked at $price ${currency.shownUnit}';
   static const recordPriceNotCaptured = 'Price not captured';
 
   // ── U1 What's new ────────────────────────────────────────────────────────

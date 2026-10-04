@@ -285,10 +285,7 @@ PersonDetail personDetailFromJson(Map<String, dynamic> json) {
       json['viewerIsFollowing'],
       'PersonDetail.viewerIsFollowing',
     ),
-    servedAt: requireWireTimestampMs(
-      json['servedAt'],
-      'PersonDetail.servedAt',
-    ),
+    servedAt: requireWireTimestampMs(json['servedAt'], 'PersonDetail.servedAt'),
     followerCount:
         json['followerCount'] == null
             ? null
