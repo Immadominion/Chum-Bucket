@@ -50,6 +50,7 @@ import 'package:http/http.dart' as http;
 
 import 'package:chumbucket/features/authentication/session/session_state.dart';
 import 'existing_account_proof.dart';
+import 'sign_in_methods.dart';
 import 'wallet_link_proof.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_transport.dart'
     show normalizeCallsBffBaseUrl, resolveCallsBffBaseUrl;
@@ -266,6 +267,98 @@ class SessionBffClient {
     return outcome as String;
   }
 
+  // -------------------------------------------------------------------------
+  // Sign-in methods (Settings). Every call is a POST: the token is a body.
+  // -------------------------------------------------------------------------
+
+  /// Every way into the caller's own account, which one this session used,
+  /// and how each unlinks (`auth.signInMethods`).
+  Future<SignInMethods> signInMethods(String accessToken) async {
+    final parsed = SignInMethods.parse(
+      await _send(
+        'auth.signInMethods',
+        method: 'POST',
+        bearer: accessToken,
+        input: {'supabaseAccessToken': accessToken},
+      ),
+    );
+    if (parsed == null) throw _unreadableLink;
+    return parsed;
+  }
+
+  /// Unlinks `s:<id>` or `w:<address>` from the caller's own account.
+  Future<void> unlinkSignIn(String accessToken, {required String ref}) => _send(
+    'auth.unlinkSignIn',
+    method: 'POST',
+    bearer: accessToken,
+    input: {'supabaseAccessToken': accessToken, 'ref': ref},
+  );
+
+  /// The caller's account starts a link: a single-use ticket (64 hex) the
+  /// other side completes with its own sign-in. Held in memory only.
+  Future<String> startSignInLink(
+    String accessToken, {
+    required SignInMethodKind method,
+  }) async {
+    final data = await _send(
+      'auth.startSignInLink',
+      method: 'POST',
+      bearer: accessToken,
+      input: {'supabaseAccessToken': accessToken, 'method': method.wire},
+    );
+    final ticket = data is Map ? data['ticket'] : null;
+    if (ticket is! String || !RegExp(r'^[0-9a-f]{64}$').hasMatch(ticket)) {
+      throw _unreadableLink;
+    }
+    return ticket;
+  }
+
+  /// What completing [ticket] with the OTHER side's session would do. The
+  /// other token is this procedure's own input; the bearer stays this app's.
+  Future<LinkPreview> previewSignInLink(
+    String bearer, {
+    required String otherAccessToken,
+    required String ticket,
+  }) async {
+    final parsed = LinkPreview.parse(
+      await _send(
+        'auth.previewSignInLink',
+        method: 'POST',
+        bearer: bearer,
+        input: {'supabaseAccessToken': otherAccessToken, 'ticket': ticket},
+      ),
+    );
+    if (parsed == null) throw _unreadableLink;
+    return parsed;
+  }
+
+  /// Completes [ticket] with the other side's session: "already", "linked"
+  /// or "folded".
+  Future<String> completeSignInLink(
+    String bearer, {
+    required String otherAccessToken,
+    required String ticket,
+  }) async {
+    final data = await _send(
+      'auth.completeSignInLink',
+      method: 'POST',
+      bearer: bearer,
+      input: {'supabaseAccessToken': otherAccessToken, 'ticket': ticket},
+    );
+    final outcome = data is Map ? data['outcome'] : null;
+    if (outcome != 'already' && outcome != 'linked' && outcome != 'folded') {
+      throw _unreadableLink;
+    }
+    return outcome as String;
+  }
+
+  static const _unreadableLink = SessionException(
+    SessionError.network(
+      'The server sent something we could not read.',
+      code: SessionErrorCode.unreadable,
+    ),
+  );
+
   /// Whether [handle] can be claimed. Public and credential-free: usernames
   /// are public, and the answer carries no profile field.
   Future<UsernameStatus> usernameStatus(String handle) async {
@@ -333,6 +426,8 @@ class SessionBffClient {
       existingAccountClaimsEnabled: map['existingAccountClaimsEnabled'] == true,
       walletSignIn: map['walletSignIn'] == true,
       walletProfileCarry: map['walletProfileCarry'] == true,
+      accountLinking: map['accountLinking'] == true,
+      accountFold: map['accountFold'] == true,
       allowedDomains: _strings(map['allowedDomains']),
       allowedUris: _strings(map['allowedUris']),
     );
@@ -551,6 +646,16 @@ SessionError sessionErrorForTrpcError({
         'was linked.',
         code: detail,
       );
+    case 'ACCOUNT_LINKING_DISABLED':
+    case 'ACCOUNT_FOLD_DISABLED':
+    case 'ACCOUNT_HAS_MONEY':
+    case 'ACCOUNT_NOT_FOLDABLE':
+    case 'LINK_TICKET_INVALID':
+    case 'LINK_METHOD_MISMATCH':
+    case 'LINK_RATE_LIMITED':
+    case 'SIGN_IN_IN_USE':
+    case 'SIGN_IN_NOT_FOUND':
+      return SessionError.refused(signInLinkCopy(detail), code: detail);
     case 'WALLET_LINK_FAILED':
       return const SessionError.network(
         'We couldn’t link the wallet. Try again shortly.',

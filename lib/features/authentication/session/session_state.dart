@@ -199,6 +199,8 @@ class SessionIdentityStatus {
     this.existingAccountClaimsEnabled = false,
     this.walletSignIn = false,
     this.walletProfileCarry = false,
+    this.accountLinking = false,
+    this.accountFold = false,
     this.allowedDomains = const [],
     this.allowedUris = const [],
   });
@@ -210,6 +212,12 @@ class SessionIdentityStatus {
 
   /// A wallet sign-in reaches the account that wallet already has.
   final bool walletProfileCarry;
+
+  /// Settings links and unlinks sign-ins; a linked wallet signs in to its account.
+  final bool accountLinking;
+
+  /// A sign-in already on another account can fold that account in.
+  final bool accountFold;
   final String network;
   final int proofVersion;
   final bool existingAccountClaimsEnabled;

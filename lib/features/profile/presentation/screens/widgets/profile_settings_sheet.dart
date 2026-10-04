@@ -10,6 +10,8 @@ import 'package:chumbucket/features/profile/presentation/screens/widgets/profile
 import 'package:chumbucket/features/authentication/session/app_sign_out.dart';
 import 'package:chumbucket/core/services/chat_service.dart';
 import 'package:chumbucket/features/profile/presentation/screens/widgets/identity_link_sheet.dart';
+import 'package:chumbucket/features/profile/presentation/screens/widgets/sign_in_methods_sheet.dart';
+import 'package:chumbucket/features/authentication/session/chumbucket_session.dart';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/onboarding/presentation/onboarding_settings.dart';
 import 'package:provider/provider.dart';
@@ -51,10 +53,20 @@ class ProfileSettingsSheet extends StatelessWidget {
               onTap: () => _openTawkToSupport(context),
               iconSize: 30,
             ),
+            // Every way into this account (wallet, X, Google): signed in
+            // with, link, unlink, and moving another account in.
+            if (context.watch<ChumbucketSession?>()?.isReady == true)
+              ProfileMenuItem(
+                basilIcon: 'key-outline',
+                title: 'Sign-in methods',
+                subtitle: 'Wallet, X and Google',
+                iconColor: AppColors.primary,
+                onTap: () => _showSignInMethods(context),
+              )
             // Linking Google carries a connected wallet's existing profile;
             // with no wallet connected (a Google or X account) there is
             // nothing to carry, so it is not offered.
-            if (context.watch<MwaAuthProvider?>()?.isAuthenticated == true)
+            else if (context.watch<MwaAuthProvider?>()?.isAuthenticated == true)
               ProfileMenuItem(
                 basilIcon: 'user-outline',
                 title: 'Link Google',
@@ -121,6 +133,16 @@ class ProfileSettingsSheet extends StatelessWidget {
     Navigator.pop(context);
     // Open chat in external browser to avoid webview privacy manifest requirements
     ChatService.openChat(context);
+  }
+
+  void _showSignInMethods(BuildContext context) {
+    final navigator = Navigator.of(context);
+    final hostContext = navigator.context;
+    navigator.pop();
+    Future<void>.delayed(const Duration(milliseconds: 100), () {
+      if (!hostContext.mounted) return;
+      showSignInMethodsSheet(hostContext);
+    });
   }
 
   void _showIdentityLink(BuildContext context) {
