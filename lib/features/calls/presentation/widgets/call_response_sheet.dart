@@ -49,6 +49,9 @@ Future<CallResponseResult?> showCallResponseSheet({
 );
 
 /// The icon each answer wears, everywhere it appears.
+/// A dare's neutral wash: free, so never the pink of money.
+const _dareFill = Color(0xFFEEF0F4);
+
 abstract final class CallResponseIcons {
   static const back = 'add-outline';
   static const fade = 'exchange-outline';
@@ -473,10 +476,11 @@ class _AnswerTiles extends StatelessWidget {
           CallSideColors.fill(side.opposite),
           'Fade: call ${side.opposite.wire} against @${entry.author.handle}',
         ),
+        // A dare is free: neutral ink, never pink (pink is money).
         CallResponseKind.challenge => (
           '@${entry.author.handle}',
-          AppColors.pinkInk,
-          AppColors.primaryContainer,
+          AppColors.textPrimary,
+          _dareFill,
           'Dare @${entry.author.handle}',
         ),
       };
@@ -683,18 +687,19 @@ class _Locking extends StatelessWidget {
         ],
       );
     } else {
-      fill = AppColors.primaryContainer;
+      fill = _dareFill;
       spoken = 'A free dare to $handle. No call, no money.';
       content = _line(
         context,
         icon: CallResponseIcons.dare,
-        ink: AppColors.pinkInk,
+        ink: AppColors.textPrimary,
         children: [
           Text(
             'Free dare to $handle',
-            style: callJourneyBody(
-              13,
-            ).copyWith(color: AppColors.pinkInk, fontWeight: FontWeight.w600),
+            style: callJourneyBody(13).copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       );

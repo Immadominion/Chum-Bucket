@@ -7,6 +7,7 @@
 //    and a server "your own call" refusal turns the sheet into that state;
 //  * "already on record" disables Lock and says so;
 //  * a reason the content policy refuses is caught before anything is sent.
+import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/data/mock_calls_repository.dart';
@@ -17,6 +18,7 @@ import 'package:chumbucket/features/calls/presentation/widgets/call_refusals.dar
 import 'package:chumbucket/features/calls/presentation/widgets/call_response_sheet.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
+import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -406,6 +408,41 @@ void main() {
         ),
         'Slow down a little and try again.',
       );
+    });
+  });
+
+  group('free actions are ink, never pink', () {
+    testWidgets('the call screen\'s Back carries the Free marker; the dare is '
+        'ink', (tester) async {
+      _phone(tester);
+      final repo = MockCallsRepository();
+      final (provider, entry) = await _rig(repo);
+      await tester.pumpWidget(
+        _host(provider, const CallDetailScreen(callId: 'call_ada_btc')),
+      );
+      await tester.pumpAndSettle();
+      final back = find.widgetWithText(
+        ChumbucketPrimaryButton,
+        'Back · ${entry.call.side.wire}',
+      );
+      expect(back, findsOneWidget);
+      final button = tester.widget<ChumbucketPrimaryButton>(back);
+      expect(button.neutral, isTrue);
+      expect(button.semanticsLabel, contains('Free'));
+      expect(
+        find.descendant(
+          of: back,
+          matching: find.byKey(const ValueKey('free-marker')),
+        ),
+        findsOneWidget,
+      );
+      final dare = tester.widget<BasilIcon>(
+        find.descendant(
+          of: find.byTooltip('Dare @${entry.author.handle}'),
+          matching: find.byType(BasilIcon),
+        ),
+      );
+      expect(dare.color, AppColors.textPrimary);
     });
   });
 

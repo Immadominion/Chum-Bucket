@@ -30,7 +30,6 @@ import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_p
 import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_scaffold.dart';
 import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_styles.dart';
 import 'package:chumbucket/features/people/data/people_models.dart';
-import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class FirstCallScreen extends StatefulWidget {
@@ -568,10 +567,11 @@ class DraftCallCard extends StatelessWidget {
         ),
         if (onOpen != null) ...[
           const SizedBox(height: 8),
-          ChumbucketPrimaryButton(
+          CallJourneyButton(
             key: const ValueKey('draft-review'),
             label: OnboardingCopy.pendingCallCta,
-            neutral: true,
+            primary: true,
+            free: true,
             onPressed: onOpen,
           ),
         ],
