@@ -267,7 +267,8 @@ class _Leading extends StatelessWidget {
 Color _toneFor(CallNotification notification) => switch (notification.kind) {
   CallNotificationKind.backed => AppColors.success,
   CallNotificationKind.faded => AppColors.tertiary,
-  CallNotificationKind.rematch => AppColors.primary,
+  // A dare is free: neutral ink, never the pink of money.
+  CallNotificationKind.rematch => AppColors.textPrimary,
   CallNotificationKind.resolved => switch (notification.outcome) {
     CallOutcome.correct => AppColors.success,
     CallOutcome.incorrect => AppColors.error,
