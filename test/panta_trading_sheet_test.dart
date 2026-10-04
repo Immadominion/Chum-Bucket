@@ -120,12 +120,14 @@ void main() {
       expect(find.text('Venue fee'), findsOneWidget);
       expect(find.text('Estimated shares'), findsOneWidget);
       expect(find.text('1.250000000000000001 USDC/share'), findsOneWidget);
+      // Panta's compact mark sits beside the trade; never a sentence.
       await tester.scrollUntilVisible(
-        find.text('Powered by Panta'),
+        find.byKey(const ValueKey('panta-mark')),
         200,
         scrollable: find.byType(Scrollable).first,
       );
-      expect(find.text('Powered by Panta'), findsOneWidget);
+      expect(find.text('Panta'), findsOneWidget);
+      expect(find.text('Powered by Panta'), findsNothing);
       expect(find.textContaining('probability'), findsNothing);
       expect(find.textContaining('chance'), findsNothing);
       expect(find.textContaining('PnL'), findsNothing);
@@ -150,7 +152,7 @@ void main() {
       await open(tester, scale: scale);
       await review(tester);
       await tester.scrollUntilVisible(
-        find.text('Powered by Panta'),
+        find.byKey(const ValueKey('panta-mark')),
         200,
         scrollable: find.byType(Scrollable).first,
       );

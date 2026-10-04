@@ -324,16 +324,9 @@ class _OwnCallCard extends StatelessWidget {
               key: const ValueKey('record-price'),
               style: OnbText.small.copyWith(color: AppColors.textPrimary),
             ),
-            Text(SharedPriceAttribution.text, style: OnbText.meta),
           ],
         ),
       ),
     );
   }
-}
-
-/// "Powered by Panta" under a stamped price. That the call is free is the
-/// card's Free marker.
-abstract final class SharedPriceAttribution {
-  static const text = SharePriceSnapshot.attribution;
 }

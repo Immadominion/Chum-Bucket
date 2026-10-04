@@ -128,7 +128,7 @@ void main() {
       sources: const ['https://example.com/btc'],
     );
 
-    testWidgets('says proposing is free, binary, and powered by Panta', (
+    testWidgets('says proposing is free, binary, and carries Panta’s mark', (
       tester,
     ) async {
       await mount(tester, CreateMarketScreen(controller: controller));
@@ -139,7 +139,9 @@ void main() {
         expect(find.text(category.label), findsOneWidget);
       }
       await _reveal(tester, find.text('Proposing is free'));
-      expect(find.text('Powered by Panta'), findsOneWidget);
+      // Panta's compact mark beside creation, never a sentence.
+      expect(find.byKey(const ValueKey('panta-mark')), findsOneWidget);
+      expect(find.text('Powered by Panta'), findsNothing);
       expect(find.byIcon(Icons.close), findsNothing);
     });
 
@@ -344,7 +346,7 @@ void main() {
       expect(find.text('10.00 USDC'), findsOneWidget);
       expect(find.text('40.00 USDC'), findsOneWidget);
       expect(find.textContaining('not refundable'), findsOneWidget);
-      expect(find.text('Powered by Panta'), findsWidgets);
+      expect(find.byKey(const ValueKey('panta-mark')), findsWidgets);
       expect(find.byIcon(Icons.close), findsNothing);
       expect(wallet.signs, 0);
 
@@ -529,7 +531,7 @@ void main() {
         width: 320,
         scale: 2,
       );
-      await _reveal(tester, find.text('Powered by Panta'));
+      await _reveal(tester, find.byKey(const ValueKey('panta-mark')));
       expect(tester.takeException(), isNull);
     });
   });

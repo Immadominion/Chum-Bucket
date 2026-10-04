@@ -10,6 +10,7 @@ import 'dart:async';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
+import 'package:chumbucket/features/panta_trading/presentation/panta_mark.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_market_card.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
@@ -637,7 +638,7 @@ class _FeeNote extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        const PoweredByPanta(),
+        const PantaMark(),
       ],
     ),
   );

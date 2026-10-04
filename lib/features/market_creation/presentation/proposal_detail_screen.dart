@@ -346,7 +346,7 @@ class _ProposalDetailScreenState extends State<ProposalDetailScreen> {
                         ),
                       ],
                       const SizedBox(height: 12),
-                      const PoweredByPanta(),
+                      const PantaMark(),
                     ]),
                   ],
                 ),

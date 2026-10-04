@@ -10,6 +10,7 @@ import 'dart:async';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
+import 'package:chumbucket/features/panta_trading/presentation/panta_mark.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:flutter/material.dart';
@@ -108,7 +109,7 @@ class _PublishMarketSheetState extends State<PublishMarketSheet> {
               ),
             ],
             const SizedBox(height: 12),
-            const PoweredByPanta(),
+            const PantaMark(),
           ],
         ),
       ),

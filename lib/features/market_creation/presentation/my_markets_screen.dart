@@ -231,7 +231,7 @@ class _MyMarketsScreenState extends State<MyMarketsScreen> {
 
   Widget _list(List<MarketProposal> rows) => ListView(
     padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
-    children: [for (final p in rows) _tile(p), const PoweredByPanta()],
+    children: [for (final p in rows) _tile(p)],
   );
 
   Widget _tile(MarketProposal p) => Padding(

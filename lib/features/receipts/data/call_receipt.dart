@@ -144,9 +144,7 @@ class CallReceipt {
     // under the product's name, which is the exact thing the venue labelling
     // exists to prevent.
     final demo = venueIsDemo ? ' [DEMO DATA — not a real market result]' : '';
-    final source =
-        venueLabel == 'Panta' ? ' ${SharePriceSnapshot.attribution}.' : '';
     final stamp = free ? ' · Free call' : '';
-    return '$verdict $marketQuestion — I said $sideLabel$stamp.$demo$source $shareUrl';
+    return '$verdict $marketQuestion — I said $sideLabel$stamp.$demo $shareUrl';
   }
 }

@@ -610,22 +610,8 @@ class MarketSharePrices extends StatelessWidget {
             );
       },
     );
-    if (!expanded) return pair;
-    // Detail names the venue once — Panta's API terms (§6) ask for the
-    // attribution on the market module. Odds carry no unit, USDC and SOL
-    // markets alike.
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        pair,
-        const SizedBox(height: 8),
-        Text(
-          SharePriceSnapshot.attribution,
-          style: AppTextStyles.textTheme.bodySmall?.copyWith(
-            color: AppColors.textSecondary,
-          ),
-        ),
-      ],
-    );
+    // Odds carry no unit, USDC and SOL markets alike, and no attribution:
+    // Panta's mark sits beside trading and market creation only.
+    return pair;
   }
 }

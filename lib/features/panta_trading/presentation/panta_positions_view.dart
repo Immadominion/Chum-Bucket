@@ -124,7 +124,7 @@ Widget _card({required Widget child, Color color = AppColors.surface}) =>
 const positionsAboutCopy =
     'Chumbucket can’t sell a position: Panta’s API has no sell order. '
     'See panta.market for what Panta offers on each market. Values are '
-    'marked to Panta’s latest price and are not a quote. $pantaAttribution.';
+    'marked to Panta’s latest price and are not a quote.';
 
 class _SummaryCard extends StatelessWidget {
   const _SummaryCard({required this.page});

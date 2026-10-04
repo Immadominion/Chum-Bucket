@@ -526,9 +526,9 @@ void main() {
       scale: 2,
     );
     expect(find.text('Make a call'), findsOneWidget);
-    // Detail reads as odds and names the venue once.
+    // Detail reads as odds, with no attribution (that is for trading).
     expect(find.text('62%'), findsOneWidget);
-    expect(find.textContaining('Powered by Panta'), findsOneWidget);
+    expect(find.textContaining('Powered by Panta'), findsNothing);
     // No refresh button, no "updated" line, no scary price state.
     expect(find.byTooltip('Refresh market'), findsNothing);
     for (final text in ['updated', 'Last synced', 'stale', 'cached']) {

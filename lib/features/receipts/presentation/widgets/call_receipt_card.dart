@@ -237,10 +237,6 @@ class CallReceiptCard extends StatelessWidget {
                     'Odds observed',
                     price.observedAtUtc.toIso8601String(),
                   ),
-                  const CallJourneyFact(
-                    'Odds source',
-                    SharePriceSnapshot.attribution,
-                  ),
                 ],
                 // Panta's public page, never its authenticated API URL.
                 if (receipt.resolvedByPanta) ...[

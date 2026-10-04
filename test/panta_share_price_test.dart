@@ -138,7 +138,7 @@ void main() {
     },
   );
   testWidgets(
-    'receipt card shows the odds at call, timestamp and Panta attribution',
+    'receipt card shows the odds at call and timestamp, no attribution',
     (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(390, 844);
@@ -164,10 +164,12 @@ void main() {
       expect(find.text('1.250000000000000001'), findsNothing);
       expect(find.text('0.35'), findsNothing);
       expect(find.text('Entry probability'), findsNothing);
-      expect(find.text('Powered by Panta'), findsOneWidget);
+      // A receipt carries no venue attribution: that is for trading only.
+      expect(find.textContaining('Powered by Panta'), findsNothing);
+      expect(find.byKey(const ValueKey('panta-mark')), findsNothing);
       expect(find.text('Odds observed'), findsOneWidget);
       expect(find.byKey(const ValueKey('free-marker')), findsOneWidget);
-      expect(receipt.shareCaption, contains('Powered by Panta'));
+      expect(receipt.shareCaption, isNot(contains('Powered by Panta')));
       expect(tester.takeException(), isNull);
     },
   );

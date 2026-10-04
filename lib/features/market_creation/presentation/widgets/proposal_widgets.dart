@@ -112,16 +112,3 @@ class ProposalTile extends StatelessWidget {
     ),
   );
 }
-
-/// "Powered by Panta", as Panta's terms require beside market creation.
-class PoweredByPanta extends StatelessWidget {
-  const PoweredByPanta({super.key});
-
-  @override
-  Widget build(BuildContext context) => Text(
-    'Powered by Panta',
-    style: AppTextStyles.textTheme.bodySmall?.copyWith(
-      color: AppColors.textSecondary,
-    ),
-  );
-}

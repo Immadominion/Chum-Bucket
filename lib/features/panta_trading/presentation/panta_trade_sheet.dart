@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 
 import '../data/panta_trading_models.dart';
 import '../panta_trade_controller.dart';
+import 'panta_mark.dart';
 
 /// Who signs: a wallet app over Mobile Wallet Adapter (which shows its own
 /// approval and simulation), or the wallet that lives on this phone (whose
@@ -225,12 +226,8 @@ class _PantaTradeSheetState extends State<PantaTradeSheet> {
             ),
           ],
           const SizedBox(height: 16),
-          Text(
-            pantaAttribution,
-            style: AppTextStyles.textTheme.bodySmall?.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
+          // Panta's mark, beside the trade it attributes.
+          const PantaMark(),
           const SizedBox(height: 16),
           _primaryAction(),
           if (controller.canCheckOrder)
