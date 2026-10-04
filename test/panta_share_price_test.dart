@@ -168,7 +168,7 @@ void main() {
     },
   );
   testWidgets(
-    'composer refuses unavailable Panta prices rather than offering a price-free call',
+    'composer leaves pricing to the server and says a refusal plainly',
     (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(390, 844);
@@ -201,20 +201,13 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Lock my YES call'));
       await tester.pumpAndSettle();
-      await tester.dragUntilVisible(
-        find.text(
-          'Panta prices are missing or stale. Refresh this market before calling.',
-        ),
-        find.byType(Scrollable).first,
-        const Offset(0, -180),
-      );
-      await tester.pumpAndSettle();
-      expect(
-        find.text(
-          'Panta prices are missing or stale. Refresh this market before calling.',
-        ),
-        findsOneWidget,
-      );
+      // No price on the phone is not a reason to refuse here: the server
+      // stamps (and, when it lapsed, re-reads) Panta's price itself. This
+      // market is unknown to the seeded catalog, so the lock is refused —
+      // beside the button, with the spinner stopped, never as "stale".
+      expect(find.byKey(const ValueKey('call-inline-error')), findsOneWidget);
+      expect(find.textContaining('stale'), findsNothing);
+      expect(find.text('Please wait…'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );

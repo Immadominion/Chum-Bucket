@@ -14,7 +14,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:chumbucket/features/calls/data/bff_calls_repository.dart';
+import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/call_refusals.dart';
 import 'package:chumbucket/features/people/data/people_models.dart';
 import 'package:chumbucket/features/people/data/people_suggestions.dart';
 import 'package:chumbucket/features/people/data/person_finder.dart';
@@ -242,108 +244,158 @@ void main() {
     skip: skip,
   );
 
-  test(
-    'people.suggested: real callers, the server\'s own order, self and '
-    'followed left out, parsed by the client',
-    () async {
-      final anon = await as(null).fetchSuggestedPeople();
-      expect(anon.friends, isEmpty);
-      expect(anon.people.map((p) => p.id), [
-        'user-ann',
-        'user-cid',
-        'user-bob',
-      ]);
-      expect(anon.people.map((p) => p.reason), [
-        SuggestionReason.ranked,
-        SuggestionReason.topCall,
-        SuggestionReason.building,
-      ]);
-      // Ann's record arrives with its accuracy; Bob's without one.
-      expect(anon.people.first.person.record.hasAccuracy, isTrue);
-      expect(anon.people.last.person.record.hasAccuracy, isFalse);
-      // Cid's open call is live; it comes with its question and side.
-      final cid = anon.people[1];
-      expect(cid.latestLiveCall?.callId, openCallId);
-      expect(cid.latestLiveCall?.question, '[DEMO] Will open-1 happen?');
+  test('people.suggested: real callers, the server\'s own order, self and '
+      'followed left out, parsed by the client', () async {
+    final anon = await as(null).fetchSuggestedPeople();
+    expect(anon.friends, isEmpty);
+    expect(anon.people.map((p) => p.id), ['user-ann', 'user-cid', 'user-bob']);
+    expect(anon.people.map((p) => p.reason), [
+      SuggestionReason.ranked,
+      SuggestionReason.topCall,
+      SuggestionReason.building,
+    ]);
+    // Ann's record arrives with its accuracy; Bob's without one.
+    expect(anon.people.first.person.record.hasAccuracy, isTrue);
+    expect(anon.people.last.person.record.hasAccuracy, isFalse);
+    // Cid's open call is live; it comes with its question and side.
+    final cid = anon.people[1];
+    expect(cid.latestLiveCall?.callId, openCallId);
+    expect(cid.latestLiveCall?.question, '[DEMO] Will open-1 happen?');
 
-      // Cid follows Ann: Ann is not suggested to Cid, nor Cid to himself.
-      final mine = await as('synthetic-cid').fetchSuggestedPeople();
-      expect(mine.people.map((p) => p.id), isNot(contains('user-ann')));
-      expect(mine.people.map((p) => p.id), isNot(contains('user-cid')));
-    },
-    skip: skip,
-  );
+    // Cid follows Ann: Ann is not suggested to Cid, nor Cid to himself.
+    final mine = await as('synthetic-cid').fetchSuggestedPeople();
+    expect(mine.people.map((p) => p.id), isNot(contains('user-ann')));
+    expect(mine.people.map((p) => p.id), isNot(contains('user-cid')));
+  }, skip: skip);
 
-  test(
-    'people.find: the server\'s card parses, and adding is a separate, '
-    'signature-free follow',
-    () async {
-      final cid = as('synthetic-cid');
-      final byX = await cid.findPerson('https://x.com/AnnOnX');
-      expect(byX.kind, PersonLookupKind.x);
-      final ann = byX.matches.single;
-      expect(ann.person.id, 'user-ann');
-      expect(ann.person.handle, 'ann');
-      expect(ann.matchedBy, PersonMatchedBy.x);
-      expect(ann.xHandle, 'AnnOnX');
-      expect(
-        ann.xAvatarUrl,
-        'https://pbs.twimg.com/profile_images/1/ann_400x400.jpg',
-      );
-      expect(ann.pictures.first, ann.xAvatarUrl);
-      // The same record people.get shows, and Cid already follows Ann.
-      expect(ann.person.record.decided, 12);
-      expect(ann.person.viewerIsFollowing, isTrue);
-      expect(ann.isViewer, isFalse);
+  test('people.find: the server\'s card parses, and adding is a separate, '
+      'signature-free follow', () async {
+    final cid = as('synthetic-cid');
+    final byX = await cid.findPerson('https://x.com/AnnOnX');
+    expect(byX.kind, PersonLookupKind.x);
+    final ann = byX.matches.single;
+    expect(ann.person.id, 'user-ann');
+    expect(ann.person.handle, 'ann');
+    expect(ann.matchedBy, PersonMatchedBy.x);
+    expect(ann.xHandle, 'AnnOnX');
+    expect(
+      ann.xAvatarUrl,
+      'https://pbs.twimg.com/profile_images/1/ann_400x400.jpg',
+    );
+    expect(ann.pictures.first, ann.xAvatarUrl);
+    // The same record people.get shows, and Cid already follows Ann.
+    expect(ann.person.record.decided, 12);
+    expect(ann.person.viewerIsFollowing, isTrue);
+    expect(ann.isViewer, isFalse);
 
-      final annSide = as('synthetic-ann');
-      final bob = (await annSide.findPerson('@bob')).matches.single;
-      expect(bob.person.id, 'user-bob');
-      expect(bob.matchedBy, PersonMatchedBy.username);
-      expect(bob.xHandle, isNull);
-      expect(bob.person.viewerIsFollowing, isFalse);
+    final annSide = as('synthetic-ann');
+    final bob = (await annSide.findPerson('@bob')).matches.single;
+    expect(bob.person.id, 'user-bob');
+    expect(bob.matchedBy, PersonMatchedBy.username);
+    expect(bob.xHandle, isNull);
+    expect(bob.person.viewerIsFollowing, isFalse);
 
-      const bobWallet = '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM';
-      final byWallet = await annSide.findPerson(bobWallet);
-      expect(byWallet.kind, PersonLookupKind.wallet);
-      expect(byWallet.handle, isNull);
-      expect(byWallet.matches.single.matchedBy, PersonMatchedBy.wallet);
+    const bobWallet = '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM';
+    final byWallet = await annSide.findPerson(bobWallet);
+    expect(byWallet.kind, PersonLookupKind.wallet);
+    expect(byWallet.handle, isNull);
+    expect(byWallet.matches.single.matchedBy, PersonMatchedBy.wallet);
 
-      final nobody = await cid.findPerson('@nobody_here');
-      expect(nobody.matches, isEmpty);
-      expect(nobody.notOnChumbucket!.xHandle, 'nobody_here');
-      expect(nobody.notOnChumbucket!.xAvatarUrl, isNull);
+    final nobody = await cid.findPerson('@nobody_here');
+    expect(nobody.matches, isEmpty);
+    expect(nobody.notOnChumbucket!.xHandle, 'nobody_here');
+    expect(nobody.notOnChumbucket!.xAvatarUrl, isNull);
 
-      expect((await cid.findPerson('@cid')).matches.single.isViewer, isTrue);
+    expect((await cid.findPerson('@cid')).matches.single.isViewer, isTrue);
+    await expectLater(
+      as(null).findPerson('@bob'),
+      throwsA(isA<CallsSignedOutException>()),
+    );
+    await expectLater(
+      cid.findPerson('alice.skr'),
+      throwsA(
+        isA<CallsRejectedException>().having(
+          (e) => e.message,
+          'message',
+          'Enter their X handle, Chumbucket @username or Solana wallet.',
+        ),
+      ),
+    );
+
+    // Add friend = follow; the next card says so. Undone after.
+    await annSide.setFollowing(
+      personId: 'user-bob',
+      following: true,
+      viewerUserId: 'user-ann',
+    );
+    final after = await annSide.findPerson('@bob');
+    expect(after.matches.single.person.viewerIsFollowing, isTrue);
+    await annSide.setFollowing(
+      personId: 'user-bob',
+      following: false,
+      viewerUserId: 'user-ann',
+    );
+  }, skip: skip);
+
+  // calls.respond as the app sends it (RespondToCallInput.toJson(), nulls
+  // included), against the real routers: the refusals behind "Lock just
+  // loads" must arrive as words the answer sheet can act on.
+  group('answering a call', () {
+    test('the author answering their own call is "your own call"', () async {
       await expectLater(
-        as(null).findPerson('@bob'),
-        throwsA(isA<CallsSignedOutException>()),
+        as('synthetic-cid').respondToCall(
+          input: RespondToCallInput(
+            targetCallId: openCallId,
+            kind: CallResponseKind.fade,
+          ),
+          viewerUserId: 'user-cid',
+        ),
+        throwsA(
+          isA<CallsRejectedException>()
+              .having((e) => e.message, 'message', contains('your own call'))
+              .having(classifyCallRefusal, 'refusal', CallRefusal.ownCall),
+        ),
       );
+    }, skip: skip);
+
+    test('a second call on the same market is "already on record"', () async {
+      // Ann backed this call already, so she holds a live call here.
       await expectLater(
-        cid.findPerson('alice.skr'),
+        as('synthetic-ann').respondToCall(
+          input: RespondToCallInput(
+            targetCallId: openCallId,
+            kind: CallResponseKind.fade,
+          ),
+          viewerUserId: 'user-ann',
+        ),
         throwsA(
           isA<CallsRejectedException>().having(
-            (e) => e.message,
-            'message',
-            'Enter their X handle, Chumbucket @username or Solana wallet.',
+            classifyCallRefusal,
+            'refusal',
+            CallRefusal.alreadyOnRecord,
           ),
         ),
       );
+    }, skip: skip);
 
-      // Add friend = follow; the next card says so. Undone after.
-      await annSide.setFollowing(
-        personId: 'user-bob',
-        following: true,
-        viewerUserId: 'user-ann',
-      );
-      final after = await annSide.findPerson('@bob');
-      expect(after.matches.single.person.viewerIsFollowing, isTrue);
-      await annSide.setFollowing(
-        personId: 'user-bob',
-        following: false,
-        viewerUserId: 'user-ann',
-      );
-    },
-    skip: skip,
-  );
+    // Last: it adds a call to the shared harness.
+    test(
+      'anyone else Fades with the exact payload and gets their own call',
+      () async {
+        final result = await as('synthetic-bob').respondToCall(
+          input: RespondToCallInput(
+            targetCallId: openCallId,
+            kind: CallResponseKind.fade,
+          ),
+          viewerUserId: 'user-bob',
+        );
+        final own = result.resultingCall!.call;
+        expect(own.userId, 'user-bob');
+        expect(own.side, Side.no);
+        expect(own.parentCallId, openCallId);
+        expect(result.response.kind, CallResponseKind.fade);
+      },
+      skip: skip,
+    );
+  });
 }

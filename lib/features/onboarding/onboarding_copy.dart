@@ -130,6 +130,10 @@ abstract final class OnboardingCopy {
       'Panta hasn’t sent a fresh price for this market. Pick another one, or '
       'try again in a minute.';
   static const callPickAnother = 'Pick another market';
+
+  /// A saved Back/Fade that turns out, after sign-in, to answer your own
+  /// call (the same account signed in again). Dropped, never sent.
+  static const callOwnDraft = 'That one’s your own call. Pick another.';
   static const callBack = 'Back';
   static const callFade = 'Fade';
   static String calledSide(String side) => 'called $side';

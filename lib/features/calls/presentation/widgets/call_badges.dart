@@ -203,6 +203,18 @@ class DemoVenueBadge extends StatelessWidget {
   }
 }
 
+/// The two sides' colours, everywhere a side is shown: YES green on mint,
+/// NO slate on grey (both well over 4.5:1).
+abstract final class CallSideColors {
+  static const yesInk = Color(0xFF07644C);
+  static const yesFill = Color(0xFFE6F6EF);
+  static const noInk = Color(0xFF334155);
+  static const noFill = Color(0xFFEEF0F4);
+
+  static Color ink(Side side) => side == Side.yes ? yesInk : noInk;
+  static Color fill(Side side) => side == Side.yes ? yesFill : noFill;
+}
+
 /// The side a call took, as a flat label (the prototype's stance pill).
 /// Display only; [SideChip] is the selectable control.
 class SidePill extends StatelessWidget {
@@ -211,18 +223,12 @@ class SidePill extends StatelessWidget {
 
   const SidePill({super.key, required this.side, this.label});
 
-  static const _yesInk = Color(0xFF07644C);
-  static const _yesFill = Color(0xFFE6F6EF);
-  static const _noInk = Color(0xFF334155);
-  static const _noFill = Color(0xFFEEF0F4);
-
   @override
   Widget build(BuildContext context) {
-    final yes = side == Side.yes;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: yes ? _yesFill : _noFill,
+        color: CallSideColors.fill(side),
         borderRadius: BorderRadius.circular(7),
       ),
       child: Text(
@@ -234,7 +240,7 @@ class SidePill extends StatelessWidget {
           fontSize: 12,
           fontWeight: FontWeight.w800,
           height: 1.2,
-          color: yes ? _yesInk : _noInk,
+          color: CallSideColors.ink(side),
         ),
       ),
     );

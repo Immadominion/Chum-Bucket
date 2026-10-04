@@ -281,19 +281,19 @@ void main() {
         expect(find.text('Yes — it prints 150k'), findsOneWidget);
         expect(find.text('No — it never gets there'), findsOneWidget);
         expect(find.text('Lock my call'), findsOneWidget);
-        // The venue price IS shown — that is what the call gets stamped with.
-        expect(find.textContaining('Venue price: Yes 38%'), findsOneWidget);
+        // The venue price IS shown, on each side's button — that is what the
+        // call gets stamped with.
+        expect(find.text('38%'), findsOneWidget);
+        expect(find.text('62%'), findsOneWidget);
         // The crowd's split is not.
         expect(find.textContaining('EVERYONE ELSE'), findsNothing);
+        // Free, said once, under the button.
+        expect(find.text('Free · final once locked'), findsOneWidget);
 
-        await scrollTo(
-          tester,
-          find.textContaining('This is a free call. No money, no wallet'),
-        );
-        expect(
-          find.textContaining('This is a free call. No money, no wallet'),
-          findsOneWidget,
-        );
+        // Reason, visibility and confidence wait behind one disclosure.
+        expect(find.byType(TextField), findsNothing);
+        await tester.tap(find.byKey(const ValueKey('composer-more-options')));
+        await tester.pumpAndSettle();
 
         // Exactly one free-text field: the thesis. No amount input anywhere.
         final fields = tester.widgetList<TextField>(find.byType(TextField));
@@ -317,7 +317,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text(closed.status.label), findsWidgets);
+      expect(find.textContaining(closed.status.label), findsWidgets);
       expect(find.text('Lock my call'), findsNothing);
     });
   });
@@ -345,20 +345,18 @@ void main() {
 
       expect(find.text('Back'), findsOneWidget);
       expect(find.text('Fade'), findsOneWidget);
-      expect(
-        find.textContaining('Makes your OWN call on the same side'),
-        findsOneWidget,
-      );
-      expect(
-        find.textContaining('does not copy their position'),
-        findsOneWidget,
-      );
-      // Back is preselected, and its button never says "copy".
-      expect(find.text('Lock my YES call'), findsOneWidget);
-
-      // The third option is below the fold on a small phone.
-      await scrollTo(tester, find.text('Dare'));
       expect(find.text('Dare'), findsOneWidget);
+      // Back locks the viewer's OWN call on the same side: the line says
+      // whose call it is, and nothing anywhere says "copy".
+      expect(find.bySemanticsLabel('Your own call: YES'), findsOneWidget);
+      expect(find.text('Your call'), findsOneWidget);
+      final rendered = tester
+          .widgetList<Text>(find.byType(Text))
+          .map((t) => (t.data ?? '').toLowerCase())
+          .join(' | ');
+      expect(rendered, isNot(contains('copy')));
+      // Back is preselected.
+      expect(find.text('Lock my YES call'), findsOneWidget);
     });
 
     testWidgets('Fade puts the responder on the opposite side', (tester) async {
@@ -374,17 +372,14 @@ void main() {
       await tester.tap(find.text('Fade'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Lock my NO call'), findsOneWidget);
-      await scrollTo(tester, find.textContaining('You’re calling'));
-      expect(find.textContaining('You’re calling'), findsOneWidget);
-      // The target called YES, so a fade is NO.
+      // The target called YES, so a fade is NO — no separate side picker.
       expect(entry.call.side, Side.yes);
-      expect(find.text('No — it never gets there'), findsWidgets);
+      expect(find.text('Lock my NO call'), findsOneWidget);
+      expect(find.bySemanticsLabel('Your own call: NO'), findsOneWidget);
+      expect(find.byType(CallJourneySides), findsNothing);
     });
 
-    testWidgets('Challenge says explicitly that nothing is escrowed', (
-      tester,
-    ) async {
+    testWidgets('Challenge says it is free and moves no money', (tester) async {
       usePhoneSurface(tester);
       final repo = MockCallsRepository();
       final entry = await target(repo);
@@ -394,22 +389,14 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await scrollTo(tester, find.text('Dare'));
       await tester.tap(find.text('Dare'));
       await tester.pumpAndSettle();
 
       expect(find.text('Send the dare'), findsOneWidget);
-      await scrollTo(
-        tester,
-        find.textContaining('No escrow. Nothing is locked up'),
-      );
-      expect(
-        find.textContaining('No escrow. Nothing is locked up'),
-        findsOneWidget,
-      );
-      expect(find.textContaining('no transaction is created'), findsOneWidget);
+      expect(find.text('Free dare to @ada'), findsOneWidget);
+      expect(find.text('Free · no money moves'), findsOneWidget);
       // A challenge makes no call for the actor, so no side banner.
-      expect(find.textContaining('You’re calling'), findsNothing);
+      expect(find.text('Your call'), findsNothing);
     });
 
     testWidgets('signed out shows the sign-in gate', (tester) async {
@@ -452,9 +439,17 @@ void main() {
           reason: 'response sheet rendered "$forbidden"',
         );
       }
-      // One free-text note field, and nothing numeric to type an amount into.
-      await scrollTo(tester, find.byType(TextField));
+      // One free-text note field, behind "Add a reason", and nothing numeric
+      // to type an amount into.
+      expect(find.byType(TextField), findsNothing);
+      await scrollTo(tester, find.text('Add a reason'));
+      await tester.tap(find.text('Add a reason'));
+      await tester.pumpAndSettle();
       expect(find.byType(TextField), findsOneWidget);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).keyboardType,
+        isNot(TextInputType.number),
+      );
     });
   });
 }

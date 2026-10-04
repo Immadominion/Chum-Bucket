@@ -145,6 +145,48 @@ void main() {
     expect(rig.app.pendingCall?.side, Side.yes);
   });
 
+  testWidgets(
+    'signing in later as the author drops a saved Fade on their own call',
+    (tester) async {
+      final scene = OnboardingScene();
+      final mine = topCall(
+        scene.gta,
+        personCard(kCanonicalUserId, name: 'Dominion', handle: 'dev'),
+        side: Side.no,
+      );
+      SharedPreferences.setMockInitialValues({
+        OnboardingStore.pendingCallKey: jsonEncode({
+          'kind': 'fade',
+          'marketId': scene.gta.id,
+          'side': 'YES',
+          'targetCallId': mine.call.id,
+          'question': scene.gta.question,
+          'savedAt': kNowMs,
+        }),
+      });
+      final repo = scene.repository()..top = [mine];
+      final rig = OnboardingRig(repo: repo, bff: OnboardingBff(handle: 'dev'));
+      await _home(tester, rig: rig);
+      expect(rig.app.pendingCall?.targetCallId, mine.call.id);
+
+      rig.auth.restored = snapshot();
+      await tester.runAsync(rig.session.restore);
+      for (var i = 0; i < 8; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 5)),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(rig.session.userId, kCanonicalUserId);
+      // Not offered (there is nothing to answer), never sent, and gone.
+      expect(find.byKey(const ValueKey('home-pending-call')), findsNothing);
+      expect(find.byKey(const ValueKey('home-own-call-draft')), findsOneWidget);
+      expect(find.text(OnboardingCopy.callOwnDraft), findsOneWidget);
+      expect(rig.repo.responded, isEmpty);
+      expect(rig.app.pendingCall, isNull);
+    },
+  );
+
   for (final offered in [false, true]) {
     testWidgets(
       offered

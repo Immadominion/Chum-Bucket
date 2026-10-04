@@ -454,6 +454,12 @@ void main() {
             findsOneWidget,
           );
         } else {
+          // The full composer keeps them behind one "More options".
+          expect(_inComposer(find.byType(CallJourneyReason)), findsNothing);
+          await tester.tap(
+            _inComposer(find.byKey(const ValueKey('composer-more-options'))),
+          );
+          await settle(tester, const Duration(milliseconds: 300));
           expect(_inComposer(find.byType(CallJourneyReason)), findsOneWidget);
           expect(
             _inComposer(find.byType(CallJourneyVisibility)),
@@ -463,10 +469,7 @@ void main() {
             _inComposer(find.byType(CallJourneyConfidence)),
             findsOneWidget,
           );
-          expect(
-            _inComposer(find.text('Read the market rules')),
-            findsOneWidget,
-          );
+          expect(_inComposer(find.text('Market rules')), findsOneWidget);
         }
       }
     },
@@ -502,6 +505,56 @@ void main() {
     expect(own.call.side, top.call.side.opposite);
     expect(find.byType(OnRecordScreen), findsOneWidget);
   });
+
+  testWidgets(
+    'a Fade saved signed out on what turns out to be your own call is dropped',
+    (tester) async {
+      // Production, 4 Oct: the person signed in again as the account that
+      // made the call, and the saved Fade replayed into a sheet whose Lock
+      // the server refused ("You can't respond to your own call").
+      final live = _live();
+      final mine = topCall(
+        live.scene.gta,
+        personCard(kCanonicalUserId, name: 'Dominion', handle: 'dev'),
+        side: Side.no,
+        responses: 1,
+      );
+      live.repo.top = [mine, ...live.repo.top];
+      final rig = await _atFirstCall(tester, repo: live.repo, now: live.now);
+      // Signed out, nobody knows whose call it is yet: it is on offer.
+      expect(
+        find.byKey(ValueKey('answer-fade-${mine.call.id}')),
+        findsOneWidget,
+      );
+      await tester.ensureVisible(
+        find.byKey(ValueKey('answer-fade-${mine.call.id}')),
+      );
+      await tester.tap(find.byKey(ValueKey('answer-fade-${mine.call.id}')));
+      await settle(tester);
+      expect(find.byType(SignInScreen), findsOneWidget);
+      expect(
+        (await const OnboardingStore().readPendingCall(live.now))?.targetCallId,
+        mine.call.id,
+      );
+
+      rig.auth.deliverOnSignIn = snapshot();
+      await tester.tap(find.byKey(const ValueKey('front-door-google')));
+      await settle(tester, const Duration(milliseconds: 1500));
+      expect(rig.session.userId, kCanonicalUserId);
+
+      // No sheet, nothing sent, the draft gone, and one friendly line.
+      expect(find.byType(CallResponseSheet), findsNothing);
+      expect(rig.repo.responded, isEmpty);
+      expect(await const OnboardingStore().readPendingCall(live.now), isNull);
+      expect(find.text(OnboardingCopy.callOwnDraft), findsOneWidget);
+      // Their own call no longer appears among the calls to answer.
+      expect(find.byKey(ValueKey('answer-fade-${mine.call.id}')), findsNothing);
+      expect(
+        _flow(tester).answerable.map((t) => t.author.id),
+        isNot(contains(kCanonicalUserId)),
+      );
+    },
+  );
 
   testWidgets(
     '"I\'ll do this later" signed out goes to A1 titled for going on record',

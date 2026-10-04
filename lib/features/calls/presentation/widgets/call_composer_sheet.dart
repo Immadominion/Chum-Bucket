@@ -13,6 +13,8 @@ import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/call_badges.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/call_refusals.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
@@ -21,6 +23,7 @@ import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:chumbucket/features/panta_trading/presentation/panta_market_link.dart';
+import 'package:chumbucket/features/trust/data/content_policy.dart';
 
 Future<CallFeedEntry?> showCallComposer({
   required BuildContext context,
@@ -146,9 +149,15 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
   bool _priceRefreshed = false;
   bool _refreshing = false;
   String? _error;
-  String? _notice;
 
-  /// Offer "Pick another market" (onboarding): stale price or a refusal.
+  /// Reason, visibility, confidence and rules, behind one disclosure.
+  late bool _more =
+      widget.initialDraft?.thesis?.isNotEmpty == true ||
+      widget.initialDraft?.confidence != null ||
+      widget.initialDraft?.visibility == CallVisibility.followers;
+
+  /// Offer "Pick another market" (onboarding): this market can't be called
+  /// right now.
   bool _offerAnother = false;
   @override
   void dispose() {
@@ -190,52 +199,48 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
       signIn(draft);
       return;
     }
+    final thesis = _thesis.text.trim();
+    final problem = contentPolicyProblem(thesis, ContentField.thesis);
+    if (problem != null) {
+      setState(() {
+        _more = true;
+        _error = problem;
+      });
+      return;
+    }
     if (widget.market.venue == MarketVenue.panta &&
         !(_sharePrice?.isUsableAt(DateTime.now()) ?? false)) {
       final refresh = widget.refreshPrice;
       if (refresh != null && !_priceRefreshed) {
-        // Once, automatically. A fresh price is shown before any lock: the
-        // person locks it with a fresh tap.
+        // Quietly, once. The server reads Panta's price itself when the one
+        // it holds has lapsed, so a lapsed price is never the person's
+        // problem: this only keeps the price on the buttons current.
         setState(() {
           _refreshing = true;
           _error = null;
         });
-        final fresh = await refresh();
+        SharePriceSnapshot? fresh;
+        try {
+          fresh = await refresh();
+        } catch (_) {
+          fresh = null;
+        }
         if (!mounted) return;
-        final usable = fresh?.isUsableAt(DateTime.now()) ?? false;
         setState(() {
           _refreshing = false;
           _priceRefreshed = true;
           if (fresh != null) _sharePrice = fresh;
-          _offerAnother = !usable;
-          _notice =
-              usable ? 'Panta sent a fresh price. Check it, then lock.' : null;
-          _error =
-              usable
-                  ? null
-                  : 'Panta hasn’t sent a fresh price for this market. Pick '
-                      'another one, or try again in a minute.';
         });
-        return;
       }
-      setState(() {
-        _offerAnother = true;
-        _error =
-            'Panta prices are missing or stale. Refresh this market before calling.';
-      });
-      return;
     }
-    setState(() {
-      _error = null;
-      _notice = null;
-    });
+    setState(() => _error = null);
     try {
       final entry = await provider.createCall(
         CreateCallInput(
           marketId: widget.market.id,
           side: side,
           confidence: _useConfidence ? _confidence : null,
-          thesis: _thesis.text.trim().isEmpty ? null : _thesis.text.trim(),
+          thesis: thesis.isEmpty ? null : thesis,
           visibility: _visibility,
           snapshotId: widget.snapshot?.id,
           parentCallId: widget.parentCallId,
@@ -251,18 +256,23 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
       }
     } on CallsException catch (e) {
       if (!mounted) return;
+      final refusal = classifyCallRefusal(e);
       final already = widget.onAlreadyCalled;
-      if (already != null &&
-          e is CallsRejectedException &&
-          e.message.toLowerCase().contains('already have a live call')) {
+      if (already != null && refusal == CallRefusal.alreadyOnRecord) {
         Navigator.of(context).pop();
         already();
         return;
       }
       setState(() {
-        _error = e.message;
-        _offerAnother = e is CallsRejectedException;
+        _error = callRefusalMessage(e);
+        _offerAnother =
+            refusal == CallRefusal.priceUnavailable ||
+            refusal == CallRefusal.closed ||
+            refusal == CallRefusal.other;
       });
+    } catch (_) {
+      // Never a spinner with no way out: whatever failed, say so.
+      if (mounted) setState(() => _error = kCallUnexpectedFailure);
     }
   }
 
@@ -283,189 +293,287 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
         ),
   );
 
+  /// What each side costs now, on its button: Panta's share price, or a
+  /// legacy venue's probability.
+  Map<Side, String>? _sideSubs() {
+    final market = widget.market;
+    if (market.venue == MarketVenue.panta) {
+      final price = _sharePrice;
+      if (price == null || !price.isUsableAt(DateTime.now())) return null;
+      return {
+        for (final side in Side.values)
+          if (price.priceFor(side) case final value?)
+            side: CallsFormat.displayPrice(value),
+      };
+    }
+    final snapshot = widget.snapshot;
+    if (snapshot == null) return null;
+    return {
+      Side.yes: CallsFormat.probability(snapshot.yesProbability),
+      Side.no: CallsFormat.probability(snapshot.noProbability),
+    };
+  }
+
   Widget _form(CallsProvider provider) {
     final market = widget.market;
     final open = market.status.acceptsNewCalls;
+    final busy = provider.isSubmitting || _refreshing;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Flexible(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (market.venue.isDemo)
-                  const CallJourneyNote(
-                    'DEMO DATA · Sample market, not a live call.',
+                if (market.venue.isDemo) ...[
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: DemoVenueBadge(venue: market.venue),
                   ),
+                  const SizedBox(height: 10),
+                ],
                 if (widget.note != null)
                   CallJourneyNote(widget.note!, icon: 'user-outline'),
-                if (!widget.compact) ...[
-                  Text(
-                    'Your opinion. On the record.',
-                    style: callJourneyBody(12),
-                  ),
-                  const SizedBox(height: 12),
-                ],
                 Text(market.question, style: callJourneyHeading(context, 22)),
                 const SizedBox(height: 16),
-                if (!open) ...[
-                  Text(
-                    market.status.label,
-                    style: callJourneyHeading(context, 18),
+                if (!open)
+                  CallJourneyNote(
+                    '${market.status.label} · no new calls here.',
+                    icon: 'lock-time-outline',
+                    quiet: true,
                   ),
-                  const CallJourneyNote(
-                    'This market is not accepting new calls. Your draft is kept here; nothing changes a call you already locked.',
-                  ),
-                ],
                 CallJourneySides(
                   market: market,
                   side: _side,
+                  subs: widget.compact ? null : _sideSubs(),
                   onChanged:
-                      open && !provider.isSubmitting
-                          ? (side) => setState(() => _side = side)
+                      open && !busy
+                          ? (side) => setState(() {
+                            _side = side;
+                            _error = null;
+                          })
                           : null,
                 ),
                 const SizedBox(height: 10),
-                Text(
-                  _side == null
-                      ? 'Choose your YES or NO.'
-                      : widget.compact
-                      ? _compactLine(_side!)
-                      : 'You’re calling ${_side!.wire}. No money involved.',
-                  style: callJourneyBody(),
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    _side == null
+                        ? 'Choose your YES or NO.'
+                        : widget.compact
+                        ? _compactLine(_side!)
+                        : 'You’re calling ${_side!.wire}.',
+                    style: callJourneyBody(),
+                  ),
                 ),
                 if (!widget.compact) ...[
-                  const SizedBox(height: 16),
-                  Text(
-                    'Your reason (optional)',
-                    style: callJourneyHeading(context, 14),
+                  const SizedBox(height: 4),
+                  _MoreOptionsToggle(
+                    open: _more,
+                    onTap: () => setState(() => _more = !_more),
                   ),
-                  const SizedBox(height: 8),
-                  CallJourneyReason(
-                    controller: _thesis,
-                    enabled: !provider.isSubmitting,
-                  ),
-                  CallJourneyVisibility(
-                    value: _visibility,
-                    onChanged:
-                        provider.isSubmitting
-                            ? null
-                            : (value) => setState(() => _visibility = value),
-                  ),
-                  const SizedBox(height: 12),
-                  CallJourneyConfidence(
-                    enabled: _useConfidence,
-                    confidence: _confidence,
-                    onToggle:
-                        provider.isSubmitting
-                            ? null
-                            : (value) => setState(() => _useConfidence = value),
-                    onChanged:
-                        provider.isSubmitting
-                            ? null
-                            : (value) => setState(() => _confidence = value),
-                  ),
-                  const Divider(height: 32),
-                  CallJourneyFact(
-                    'Closes',
-                    market.closesAtUtc == null
-                        ? 'No close time published'
-                        : CallsFormat.timestampUtc(market.closesAtUtc!),
-                  ),
-                  Text(
-                    market.venue == MarketVenue.panta
-                        ? '${CallsFormat.nativePrices(_sharePrice)} · ${SharePriceSnapshot.attribution}'
-                            '${_sharePrice == null ? '' : ' · Observed ${CallsFormat.timestampUtc(_sharePrice!.observedAtUtc)}'} · Indicative, not a trade quote'
-                        : widget.snapshot == null
-                        ? 'No venue price published — your call locks without one.'
-                        : 'Venue price: Yes ${CallsFormat.probability(widget.snapshot!.yesProbability)} · No ${CallsFormat.probability(widget.snapshot!.noProbability)} · ${CallsFormat.dataAge(widget.snapshot!.ageAt(DateTime.now()))}',
-                    style: callJourneyBody(12),
-                  ),
-                  ExpansionTile(
-                    tilePadding: EdgeInsets.zero,
-                    title: Text(
-                      'Read the market rules',
-                      style: callJourneyHeading(context, 14),
-                    ),
-                    children: [
-                      SelectableText(
-                        market.rulesText,
-                        style: callJourneyBody(),
-                      ),
-                      // Panta's public page, never its authenticated API URL.
-                      if (market.venue == MarketVenue.panta &&
-                          market.venueMarketId.isNotEmpty)
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: PantaMarketLink(
-                            venueMarketId: market.venueMarketId,
-                            label: 'Resolved by Panta',
-                            style: callJourneyBody(12),
-                          ),
-                        )
-                      else if (market.resolutionSource != null)
-                        CallJourneyFact(
-                          'Resolution source',
-                          market.resolutionSource!,
-                        ),
-                    ],
-                  ),
-                  const CallJourneyNote(
-                    'Your side, reason and timestamp can’t be edited after locking.',
-                    icon: 'lock-outline',
-                  ),
-                  Text(
-                    'This is a free call. No money, no wallet, nothing to fund.',
-                    style: callJourneyBody(12),
-                  ),
+                  if (_more) ..._moreOptions(provider, market),
                 ],
-                if (_notice != null)
-                  Semantics(
-                    liveRegion: true,
-                    child: CallJourneyNote(_notice!, quiet: true),
-                  ),
-                if (_error != null)
-                  Semantics(
-                    liveRegion: true,
-                    child: CallJourneyNote(_error!, error: true),
-                  ),
               ],
             ),
           ),
         ),
         if (open)
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (_error != null) ...[
+                  CallInlineError(_error!),
+                  const SizedBox(height: 10),
+                ],
                 CallJourneyButton(
                   label:
                       _side == null
                           ? 'Lock my call'
                           : 'Lock my ${_side!.wire} call',
                   primary: true,
-                  busy: provider.isSubmitting || _refreshing,
-                  onPressed:
-                      _side == null || provider.isSubmitting || _refreshing
-                          ? null
-                          : _submit,
+                  busy: busy,
+                  onPressed: _side == null || busy ? null : _submit,
                 ),
                 if (_offerAnother && widget.refreshPrice != null)
                   ChumbucketTextAction(
                     label: 'Pick another market',
                     color: AppColors.pinkInk,
                     onPressed: () => Navigator.of(context).maybePop(),
-                  ),
+                  )
+                else if (!widget.compact) ...[
+                  const SizedBox(height: 8),
+                  const CallFinePrint('Free · final once locked'),
+                ],
               ],
             ),
           ),
       ],
     );
   }
+
+  List<Widget> _moreOptions(CallsProvider provider, VenueMarket market) {
+    final busy = provider.isSubmitting || _refreshing;
+    return [
+      const SizedBox(height: 4),
+      CallJourneyReason(controller: _thesis, enabled: !busy),
+      CallJourneyVisibility(
+        value: _visibility,
+        onChanged: busy ? null : (value) => setState(() => _visibility = value),
+      ),
+      const SizedBox(height: 4),
+      CallJourneyConfidence(
+        enabled: _useConfidence,
+        confidence: _confidence,
+        onToggle:
+            busy ? null : (value) => setState(() => _useConfidence = value),
+        onChanged: busy ? null : (value) => setState(() => _confidence = value),
+      ),
+      ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        shape: const Border(),
+        collapsedShape: const Border(),
+        leading: const BasilIcon(
+          'book-check-outline',
+          size: 20,
+          color: AppColors.textPrimary,
+        ),
+        title: Text('Market rules', style: callJourneyHeading(context, 14)),
+        children: [
+          SelectableText(market.rulesText, style: callJourneyBody()),
+          if (market.closesAtUtc != null)
+            CallJourneyFact(
+              'Closes',
+              CallsFormat.timestampUtc(market.closesAtUtc!),
+            ),
+          // Panta's public page, never its authenticated API URL.
+          if (market.venue == MarketVenue.panta &&
+              market.venueMarketId.isNotEmpty)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: PantaMarketLink(
+                venueMarketId: market.venueMarketId,
+                label: 'Prices and result by Panta',
+                style: callJourneyBody(12),
+              ),
+            )
+          else if (market.resolutionSource != null)
+            CallJourneyFact('Resolution source', market.resolutionSource!),
+        ],
+      ),
+    ];
+  }
+}
+
+/// "More options", the one disclosure the full composer keeps its extras
+/// behind.
+class _MoreOptionsToggle extends StatelessWidget {
+  const _MoreOptionsToggle({required this.open, required this.onTap});
+  final bool open;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Align(
+    alignment: Alignment.centerLeft,
+    child: TextButton.icon(
+      key: const ValueKey('composer-more-options'),
+      onPressed: onTap,
+      style: TextButton.styleFrom(
+        minimumSize: const Size(48, 48),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        foregroundColor: AppColors.pinkInk,
+      ),
+      iconAlignment: IconAlignment.end,
+      icon: BasilIcon(
+        open ? 'caret-up-outline' : 'caret-down-outline',
+        size: 18,
+        color: AppColors.pinkInk,
+      ),
+      label: Semantics(
+        expanded: open,
+        child: Text(
+          'More options',
+          style: callJourneyHeading(
+            context,
+            13,
+          ).copyWith(color: AppColors.pinkInk),
+        ),
+      ),
+    ),
+  );
+}
+
+/// A refusal or failure, beside the button that caused it. Announced.
+class CallInlineError extends StatelessWidget {
+  const CallInlineError(this.text, {super.key});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    liveRegion: true,
+    child: Container(
+      key: const ValueKey('call-inline-error'),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.errorContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const BasilIcon(
+            'info-triangle-outline',
+            size: 18,
+            color: AppColors.onErrorContainer,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: callJourneyBody(
+                13,
+              ).copyWith(color: AppColors.onErrorContainer, height: 1.4),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// One small line under a Lock button.
+class CallFinePrint extends StatelessWidget {
+  const CallFinePrint(this.text, {super.key});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    // At large text the sheet's body needs every line; the button above
+    // already says what it does.
+    if (MediaQuery.textScalerOf(context).scale(11) > 16) {
+      return const SizedBox.shrink();
+    }
+    return _line();
+  }
+
+  Widget _line() => Row(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      const BasilIcon('lock-outline', size: 12, color: AppColors.textMuted),
+      const SizedBox(width: 6),
+      Flexible(
+        child: Text(
+          text,
+          textAlign: TextAlign.center,
+          style: callJourneyBody(11).copyWith(color: AppColors.textMuted),
+        ),
+      ),
+    ],
+  );
 }
 
 // Presentation helpers local to the call journey; shared app primitives stay intact.
@@ -710,12 +818,16 @@ class CallJourneyPerson extends StatelessWidget {
         constraints: const BoxConstraints(minHeight: 48),
         child: Row(
           children: [
-            AppAvatar(
-              initials: person.initials,
-              imageUrl: person.avatarUrl,
-              size: 44,
-              backgroundColor: AppColors.primaryContainer,
-              textColor: AppColors.onPrimaryContainer,
+            // Decorative beside the name: initials keep their size at
+            // large text instead of overflowing the circle.
+            MediaQuery.withNoTextScaling(
+              child: AppAvatar(
+                initials: person.initials,
+                imageUrl: person.avatarUrl,
+                size: 44,
+                backgroundColor: AppColors.primaryContainer,
+                textColor: AppColors.onPrimaryContainer,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -745,6 +857,9 @@ class CallJourneyChoice extends StatelessWidget {
   final bool selected;
   final VoidCallback? onTap;
 
+  /// A second, smaller line: what this side costs now.
+  final String? sub;
+
   /// When the choice is a side, it takes that side's colour once chosen —
   /// the prototype's green YES and slate NO. Other choices select in ink;
   /// brand pink stays for the call to action.
@@ -755,6 +870,7 @@ class CallJourneyChoice extends StatelessWidget {
     required this.selected,
     this.onTap,
     this.side,
+    this.sub,
   });
 
   static const _rule = Color(0xFFD6DCE1);
@@ -783,23 +899,37 @@ class CallJourneyChoice extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
           ),
         ),
-        child: Row(
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Flexible(
-              child: Text(
-                label,
-                textAlign: TextAlign.center,
-                style: callJourneyHeading(
-                  context,
-                  14,
-                ).copyWith(color: selected ? ink : AppColors.textPrimary),
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: callJourneyHeading(
+                      context,
+                      14,
+                    ).copyWith(color: selected ? ink : AppColors.textPrimary),
+                  ),
+                ),
+                if (selected && side != null) ...[
+                  const SizedBox(width: 6),
+                  BasilIcon('check-outline', size: 16, color: ink),
+                ],
+              ],
             ),
-            if (selected && side != null) ...[
-              const SizedBox(width: 6),
-              BasilIcon('check-outline', size: 16, color: ink),
-            ],
+            if (sub != null)
+              Text(
+                sub!,
+                textAlign: TextAlign.center,
+                style: callJourneyBody(12).copyWith(
+                  color: selected ? ink : AppColors.textMuted,
+                  height: 1.3,
+                ),
+              ),
           ],
         ),
       ),
@@ -811,11 +941,19 @@ class CallJourneySides extends StatelessWidget {
   final VenueMarket market;
   final Side? side;
   final ValueChanged<Side>? onChanged;
+
+  /// What each side costs now, shown on its button.
+  final Map<Side, String>? subs;
+
+  /// List the market's own outcome words under the buttons.
+  final bool showOutcomeLabels;
   const CallJourneySides({
     super.key,
     required this.market,
     required this.side,
     this.onChanged,
+    this.subs,
+    this.showOutcomeLabels = true,
   });
   @override
   Widget build(BuildContext context) => Column(
@@ -828,6 +966,7 @@ class CallJourneySides extends StatelessWidget {
               child: CallJourneyChoice(
                 label: option.wire,
                 side: option,
+                sub: subs?[option],
                 selected: side == option,
                 onTap: onChanged == null ? null : () => onChanged!(option),
               ),
@@ -835,15 +974,16 @@ class CallJourneySides extends StatelessWidget {
           ],
         ],
       ),
-      for (final option in market.outcomes)
-        if (option.label.toUpperCase() != option.side.wire)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(option.label, style: callJourneyBody(12)),
+      if (showOutcomeLabels)
+        for (final option in market.outcomes)
+          if (option.label.toUpperCase() != option.side.wire)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(option.label, style: callJourneyBody(12)),
+              ),
             ),
-          ),
     ],
   );
 }
@@ -852,16 +992,19 @@ class CallJourneyReason extends StatelessWidget {
   final TextEditingController controller;
   final bool enabled;
   final String hint;
+  final bool autofocus;
   const CallJourneyReason({
     super.key,
     required this.controller,
     this.enabled = true,
     this.hint = 'What are you seeing?',
+    this.autofocus = false,
   });
   @override
   Widget build(BuildContext context) => TextField(
     controller: controller,
     enabled: enabled,
+    autofocus: autofocus,
     maxLines: 3,
     maxLength: kThesisMaxLength,
     inputFormatters: [LengthLimitingTextInputFormatter(kThesisMaxLength)],
@@ -933,12 +1076,8 @@ class CallJourneyConfidence extends StatelessWidget {
       SwitchListTile(
         contentPadding: EdgeInsets.zero,
         title: Text(
-          'Add your confidence (optional)',
+          'Add your confidence',
           style: callJourneyHeading(context, 14),
-        ),
-        subtitle: Text(
-          'Self-reported, separate from venue prices.',
-          style: callJourneyBody(12),
         ),
         value: enabled,
         onChanged: onToggle,
