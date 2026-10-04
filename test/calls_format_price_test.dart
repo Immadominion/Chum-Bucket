@@ -48,6 +48,36 @@ void main() {
     }
   });
 
+  test('independent prices read as odds that add up: YES = yes/(yes+no)', () {
+    for (final (yes, no, shownYes, shownNo) in [
+      ('0.62', '0.43', '59%', '41%'),
+      ('1.25', '0.35', '78%', '22%'),
+      ('0.625', '0.375', '63%', '37%'),
+      ('0.620000000000000001', '0.430000000000000001', '59%', '41%'),
+      // A SOL market's complementary pair reads as its own figures.
+      ('0.671739755', '0.328260245', '67%', '33%'),
+      ('0.5', '0.5', '50%', '50%'),
+      ('1', '0', '100%', '0%'),
+      ('0', '0.7', '0%', '100%'),
+      // Never rounded into a certainty either side.
+      ('0.004', '0.996', '<1%', '>99%'),
+      ('0.996', '0.004', '>99%', '<1%'),
+    ]) {
+      final pair = CallsFormat.pairOdds(yes, no);
+      expect((pair.yes, pair.no), (shownYes, shownNo), reason: '$yes/$no');
+    }
+  });
+
+  test('one side missing reads that side alone; none, or zero, reads null', () {
+    expect(CallsFormat.pairOdds('0.62', null), (yes: '62%', no: null));
+    expect(CallsFormat.pairOdds(null, '0.43'), (yes: null, no: '43%'));
+    // Alone, a price above a whole share has no honest percent.
+    expect(CallsFormat.pairOdds('1.25', null), (yes: null, no: null));
+    expect(CallsFormat.pairOdds(null, null), (yes: null, no: null));
+    expect(CallsFormat.pairOdds('0', '0'), (yes: null, no: null));
+    expect(CallsFormat.pairOdds('abc', '0.4'), (yes: null, no: '40%'));
+  });
+
   test('both sides read as odds, a missing side as "—"', () {
     SharePriceSnapshot snap(String? yes, String? no, ShareCurrency c) =>
         SharePriceSnapshot(
@@ -70,6 +100,14 @@ void main() {
     expect(
       CallsFormat.sidesOdds(snap('0.62', null, ShareCurrency.usdc)),
       'YES 62% · NO —',
+    );
+    expect(
+      CallsFormat.sidesOdds(snap('1.25', '0.35', ShareCurrency.usdc)),
+      'YES 78% · NO 22%',
+    );
+    expect(
+      CallsFormat.sideOdds(snap('0.62', '0.43', ShareCurrency.usdc), Side.no),
+      '41%',
     );
   });
 }

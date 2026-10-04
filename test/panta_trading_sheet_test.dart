@@ -110,16 +110,27 @@ void main() {
         find.widgetWithText(ChumbucketPrimaryButton, 'Review order'),
         findsOneWidget,
       );
-      await reveal(tester, find.textContaining('Up to 100 USDC'));
-      expect(find.textContaining('Up to 100 USDC'), findsOneWidget);
+      await reveal(tester, find.textContaining('Up to \$100'));
+      expect(find.textContaining('Up to \$100'), findsOneWidget);
       expect(r.wallet.signCount, 0);
       await review(tester);
-      await reveal(tester, find.text('USDC to spend'));
-      expect(find.text('USDC to spend'), findsOneWidget);
+      await reveal(tester, find.text('You spend'));
+      expect(find.text('You spend'), findsOneWidget);
       await reveal(tester, find.text('Venue fee'));
       expect(find.text('Venue fee'), findsOneWidget);
       expect(find.text('Estimated shares'), findsOneWidget);
-      expect(find.text('1.250000000000000001 USDC/share'), findsOneWidget);
+      // Money in dollars, no per-share price anywhere in the review.
+      expect(find.textContaining('USDC/share'), findsNothing);
+      expect(find.text('Average odds'), findsNothing);
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is Text &&
+              RegExp(r'\d USDC').hasMatch(w.data ?? '') &&
+              !(w.data ?? '').contains('USDC buy'),
+        ),
+        findsNothing,
+      );
       // Panta's compact mark sits beside the trade; never a sentence.
       await tester.scrollUntilVisible(
         find.byKey(const ValueKey('panta-mark')),

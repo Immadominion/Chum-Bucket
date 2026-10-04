@@ -506,10 +506,18 @@ class _MiniMarketCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: _PriceCell(side: Side.yes, value: price?.yesPrice),
+                child: _PriceCell(
+                  side: Side.yes,
+                  value: CallsFormat.sideOdds(price, Side.yes),
+                ),
               ),
               const SizedBox(width: 6),
-              Expanded(child: _PriceCell(side: Side.no, value: price?.noPrice)),
+              Expanded(
+                child: _PriceCell(
+                  side: Side.no,
+                  value: CallsFormat.sideOdds(price, Side.no),
+                ),
+              ),
             ],
           ),
         ],
@@ -521,6 +529,7 @@ class _MiniMarketCard extends StatelessWidget {
 class _PriceCell extends StatelessWidget {
   const _PriceCell({required this.side, required this.value});
   final Side side;
+  /// The side's odds, already a percent ("59%"), or null.
   final String? value;
 
   @override
@@ -548,7 +557,7 @@ class _PriceCell extends StatelessWidget {
             ),
           ),
           Text(
-            CallsFormat.odds(value) ?? '—',
+            value ?? '—',
             style: TextStyle(
               fontFamily: 'PPNeueMachina',
               fontSize: 12,

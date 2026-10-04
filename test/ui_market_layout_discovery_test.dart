@@ -279,8 +279,9 @@ void main() {
           await tester.tap(find.byTooltip('Activity'));
           expect(activity, 1);
           // Rows read as odds; never the venue's per-share strings.
-          await reveal(tester, find.text('62%'));
-          expect(find.text('43%'), findsOneWidget);
+          // 0.62 / 0.43 are independent prices: they read 59% / 41%.
+          await reveal(tester, find.text('59%'));
+          expect(find.text('41%'), findsOneWidget);
           expect(find.text('0.620000000000000001'), findsNothing);
           expect(repo.reads, 1);
           expect(tester.takeException(), isNull);
@@ -396,8 +397,8 @@ void main() {
     expect(question.maxLines, isNull);
     expect(question.overflow, isNot(TextOverflow.ellipsis));
     expect(
-      tester.widget<Text>(find.text('62%')).semanticsLabel,
-      '62% chance',
+      tester.widget<Text>(find.text('59%')).semanticsLabel,
+      '59% chance',
     );
     // Time left, not a timestamp; the exact close is its spoken label.
     expect(find.text('11h left'), findsOneWidget);
@@ -459,7 +460,7 @@ void main() {
     final question = tester.widget<Text>(find.text(m.question));
     expect(question.maxLines, isNull);
     expect(question.overflow, isNot(TextOverflow.ellipsis));
-    await reveal(tester, find.text('43%'));
+    await reveal(tester, find.text('41%'));
     expect(tester.takeException(), isNull);
   });
 
@@ -526,8 +527,10 @@ void main() {
       scale: 2,
     );
     expect(find.text('Make a call'), findsOneWidget);
-    // Detail reads as odds, with no attribution (that is for trading).
-    expect(find.text('62%'), findsOneWidget);
+    // Detail reads as odds that add up, with no attribution (that is for
+    // trading).
+    expect(find.text('59%'), findsOneWidget);
+    expect(find.text('41%'), findsOneWidget);
     expect(find.textContaining('Powered by Panta'), findsNothing);
     // No refresh button, no "updated" line, no scary price state.
     expect(find.byTooltip('Refresh market'), findsNothing);

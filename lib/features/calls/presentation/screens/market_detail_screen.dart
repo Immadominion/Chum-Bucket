@@ -26,6 +26,7 @@ import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_person_screen.dart';
 import 'package:chumbucket/features/market_creation/presentation/widgets/market_entry_widgets.dart';
 import 'package:chumbucket/features/panta_trading/presentation/panta_market_link.dart';
+import 'package:chumbucket/features/panta_trading/presentation/panta_mark.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class MarketDetailScreen extends StatefulWidget {
@@ -414,12 +415,22 @@ class _MarketDetailScreenState extends State<MarketDetailScreen>
                     onPressed: () => _openCall(ownCall.call.id),
                   )
                 else
-                  // A free call: ink, never pink (pink is money).
-                  ChumbucketPrimaryButton(
+                  // A free call: the ink button with its Free marker.
+                  CallJourneyButton(
                     label: 'Make a call',
-                    neutral: true,
+                    primary: true,
+                    free: true,
                     onPressed: acceptsCalls ? () => _compose(detail) : null,
                   ),
+                // Panta's terms (§6) ask for attribution on the market
+                // module: its compact mark, beside the trade it attributes.
+                if (isOwnCall && canTrade) ...[
+                  const SizedBox(height: 6),
+                  const Align(
+                    alignment: Alignment.centerRight,
+                    child: PantaMark(),
+                  ),
+                ],
                 if (!acceptsCalls && !isOwnCall) ...[
                   const SizedBox(height: 8),
                   Text(

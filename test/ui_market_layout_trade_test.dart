@@ -109,8 +109,11 @@ void main() {
         expect(renderedQuestion.overflow, isNull);
         await prepare(tester);
         expect(rig.wallet.signCount, 0);
-        await reveal(tester, find.text('1.250000000000000001 USDC/share'));
-        expect(find.text('1.250000000000000001 USDC/share'), findsOneWidget);
+        // Money in dollars; never a per-share price (an average above a
+        // whole share has no odds row at all).
+        await reveal(tester, find.text('Venue fee'));
+        expect(find.textContaining('USDC/share'), findsNothing);
+        expect(find.text('Average odds'), findsNothing);
         await reveal(tester, find.text('Quote expires'));
         expect(
           find.textContaining('Not supplied in this quote'),

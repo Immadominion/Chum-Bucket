@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:flutter/services.dart';
 
+import '../data/panta_lifecycle_models.dart' show PantaMoney;
 import '../data/panta_trading_models.dart';
 import '../panta_trade_controller.dart';
 import 'panta_mark.dart';
@@ -368,7 +369,7 @@ class _PantaTradeSheetState extends State<PantaTradeSheet> {
         onChanged: controller.editAmount,
         style: AppTextStyles.textTheme.headlineSmall?.copyWith(fontSize: 28),
         decoration: InputDecoration(
-          labelText: 'Amount in USDC',
+          labelText: 'Amount in dollars',
           labelStyle: AppTextStyles.textTheme.bodyMedium,
           filled: true,
           fillColor: AppColors.background,
@@ -381,7 +382,7 @@ class _PantaTradeSheetState extends State<PantaTradeSheet> {
       ),
       const SizedBox(height: 8),
       Text(
-        'Up to 100 USDC · up to 6 decimal places · maximum slippage 1%',
+        'Up to \$100 · up to 6 decimal places · maximum slippage 1%',
         style: AppTextStyles.textTheme.bodySmall?.copyWith(
           color: AppColors.textSecondary,
         ),
@@ -414,10 +415,11 @@ class _PantaTradeSheetState extends State<PantaTradeSheet> {
       key: const ValueKey('panta-review'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('USDC to spend', style: AppTextStyles.textTheme.bodySmall),
+        // Money reads as dollars (USDC is pegged one to one).
+        Text('You spend', style: AppTextStyles.textTheme.bodySmall),
         const SizedBox(height: 6),
         Text(
-          '${review.amountUsdc} USDC',
+          PantaMoney.dollarsOf(review.amountUsdc),
           style: AppTextStyles.textTheme.headlineMedium,
         ),
         const SizedBox(height: 16),
@@ -433,14 +435,12 @@ class _PantaTradeSheetState extends State<PantaTradeSheet> {
                 'Estimated shares',
                 '${review.expectedShares} ${controller.side.wire}',
               ),
-              // As odds; a price no percent can honestly express (above a
-              // whole share) is shown exactly instead, never hidden.
-              _reviewRow(
-                'Average price',
-                CallsFormat.odds(review.avgPrice) ??
-                    '${review.avgPrice} USDC/share',
-              ),
-              _reviewRow('Venue fee', '${review.feeUsdc} USDC'),
+              // As odds, never a per-share price. A price no percent can
+              // honestly express (above a whole share) has no row: the
+              // shares and the dollars above already say what it buys.
+              if (CallsFormat.odds(review.avgPrice) case final odds?)
+                _reviewRow('Average odds', odds),
+              _reviewRow('Venue fee', PantaMoney.dollarsOf(review.feeUsdc)),
               _reviewRow('Maximum slippage', '${review.maxSlippageBps / 100}%'),
               const Divider(color: AppColors.divider),
               // The existing contract has no all-in max-spend or SOL fee estimate.

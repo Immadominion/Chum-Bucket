@@ -1,3 +1,4 @@
+import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/data/mock_calls_repository.dart';
@@ -106,6 +107,29 @@ void main() {
       // Demo catalog, because every market the mock serves is invented.
       expect(find.text('Demo catalog'), findsOneWidget);
       expect(find.text('Open'), findsOneWidget);
+    });
+
+    testWidgets('Make a call is a free call: ink, with the Free marker', (
+      tester,
+    ) async {
+      usePhoneSurface(tester);
+      final repo = MockCallsRepository();
+      await tester.pumpWidget(
+        harness(
+          providerFor(repo),
+          const MarketDetailScreen(marketId: 'market_btc_150k'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final make = find.widgetWithText(ChumbucketPrimaryButton, 'Make a call');
+      expect(tester.widget<ChumbucketPrimaryButton>(make).neutral, isTrue);
+      expect(
+        find.descendant(
+          of: make,
+          matching: find.byKey(const ValueKey('free-marker')),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('an old demo price is never labelled stale', (tester) async {
@@ -413,6 +437,11 @@ void main() {
 
       expect(find.text('Send the dare'), findsOneWidget);
       expect(find.text('Free dare to @ada'), findsOneWidget);
+      // Free, so neutral ink, never the pink of money.
+      expect(
+        tester.widget<Text>(find.text('Free dare to @ada')).style?.color,
+        AppColors.textPrimary,
+      );
       expect(find.byKey(const ValueKey('free-marker')), findsOneWidget);
       // A dare is free too: the ink button, never pink.
       expect(

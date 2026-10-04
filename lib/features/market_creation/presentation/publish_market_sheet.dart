@@ -10,6 +10,8 @@ import 'dart:async';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/core/theme/app_text_styles.dart';
+import 'package:chumbucket/features/panta_trading/data/panta_lifecycle_models.dart'
+    show PantaMoney;
 import 'package:chumbucket/features/panta_trading/presentation/panta_mark.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_wavy_sheet.dart';
@@ -78,7 +80,7 @@ class _PublishMarketSheetState extends State<PublishMarketSheet> {
     final fee =
         review == null
             ? null
-            : '${formatUsdcBaseUnits(review.feeBaseUnits)} USDC';
+            : PantaMoney.dollars(BigInt.parse(review.feeBaseUnits));
     return ChumbucketWavySheet(
       title:
           c.phase != PublishPhase.done
@@ -157,11 +159,11 @@ class _PublishMarketSheetState extends State<PublishMarketSheet> {
         return [
           _row(
             'Seeds the market’s liquidity',
-            '${formatUsdcBaseUnits(review.liquidityBaseUnits)} USDC',
+            PantaMoney.dollars(BigInt.parse(review.liquidityBaseUnits)),
           ),
           _row(
             'Panta platform fee',
-            '${formatUsdcBaseUnits(review.platformBaseUnits)} USDC',
+            PantaMoney.dollars(BigInt.parse(review.platformBaseUnits)),
           ),
           _row('Solana network fee and account rent', 'Small SOL amount'),
           _row('Paid from', _short(review.wallet)),

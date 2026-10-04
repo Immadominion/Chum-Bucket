@@ -33,7 +33,7 @@ abstract final class OnbFormat {
 
   /// The odds a call was stamped at, on its own side: "50%".
   static String? lockedPrice(Call call) =>
-      CallsFormat.odds(call.entryPrice?.priceFor(call.side));
+      CallsFormat.sideOdds(call.entryPrice, call.side);
 
   /// "14:05 UTC, 2 Oct" — the server's lock time, exactly.
   static String lockedAt(Call call) =>

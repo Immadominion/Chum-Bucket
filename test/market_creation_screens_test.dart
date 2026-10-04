@@ -342,9 +342,11 @@ void main() {
           (_) => proposalJson(status: 'publishing', canWithdraw: false);
       await _tapText(tester, 'Publish on Panta');
       expect(find.text('Creation fee'), findsOneWidget);
-      expect(find.text('50.00 USDC'), findsOneWidget);
-      expect(find.text('10.00 USDC'), findsOneWidget);
-      expect(find.text('40.00 USDC'), findsOneWidget);
+      // Fees in dollars.
+      expect(find.text('\$50'), findsOneWidget);
+      expect(find.text('\$10'), findsOneWidget);
+      expect(find.text('\$40'), findsOneWidget);
+      expect(find.textContaining('.00 USDC'), findsNothing);
       expect(find.textContaining('not refundable'), findsOneWidget);
       expect(find.byKey(const ValueKey('panta-mark')), findsWidgets);
       expect(find.byIcon(Icons.close), findsNothing);

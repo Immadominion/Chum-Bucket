@@ -637,9 +637,9 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
   List<_Fact> _facts(CallFeedEntry entry) {
     final call = entry.call;
     // The odds its side had when it locked, as a percent (USDC and SOL
-    // markets alike).
-    final price = switch (call.entryPrice?.priceFor(call.side)) {
-      final value? => CallsFormat.odds(value),
+    // markets alike), weighed against the other side's price.
+    final price = switch (call.entryPrice) {
+      final snapshot? => CallsFormat.sideOdds(snapshot, call.side),
       null =>
         entry.market.venue != MarketVenue.panta && call.entryProbability != null
             ? CallsFormat.probability(call.entryProbability)
@@ -1146,29 +1146,29 @@ class _AnswerBar extends StatelessWidget {
           child: Semantics(
             label: 'Dare @${entry.author.handle}',
             excludeSemantics: true,
+            // A dare is free: ink, never pink (pink is money).
             child: const BasilIcon(
               CallResponseIcons.dare,
               size: 22,
-              color: _pinkInk,
+              color: AppColors.textPrimary,
             ),
           ),
         ),
       ),
     );
-    // Backing is a free call: ink, never pink (pink is money).
-    final back = ChumbucketPrimaryButton(
+    // Backing is a free call: the ink button with its Free marker.
+    final back = CallJourneyButton(
       label: 'Back · ${entry.call.side.wire}',
-      neutral: true,
+      primary: true,
+      free: true,
       onPressed: onBack,
     );
     final fade = CallJourneyButton(
       label: 'Fade · ${entry.call.side.opposite.wire}',
       onPressed: onFade,
     );
-    // At large text or on a narrow phone, Back takes its own row.
-    final stacked =
-        MediaQuery.sizeOf(context).width < 360 ||
-        MediaQuery.textScalerOf(context).scale(14) > 19;
+    // Back, with its Free marker, always takes its own row; Fade and Dare
+    // share the one below.
     return SafeArea(
       top: false,
       child: Container(
@@ -1188,8 +1188,7 @@ class _AnswerBar extends StatelessWidget {
                     dare,
                   ],
                 )
-                : stacked
-                ? Column(
+                : Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     back,
@@ -1201,15 +1200,6 @@ class _AnswerBar extends StatelessWidget {
                         dare,
                       ],
                     ),
-                  ],
-                )
-                : Row(
-                  children: [
-                    Expanded(child: back),
-                    const SizedBox(width: 8),
-                    Expanded(child: fade),
-                    const SizedBox(width: 8),
-                    dare,
                   ],
                 ),
       ),

@@ -84,7 +84,8 @@ class CallReceipt {
     required this.shareUrl,
     this.venueMarketId,
     this.fundedOnPanta = false,
-    this.free = true,
+    // Never assumed: only [fromEntry] proves a call free.
+    this.free = false,
   });
 
   /// Panta's public market page, never the authenticated API URL.

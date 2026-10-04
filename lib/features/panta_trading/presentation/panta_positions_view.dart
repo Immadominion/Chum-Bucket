@@ -274,7 +274,8 @@ class _PositionCard extends StatelessWidget {
           _FiguresRow(
             figures: [
               ('Cost', PantaMoney.dollars(p.costBaseUnits)),
-              // Prices as odds ("52%"), money as dollars.
+              // Prices as odds ("52%"), money as dollars. A position carries
+              // only its own side's price, so it reads alone.
               ('Entry', CallsFormat.odds(p.entryPrice) ?? '—'),
               (
                 p.status.isSettled ? 'Settles' : 'Now',

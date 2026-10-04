@@ -30,7 +30,6 @@ import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_p
 import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_scaffold.dart';
 import 'package:chumbucket/features/onboarding/presentation/widgets/onboarding_styles.dart';
 import 'package:chumbucket/features/people/data/people_models.dart';
-import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class FirstCallScreen extends StatefulWidget {
@@ -568,10 +567,11 @@ class DraftCallCard extends StatelessWidget {
         ),
         if (onOpen != null) ...[
           const SizedBox(height: 8),
-          ChumbucketPrimaryButton(
+          CallJourneyButton(
             key: const ValueKey('draft-review'),
             label: OnboardingCopy.pendingCallCta,
-            neutral: true,
+            primary: true,
+            free: true,
             onPressed: onOpen,
           ),
         ],
@@ -796,7 +796,7 @@ class _DeckCard extends StatelessWidget {
               Expanded(
                 child: _AnswerButton(
                   side: Side.yes,
-                  price: CallsFormat.odds(item.sharePrice.yesPrice),
+                  price: CallsFormat.sideOdds(item.sharePrice, Side.yes),
                   enabled: enabled,
                   onTap: () => onPick(Side.yes),
                 ),
@@ -805,7 +805,7 @@ class _DeckCard extends StatelessWidget {
               Expanded(
                 child: _AnswerButton(
                   side: Side.no,
-                  price: CallsFormat.odds(item.sharePrice.noPrice),
+                  price: CallsFormat.sideOdds(item.sharePrice, Side.no),
                   enabled: enabled,
                   onTap: () => onPick(Side.no),
                 ),

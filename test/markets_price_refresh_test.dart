@@ -65,7 +65,8 @@ class _ClockedRepository extends CatalogRepository {
                 id: 'price-$reads',
                 marketId: marketId,
                 yesPrice: '0.6$reads',
-                noPrice: '0.4$reads',
+                // Each read's YES and NO add up, so the odds move with it.
+                noPrice: '0.${40 - reads}',
                 observedAt: now().subtract(priceAge).millisecondsSinceEpoch,
               ),
       servedAt: now().millisecondsSinceEpoch,

@@ -528,7 +528,8 @@ class MarketSharePrices extends StatelessWidget {
     if (now.toUtc().difference(snap.observedAtUtc) > marketPriceShownFor) {
       return null;
     }
-    return CallsFormat.odds(value);
+    // The two sides weighed together, so they always add up.
+    return CallsFormat.sideOdds(snap, side);
   }
 
   Widget _cell(Side side, DateTime now, {required bool large}) {
