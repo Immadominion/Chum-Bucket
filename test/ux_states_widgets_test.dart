@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import 'package:chumbucket/features/calls/data/mock_calls_repository.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart';
 import 'package:chumbucket/features/notifications/data/mock_notifications_repository.dart';
 import 'package:chumbucket/features/notifications/presentation/screens/activity_screen.dart';
 import 'package:chumbucket/features/notifications/providers/notifications_provider.dart';
@@ -46,6 +47,42 @@ Future<void> _mount(
 
 void main() {
   setUpAll(() => GoogleFonts.config.allowRuntimeFetching = false);
+
+  testWidgets(
+    'an error shows a short human reason, never the transport\'s internals',
+    (tester) async {
+      Future<void> show(String reason) => _mount(
+        tester,
+        Scaffold(body: CallsErrorView(message: reason, onRetry: () {})),
+        width: 390,
+        scale: 1,
+      );
+
+      // A reason written for people is the line.
+      await show('This profile is private.');
+      expect(find.text('This profile is private.'), findsOneWidget);
+
+      // What the transport says about itself is never the headline, and a
+      // screen reader is not read a procedure path or a status code either.
+      for (final internal in const [
+        'The server sent an empty envelope for calls.feed.',
+        'calls.feed: The server returned 502.',
+        'The server sent something we could not read (calls.feed, status 500).',
+        'PANTA_UNAVAILABLE',
+        'Invalid input: expected string, received undefined',
+        'Unknown market: market_btc_150k',
+      ]) {
+        await show(internal);
+        expect(find.text('Couldn\u2019t load this'), findsOneWidget, reason: internal);
+        expect(find.text(internal), findsNothing, reason: internal);
+        expect(
+          tester.getSemantics(find.text('Couldn\u2019t load this')).hint,
+          isNot(contains(internal)),
+          reason: internal,
+        );
+      }
+    },
+  );
 
   testWidgets('one line, one 48dp action, the hint only for screen readers', (
     tester,

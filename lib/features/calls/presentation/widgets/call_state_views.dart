@@ -211,8 +211,8 @@ class CallsEmptyView extends StatelessWidget {
 }
 
 /// Error — the request failed and there is nothing cached underneath. The
-/// one line is the server's own short reason when it has one ("This profile
-/// is private."), otherwise a plain "Couldn't load this".
+/// one line is the server's own short reason when it wrote one for people
+/// ("This profile is private."), otherwise a plain "Couldn't load this".
 class CallsErrorView extends StatelessWidget {
   final String message;
   final VoidCallback? onRetry;
@@ -222,16 +222,34 @@ class CallsErrorView extends StatelessWidget {
   /// Longer than this, a reason is read to screen readers, not drawn.
   static const int _maxLine = 90;
 
+  static final RegExp _machinery = RegExp(r'[:{}\[\]()_<>=/\\]|\d{3}|[a-z]\.[a-z]');
+  static final RegExp _transportWords = RegExp(
+    r'\b(server|envelope|status|exception|null|undefined|json|trpc|'
+    r'procedure|http|socket|stack)\b',
+    caseSensitive: false,
+  );
+
+  /// Whether [reason] was written for a person: a sentence, not the transport
+  /// describing itself (procedure paths like `calls.feed`, status codes, enum
+  /// codes, "the server sent an empty envelope…"). Those are never the line,
+  /// and never read to a screen reader either.
+  static bool isHumanReason(String reason) =>
+      reason.isNotEmpty &&
+      RegExp(r'^[A-Z]').hasMatch(reason) &&
+      !_machinery.hasMatch(reason) &&
+      !_transportWords.hasMatch(reason);
+
   @override
   Widget build(BuildContext context) {
     final reason = message.trim();
-    final short = reason.isNotEmpty && reason.length <= _maxLine;
+    final human = isHumanReason(reason);
+    final short = human && reason.length <= _maxLine;
     return CallsStateView(
       icon: 'info-triangle-outline',
       artwork: ChumbucketStateArtwork.error,
       accent: AppColors.error,
       title: short ? reason : 'Couldn\u2019t load this',
-      message: short ? '' : reason,
+      message: short || !human ? '' : reason,
       actionLabel: onRetry == null ? null : 'Try again',
       onAction: onRetry,
     );
