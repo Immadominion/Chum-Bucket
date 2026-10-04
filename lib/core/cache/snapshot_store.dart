@@ -27,7 +27,14 @@ abstract class SnapshotStore {
   Future<Object?> read(String key);
 
   /// Saves [json] under [key]. Best effort: a failure is logged, never thrown.
-  Future<void> write(String key, Object? json);
+  ///
+  /// Pass the [generation] read when the request behind [json] started: if
+  /// the store was cleared since (a sign-out), the write is dropped, so a late
+  /// answer never puts the previous account's rows back on the phone.
+  Future<void> write(String key, Object? json, {int? generation});
+
+  /// Bumped by every [clear], synchronously, before anything is deleted.
+  int get generation;
 
   /// Forgets everything (sign-out).
   Future<void> clear();
@@ -66,6 +73,11 @@ class FileSnapshotStore implements SnapshotStore {
   final Duration maxAge;
 
   Directory? _resolved;
+
+  int _generation = 0;
+
+  @override
+  int get generation => _generation;
 
   static const int _offThreadBytes = 64 * 1024;
 
@@ -115,10 +127,12 @@ class FileSnapshotStore implements SnapshotStore {
   }
 
   @override
-  Future<void> write(String key, Object? json) async {
+  Future<void> write(String key, Object? json, {int? generation}) async {
+    bool stale() => generation != null && generation != _generation;
     try {
+      if (stale()) return;
       final dir = await _dir();
-      if (dir == null) return;
+      if (dir == null || stale()) return;
       final envelope = {
         'savedAt': _clock().millisecondsSinceEpoch,
         'data': json,
@@ -127,8 +141,15 @@ class FileSnapshotStore implements SnapshotStore {
           json is List && json.length > 50
               ? await Isolate.run(() => jsonEncode(envelope))
               : jsonEncode(envelope);
-      final temp = File('${dir.path}/$key.json.tmp');
+      // A unique temp name: two writes of one key never share a file.
+      final temp = File(
+        '${dir.path}/$key.json.${DateTime.now().microsecondsSinceEpoch}.tmp',
+      );
       await temp.writeAsString(body, flush: true);
+      if (stale()) {
+        await temp.delete();
+        return;
+      }
       await temp.rename('${dir.path}/$key.json');
     } catch (e) {
       developer.log('SnapshotStore.write($key) failed: $e');
@@ -137,6 +158,7 @@ class FileSnapshotStore implements SnapshotStore {
 
   @override
   Future<void> clear() async {
+    _generation++;
     try {
       final dir = await _dir();
       if (dir == null) return;
@@ -151,6 +173,10 @@ class FileSnapshotStore implements SnapshotStore {
 /// In memory, for tests and previews.
 class MemorySnapshotStore implements SnapshotStore {
   final Map<String, String> _data = {};
+  int _generation = 0;
+
+  @override
+  int get generation => _generation;
 
   /// Keys written so far, for assertions.
   Iterable<String> get keys => _data.keys;
@@ -162,10 +188,14 @@ class MemorySnapshotStore implements SnapshotStore {
   }
 
   @override
-  Future<void> write(String key, Object? json) async {
+  Future<void> write(String key, Object? json, {int? generation}) async {
+    if (generation != null && generation != _generation) return;
     _data[key] = jsonEncode(json);
   }
 
   @override
-  Future<void> clear() async => _data.clear();
+  Future<void> clear() async {
+    _generation++;
+    _data.clear();
+  }
 }

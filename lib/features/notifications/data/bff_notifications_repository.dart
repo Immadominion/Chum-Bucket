@@ -78,6 +78,8 @@ class BffNotificationsRepository
     int limit = 20,
   }) async {
     final viewer = _requireViewer(viewerUserId);
+    // A sign-out mid-read wipes the store: this page is then not saved.
+    final generation = _snapshots?.generation;
     final raw = await _call(
       () => _transport.query(listPath, {
         'limit': limit,
@@ -88,7 +90,7 @@ class BffNotificationsRepository
     final page = _page(raw, viewer);
     // The first page of everything is what Activity opens on.
     if (cursor == null && filter == NotificationFilter.all) {
-      _snapshots?.write(_snapshotKey(viewer), raw);
+      _snapshots?.write(_snapshotKey(viewer), raw, generation: generation);
     }
     return page;
   }

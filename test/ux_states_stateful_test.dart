@@ -84,6 +84,24 @@ void main() {
       await store.clear();
     });
 
+    test('a write started before a sign-out wipe is dropped', () async {
+      for (final store in <SnapshotStore>[
+        FileSnapshotStore(directory: () async => dir),
+        MemorySnapshotStore(),
+      ]) {
+        final before = store.generation;
+        await store.clear(); // signed out while the read was in flight
+        expect(store.generation, isNot(before));
+        await store.write('inbox.user_a', {'items': []}, generation: before);
+        expect(await store.read('inbox.user_a'), isNull, reason: '$store');
+        // A read that started after the wipe saves as usual.
+        await store.write('inbox.user_b', {
+          'items': [],
+        }, generation: store.generation);
+        expect(await store.read('inbox.user_b'), isNotNull, reason: '$store');
+      }
+    });
+
     test('keys are file-safe and scoped to the account', () {
       expect(snapshotKey('feed', variant: 'global'), 'feed.global.anon');
       expect(
@@ -138,6 +156,18 @@ void main() {
         viewerUserId: 'user_a',
       );
       repo.bindSnapshotViewer(null); // signed out mid-flight
+      await read;
+      expect(store.keys, isEmpty);
+    });
+
+    test('the open catalog read across a sign-out wipe is not saved', () async {
+      final store = MemorySnapshotStore();
+      final server = FakeBffServer.routes({
+        'predictions.catalog': {'markets': [], 'nextCursor': null},
+      })..simulateLatency = const Duration(milliseconds: 30);
+      final repo = _repo(server, store);
+      final read = repo.fetchMarketCatalog();
+      await store.clear(); // AppSignOutEffects wipes the phone mid-flight
       await read;
       expect(store.keys, isEmpty);
     });
@@ -258,7 +288,10 @@ void main() {
     }
 
     test('Home: an instant failure still ends on the saved feed', () async {
-      final store = _SlowStore(await warmed(), const Duration(milliseconds: 30));
+      final store = _SlowStore(
+        await warmed(),
+        const Duration(milliseconds: 30),
+      );
       final dead = FakeBffServer.routes({})..simulateTransportFailure = true;
       final provider = CallsProvider(repository: _repo(dead, store))
         ..setViewer('user_you');
@@ -270,52 +303,91 @@ void main() {
       expect(provider.isFeedFromCache, isTrue);
     });
 
-    test('Profile: an instant failure still ends on your saved record', () async {
-      final store = _SlowStore(await warmed(), const Duration(milliseconds: 30));
-      final dead = FakeBffServer.routes({})..simulateTransportFailure = true;
-      final provider = CallsProvider(repository: _repo(dead, store))
-        ..setViewer('user_you');
-      addTearDown(provider.dispose);
-      await provider.loadPerson('user_you');
-      expect(provider.personDetail('user_you'), isNotNull);
-    });
+    test(
+      'Profile: an instant failure still ends on your saved record',
+      () async {
+        final store = _SlowStore(
+          await warmed(),
+          const Duration(milliseconds: 30),
+        );
+        final dead = FakeBffServer.routes({})..simulateTransportFailure = true;
+        final provider = CallsProvider(repository: _repo(dead, store))
+          ..setViewer('user_you');
+        addTearDown(provider.dispose);
+        await provider.loadPerson('user_you');
+        expect(provider.personDetail('user_you'), isNotNull);
+      },
+    );
 
-    test('Activity: an instant failure still ends on the saved inbox', () async {
-      final page =
-          File('test/fixtures/inbox_page_server.json').readAsStringSync();
-      final memory = MemorySnapshotStore();
-      var offline = false;
-      BffNotificationsRepository repo(SnapshotStore store) =>
-          BffNotificationsRepository(
-            snapshots: store,
-            transport: CallsBffTransport(
-              baseUrl: 'https://bff.test',
-              authToken: () => 'session-token',
-              verbose: false,
-              httpClient: MockClient((request) async {
-                if (offline) {
-                  throw http.ClientException('Connection refused', request.url);
-                }
-                return http.Response(page, 200);
-              }),
-            ),
-          );
-      final first = NotificationsProvider(repository: repo(memory))
-        ..setViewer('u-ann');
-      addTearDown(first.dispose);
-      await first.load();
-      expect(first.notifications, isNotEmpty);
+    test(
+      'Activity: an instant failure still ends on the saved inbox',
+      () async {
+        final page =
+            File('test/fixtures/inbox_page_server.json').readAsStringSync();
+        final memory = MemorySnapshotStore();
+        var offline = false;
+        BffNotificationsRepository repo(SnapshotStore store) =>
+            BffNotificationsRepository(
+              snapshots: store,
+              transport: CallsBffTransport(
+                baseUrl: 'https://bff.test',
+                authToken: () => 'session-token',
+                verbose: false,
+                httpClient: MockClient((request) async {
+                  if (offline) {
+                    throw http.ClientException(
+                      'Connection refused',
+                      request.url,
+                    );
+                  }
+                  return http.Response(page, 200);
+                }),
+              ),
+            );
+        final first = NotificationsProvider(repository: repo(memory))
+          ..setViewer('u-ann');
+        addTearDown(first.dispose);
+        await first.load();
+        expect(first.notifications, isNotEmpty);
 
-      offline = true;
-      final cold = NotificationsProvider(
-        repository: repo(_SlowStore(memory, const Duration(milliseconds: 30))),
-      )..setViewer('u-ann');
-      addTearDown(cold.dispose);
-      await cold.load();
-      expect(cold.state, NotificationsLoadState.ready);
-      expect(cold.notifications, hasLength(first.notifications.length));
-      expect(cold.isOffline, isTrue);
-    });
+        offline = true;
+        final cold = NotificationsProvider(
+          repository: repo(
+            _SlowStore(memory, const Duration(milliseconds: 30)),
+          ),
+        )..setViewer('u-ann');
+        addTearDown(cold.dispose);
+        await cold.load();
+        expect(cold.state, NotificationsLoadState.ready);
+        expect(cold.notifications, hasLength(first.notifications.length));
+        expect(cold.isOffline, isTrue);
+      },
+    );
+  });
+
+  test('an inbox read that lands after sign-out is not saved', () async {
+    final page =
+        File('test/fixtures/inbox_page_server.json').readAsStringSync();
+    final store = MemorySnapshotStore();
+    final answer = Completer<void>();
+    final repo = BffNotificationsRepository(
+      snapshots: store,
+      transport: CallsBffTransport(
+        baseUrl: 'https://bff.test',
+        authToken: () => 'session-token',
+        verbose: false,
+        httpClient: MockClient((request) async {
+          await answer.future;
+          return http.Response(page, 200);
+        }),
+      ),
+    );
+    final read = repo.fetchNotifications(viewerUserId: 'u-ann');
+    await Future<void>.delayed(Duration.zero);
+    await store.clear(); // signed out while the inbox was loading
+    answer.complete();
+    await read;
+    expect(store.keys, isEmpty);
   });
 
   test('Activity opens on the saved inbox when offline', () async {
@@ -378,9 +450,12 @@ class _SlowStore implements SnapshotStore {
   }
 
   @override
-  Future<void> write(String key, Object? json) => _inner.write(key, json);
+  Future<void> write(String key, Object? json, {int? generation}) =>
+      _inner.write(key, json, generation: generation);
+
+  @override
+  int get generation => _inner.generation;
 
   @override
   Future<void> clear() => _inner.clear();
 }
-

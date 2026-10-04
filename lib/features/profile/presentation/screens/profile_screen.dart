@@ -67,6 +67,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final userId = calls?.viewerUserId;
     final profileProvider = context.read<ProfileProvider?>();
     final request = ++_request;
+    // A sign-out while this reads wipes the store: the account is then not
+    // written back.
+    final generation = SnapshotStore.device.generation;
     setState(() => _loadingProfile = true);
     // Your account as last seen draws at once; the live read replaces it.
     if (userId != null && _ownProfile?.userId != userId) {
@@ -108,11 +111,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           }
           _loadingProfile = false;
         });
-        if (own != null && own.userId == userId) {
+        if (own != null &&
+            own.userId == userId &&
+            context.read<CallsProvider?>()?.viewerUserId == userId) {
           unawaited(
             SnapshotStore.device.write(
               snapshotKey('account', viewer: userId),
               own.toJson(),
+              generation: generation,
             ),
           );
         }

@@ -115,14 +115,23 @@ class BffCallsRepository
   @override
   void bindSnapshotViewer(String? userId) => _snapshotViewer = userId;
 
+  /// Who was bound, and the store's generation, when a read started.
+  ({String? viewer, int? generation}) _begin() =>
+      (viewer: _snapshotViewer, generation: _snapshots?.generation);
+
   /// Saves [json] under [key] — unless the session changed while the read
-  /// was in flight ([viewer] is who was bound when it started), so a sign-out
-  /// never leaves the previous account's rows behind.
-  void _save(String key, Object? json, {String? viewer, bool scoped = true}) {
+  /// was in flight ([at] is when it started), or the store was wiped since
+  /// (a sign-out), so a late answer never leaves an account's rows behind.
+  void _save(
+    String key,
+    Object? json,
+    ({String? viewer, int? generation}) at, {
+    bool scoped = true,
+  }) {
     final store = _snapshots;
     if (store == null) return;
-    if (scoped && viewer != _snapshotViewer) return;
-    store.write(key, json);
+    if (scoped && at.viewer != _snapshotViewer) return;
+    store.write(key, json, generation: at.generation);
   }
 
   Future<T?> _saved<T>(String key, T Function(Object? json) parse) async {
@@ -219,7 +228,8 @@ class BffCallsRepository
     // `viewerUserId` is intentionally absent from the input: the server reads
     // the viewer from the session, so `viewerHasCalled` and the `following`
     // mode cannot be spoofed by a client that simply names someone else.
-    final viewer = _snapshotViewer;
+    final at = _begin();
+    final viewer = at.viewer;
     final data = await _transport.query(feedProcedure, {
       'mode': mode.name,
       if (cursor != null) 'cursor': cursor,
@@ -229,7 +239,7 @@ class BffCallsRepository
       requireJsonMap(data, '$feedProcedure result'),
     );
     // Only the first page: it is what a cold start draws.
-    if (cursor == null) _save(_feedKey(mode, viewer), data, viewer: viewer);
+    if (cursor == null) _save(_feedKey(mode, viewer), data, at);
     return page;
   }
 
@@ -247,6 +257,7 @@ class BffCallsRepository
   /// no price is required here, and call eligibility stays a server decision.
   @override
   Future<List<VenueMarket>> fetchMarketCatalog() async {
+    final at = _begin();
     final raw = <Object?>[];
     List<VenueMarket> markets;
     try {
@@ -261,7 +272,7 @@ class BffCallsRepository
       raw.clear();
       markets = await _walkCatalog(const {}, raw);
     }
-    _save(_catalogKey, raw, scoped: false);
+    _save(_catalogKey, raw, at, scoped: false);
     return markets;
   }
 
@@ -339,7 +350,8 @@ class BffCallsRepository
     required String personRef,
     String? viewerUserId,
   }) async {
-    final viewer = _snapshotViewer;
+    final at = _begin();
+    final viewer = at.viewer;
     final data = await _transport.query(personProcedure, {
       'personRef': _normalizePersonRef(personRef),
     });
@@ -348,7 +360,7 @@ class BffCallsRepository
     );
     // Your own profile and record only: it is what Profile draws on open.
     if (viewer != null && personRef == viewer) {
-      _save(_personKey(personRef, viewer), data, viewer: viewer);
+      _save(_personKey(personRef, viewer), data, at);
     }
     return detail;
   }
@@ -508,11 +520,12 @@ class BffCallsRepository
 
   @override
   Future<List<PersonCard>> fetchFollowing() => _people(() async {
-    final viewer = _snapshotViewer;
+    final at = _begin();
+    final viewer = at.viewer;
     final data = await _transport.query(followingProcedure, const {});
     final people = requireJsonMap(data, '$followingProcedure result')['people'];
     final cards = personCardsFromJson(people, '$followingProcedure.people');
-    if (viewer != null) _save(_followingKey(viewer), people, viewer: viewer);
+    if (viewer != null) _save(_followingKey(viewer), people, at);
     return cards;
   });
 
