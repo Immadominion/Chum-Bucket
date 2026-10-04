@@ -1118,9 +1118,10 @@ class _AnswerBar extends StatelessWidget {
         ),
       ),
     );
-    final back = CallJourneyButton(
+    // Backing is a free call: ink, never pink (pink is money).
+    final back = ChumbucketPrimaryButton(
       label: 'Back · ${entry.call.side.wire}',
-      primary: true,
+      neutral: true,
       onPressed: onBack,
     );
     final fade = CallJourneyButton(

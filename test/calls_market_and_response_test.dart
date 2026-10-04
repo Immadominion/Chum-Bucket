@@ -289,8 +289,24 @@ void main() {
         expect(find.text('62%'), findsOneWidget);
         // The crowd's split is not.
         expect(find.textContaining('EVERYONE ELSE'), findsNothing);
-        // Free, marked once, under the button: the one Free marker.
+        // Free, marked once, inside the button: the one Free marker. The
+        // button is solid ink, never pink: pink is money.
         expect(find.byKey(const ValueKey('free-marker')), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byType(ChumbucketPrimaryButton),
+            matching: find.byKey(const ValueKey('free-marker')),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          tester
+              .widget<ChumbucketPrimaryButton>(
+                find.byType(ChumbucketPrimaryButton),
+              )
+              .neutral,
+          isTrue,
+        );
         expect(find.textContaining('lock'), findsNothing);
 
         // Reason, visibility and confidence wait behind one disclosure.
@@ -398,6 +414,15 @@ void main() {
       expect(find.text('Send the dare'), findsOneWidget);
       expect(find.text('Free dare to @ada'), findsOneWidget);
       expect(find.byKey(const ValueKey('free-marker')), findsOneWidget);
+      // A dare is free too: the ink button, never pink.
+      expect(
+        tester
+            .widget<ChumbucketPrimaryButton>(
+              find.byType(ChumbucketPrimaryButton),
+            )
+            .neutral,
+        isTrue,
+      );
       // A challenge makes no call for the actor, so no side banner.
       expect(find.text('Your call'), findsNothing);
     });

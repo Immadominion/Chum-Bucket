@@ -166,7 +166,7 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
   }
 
   /// Compact mode's single line: the side and its odds. That it's free is
-  /// the [FreeMarker] under the button.
+  /// the [FreeMarker] in the button.
   String _compactLine(Side side) {
     final odds = CallsFormat.odds(_sharePrice?.priceFor(side));
     return 'You’re calling ${side.wire}${odds == null ? '' : ' · $odds'}';
@@ -397,9 +397,11 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
                   CallInlineError(_error!),
                   const SizedBox(height: 10),
                 ],
+                // A free call: the solid ink button, Free marker inside.
                 CallJourneyButton(
                   label: _side == null ? 'Call it' : 'Call ${_side!.wire}',
                   primary: true,
+                  free: true,
                   busy: busy,
                   onPressed: _side == null || busy ? null : _submit,
                 ),
@@ -408,11 +410,7 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
                     label: 'Pick another market',
                     color: AppColors.pinkInk,
                     onPressed: () => Navigator.of(context).maybePop(),
-                  )
-                else ...[
-                  const SizedBox(height: 8),
-                  const CallFreeLine(),
-                ],
+                  ),
               ],
             ),
           ),
@@ -548,15 +546,6 @@ class CallInlineError extends StatelessWidget {
   );
 }
 
-/// Under a free call's button: the [FreeMarker], and nothing else to read.
-class CallFreeLine extends StatelessWidget {
-  const CallFreeLine({super.key});
-
-  @override
-  Widget build(BuildContext context) =>
-      const Center(child: FreeMarker(large: true));
-}
-
 // Presentation helpers local to the call journey; shared app primitives stay intact.
 TextStyle callJourneyHeading(BuildContext context, double size) =>
     AppTextStyles.button(
@@ -595,6 +584,10 @@ class CallJourneyButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool primary;
   final bool busy;
+
+  /// A free call's action: solid ink, never pink (pink is money), with the
+  /// [FreeMarker] beside the label.
+  final bool free;
   const CallJourneyButton({
     super.key,
     required this.label,
@@ -602,6 +595,7 @@ class CallJourneyButton extends StatelessWidget {
     this.onPressed,
     this.primary = false,
     this.busy = false,
+    this.free = false,
   });
 
   @override
@@ -613,6 +607,9 @@ class CallJourneyButton extends StatelessWidget {
         onPressed: onPressed,
         busy: busy,
         busyLabel: 'Please wait…',
+        neutral: free,
+        trailing: free ? const FreeMarker(onDark: true) : null,
+        semanticsLabel: free ? '$label, ${FundingState.none.label}' : null,
         leading:
             icon == null
                 ? null

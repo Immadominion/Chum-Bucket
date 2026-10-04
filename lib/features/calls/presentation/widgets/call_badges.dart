@@ -98,46 +98,55 @@ class CallBadge extends StatelessWidget {
 /// screens, sheets and receipts. Outline, never filled (solid pink is money),
 /// a gift and one word.
 class FreeMarker extends StatelessWidget {
-  const FreeMarker({super.key, this.large = false});
+  const FreeMarker({super.key, this.large = false, this.onDark = false});
 
   /// A touch bigger, for a receipt's stamp or a sheet's action.
   final bool large;
 
+  /// Inside a free call's solid ink button: the same outline, in white.
+  final bool onDark;
+
   static const ink = AppColors.textMuted;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    label: FundingState.none.label,
-    excludeSemantics: true,
-    child: Container(
-      key: const ValueKey('free-marker'),
-      padding: EdgeInsets.symmetric(
-        horizontal: large ? 10 : 7,
-        vertical: large ? 4 : 2,
-      ),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppColors.outline),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          BasilIcon('present-outline', size: large ? 15 : 13, color: ink),
-          SizedBox(width: large ? 5 : 4),
-          Text(
-            'Free',
-            maxLines: 1,
-            style: TextStyle(
-              color: ink,
-              fontSize: large ? 13 : 12,
-              fontWeight: FontWeight.w700,
-              height: 1.2,
-            ),
+  Widget build(BuildContext context) {
+    final color = onDark ? Colors.white : ink;
+    return Semantics(
+      label: FundingState.none.label,
+      excludeSemantics: true,
+      child: Container(
+        key: const ValueKey('free-marker'),
+        padding: EdgeInsets.symmetric(
+          horizontal: large ? 10 : 7,
+          vertical: large ? 4 : 2,
+        ),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color:
+                onDark ? Colors.white.withValues(alpha: .55) : AppColors.outline,
           ),
-        ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            BasilIcon('present-outline', size: large ? 15 : 13, color: color),
+            SizedBox(width: large ? 5 : 4),
+            Text(
+              'Free',
+              maxLines: 1,
+              style: TextStyle(
+                color: color,
+                fontSize: large ? 13 : 12,
+                fontWeight: FontWeight.w700,
+                height: 1.2,
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 /// Money behind a call: solid pink with its dollars ("$5"), or "Funded"

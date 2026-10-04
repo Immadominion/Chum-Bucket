@@ -351,11 +351,11 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
                         ? 'Send the dare'
                         : 'Call ${_side.wire}',
                 primary: true,
+                // Back, Fade and a dare are all free: ink, never pink.
+                free: true,
                 busy: busy,
                 onPressed: busy || !canLock ? null : _submit,
               ),
-              const SizedBox(height: 8),
-              const CallFreeLine(),
             ],
           ),
         ),

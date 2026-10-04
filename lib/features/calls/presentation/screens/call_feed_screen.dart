@@ -33,6 +33,7 @@ import 'package:chumbucket/features/receipts/data/call_receipt.dart';
 import 'package:chumbucket/features/receipts/presentation/call_receipt_sheet.dart';
 import 'package:chumbucket/shared/screens/home/widgets/header.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_tabs.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 class CallFeedScreen extends StatefulWidget {
@@ -454,14 +455,14 @@ class _ModeBar extends StatelessWidget {
 
 /// Home's one compose action: "Call" with a plus, or the plus alone where
 /// the label would crowd the tabs. Always 48dp to touch and named "Make a
-/// call" to screen readers.
+/// call" to screen readers. Ink, never pink: a call is free, pink is money.
 class _ComposeButton extends StatelessWidget {
   const _ComposeButton({required this.onCompose, this.iconOnly = false});
   final VoidCallback onCompose;
   final bool iconOnly;
 
   static const _label = TextStyle(
-    color: AppColors.textPrimary,
+    color: Colors.white,
     fontSize: 14,
     fontWeight: FontWeight.w800,
   );
@@ -491,7 +492,7 @@ class _ComposeButton extends StatelessWidget {
                 ? const EdgeInsets.all(14)
                 : const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: AppColors.primary,
+          color: ChumbucketPrimaryButton.ink,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -501,7 +502,7 @@ class _ComposeButton extends StatelessWidget {
             BasilIcon(
               'add-outline',
               size: iconOnly ? 20 : 16,
-              color: AppColors.textPrimary,
+              color: Colors.white,
             ),
             if (!iconOnly) ...[
               SizedBox(width: 5.w),

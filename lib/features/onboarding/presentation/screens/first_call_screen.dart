@@ -571,6 +571,7 @@ class DraftCallCard extends StatelessWidget {
           ChumbucketPrimaryButton(
             key: const ValueKey('draft-review'),
             label: OnboardingCopy.pendingCallCta,
+            neutral: true,
             onPressed: onOpen,
           ),
         ],

@@ -19,6 +19,10 @@ import 'package:chumbucket/core/theme/app_text_styles.dart';
 ///
 /// [ChallengeButton] and the primary `CallJourneyButton` both render through
 /// this, so the primary action in every sheet is the same button.
+///
+/// Pink is reserved for money. A free call's action is the same button in
+/// the brand's neutral ink ([neutral]): solid black, white label, as strong
+/// as the pink one but never mistaken for it.
 class ChumbucketPrimaryButton extends StatelessWidget {
   const ChumbucketPrimaryButton({
     super.key,
@@ -27,6 +31,9 @@ class ChumbucketPrimaryButton extends StatelessWidget {
     this.busy = false,
     this.busyLabel,
     this.leading,
+    this.trailing,
+    this.neutral = false,
+    this.semanticsLabel,
   });
 
   final String label;
@@ -36,6 +43,18 @@ class ChumbucketPrimaryButton extends StatelessWidget {
   final bool busy;
   final String? busyLabel;
   final Widget? leading;
+
+  /// Beside the label (a free call's Free marker). Hidden while busy.
+  final Widget? trailing;
+
+  /// Solid ink instead of the pink gradient: a free action, not money.
+  final bool neutral;
+
+  /// What a screen reader hears, when it should say more than [label].
+  final String? semanticsLabel;
+
+  /// The neutral button's ink, and the darker edge right under it.
+  static const Color ink = AppColors.textPrimary;
 
   static const double height = 57;
   static const double radius = 22;
@@ -54,7 +73,7 @@ class ChumbucketPrimaryButton extends StatelessWidget {
     return Semantics(
       button: true,
       enabled: enabled,
-      label: busy ? (busyLabel ?? label) : label,
+      label: busy ? (busyLabel ?? label) : (semanticsLabel ?? label),
       // The label stands in for the subtree, so the tap has to as well, or a
       // screen reader could announce the button but not press it.
       onTap: enabled ? onPressed : null,
@@ -66,18 +85,21 @@ class ChumbucketPrimaryButton extends StatelessWidget {
           constraints: const BoxConstraints(minHeight: height),
           width: double.infinity,
           decoration: BoxDecoration(
-            gradient: gradient,
+            color: neutral ? ink : null,
+            gradient: neutral ? null : gradient,
             borderRadius: BorderRadius.circular(radius),
-            boxShadow: const [
+            boxShadow: [
               // The comp's darker edge line, right under the button.
               BoxShadow(
-                color: Color(0x40A3203C),
+                color:
+                    neutral ? const Color(0x40000000) : const Color(0x40A3203C),
                 blurRadius: 1,
-                offset: Offset(0, 1),
+                offset: const Offset(0, 1),
               ),
             ],
           ),
-          foregroundDecoration: BoxDecoration(
+          // The glossy pink lip belongs to the pink button only.
+          foregroundDecoration: neutral ? null : BoxDecoration(
             borderRadius: BorderRadius.circular(radius),
             gradient: const LinearGradient(
               begin: Alignment.topCenter,
@@ -131,6 +153,10 @@ class ChumbucketPrimaryButton extends StatelessWidget {
                         style: AppTextStyles.sheetAction,
                       ),
                     ),
+                    if (trailing != null && !busy) ...[
+                      const SizedBox(width: 10),
+                      trailing!,
+                    ],
                   ],
                 ),
               ),

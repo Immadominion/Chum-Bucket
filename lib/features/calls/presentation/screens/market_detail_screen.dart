@@ -414,8 +414,10 @@ class _MarketDetailScreenState extends State<MarketDetailScreen>
                     onPressed: () => _openCall(ownCall.call.id),
                   )
                 else
+                  // A free call: ink, never pink (pink is money).
                   ChumbucketPrimaryButton(
                     label: 'Make a call',
+                    neutral: true,
                     onPressed: acceptsCalls ? () => _compose(detail) : null,
                   ),
                 if (!acceptsCalls && !isOwnCall) ...[
