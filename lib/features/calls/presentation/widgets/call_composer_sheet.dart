@@ -293,21 +293,18 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
         ),
   );
 
-  /// What each side costs now, on its button: Panta's share price in the
-  /// market's own unit (USDC or SOL per share, never converted), or a legacy
-  /// venue's probability.
+  /// What each side costs now, on its button: Panta's share price, or a
+  /// legacy venue's probability. The unit is named once under the buttons
+  /// ([_priceUnit]), not on each: at large text it would break the figure.
   Map<Side, String>? _sideSubs() {
     final market = widget.market;
     if (market.venue == MarketVenue.panta) {
-      final price = _sharePrice;
-      if (price == null || !price.isUsableAt(DateTime.now())) return null;
+      final price = _usablePrice();
+      if (price == null) return null;
       return {
         for (final side in Side.values)
           if (price.priceFor(side) case final value?)
-            side: CallsFormat.sharePrice(
-              CallsFormat.displayPrice(value),
-              currency: price.currency,
-            ),
+            side: CallsFormat.displayPrice(value),
       };
     }
     final snapshot = widget.snapshot;
@@ -316,6 +313,25 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
       Side.yes: CallsFormat.probability(snapshot.yesProbability),
       Side.no: CallsFormat.probability(snapshot.noProbability),
     };
+  }
+
+  SharePriceSnapshot? _usablePrice() {
+    final price = _sharePrice;
+    if (price == null || !price.isUsableAt(DateTime.now())) return null;
+    return price;
+  }
+
+  /// The unit of the prices on the side buttons, once: markets are quoted in
+  /// USDC or SOL, and 0.67 SOL is not 0.67 USDC. Never converted.
+  String? _priceUnit() {
+    if (widget.compact || widget.market.venue != MarketVenue.panta) {
+      return null;
+    }
+    final price = _usablePrice();
+    if (price == null || (price.yesPrice == null && price.noPrice == null)) {
+      return null;
+    }
+    return 'Prices in ${price.currency.perShare}';
   }
 
   Widget _form(CallsProvider provider) {
@@ -360,6 +376,10 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
                           })
                           : null,
                 ),
+                if (_priceUnit() case final unit?) ...[
+                  const SizedBox(height: 6),
+                  Text(unit, style: callJourneyBody(12)),
+                ],
                 // The chosen side already shows on its button and on Lock,
                 // so the full composer says nothing more once one is picked.
                 if (_side == null || widget.compact) ...[
