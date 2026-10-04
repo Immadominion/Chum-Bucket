@@ -298,7 +298,11 @@ void main() {
       expect(find.text('Market proposal'), findsOneWidget);
       await _tapText(tester, 'Approve');
       expect(bff.requests.last.input['decision'], 'approve');
-      expect(find.text('Sponsor and publish'), findsOneWidget);
+      // Only the proposer publishes: a reviewer is never offered it, even
+      // when an older server still says canPublish.
+      expect(find.text('Sponsor and publish'), findsNothing);
+      expect(find.text('Publish on Panta'), findsNothing);
+      expect(find.text('Whoever proposed it publishes it on Panta.'), findsOneWidget);
     });
 
     testWidgets('approved without a wallet says what publishing needs', (
