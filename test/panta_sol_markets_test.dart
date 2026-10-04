@@ -185,6 +185,54 @@ void main() {
     }
   });
 
+  group('market detail with your own call', () {
+    // The one place a Trade action can appear is beside the viewer's own
+    // call, so that is where a SOL-quoted market must still have none. The
+    // USDC case pins the control by name: rename it in a redesign and this
+    // pair fails together instead of the SOL half passing vacuously.
+    for (final (quote, tradable) in [('SOL', false), ('USDC', true)]) {
+      testWidgets(
+        '$quote: ${tradable ? 'Trade beside' : 'no Trade, no trade copy beside'} your call',
+        (tester) async {
+          final provider = CallsProvider(
+            repository: _OwnCallMarketRepository(
+              quote: quote,
+              tradable: tradable,
+            ),
+          )..setViewer(PantaOwnCallRepository.viewer);
+          addTearDown(provider.dispose);
+          await mount(
+            tester,
+            provider,
+            const MarketDetailScreen(marketId: _uuid),
+          );
+          tester.view.physicalSize = const Size(390, 5000);
+          await tester.pumpAndSettle();
+          final trade = find.widgetWithText(OutlinedButton, 'Trade');
+          if (tradable) {
+            expect(trade, findsOneWidget);
+            expect(
+              tester.widget<OutlinedButton>(trade).onPressed,
+              isNotNull,
+              reason: 'your own call on a USDC market opens its trade',
+            );
+          } else {
+            expect(find.text('Trade'), findsNothing);
+            final tradeCopy =
+                _everything(tester)
+                    .where(
+                      (s) => RegExp('trad', caseSensitive: false).hasMatch(s),
+                    )
+                    .toList();
+            expect(tradeCopy, isEmpty, reason: 'a SOL market offered a trade');
+            _expectNoUsdc(tester);
+          }
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  });
+
   group('no USDC anywhere a SOL market is read', () {
     // A tall viewport lays out every section, so nothing hides below a fold.
     Future<void> tall(WidgetTester tester, CallsProvider provider, Widget w) =>
@@ -192,7 +240,9 @@ void main() {
           tester.view.physicalSize = const Size(390, 5000);
           await tester.pumpAndSettle();
         });
-    final solMarket = VenueMarket.fromJson(_market(quote: 'SOL', tradable: false));
+    final solMarket = VenueMarket.fromJson(
+      _market(quote: 'SOL', tradable: false),
+    );
     final solPrice = SharePriceSnapshot.fromJson({
       ..._price('SOL'),
       'observedAt': DateTime.now().millisecondsSinceEpoch,
@@ -239,6 +289,15 @@ void main() {
       );
       expect(find.textContaining('SOL/share'), findsWidgets);
       _expectNoUsdc(tester);
+      // Whatever a redesign calls the trade box, none of it reaches a SOL call.
+      final offer =
+          _everything(tester)
+              .where(
+                (s) =>
+                    RegExp('trad|position', caseSensitive: false).hasMatch(s),
+              )
+              .toList();
+      expect(offer, isEmpty, reason: 'a SOL call offered a trade: $offer');
       expect(tester.takeException(), isNull);
     });
 
@@ -442,6 +501,48 @@ class PantaOwnCallRepository extends MockCallsRepository {
       ),
       parent: detail.parent,
       responses: detail.responses,
+    );
+  }
+}
+
+/// Market detail for the demo viewer's own call, on an open Panta market of
+/// one quote: the screen's own-call state, where a trade could be offered.
+class _OwnCallMarketRepository extends PantaOwnCallRepository {
+  _OwnCallMarketRepository({required super.quote, required super.tradable});
+
+  @override
+  Future<MarketDetail> fetchMarketDetail({
+    required String marketId,
+    String? viewerUserId,
+  }) async {
+    final own =
+        (await fetchCall(
+          callId: 'call_you_fed',
+          viewerUserId: PantaOwnCallRepository.viewer,
+        )).entry;
+    final market = VenueMarket.fromJson({
+      ..._market(quote: quote, tradable: tradable),
+      'payloadVersion': quote == 'SOL' ? 2 : 1,
+      'closesAt':
+          DateTime.now().add(const Duration(days: 30)).millisecondsSinceEpoch,
+    });
+    return MarketDetail(
+      market: market,
+      snapshot: null,
+      sharePrice: SharePriceSnapshot.fromJson({
+        ..._price(quote),
+        'observedAt': DateTime.now().millisecondsSinceEpoch,
+      }),
+      servedAt: DateTime.now().millisecondsSinceEpoch,
+      viewerCall: CallFeedEntry(
+        call: own.call,
+        author: own.author,
+        market: market,
+        result: null,
+        backCount: own.backCount,
+        fadeCount: own.fadeCount,
+        viewerHasCalled: own.viewerHasCalled,
+      ),
     );
   }
 }

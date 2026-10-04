@@ -647,16 +647,9 @@ class MarketSharePrices extends StatelessWidget {
               color: AppColors.onWarningContainer,
             ),
           ),
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 14),
-          child: Divider(height: 1, color: AppColors.outlineVariant),
-        ),
-        Text(
-          'Independent venue prices. Indicative, not a trade quote.',
-          style: AppTextStyles.textTheme.bodySmall?.copyWith(
-            color: AppColors.textSecondary,
-          ),
-        ),
+        // No "not a trade quote" disclaimer: on a SOL-quoted market there is
+        // no trade at all, and the caption above already says whose prices
+        // these are and in what unit.
       ],
     );
   }

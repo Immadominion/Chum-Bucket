@@ -63,7 +63,17 @@ rewritten; every existing row still passes.
 
 ## Release order
 
-Install the mobile build before the BFF that serves SOL markets: an older app
-rejects a `currency: "SOL"` price. Apply the migration before that BFF writes
-SOL prices. Kill switch: `PANTA_SOL_MARKETS=false`. Optional dedicated RPC:
-`PANTA_CATALOG_RPC_URL` (else `SOLANA_RPC_URL`).
+SOL markets are **off until `PANTA_SOL_MARKETS=true`** (exact value), the same
+opt-in shape as `PANTA_SCHEMA_READY`. Turn it on only when both hold:
+
+1. Migration `20261004090000_panta_sol_quoted_prices.sql` is applied. Before
+   it, every SOL price write is refused; one refused write quarantines the
+   shared durable queue and the BFF restarts itself to rehydrate, so a flag
+   flipped early restart-loops the whole service, not just the SOL slice.
+2. The SOL-aware mobile build is what people run. An older app rejects a
+   `currency: "SOL"` price, and a single call on a SOL market inside
+   `calls.feed` or a profile fails that whole page on the older app.
+
+Deploying this BFF with the flag unset changes nothing: the partner catalog is
+served alone. Turning the flag off again is the kill switch. Optional
+dedicated RPC: `PANTA_CATALOG_RPC_URL` (else `SOLANA_RPC_URL`).
