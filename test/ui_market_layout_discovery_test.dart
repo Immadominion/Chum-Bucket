@@ -5,7 +5,9 @@ import 'package:chumbucket/features/calls/data/mock_calls_repository.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_markets_screen.dart';
 import 'package:chumbucket/features/calls/presentation/screens/market_detail_screen.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_market_card.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/market_filters.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/market_picker_sheet.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/market_state_view.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:flutter/material.dart';
@@ -150,6 +152,44 @@ Future<void> reveal(WidgetTester tester, Finder finder) async {
   await tester.pumpAndSettle();
 }
 
+const filtersButton = ValueKey('market-filters-button');
+
+Future<void> openFilters(WidgetTester tester) async {
+  await tester.tap(find.byKey(filtersButton).last);
+  await tester.pumpAndSettle();
+}
+
+/// The filter button's count badge.
+Finder badge(String count) =>
+    find.descendant(of: find.byKey(filtersButton), matching: find.text(count));
+
+/// Taps an active filter's pill, which turns that filter off.
+Future<void> clearPill(WidgetTester tester, String label) async {
+  await tester.tap(
+    find.descendant(
+      of: find.byKey(const ValueKey('market-active-filters')),
+      matching: find.text(label),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+/// Opens the filter sheet, taps one choice and closes it again.
+Future<void> chooseFilter(WidgetTester tester, String label) async {
+  await openFilters(tester);
+  final chip = find.descendant(
+    of: find.byType(MarketFilterSheet),
+    matching: find.text(label),
+  );
+  await tester.ensureVisible(chip);
+  await tester.pumpAndSettle();
+  await tester.tap(chip);
+  await tester.pumpAndSettle();
+  await tester.ensureVisible(find.text('Show markets'));
+  await tester.tap(find.text('Show markets'));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   test(
     'time filters are optional discovery filters, never call eligibility',
@@ -229,15 +269,13 @@ void main() {
           );
           expect(find.text('Markets'), findsOneWidget);
           expect(find.text('Saved'), findsNothing);
-          // Chips are drawn at 40 or 32dp; each still takes 48dp of touch.
-          final filters = find.byType(OutlinedButton);
-          expect(filters, findsWidgets);
-          for (final filter in filters.evaluate()) {
-            expect(
-              tester.getSize(find.byWidget(filter.widget)).height,
-              greaterThanOrEqualTo(48),
-            );
-          }
+          // One control row: the search field and a 48dp filter button.
+          expect(find.byType(TextField), findsOneWidget);
+          final filters = tester.getSize(find.byKey(filtersButton));
+          expect(filters.height, greaterThanOrEqualTo(48));
+          expect(filters.width, greaterThanOrEqualTo(48));
+          // No chip rows on the page itself until a filter is on.
+          expect(find.byType(OutlinedButton), findsNothing);
           await tester.tap(find.byTooltip('Activity'));
           expect(activity, 1);
           // Rows read at two decimals; the exact venue strings are on detail.
@@ -269,99 +307,133 @@ void main() {
     addTearDown(provider.dispose);
     await mount(tester, provider, const CallMarketsScreen());
     expect(find.textContaining('Will BTC'), findsOneWidget);
-    await tester.tap(find.text('Ending soon'));
-    await tester.pumpAndSettle();
+    await chooseFilter(tester, 'Ending soon');
     expect(find.textContaining('Will ETH'), findsNothing);
-    await tester.tap(find.text('This week'));
-    await tester.pumpAndSettle();
+    await chooseFilter(tester, 'This week');
     await tester.enterText(find.byType(TextField), 'eTh');
     await tester.pumpAndSettle();
     expect(find.textContaining('Will ETH'), findsOneWidget);
     expect(find.textContaining('Will BTC'), findsNothing);
     await tester.enterText(find.byType(TextField), 'not a market');
     await tester.pumpAndSettle();
-    expect(find.text('No matching questions'), findsOneWidget);
+    expect(find.text('Nothing matches these filters'), findsOneWidget);
+    await tester.tap(find.text('Clear filters'));
+    await tester.pumpAndSettle();
+    expect(find.text('No matches'), findsOneWidget);
+    // The search field's own cross clears it.
+    await tester.tap(find.byTooltip('Clear search'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Will BTC'), findsOneWidget);
+    expect(find.textContaining('Will ETH'), findsOneWidget);
   });
 
   for (final picker in [false, true]) {
-    testWidgets('Panta attribution and units appear once (picker=$picker)', (
-      tester,
-    ) async {
-      final markets = [
-        market('BTC', const Duration(hours: 12), question: 'Will BTC rise?'),
-        market('ETH', const Duration(hours: 13), question: 'Will ETH rise?'),
-      ];
-      final provider = CallsProvider(repository: CatalogRepository(markets))
-        ..setViewer('test-person');
-      addTearDown(provider.dispose);
-      await mount(
-        tester,
-        provider,
-        picker ? const MarketPickerSheet() : const CallMarketsScreen(),
-      );
-      expect(find.textContaining('Powered by Panta'), findsOneWidget);
-      expect(find.textContaining('Prices in USDC/share'), findsOneWidget);
-      expect(find.byType(CallMarketCard), findsNWidgets(2));
-      for (final card in find.byType(CallMarketCard).evaluate()) {
-        expect(
-          find.descendant(
-            of: find.byWidget(card.widget),
-            matching: find.textContaining('Powered by Panta'),
-          ),
-          findsNothing,
+    testWidgets(
+      'lists carry no attribution, unit, count or sort lines (picker=$picker)',
+      (tester) async {
+        final markets = [
+          market('BTC', const Duration(hours: 12), question: 'Will BTC rise?'),
+          market('ETH', const Duration(hours: 13), question: 'Will ETH rise?'),
+        ];
+        final provider = CallsProvider(repository: CatalogRepository(markets))
+          ..setViewer('test-person');
+        addTearDown(provider.dispose);
+        await mount(
+          tester,
+          provider,
+          picker ? const MarketPickerSheet() : const CallMarketsScreen(),
         );
-      }
-      expect(tester.takeException(), isNull);
-    });
+        expect(find.byType(CallMarketCard), findsNWidgets(2));
+        for (final text in [
+          'Powered by Panta',
+          'USDC',
+          'open market',
+          'soonest',
+          'Venue prices',
+          'No money involved',
+          'Closing within',
+        ]) {
+          expect(find.textContaining(text), findsNothing, reason: text);
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 
-  testWidgets(
-    'compact row keeps its complete question, exact price and units',
-    (tester) async {
-      final m = market(
-        'BTC',
-        const Duration(hours: 12),
-        question: 'Will BTC rise?',
-      );
-      final provider = CallsProvider(repository: CatalogRepository([m]));
-      addTearDown(provider.dispose);
-      var opened = false;
-      await mount(
-        tester,
-        provider,
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: CallMarketCard(
-            market: m,
-            sharePrice: SharePriceSnapshot(
-              id: 'compact-test',
-              marketId: m.id,
-              yesPrice: '0.62',
-              noPrice: '0.43',
-              observedAt: DateTime.now().millisecondsSinceEpoch,
-            ),
-            onTap: () => opened = true,
+  testWidgets('compact row keeps its complete question, price and time left', (
+    tester,
+  ) async {
+    final m = market(
+      'BTC',
+      const Duration(hours: 12),
+      question: 'Will BTC rise?',
+    );
+    final provider = CallsProvider(repository: CatalogRepository([m]));
+    addTearDown(provider.dispose);
+    var opened = false;
+    await mount(
+      tester,
+      provider,
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: CallMarketCard(
+          market: m,
+          sharePrice: SharePriceSnapshot(
+            id: 'compact-test',
+            marketId: m.id,
+            yesPrice: '0.62',
+            noPrice: '0.43',
+            observedAt: DateTime.now().millisecondsSinceEpoch,
           ),
+          onTap: () => opened = true,
         ),
-      );
-      final rowSize = tester.getSize(find.byType(CallMarketCard));
-      // A one-line question at the prototype's spacing (18dp padding, 14dp
-      // to the price cells) is 131dp.
-      expect(rowSize.height, lessThanOrEqualTo(140));
-      expect(rowSize.height, greaterThanOrEqualTo(48));
-      final question = tester.widget<Text>(find.text(m.question));
-      expect(question.maxLines, isNull);
-      expect(question.overflow, isNot(TextOverflow.ellipsis));
-      expect(
-        tester.widget<Text>(find.text('0.62')).semanticsLabel,
-        '0.62 USDC per share, indicative',
-      );
-      expect(find.textContaining('Powered by Panta'), findsNothing);
-      await tester.tap(find.byType(CallMarketCard));
-      expect(opened, isTrue);
-      expect(tester.takeException(), isNull);
-    },
-  );
+      ),
+    );
+    final rowSize = tester.getSize(find.byType(CallMarketCard));
+    expect(rowSize.height, lessThanOrEqualTo(140));
+    expect(rowSize.height, greaterThanOrEqualTo(48));
+    final question = tester.widget<Text>(find.text(m.question));
+    expect(question.maxLines, isNull);
+    expect(question.overflow, isNot(TextOverflow.ellipsis));
+    expect(
+      tester.widget<Text>(find.text('0.62')).semanticsLabel,
+      '0.62 USDC per share, indicative',
+    );
+    // Time left, not a timestamp; the exact close is its spoken label.
+    expect(find.text('11h left'), findsOneWidget);
+    final spoken =
+        tester
+            .widget<Semantics>(
+              find
+                  .ancestor(
+                    of: find.text('11h left'),
+                    matching: find.byType(Semantics),
+                  )
+                  .first,
+            )
+            .properties
+            .label;
+    expect(spoken, matches(RegExp(r'^Closes .* UTC$')));
+    expect(find.textContaining('Powered by Panta'), findsNothing);
+    await tester.tap(find.byType(CallMarketCard));
+    expect(opened, isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
+  test('time left reads in the largest whole unit, then the date', () {
+    final now = DateTime.utc(2026, 10, 4, 12);
+    String? left(Duration d) => marketTimeLeft(now.add(d), now: now);
+    expect(left(const Duration(seconds: 20)), '1m left');
+    expect(left(const Duration(minutes: 45)), '45m left');
+    expect(left(const Duration(hours: 6, minutes: 59)), '6h left');
+    expect(left(const Duration(hours: 47)), '47h left');
+    expect(left(const Duration(days: 3, hours: 2)), '3d left');
+    expect(left(const Duration(days: 89)), 'Ends 1 Jan');
+    expect(left(const Duration(minutes: -5)), 'Closed');
+    expect(marketTimeLeft(null, now: now), isNull);
+    expect(marketEndingSoon(now.add(const Duration(hours: 5)), now: now), true);
+    expect(marketEndingSoon(now.add(const Duration(days: 2)), now: now), false);
+  });
 
   testWidgets('long compact-row question is never clipped at 320dp / 2x', (
     tester,
@@ -391,9 +463,8 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('missing side stays unavailable; stale price stays labelled', (
-    tester,
-  ) async {
+  testWidgets('a missing side or an outdated price is a quiet dash, never a '
+      'warning', (tester) async {
     final m = market('BTC', const Duration(hours: 12));
     final provider = CallsProvider(repository: CatalogRepository([m]));
     addTearDown(provider.dispose);
@@ -401,24 +472,43 @@ void main() {
       tester,
       provider,
       SingleChildScrollView(
-        child: CallMarketCard(
-          market: m,
-          sharePrice: price(m.id, no: null, stale: true),
-          onTap: () {},
+        child: Column(
+          children: [
+            CallMarketCard(
+              market: m,
+              sharePrice: price(m.id, no: null),
+              onTap: () {},
+            ),
+            CallMarketCard(
+              market: m,
+              sharePrice: price(m.id, stale: true),
+              onTap: () {},
+            ),
+          ],
         ),
       ),
       width: 320,
       scale: 2,
     );
-    expect(find.text('Price unavailable'), findsOneWidget);
-    expect(find.textContaining('Last updated'), findsOneWidget);
+    // First row: YES shows, NO is a dash. Second row (2h old): both dashes.
+    expect(find.text('0.62'), findsOneWidget);
+    expect(find.text('—'), findsNWidgets(3));
+    expect(
+      tester
+          .widgetList<Text>(find.text('—'))
+          .map((t) => t.semanticsLabel)
+          .toSet(),
+      {'Price unavailable'},
+    );
+    for (final text in ['Last updated', 'stale', 'incomplete', 'unavailable']) {
+      expect(find.textContaining(text), findsNothing, reason: text);
+    }
     expect(find.text('0.38'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('market detail exposes exact rules and withholds ungated crowd', (
-    tester,
-  ) async {
+  testWidgets('market detail keeps exact figures behind its details and '
+      'withholds ungated crowd', (tester) async {
     final m = market('BTC', const Duration(hours: 12));
     final provider = CallsProvider(
       repository: CatalogRepository(
@@ -436,25 +526,34 @@ void main() {
       scale: 2,
     );
     expect(find.text('Make a call'), findsOneWidget);
-    // Detail reads at two decimals and states the venue's exact figures.
+    // Detail reads at two decimals and names the venue once.
     expect(find.text('0.62'), findsOneWidget);
+    expect(find.textContaining('Powered by Panta'), findsOneWidget);
+    // No refresh button, no "updated" line, no scary price state.
+    expect(find.byTooltip('Refresh market'), findsNothing);
+    for (final text in ['updated', 'Last synced', 'stale', 'cached']) {
+      expect(find.textContaining(text), findsNothing, reason: text);
+    }
+    // Without a call of your own there is nothing to trade yet: no disabled
+    // Trade button, no paragraph explaining it.
+    expect(find.text('Trade'), findsNothing);
+    expect(find.textContaining('existing call'), findsNothing);
     expect(
-      find.text('Exact: YES 0.620000000000000001 · NO 0.430000000000000001'),
-      findsOneWidget,
+      find.text('YES 0.620000000000000001 · NO 0.430000000000000001'),
+      findsNothing,
     );
-    final trade = tester.widget<OutlinedButton>(
-      find.widgetWithText(OutlinedButton, 'Trade'),
-    );
-    expect(trade.onPressed, isNull);
-    expect(find.textContaining('existing call'), findsOneWidget);
-    await reveal(tester, find.text('Read the full market rules'));
-    await tester.tap(find.text('Read the full market rules'));
+    await reveal(tester, find.text('Rules & details'));
+    await tester.tap(find.text('Rules & details'));
     await tester.pumpAndSettle();
     expect(
       tester.widget<SelectableText>(find.byType(SelectableText)).data,
       m.rulesText,
     );
-    expect(find.text('Community opinion'), findsNothing);
+    expect(
+      find.text('YES 0.620000000000000001 · NO 0.430000000000000001'),
+      findsOneWidget,
+    );
+    expect(find.text('How people called'), findsNothing);
     expect(find.textContaining('100 calls'), findsNothing);
     expect(tester.takeException(), isNull);
   });
@@ -493,14 +592,13 @@ void main() {
       width: 320,
       scale: 2,
     );
-    await reveal(tester, find.textContaining('DEMO DATA'));
-    expect(find.textContaining('No live share prices'), findsOneWidget);
+    await reveal(tester, find.text('Demo data · no live prices'));
     expect(tester.takeException(), isNull);
   });
 
   for (final offline in [true, false]) {
     testWidgets(
-      'catalog failure has explicit retry at large text (offline=$offline)',
+      'catalog failure is one state screen with one retry (offline=$offline)',
       (tester) async {
         final repo =
             CatalogRepository([])
@@ -517,27 +615,57 @@ void main() {
         );
         await reveal(tester, find.text('Try again'));
         expect(
-          find.text(offline ? "You're offline" : "That didn't load"),
+          find.text(offline ? "You're offline" : "Markets didn't load"),
           findsOneWidget,
         );
+        expect(find.byType(ChumbucketStateArt), findsOneWidget);
+        // The server's own wording stays out of the way.
+        expect(find.text('Could not load test catalog.'), findsNothing);
         expect(find.text('Try again'), findsOneWidget);
+        repo
+          ..simulateOffline = false
+          ..simulateFailure = false;
+        await tester.tap(find.text('Try again'));
+        await tester.pumpAndSettle();
+        expect(find.text('Try again'), findsNothing);
         expect(tester.takeException(), isNull);
       },
     );
   }
 
-  // ── The whole open catalog: real categories, search, sort, honest counts ──
+  testWidgets('a failed background refresh keeps the rows, silently', (
+    tester,
+  ) async {
+    final repo = CatalogRepository([market('BTC', const Duration(hours: 12))]);
+    final provider = CallsProvider(repository: repo);
+    addTearDown(provider.dispose);
+    await mount(tester, provider, const CallMarketsScreen());
+    repo.simulateFailure = true;
+    // Not awaited: the repository's delay runs on the test's fake clock.
+    provider.loadOpenMarkets(force: true);
+    await tester.pumpAndSettle();
+    expect(find.byType(CallMarketCard), findsOneWidget);
+    expect(find.text('Could not load test catalog.'), findsNothing);
+    expect(find.text('Retry'), findsNothing);
+    expect(find.text('Offline'), findsNothing);
+    // Offline with saved rows: a one-word pill, never a refresh button.
+    repo
+      ..simulateFailure = false
+      ..simulateOffline = true;
+    // Not awaited: the repository's delay runs on the test's fake clock.
+    provider.loadOpenMarkets(force: true);
+    await tester.pumpAndSettle();
+    expect(find.byType(CallMarketCard), findsOneWidget);
+    expect(find.text('Offline'), findsOneWidget);
+    expect(find.text('Retry'), findsNothing);
+    expect(find.byTooltip('Refresh'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  // ── The whole open catalog: real categories, search, sort ──
 
   VenueMarket withVolume(VenueMarket m, String? volume) =>
       VenueMarket.fromJson({...m.toJson(), 'volumeUsdc': volume});
-
-  // Category chips share one horizontally scrolling row.
-  Future<void> tapChip(WidgetTester tester, String label) async {
-    await tester.ensureVisible(find.text(label));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(label));
-    await tester.pumpAndSettle();
-  }
 
   String firstCard(WidgetTester tester) =>
       tester
@@ -584,7 +712,7 @@ void main() {
     ),
   ];
 
-  test('category chips come from the open markets themselves', () {
+  test('category choices come from the open markets themselves', () {
     final now = DateTime.now();
     final markets = [
       ...liveShapedCatalog(),
@@ -670,25 +798,29 @@ void main() {
       ], now: now),
       isFalse,
     );
+  });
+
+  test('filters count what is on, and each choice clears on its own', () {
+    const none = MarketFilters.none;
+    expect(none.activeCount, 0);
+    expect(none.isEmpty, isTrue);
+    final all = none
+        .withWindow(MarketDiscoveryWindow.thisWeek)
+        .withTopic(category: 'crypto')
+        .withSort(MarketDiscoverySort.mostActive);
+    expect(all.activeCount, 3);
+    expect(all.withTopic(forYou: true).category, isNull);
+    expect(all.withTopic(forYou: true).activeCount, 3);
+    expect(all.withTopic().activeCount, 2);
+    expect(all.withWindow(MarketDiscoveryWindow.all).activeCount, 2);
+    expect(all.withSort(MarketDiscoverySort.closingSoon).activeCount, 2);
     expect(
-      discoveryCountLabel(shown: 6, open: 6),
-      '6 open markets · soonest to close first',
-    );
-    expect(
-      discoveryCountLabel(
-        shown: 2,
-        open: 6,
-        sort: MarketDiscoverySort.mostActive,
-      ),
-      '2 of 6 open markets · most active first',
-    );
-    expect(
-      discoveryCountLabel(shown: 1, open: 1),
-      '1 open market · soonest to close first',
+      none.withTopic(category: 'crypto'),
+      none.withTopic(category: 'crypto'),
     );
   });
 
-  testWidgets('Markets offers every open category and filters by it', (
+  testWidgets('Markets offers every open category in its filter sheet', (
     tester,
   ) async {
     final provider = CallsProvider(
@@ -696,50 +828,62 @@ void main() {
     );
     addTearDown(provider.dispose);
     await mount(tester, provider, const CallMarketsScreen());
-    expect(find.text('Crypto only'), findsNothing);
-    expect(
-      find.text('6 open markets · soonest to close first'),
-      findsOneWidget,
-    );
-    for (final chip in [
-      'All categories',
-      'Crypto · 2',
-      'Pop culture · 2',
-      'Gaming · 1',
-      'Sports · 1',
+    // Six open; the lazy list builds what fits the screen.
+    expect(find.byType(CallMarketCard), findsAtLeastNWidgets(5));
+    expect(find.byKey(const ValueKey('market-active-filters')), findsNothing);
+    await openFilters(tester);
+    final sheet = find.byType(MarketFilterSheet);
+    for (final (chip, count) in [
+      ('Crypto', '2'),
+      ('Pop culture', '2'),
+      ('Gaming', '1'),
+      ('Sports', '1'),
     ]) {
-      expect(find.text(chip), findsOneWidget);
+      final button = find.ancestor(
+        of: find.descendant(of: sheet, matching: find.text(chip)),
+        matching: find.byType(OutlinedButton),
+      );
+      expect(button, findsOneWidget, reason: chip);
+      expect(
+        find.descendant(of: button, matching: find.text(count)),
+        findsOneWidget,
+        reason: chip,
+      );
     }
-    // Discovery does not wait for prices: every open market is listed.
-    expect(find.byType(CallMarketCard), findsWidgets);
-    await tapChip(tester, 'Pop culture · 2');
     expect(
-      find.text('2 of 6 open markets · soonest to close first'),
+      find.descendant(of: sheet, matching: find.text('All')),
       findsOneWidget,
     );
+    // No volume reported: no sort to offer.
+    expect(find.text('Most active'), findsNothing);
+    await tester.tap(
+      find.descendant(of: sheet, matching: find.text('Pop culture')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Show markets'));
+    await tester.pumpAndSettle();
     expect(find.byType(CallMarketCard), findsNWidgets(2));
     expect(find.textContaining('BBNaija'), findsOneWidget);
     expect(find.textContaining('Tram'), findsOneWidget);
-    // Tapping the selected chip again, or "All categories", clears it.
-    await tapChip(tester, 'Pop culture · 2');
-    expect(
-      find.text('6 open markets · soonest to close first'),
-      findsOneWidget,
-    );
-    await tapChip(tester, 'Gaming · 1');
-    await tester.tap(find.text('Ending soon'));
+    // One pill names it; its cross clears it.
+    expect(badge('1'), findsOneWidget);
+    await clearPill(tester, 'Pop culture');
     await tester.pumpAndSettle();
-    expect(find.text('No open markets match these filters'), findsOneWidget);
-    await tester.tap(find.text('Show all markets'));
+    // Six open; the lazy list builds what fits the screen.
+    expect(find.byType(CallMarketCard), findsAtLeastNWidgets(5));
+    expect(find.byKey(const ValueKey('market-active-filters')), findsNothing);
+    await chooseFilter(tester, 'Gaming');
+    await chooseFilter(tester, 'Ending soon');
+    expect(badge('2'), findsOneWidget);
+    expect(find.text('Nothing matches these filters'), findsOneWidget);
+    await tester.tap(find.text('Clear filters'));
     await tester.pumpAndSettle();
-    expect(
-      find.text('6 open markets · soonest to close first'),
-      findsOneWidget,
-    );
+    // Six open; the lazy list builds what fits the screen.
+    expect(find.byType(CallMarketCard), findsAtLeastNWidgets(5));
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('a market without a price is listed, labelled unavailable', (
+  testWidgets('a market without a price is listed, its prices a quiet dash', (
     tester,
   ) async {
     final m = market(
@@ -751,11 +895,18 @@ void main() {
     addTearDown(provider.dispose);
     await mount(tester, provider, const CallMarketsScreen());
     expect(find.text(m.question), findsOneWidget);
-    expect(find.text('Price unavailable'), findsNWidgets(2));
+    expect(find.text('—'), findsNWidgets(2));
+    expect(
+      tester
+          .widgetList<Text>(find.text('—'))
+          .map((t) => t.semanticsLabel)
+          .toSet(),
+      {'Price unavailable'},
+    );
     expect(find.text('0.00'), findsNothing);
   });
 
-  testWidgets('Most active appears only when the venue reports volume', (
+  testWidgets('Most active is a sort in the sheet, offered only with volume', (
     tester,
   ) async {
     final quiet = CallsProvider(
@@ -763,6 +914,7 @@ void main() {
     );
     addTearDown(quiet.dispose);
     await mount(tester, quiet, const CallMarketsScreen());
+    await openFilters(tester);
     expect(find.text('Most active'), findsNothing);
     await tester.pumpWidget(const SizedBox());
 
@@ -773,19 +925,15 @@ void main() {
     addTearDown(active.dispose);
     await mount(tester, active, const CallMarketsScreen());
     expect(firstCard(tester), 'jump'); // soonest to close
-    await tester.tap(find.text('Most active'));
-    await tester.pumpAndSettle();
-    expect(find.text('6 open markets · most active first'), findsOneWidget);
+    await chooseFilter(tester, 'Most active');
     expect(firstCard(tester), 'btc'); // highest reported volume
-    await tester.tap(find.text('Most active'));
-    await tester.pumpAndSettle();
+    expect(find.textContaining('most active first'), findsNothing);
+    await clearPill(tester, 'Most active');
     expect(firstCard(tester), 'jump');
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('category row scrolls at 320dp / 2x with 48dp targets', (
-    tester,
-  ) async {
+  testWidgets('filter sheet fits 320dp / 2x with 48dp targets', (tester) async {
     final markets = [
       for (final (i, c)
           in [
@@ -808,22 +956,26 @@ void main() {
       width: 320,
       scale: 2,
     );
-    // Seven categories cannot fit 320dp at 2x; the last is reached by
-    // scrolling the row, not by wrapping chips down the screen.
-    final row = find.ancestor(
-      of: find.text('All categories'),
-      matching: find.byType(SingleChildScrollView),
-    );
-    expect(tester.getSize(row).width, lessThanOrEqualTo(320));
-    await tapChip(tester, 'Macroeconomics · 1');
-    expect(find.byType(CallMarketCard), findsOneWidget);
-    expect(firstCard(tester), 'm6');
+    await openFilters(tester);
     for (final chip in find.byType(OutlinedButton).evaluate()) {
       expect(
         tester.getSize(find.byWidget(chip.widget)).height,
         greaterThanOrEqualTo(48),
       );
     }
+    final last = find.descendant(
+      of: find.byType(MarketFilterSheet),
+      matching: find.text('Macroeconomics'),
+    );
+    await tester.ensureVisible(last);
+    await tester.pumpAndSettle();
+    await tester.tap(last);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Show markets'));
+    await tester.tap(find.text('Show markets'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CallMarketCard), findsOneWidget);
+    expect(firstCard(tester), 'm6');
     expect(tester.takeException(), isNull);
   });
 
@@ -833,7 +985,7 @@ void main() {
     )..setViewer('test-person');
     addTearDown(provider.dispose);
     await mount(tester, provider, const MarketPickerSheet());
-    await tapChip(tester, 'Sports · 1');
+    await chooseFilter(tester, 'Sports');
     expect(find.byType(CallMarketCard), findsOneWidget);
     expect(find.textContaining('Manchester'), findsOneWidget);
     expect(tester.takeException(), isNull);

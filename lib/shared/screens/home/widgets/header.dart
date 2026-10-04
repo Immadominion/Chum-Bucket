@@ -50,7 +50,23 @@ class ChumbucketAppHeader extends StatelessWidget {
           if (showAccountActions) _ProfileAvatar(onTap: onProfileTap),
           if (title != null) ...[
             if (showAccountActions) SizedBox(width: 12.w),
-            Expanded(child: Text(title!, style: AppTextStyles.pageTitle)),
+            // One word, one line: at large text the title shrinks to fit
+            // rather than breaking mid-word ("Market / s").
+            Expanded(
+              child: Semantics(
+                header: true,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    title!,
+                    maxLines: 1,
+                    softWrap: false,
+                    style: AppTextStyles.pageTitle,
+                  ),
+                ),
+              ),
+            ),
           ] else
             const Spacer(),
           if (showAccountActions) ...[

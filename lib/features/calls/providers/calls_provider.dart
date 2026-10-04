@@ -152,6 +152,7 @@ class CallsProvider extends ChangeNotifier {
     _feedServedAt = null;
     _feedNextCursor = null;
     _marketDetails.clear();
+    _priceAttempts.clear();
     _callDetails.clear();
     _personDetails.clear();
     _invitations = const [];
@@ -318,6 +319,25 @@ class CallsProvider extends ChangeNotifier {
   List<VenueMarket> _openMarkets = const [];
   bool _isLoadingOpenMarkets = false;
   String? _openMarketsError;
+  DateTime? _openMarketsLoadedAt;
+
+  /// When the last background price read for a market started. Bounds how
+  /// often a market whose price will not come is asked again.
+  final Map<String, DateTime> _priceAttempts = {};
+
+  /// How long a loaded catalog is shown before [refreshOpenMarketsIfStale]
+  /// reads it again, silently, behind what is already on screen.
+  static const catalogRefreshAfter = Duration(minutes: 2);
+
+  /// When a shown price is read again: at four minutes, inside the server's
+  /// own refresh (half of the venue price's ten-minute validity), so the
+  /// figure on screen is replaced before it lapses rather than after.
+  static const priceRefreshAfter = Duration(minutes: 4);
+
+  /// The shortest gap between two background reads of one market's price,
+  /// so a market the venue has no price for is not asked on every frame.
+  /// The server itself retries a missing side after a minute.
+  static const priceRetryAfter = Duration(minutes: 1);
 
   List<VenueMarket> get openMarkets {
     final now = _clock().millisecondsSinceEpoch;
@@ -356,6 +376,7 @@ class CallsProvider extends ChangeNotifier {
               : await repository.fetchOpenMarkets();
       if (!_isCurrent('catalog', request)) return;
       _openMarkets = markets;
+      _openMarketsLoadedAt = _clock();
       _isOffline = false;
     } on CallVocabularyException {
       if (!_isCurrent('catalog', request)) return;
@@ -418,6 +439,53 @@ class CallsProvider extends ChangeNotifier {
         _notify();
       }
     }
+  }
+
+  /// Reads the open catalog again when the copy on screen is older than
+  /// [catalogRefreshAfter], or was never loaded. Silent: what is shown stays
+  /// shown while it runs, and a failed read keeps it (the screen decides
+  /// whether an empty catalog's error deserves a state of its own).
+  Future<void> refreshOpenMarketsIfStale() async {
+    final loadedAt = _openMarketsLoadedAt;
+    if (loadedAt != null &&
+        _clock().difference(loadedAt) < catalogRefreshAfter) {
+      return;
+    }
+    await loadOpenMarkets(force: true);
+  }
+
+  /// Whether [refreshPriceIfStale] would read [marketId] again right now:
+  /// never read, a Panta price missing a side, or one older than
+  /// [priceRefreshAfter] — and not already in flight or tried within
+  /// [priceRetryAfter]. A price stamped slightly ahead of this device's clock
+  /// is treated as new, not as broken.
+  bool priceRefreshDue(String marketId) {
+    if (_marketsInFlight.contains(marketId)) return false;
+    final now = _clock();
+    final attempted = _priceAttempts[marketId];
+    if (attempted != null && now.difference(attempted) < priceRetryAfter) {
+      return false;
+    }
+    final detail = _marketDetails[marketId];
+    if (detail == null) return true;
+    // Demo and other venues carry no Panta share price to keep current.
+    if (detail.market.venue != MarketVenue.panta) return false;
+    final price = detail.sharePrice;
+    if (price == null || price.yesPrice == null || price.noPrice == null) {
+      return true;
+    }
+    return now.toUtc().difference(price.observedAtUtc) >= priceRefreshAfter;
+  }
+
+  /// Keeps a shown market's price current without the person asking: reads
+  /// the market again in the background when [priceRefreshDue]. Nothing on
+  /// screen changes while it runs — the last good price stays until the new
+  /// one lands, and a failed read leaves it in place. Safe to call from every
+  /// visible row on every build; the guard above makes repeats free.
+  void refreshPriceIfStale(String marketId) {
+    if (!priceRefreshDue(marketId)) return;
+    _priceAttempts[marketId] = _clock();
+    unawaited(loadMarketDetail(marketId, force: true));
   }
 
   /// How old a market's price is, for the "data age" line. Null when the

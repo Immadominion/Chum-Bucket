@@ -198,7 +198,7 @@ void main() {
       );
       await settle(tester, const Duration(milliseconds: 1200));
       expect(find.text('For you'), findsOneWidget);
-      expect(find.text('More on Panta'), findsOneWidget);
+      expect(find.text('More markets'), findsOneWidget);
       final rows = tester.widgetList<CallMarketCard>(
         find.byType(CallMarketCard),
       );
