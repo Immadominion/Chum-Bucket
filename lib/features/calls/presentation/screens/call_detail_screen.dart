@@ -22,8 +22,8 @@ import 'package:chumbucket/features/authentication/presentation/screens/widgets/
     show reconnectWalletApp;
 import 'package:chumbucket/features/chumbucket_wallet/chumbucket_wallet_controller.dart';
 import 'package:chumbucket/features/chumbucket_wallet/presentation/chumbucket_wallet_sheet.dart';
-import 'package:chumbucket/features/profile/presentation/screens/widgets/profile_settings_sheet.dart'
-    show showProfileSettingsSheet;
+import 'package:chumbucket/features/profile/presentation/screens/widgets/sign_in_methods_sheet.dart'
+    show showSignInMethodsSheet;
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_transport.dart';
 import 'package:chumbucket/features/panta_trading/panta_trading.dart';
@@ -201,7 +201,8 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
                 onSelected: () => _fund(entry, useWalletApp: true),
               )
               : null,
-      onLinkWallet: () => showProfileSettingsSheet(context),
+      // Settings → Sign-in methods, where a wallet is linked with its proof.
+      onLinkWallet: () => showSignInMethodsSheet(context),
     );
     if (mounted) setState(() {});
   }
