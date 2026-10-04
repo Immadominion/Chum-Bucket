@@ -1,5 +1,10 @@
 /// Person-first call card. Response counts, crowd splits and public financial
 /// amounts deliberately do not belong in this surface.
+///
+/// Compact on purpose: who called what (with their side beside their name),
+/// the question, their reason, then ONE row — the few facts as icons on the
+/// left, the answers on the right. Prices and venue lines live on the call's
+/// detail, not in the list.
 library;
 
 import 'package:flutter/material.dart';
@@ -46,25 +51,70 @@ class CallCard extends StatelessWidget {
         (market.closesAtUtc == null ||
             market.closesAtUtc!.isAfter(DateTime.now().toUtc())) &&
         !entry.outcome.isSettled;
-    final priceLine = _priceLine(entry);
-    final stamp = [
-      if (priceLine != null) priceLine,
-      CallsFormat.venueAttribution(market),
-      if (call.parentCallId != null) 'In response to another call',
-    ].join(' · ');
     final back = canRespond && onBack != null;
     final fade = canRespond && onFade != null;
     final respond = canRespond && !back && !fade && onRespond != null;
-    final view =
-        (!canRespond || (onRespond == null && !back && !fade)) &&
-        onOpenCall != null;
     final share =
         entry.isShareableReceipt &&
         call.visibility == CallVisibility.public &&
         onShareReceipt != null;
-    // Codex's layout prototype: person, stance, question, reason, one price
-    // stamp, then the responses. Every state the badges guard (free vs
-    // funded, demo, followers-only, outcome) is still shown.
+    final left = CallsFormat.timeLeft(market.closesAtUtc);
+
+    final facts = Wrap(
+      spacing: 10,
+      runSpacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        if (!showAuthor) SidePill(side: call.side),
+        if (entry.outcome.isSettled)
+          CallOutcomeBadge(outcome: entry.outcome)
+        else if (left != null)
+          _Fact(
+            icon: 'clock-outline',
+            text: left,
+            semanticsLabel: CallsFormat.untilClose(market.closesAtUtc),
+          )
+        else
+          Text(CallsFormat.untilClose(market.closesAtUtc), style: _meta),
+        // A confirmed Panta fill reads "Funded"; nothing else does.
+        FundingStateBadge(
+          state: entry.isFunded ? FundingState.filled : call.fundingState,
+          quiet: true,
+        ),
+        if (call.visibility == CallVisibility.followers)
+          const _Fact(
+            icon: 'eye-closed-outline',
+            text: '',
+            semanticsLabel: 'Followers only',
+          ),
+        DemoVenueBadge(venue: market.venue),
+      ],
+    );
+
+    final actions = [
+      if (back) _CardAction(label: 'Back', icon: 'add-outline', onTap: onBack!),
+      if (fade)
+        _CardAction(label: 'Fade', icon: 'exchange-outline', onTap: onFade!),
+      if (respond)
+        _CardAction(
+          label: 'Answer',
+          icon: 'exchange-outline',
+          onTap: onRespond!,
+          primary: true,
+        ),
+      if (share)
+        IconButton(
+          tooltip: 'Share receipt',
+          onPressed: onShareReceipt,
+          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+          icon: const BasilIcon(
+            'share-outline',
+            size: 22,
+            color: AppColors.textPrimary,
+          ),
+        ),
+    ];
+
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(22),
@@ -72,136 +122,77 @@ class CallCard extends StatelessWidget {
       child: InkWell(
         onTap: onOpenCall ?? onOpenMarket,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (showAuthor) ...[
                 _AuthorRow(entry: entry, onOpenPerson: onOpenPerson),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
               ],
-              Wrap(
-                spacing: 7,
-                runSpacing: 6,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  SidePill(side: call.side),
-                  if (entry.outcome.isSettled)
-                    CallOutcomeBadge(outcome: entry.outcome)
-                  else
-                    Text(
-                      CallsFormat.untilClose(market.closesAtUtc),
-                      style: _meta,
-                    ),
-                  // A confirmed Panta fill reads "Funded"; nothing else does.
-                  FundingStateBadge(
-                    state:
-                        entry.isFunded
-                            ? FundingState.filled
-                            : call.fundingState,
-                    quiet: true,
-                  ),
-                  DemoVenueBadge(venue: market.venue),
-                  if (call.visibility == CallVisibility.followers)
-                    const CallBadge(
-                      label: 'Followers only',
-                      color: AppColors.textSecondary,
-                      icon: 'eye-outline',
-                    ),
-                ],
-              ),
-              const SizedBox(height: 10),
               Text(market.question, style: AppTextStyles.questionTitle),
               if (call.thesis?.isNotEmpty ?? false) ...[
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 Text(
                   call.thesis!,
-                  maxLines: 3,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.montserrat(
                     color: AppColors.textPrimary,
                     fontSize: 14,
-                    height: 1.6,
+                    height: 1.5,
                   ),
                 ),
               ],
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.only(top: 10),
+                padding: const EdgeInsets.only(top: 6),
                 decoration: const BoxDecoration(
                   border: Border(top: BorderSide(color: Color(0xFFF0F1F3))),
                 ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.only(top: 2),
-                      child: BasilIcon('lock-outline', size: 14, color: _muted),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(child: Text(stamp, style: _meta)),
-                  ],
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    // One row when it fits; on a narrow phone or at large
+                    // text the answers get their own row, full width.
+                    final roomy =
+                        constraints.maxWidth >= 300 &&
+                        MediaQuery.textScalerOf(context).scale(13) <= 17;
+                    if (actions.isEmpty) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: facts,
+                      );
+                    }
+                    if (roomy) {
+                      return Row(
+                        children: [
+                          Expanded(child: facts),
+                          const SizedBox(width: 8),
+                          ..._spaced(actions),
+                        ],
+                      );
+                    }
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6, bottom: 4),
+                          child: facts,
+                        ),
+                        Row(
+                          children: [
+                            for (final action in _spaced(actions))
+                              action is _CardAction
+                                  ? Expanded(child: action)
+                                  : action,
+                          ],
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
-              if (back || fade || respond || view || share) ...[
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    if (back)
-                      Expanded(
-                        child: _CardAction(
-                          label: 'Back',
-                          icon: 'plus-outline',
-                          onTap: onBack!,
-                        ),
-                      ),
-                    if (back && fade) const SizedBox(width: 7),
-                    if (fade)
-                      Expanded(
-                        child: _CardAction(
-                          label: 'Fade',
-                          icon: 'exchange-outline',
-                          onTap: onFade!,
-                        ),
-                      ),
-                    if (respond)
-                      Expanded(
-                        child: _CardAction(
-                          label: 'Respond',
-                          icon: 'exchange-outline',
-                          onTap: onRespond!,
-                          primary: true,
-                        ),
-                      ),
-                    if (view)
-                      Expanded(
-                        child: _CardAction(
-                          label: 'View call',
-                          icon: 'arrow-right-outline',
-                          onTap: onOpenCall!,
-                        ),
-                      ),
-                    if (share) ...[
-                      if (back || fade || respond || view)
-                        const SizedBox(width: 4),
-                      IconButton(
-                        tooltip: 'Share receipt',
-                        onPressed: onShareReceipt,
-                        constraints: const BoxConstraints(
-                          minWidth: 48,
-                          minHeight: 48,
-                        ),
-                        icon: const BasilIcon(
-                          'share-outline',
-                          size: 22,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ],
             ],
           ),
         ),
@@ -209,26 +200,46 @@ class CallCard extends StatelessWidget {
     );
   }
 
+  static List<Widget> _spaced(List<Widget> actions) => [
+    for (var i = 0; i < actions.length; i++) ...[
+      if (i > 0) const SizedBox(width: 6),
+      actions[i],
+    ],
+  ];
+
   static final _meta = GoogleFonts.montserrat(fontSize: 12, color: _muted);
 
   /// The prototype's muted grey (#606775): 5.6:1 on white.
   static const _muted = Color(0xFF606775);
+}
 
-  /// What the caller's side cost when the call locked, rounded for reading.
-  /// The exact venue string is on the call's detail.
-  static String? _priceLine(CallFeedEntry entry) {
-    final call = entry.call;
-    if (call.entryPrice != null) {
-      final price = call.entryPrice!.priceFor(call.side);
-      return price == null
-          ? '${call.side.wire} price unavailable'
-          : '${call.side.wire} was ${CallsFormat.displayPrice(price)} USDC/share';
-    }
-    if (call.entryProbability != null) {
-      return 'Locked at ${CallsFormat.probability(call.entryProbability)}';
-    }
-    return null;
-  }
+/// One fact as an icon and a few characters. [semanticsLabel] says it in
+/// full; an icon-only fact passes an empty [text].
+class _Fact extends StatelessWidget {
+  const _Fact({
+    required this.icon,
+    required this.text,
+    required this.semanticsLabel,
+  });
+  final String icon;
+  final String text;
+  final String semanticsLabel;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: semanticsLabel,
+    excludeSemantics: true,
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        BasilIcon(icon, size: 15, color: CallCard._muted),
+        if (text.isNotEmpty) ...[
+          const SizedBox(width: 4),
+          Text(text, style: CallCard._meta),
+        ],
+      ],
+    ),
+  );
 }
 
 class _AuthorRow extends StatelessWidget {
@@ -239,47 +250,60 @@ class _AuthorRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final author = entry.author;
-    return InkWell(
-      onTap: onOpenPerson,
-      borderRadius: BorderRadius.circular(10),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 48),
-        child: Row(
-          children: [
-            AppAvatar(
-              initials: author.initials,
-              imageUrl: author.avatarUrl,
-              size: 42,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      children: [
+        Expanded(
+          child: InkWell(
+            onTap: onOpenPerson,
+            borderRadius: BorderRadius.circular(10),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 48),
+              child: Row(
                 children: [
-                  Text(
-                    author.displayName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontFamily: 'PPNeueMachina',
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
-                    ),
+                  AppAvatar(
+                    initials: author.initials,
+                    imageUrl: author.avatarUrl,
+                    size: 40,
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    '@${author.handle} · ${CallsFormat.relative(entry.call.createdAtUtc)}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: CallCard._meta,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          author.displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontFamily: 'PPNeueMachina',
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '@${author.handle} · ${CallsFormat.relative(entry.call.createdAtUtc)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: CallCard._meta,
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
-          ],
+          ),
         ),
-      ),
+        const SizedBox(width: 8),
+        Semantics(
+          label: 'called ${entry.call.side.wire}',
+          excludeSemantics: true,
+          child: SidePill(side: entry.call.side),
+        ),
+      ],
     );
   }
 }
@@ -296,25 +320,26 @@ class _CardAction extends StatelessWidget {
     this.primary = false,
   });
 
-  /// The prototype's outline response: #FAFAFA on a #E3E5E8 rule, Machina.
+  /// A compact outline pill: icon and one word, 48dp tall to tap.
   @override
   Widget build(BuildContext context) {
     return TextButton.icon(
       onPressed: onTap,
       style: TextButton.styleFrom(
         minimumSize: const Size(48, 48),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         foregroundColor: AppColors.textPrimary,
         backgroundColor:
             primary ? AppColors.primaryContainer : const Color(0xFFFAFAFA),
         side: BorderSide(
           color: primary ? AppColors.primaryContainer : const Color(0xFFE3E5E8),
         ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       ),
-      icon: BasilIcon(icon, size: 18, color: AppColors.textPrimary),
+      icon: BasilIcon(icon, size: 17, color: AppColors.textPrimary),
       label: Text(
         label,
+        maxLines: 1,
         style: const TextStyle(
           fontFamily: 'PPNeueMachina',
           fontSize: 13,

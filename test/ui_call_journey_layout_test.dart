@@ -42,8 +42,8 @@ Widget host(CallsProvider provider, Widget child, {double scale = 1}) =>
         builder:
             (_, _) => RepaintBoundary(
               key: captureKey,
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
+              child: MaterialApp(
+                debugShowCheckedModeBanner: false,
                 theme: ThemeData(
                   fontFamily: 'Montserrat',
                   colorScheme: ColorScheme.fromSeed(
@@ -94,6 +94,21 @@ Future<void> capture(WidgetTester tester, String name) async {
   });
 }
 
+/// Refuses every new call the way the BFF words a refusal.
+class _RefusingCreateRepository extends MockCallsRepository {
+  _RefusingCreateRepository(this.message);
+  final String message;
+  int attempts = 0;
+  @override
+  Future<CallFeedEntry> createCall({
+    required CreateCallInput input,
+    required String? viewerUserId,
+  }) async {
+    attempts++;
+    throw CallsRejectedException(message);
+  }
+}
+
 class PausedResponseRepository extends MockCallsRepository {
   final release = Completer<void>();
   int writes = 0;
@@ -117,6 +132,14 @@ void main() {
     await (FontLoader('Montserrat')..addFont(
       rootBundle.load('assets/fonts/Montserrat/Montserrat-Regular.ttf'),
     )).load();
+    // Sheet headers and buttons are set in Inter (google_fonts families).
+    for (final (family, file) in [
+      ('Inter_600', 'Inter-SemiBold'),
+      ('Inter_700', 'Inter-Bold'),
+    ]) {
+      await (FontLoader(family)
+        ..addFont(rootBundle.load('assets/fonts/Inter/$file.ttf'))).load();
+    }
   });
 
   for (final size in [(390.0, 1.0), (320.0, 2.0)]) {
@@ -167,6 +190,17 @@ void main() {
           if (minSize != null) expect(minSize.height, greaterThanOrEqualTo(48));
         }
         if (screen.key == 'composer' || screen.key == 'response') {
+          // The reason is one tap away: "More options" / "Add a reason".
+          final opener = find.byKey(
+            ValueKey(
+              screen.key == 'composer'
+                  ? 'composer-more-options'
+                  : 'response-add-reason',
+            ),
+          );
+          await reveal(tester, opener);
+          await tester.tap(opener);
+          await tester.pumpAndSettle();
           await reveal(tester, find.byType(CallJourneyReason));
           await tester.tap(find.byType(TextField));
           tester.view.viewInsets = const FakeViewPadding(bottom: 280);
@@ -207,11 +241,12 @@ void main() {
       await tester.pumpAndSettle();
       expect(repo.debugCalls.length, before);
       expect(find.text('Lock my NO call'), findsOneWidget);
-      expect(find.text('Fading @ada · You’re calling NO.'), findsOneWidget);
-      await reveal(tester, find.text('YES'));
-      await tester.tap(find.text('YES'));
+      expect(find.bySemanticsLabel('Your own call: NO'), findsOneWidget);
+      // The side is implied by Back/Fade: no separate YES/NO picker.
+      expect(find.byType(CallJourneySides), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('response-back')));
       await tester.pumpAndSettle();
-      expect(find.text('Backing @ada · You’re calling YES.'), findsOneWidget);
+      expect(find.bySemanticsLabel('Your own call: YES'), findsOneWidget);
       expect(find.text('Lock my YES call'), findsOneWidget);
       expect(repo.debugCalls.length, before);
     },
@@ -249,6 +284,9 @@ void main() {
       );
       await tester.tap(find.text('Open review'));
       await tester.pumpAndSettle();
+      await reveal(tester, find.byKey(const ValueKey('response-add-reason')));
+      await tester.tap(find.byKey(const ValueKey('response-add-reason')));
+      await tester.pumpAndSettle();
       await reveal(tester, find.byType(TextField));
       await tester.enterText(find.byType(TextField), 'My independent reason');
       await reveal(tester, find.text('Followers only'));
@@ -284,11 +322,17 @@ void main() {
         )).entry;
     await tester.pumpWidget(host(provider, CallResponseSheet(entry: entry)));
     await tester.pumpAndSettle();
+    await reveal(tester, find.byKey(const ValueKey('response-add-reason')));
+    await tester.tap(find.byKey(const ValueKey('response-add-reason')));
+    await tester.pumpAndSettle();
     await reveal(tester, find.byType(TextField));
     await tester.enterText(find.byType(TextField), 'Keep my reason');
     repo.simulateOffline = true;
     await tester.tap(find.text('Lock my YES call'));
     await tester.pumpAndSettle();
+    // The spinner stopped and the reason is said beside the button.
+    expect(find.byKey(const ValueKey('call-inline-error')), findsOneWidget);
+    expect(find.text('Please wait…'), findsNothing);
     expect(
       tester.widget<TextField>(find.byType(TextField)).controller!.text,
       'Keep my reason',
@@ -305,10 +349,12 @@ void main() {
   });
 
   testWidgets(
-    'composer retains reason when Panta price is missing and never creates a call',
+    'composer keeps the reason and says a refusal plainly, never "stale"',
     (tester) async {
       surface(tester, width: 320);
-      final repo = MockCallsRepository();
+      final repo = _RefusingCreateRepository(
+        'Panta prices are missing or stale. Refresh before locking your call.',
+      );
       final provider = providerFor(repo);
       final market = repo.debugMarkets
           .firstWhere((m) => m.status.acceptsNewCalls)
@@ -322,16 +368,20 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await reveal(tester, find.byKey(const ValueKey('composer-more-options')));
+      await tester.tap(find.byKey(const ValueKey('composer-more-options')));
+      await tester.pumpAndSettle();
       await reveal(tester, find.byType(TextField));
       await tester.enterText(find.byType(TextField), 'Keep this draft');
       await tester.tap(find.text('Lock my YES call'));
       await tester.pumpAndSettle();
-      await reveal(
-        tester,
-        find.text(
-          'Panta prices are missing or stale. Refresh this market before calling.',
-        ),
+      expect(repo.attempts, 1);
+      expect(
+        find.text('Panta’s price is updating. Try again in a moment.'),
+        findsOneWidget,
       );
+      expect(find.textContaining('stale'), findsNothing);
+      expect(find.text('Please wait…'), findsNothing);
       expect(repo.debugCalls.length, before);
       expect(
         tester.widget<TextField>(find.byType(TextField)).controller!.text,
@@ -359,10 +409,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(
-        find.textContaining('You’re already on record for this market.'),
-        findsOneWidget,
-      );
+      expect(find.text('You’re already on record here'), findsOneWidget);
       final lock = tester.widget<CallJourneyButton>(
         find.widgetWithText(CallJourneyButton, 'Lock my YES call'),
       );
@@ -374,7 +421,7 @@ void main() {
         host(provider, CallComposerSheet(market: closed)),
       );
       await tester.pumpAndSettle();
-      expect(find.text(closed.status.label), findsOneWidget);
+      expect(find.textContaining(closed.status.label), findsOneWidget);
       expect(find.text('Lock my call'), findsNothing);
     },
   );

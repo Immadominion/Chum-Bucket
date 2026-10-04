@@ -157,7 +157,18 @@ class OnboardingFlowController extends ChangeNotifier {
   Set<String> get selectedPeople => Set.unmodifiable(_selectedPeople);
   Set<String> get selectedFriends => Set.unmodifiable(_selectedFriends);
   List<FirstCallMarket> get firstCallMarkets => _firstCallMarkets;
-  List<TopCall> get answerable => _answerable;
+
+  /// Someone else's calls only. The list is built before sign-in, when the
+  /// viewer is unknown; signed in as the author, their own call drops out.
+  List<TopCall> get answerable {
+    final viewer = calls.viewerUserId;
+    if (viewer == null) return _answerable;
+    return [
+      for (final top in _answerable)
+        if (top.author.id != viewer) top,
+    ];
+  }
+
   bool get firstCallRefreshing => _firstCallRefreshing;
   CallFeedEntry? get lockedEntry => _lockedEntry;
   bool get alreadyMode => _alreadyMode;

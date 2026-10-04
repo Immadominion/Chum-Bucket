@@ -186,9 +186,28 @@ class _OnboardingHomeEffectsState extends State<OnboardingHomeEffects> {
     final draft = app.pendingCall;
     if (draft != null && !_offeredDraft) {
       _offeredDraft = true;
+      if (draft.targetCallId case final targetId?) {
+        // A Back/Fade saved while signed out may answer this very account's
+        // own call. That draft has no answer: drop it rather than offer it.
+        final target = await calls.loadCall(targetId, reportOpen: false);
+        if (!mounted) return;
+        if (target != null && target.entry.author.id == calls.viewerUserId) {
+          await app.clearDraft();
+          if (!mounted) return;
+          _sayOwnDraft();
+          return;
+        }
+      }
       _offerDraft(draft);
     }
   }
+
+  void _sayOwnDraft() => ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+    const SnackBar(
+      key: ValueKey('home-own-call-draft'),
+      content: Text(OnboardingCopy.callOwnDraft),
+    ),
+  );
 
   void _sayFollows(int followed, int failed) {
     final messenger = ScaffoldMessenger.maybeOf(context);
@@ -263,6 +282,12 @@ class _OnboardingHomeEffectsState extends State<OnboardingHomeEffects> {
       );
       if (!mounted || target == null) {
         await app.clearDraft();
+        return;
+      }
+      if (target.entry.author.id == calls.viewerUserId) {
+        // The same account signed in again: its own call has no answer.
+        await app.clearDraft();
+        if (mounted) _sayOwnDraft();
         return;
       }
       final result = await showCallResponseSheet(

@@ -839,7 +839,8 @@ class MockCallsRepository implements CallsRepository {
         marketId: target.marketId,
         sourceCallId: target.id,
         responseId: response.id,
-        note: input.thesis,
+        // As the server does: a challenge's words are its note.
+        note: input.dareNote,
         createdAt: now,
       );
       _invitations.add(invitation);

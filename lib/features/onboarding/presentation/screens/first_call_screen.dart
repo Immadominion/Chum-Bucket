@@ -187,6 +187,10 @@ class _FirstCallScreenState extends State<FirstCallScreen> {
   Future<void> _respond(TopCall top, CallResponseKind kind) async {
     final flow = _flow;
     final entry = entryOfTopCall(top);
+    if (flow.signedIn && top.author.id == _calls.viewerUserId) {
+      setState(() => _notice = OnboardingCopy.callOwnDraft);
+      return;
+    }
     if (!flow.signedIn) {
       await flow.saveDraftAndSignIn(
         PendingCall(
@@ -272,6 +276,12 @@ class _FirstCallScreenState extends State<FirstCallScreen> {
     if (target == null) {
       await flow.app.clearDraft();
       if (mounted) setState(() => _notice = OnboardingCopy.callPickAnother);
+      return;
+    }
+    if (target.entry.author.id == _calls.viewerUserId) {
+      // Signed in as the person who made it: there is nothing to answer.
+      await flow.app.clearDraft();
+      if (mounted) setState(() => _notice = OnboardingCopy.callOwnDraft);
       return;
     }
     await _openResponse(

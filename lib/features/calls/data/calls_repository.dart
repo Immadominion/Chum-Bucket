@@ -441,20 +441,31 @@ class RespondToCallInput {
   final String? thesis;
   final CallVisibility visibility;
 
+  /// A Dare's message to the person dared. The server keeps a challenge's
+  /// words in `note` and ignores `thesis` (a challenge creates no call), so
+  /// a Dare's text always travels as `note`, including text a caller put in
+  /// [thesis].
+  final String? note;
+
   const RespondToCallInput({
     required this.targetCallId,
     required this.kind,
     this.confidence,
     this.thesis,
     this.visibility = CallVisibility.public,
+    this.note,
   });
+
+  /// What the person dared will read; null for a Back/Fade.
+  String? get dareNote => kind.createsOwnCall ? null : (note ?? thesis);
 
   Map<String, dynamic> toJson() => {
     'targetCallId': targetCallId,
     'kind': kind.wire,
-    'confidence': confidence,
-    'thesis': thesis,
+    'confidence': kind.createsOwnCall ? confidence : null,
+    'thesis': kind.createsOwnCall ? thesis : null,
     'visibility': visibility.wire,
+    'note': dareNote,
   };
 }
 
