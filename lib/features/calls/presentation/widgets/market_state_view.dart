@@ -1,13 +1,15 @@
 /// One state screen for market discovery: the brand art, one short line and
 /// at most one action. Used for no matches, an empty catalog, and a catalog
 /// or market that could not load with nothing cached to show instead.
+///
+/// Drawn by the app's one state screen ([ChumbucketStateView], fleet/ux-states)
+/// so Markets, the picker and market detail read like every other empty,
+/// error or offline state: same scene sizes, same primary button.
 library;
 
 import 'package:flutter/material.dart';
 
-import 'package:chumbucket/core/theme/app_colors.dart';
-import 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_state_view.dart';
 
 export 'package:chumbucket/shared/widgets/chumbucket_state_art.dart';
 
@@ -33,56 +35,18 @@ class MarketStateView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: 32,
-        vertical: compact ? 16 : 32,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          compact
-              ? ChumbucketStateArt.compact(artwork)
-              : ChumbucketStateArt(artwork),
-          const SizedBox(height: 14),
-          Semantics(
-            liveRegion: true,
-            child: Text(
-              line,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontFamily: 'PPNeueMachina',
-                fontSize: 17,
-                fontWeight: FontWeight.w800,
-                height: 1.3,
-                color: AppColors.textPrimary,
-              ),
-            ),
-          ),
-          if (actionLabel != null && onAction != null) ...[
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: onAction,
-              style: TextButton.styleFrom(
-                minimumSize: const Size(48, 48),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 22,
-                  vertical: 12,
-                ),
-                backgroundColor: AppColors.primaryContainer,
-                foregroundColor: AppColors.pinkInk,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                textStyle: GoogleFonts.montserrat(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              child: Text(actionLabel!),
-            ),
-          ],
-        ],
+    child: Semantics(
+      liveRegion: true,
+      child: ChumbucketStateView(
+        artwork: artwork,
+        message: line,
+        actionLabel: actionLabel,
+        onAction: onAction,
+        compact: compact,
+        padding: EdgeInsets.symmetric(
+          horizontal: 32,
+          vertical: compact ? 16 : 32,
+        ),
       ),
     ),
   );

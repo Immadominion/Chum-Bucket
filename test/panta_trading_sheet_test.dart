@@ -277,8 +277,8 @@ void main() {
     await review(tester);
     await tapAction(tester, 'Approve in wallet');
     await tester.pumpAndSettle();
-    await reveal(tester, find.text('Retry same signed transaction'));
-    expect(find.text('Retry same signed transaction'), findsOneWidget);
+    await reveal(tester, find.text('Resend same transaction'));
+    expect(find.text('Resend same transaction'), findsOneWidget);
     expect(find.text('Close'), findsOneWidget);
     expect(find.text('Cancel'), findsNothing);
     await tapAction(tester, 'Close');
@@ -286,7 +286,7 @@ void main() {
     expect(r.controller.phase, PantaTradePhase.signed);
     await tester.tap(find.text('Fund existing call'));
     await tester.pumpAndSettle();
-    await tapAction(tester, 'Retry same signed transaction');
+    await tapAction(tester, 'Resend same transaction');
     await tester.pumpAndSettle();
     expect(r.inputs('submit')[0], r.inputs('submit')[1]);
     expect(r.wallet.signCount, 1);

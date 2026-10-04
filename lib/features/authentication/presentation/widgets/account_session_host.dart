@@ -44,12 +44,12 @@ class AccountSessionHost extends StatelessWidget {
                               const Text('Couldn’t finish signing out.'),
                               const SizedBox(height: 12),
                               const Text(
-                                'Your account screens are locked. Retry to finish clearing this device.',
+                                'Your account screens are locked. Try again to finish clearing this device.',
                               ),
                               const SizedBox(height: 20),
                               ChallengeButton(
                                 createNewChallenge: account.retry,
-                                label: 'Retry sign-out',
+                                label: 'Try signing out again',
                               ),
                             ],
                           ],

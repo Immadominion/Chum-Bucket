@@ -41,7 +41,7 @@ class PantaException implements Exception {
     PantaErrorCode.invalidResponse =>
       'The order could not be verified. Check its status before continuing.',
     PantaErrorCode.connection =>
-      'The reply did not arrive. Retry this same request or check its status.',
+      'The reply did not arrive. Send this same request again or check its status.',
     PantaErrorCode.rejected =>
       'The server could not accept this request. Check the order status.',
     PantaErrorCode.walletCancelled => 'Wallet approval was cancelled.',

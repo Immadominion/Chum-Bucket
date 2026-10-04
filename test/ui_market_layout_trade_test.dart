@@ -235,7 +235,7 @@ void main() {
     await tap(tester, 'Close');
     await tester.tap(find.text('Open review'));
     await tester.pumpAndSettle();
-    await tap(tester, 'Retry same signed transaction');
+    await tap(tester, 'Resend same transaction');
     expect(rig.inputs('submit')[0], rig.inputs('submit')[1]);
     expect(rig.wallet.signCount, 1);
     expect(rig.procedure('prepare'), hasLength(1));

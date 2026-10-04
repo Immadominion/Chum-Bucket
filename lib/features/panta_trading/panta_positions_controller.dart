@@ -312,7 +312,7 @@ class PantaPositionsController extends ChangeNotifier {
     } on PantaException catch (e) {
       // A refusal for an approval the server can never send (it expired
       // before it was stored, or the claim failed) must not trap the person
-      // in "Retry same claim": drop those bytes and offer a fresh claim.
+      // in "Resend same claim": drop those bytes and offer a fresh claim.
       if (e.code == PantaErrorCode.rejected && await _approvalIsDead(signed)) {
         _signedClaims.remove(orderId);
         _claimKeys.remove(orderId);
@@ -345,16 +345,16 @@ class PantaPositionsController extends ChangeNotifier {
     PantaErrorCode.expired =>
       'That claim approval expired before it was sent. Try again for a fresh one.',
     PantaErrorCode.rejected when sent =>
-      'The server could not accept the signed claim yet. Retry sends the same '
-          'signed claim; nothing new is signed.',
+      'The server could not accept the signed claim yet. Resending uses the '
+          'same signed claim; nothing new is signed.',
     PantaErrorCode.rejected =>
       'Panta did not offer a claim for this position yet. Check again later or claim on Panta.',
     PantaErrorCode.connection when sent =>
-      'The reply did not arrive. Retry sends the same signed claim.',
+      'The reply did not arrive. Resending uses the same signed claim.',
     PantaErrorCode.connection =>
       'The server did not answer. Nothing was signed; try the claim again.',
     PantaErrorCode.invalidResponse when sent =>
-      'The reply could not be read. Retry sends the same signed claim.',
+      'The reply could not be read. Resending uses the same signed claim.',
     PantaErrorCode.invalidResponse =>
       'The claim could not be checked, so nothing was sent. Try again or '
           'claim on Panta.',

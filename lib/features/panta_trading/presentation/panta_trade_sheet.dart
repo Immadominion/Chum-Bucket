@@ -169,7 +169,7 @@ class _PantaTradeSheetState extends State<PantaTradeSheet> {
                     : 'Waiting for your wallet approval…',
               PantaTradePhase.signed =>
                 'Signed · confirmation unknown. The server may have submitted this order. '
-                    'Retry sends the same signed transaction.',
+                    'Resending uses the same signed transaction.',
               PantaTradePhase.submitting =>
                 'Submitting · awaiting server confirmation…',
               PantaTradePhase.order => _orderCopy(),
@@ -475,7 +475,7 @@ class _PantaTradeSheetState extends State<PantaTradeSheet> {
             : _onPhone
             ? 'Sign and buy'
             : 'Approve in wallet',
-      PantaTradePhase.signed => 'Retry same signed transaction',
+      PantaTradePhase.signed => 'Resend same transaction',
       PantaTradePhase.cancelled => 'Enter a new amount',
       PantaTradePhase.order => 'Done',
       PantaTradePhase.preparing => 'Preparing quote…',

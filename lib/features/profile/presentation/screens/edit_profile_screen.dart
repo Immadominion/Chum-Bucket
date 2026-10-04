@@ -114,7 +114,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         setState(
           () =>
               _profileLoadError =
-                  'Your account changed. Retry to load the current profile.',
+                  'Your account changed. Try again to load the current profile.',
         );
         return;
       }
@@ -130,7 +130,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         setState(
           () =>
               _profileLoadError =
-                  'Your profile could not be loaded. Retry before making changes.',
+                  'Your profile could not be loaded. Try again before making changes.',
         );
       }
     } finally {

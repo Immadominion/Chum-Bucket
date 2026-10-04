@@ -230,6 +230,9 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
             !provider.isSignedIn
                 ? SingleChildScrollView(
                   child: CallsSignedOutView(
+                    // The one line says what signing in is for here
+                    // (CallsSignedOutView draws only its title, ux-states).
+                    title: 'Sign in to answer',
                     message: 'Sign in to answer. Calling is free.',
                     onSignIn: () => requestCallSignIn(context),
                   ),

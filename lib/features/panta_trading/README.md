@@ -78,7 +78,7 @@ The test harness is not exported by the feature.
   never re-signs. A key the server already answered for (refused, or a FAILED
   replay) is retired so the next tap reviews a fresh claim, and signed bytes
   the server can never send (failed, or expired before they were stored) are
-  dropped instead of offering "Retry same claim" forever. The server confirms
+  dropped instead of offering "Resend same claim" forever. The server confirms
   only on chain proof of a USDC payout.
   The resolver is the plug-in point for wallets: the profile tab maps a
   connected MWA wallet to `PantaMwaWallet`; an on-phone wallet should return

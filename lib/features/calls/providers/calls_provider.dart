@@ -91,7 +91,7 @@ class CallsProvider extends ChangeNotifier {
 
   static const _accountChanged = CallsRejectedException(
     'Your account changed while this request was in progress. '
-    'It may have completed for the previous account; check that account before retrying.',
+    'It may have completed for the previous account; check that account before trying again.',
   );
 
   @override

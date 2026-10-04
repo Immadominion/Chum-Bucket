@@ -99,7 +99,7 @@ class WalletStorageException implements Exception {
   const WalletStorageException();
   @override
   String toString() =>
-      'Wallet session storage unavailable. Retry after unlocking the device.';
+      'Wallet session storage unavailable. Try again after unlocking the device.';
 }
 
 /// One process-wide queue serializes migration, renewal and logout across

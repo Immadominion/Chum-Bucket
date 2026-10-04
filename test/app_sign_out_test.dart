@@ -131,9 +131,9 @@ void main() {
       ]);
       await tester.pumpAndSettle();
       expect(find.text('account tree'), findsNothing);
-      expect(find.text('Retry sign-out'), findsOneWidget);
+      expect(find.text('Try signing out again'), findsOneWidget);
       expect(find.textContaining('synthetic'), findsNothing);
-      await tester.tap(find.text('Retry sign-out'));
+      await tester.tap(find.text('Try signing out again'));
       await tester.pumpAndSettle();
       expect(attempts, 2);
       expect(find.text('account tree'), findsOneWidget);

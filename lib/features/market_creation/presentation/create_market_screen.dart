@@ -266,7 +266,7 @@ class _CreateMarketScreenState extends State<CreateMarketScreen> {
             ] else if (status == null && _controller.statusError != null)
               _Notice(
                 text: _controller.statusError!,
-                action: 'Retry',
+                action: 'Try again',
                 onAction: _controller.loadStatus,
               )
             else if (status != null && !enabled)

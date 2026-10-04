@@ -65,7 +65,7 @@ class CallsFormat {
 
   static String nativePrices(SharePriceSnapshot? value) =>
       value == null
-          ? 'Panta prices unavailable. Refresh before calling.'
+          ? 'Panta prices unavailable.'
           : 'YES ${sharePrice(value.yesPrice, currency: value.currency)} · '
               'NO ${sharePrice(value.noPrice, currency: value.currency)}';
 

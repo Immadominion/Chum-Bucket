@@ -83,8 +83,8 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
               // so don't claim nothing happened. A retry is always safe.
               _error =
                   'We couldn\'t reach Chumbucket, so we can\'t confirm your '
-                  'account was deleted. Try again when you\'re connected; '
-                  'it\'s safe to retry.',
+                  'account was deleted. Trying again when you\'re connected '
+                  'is safe.',
         );
       }
     } on CallsException catch (e) {

@@ -149,7 +149,7 @@ class SessionBffClient {
         !['claimed', 'already_claimed'].contains(data['outcome'])) {
       throw const SessionException(
         SessionError.network(
-          'The server could not confirm the account link. Retry from Settings.',
+          'The server could not confirm the account link. Try again from Settings.',
           code: SessionErrorCode.unreadable,
         ),
       );

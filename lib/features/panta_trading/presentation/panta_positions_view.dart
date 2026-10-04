@@ -359,7 +359,7 @@ class _PositionCard extends StatelessWidget {
         PantaClaimPhase.preparing => 'Preparing claim…',
         PantaClaimPhase.approving => 'Approve in your wallet…',
         PantaClaimPhase.submitting => 'Sending claim…',
-        _ => progress.canRetrySubmit ? 'Retry same claim' : 'Claim winnings',
+        _ => progress.canRetrySubmit ? 'Resend same claim' : 'Claim winnings',
       };
       buttons.add(
         FilledButton(
