@@ -362,6 +362,20 @@ abstract final class PantaMoney {
         '${fraction.isEmpty ? '' : '.$fraction'}';
   }
 
+  /// A USDC decimal string as dollars, exactly: `5` reads `$5`, `0.01`
+  /// reads `$0.01`, `12.5` reads `$12.50`. Unparseable input is returned
+  /// unchanged rather than guessed at.
+  static String dollarsOf(String decimal) {
+    final match = RegExp(r'^(\d+)(?:\.(\d+))?$').firstMatch(decimal.trim());
+    if (match == null) return decimal;
+    var fraction = (match.group(2) ?? '').replaceFirst(RegExp(r'0+$'), '');
+    if (fraction.isNotEmpty && fraction.length < 2) {
+      fraction = fraction.padRight(2, '0');
+    }
+    final whole = BigInt.parse(match.group(1)!).toString();
+    return '\$${_group(whole)}${fraction.isEmpty ? '' : '.$fraction'}';
+  }
+
   /// A share count, trimmed to at most 4 places.
   static String shares(String decimal) => _trim(decimal, 4);
 
