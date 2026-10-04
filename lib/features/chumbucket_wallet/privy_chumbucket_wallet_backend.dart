@@ -47,31 +47,32 @@ class PrivyChumbucketWalletBackend implements ChumbucketWalletBackend {
     ),
   );
 
-  /// The account this backend signed in as; null until [signIn] succeeds.
-  String? _account;
+  /// Which account the provider is signed in as (generation-guarded).
+  final _gate = ProviderAccountGate();
 
   static bool _isFor(PrivyUser user, String account) =>
       privyUserIsAccount(user.linkedAccounts, account);
 
-  /// The signed-in Privy user, only while it is [_account].
-  Future<PrivyUser> _user() async {
-    final account = _account;
-    if (account == null) throw ChumbucketWalletException.signedOut;
+  /// The signed-in Privy user, only while it is exactly [account].
+  Future<PrivyUser> _user(String account) async {
+    if (!_gate.holds(account)) throw ChumbucketWalletException.signedOut;
     final AuthState state;
     try {
       state = await _privy.getAuthState();
     } catch (_) {
       throw ChumbucketWalletException.unavailable;
     }
-    if (state is Authenticated && _isFor(state.user, account)) {
+    if (_gate.holds(account) &&
+        state is Authenticated &&
+        _isFor(state.user, account)) {
       return state.user;
     }
-    _account = null;
+    _gate.forget();
     throw ChumbucketWalletException.signedOut;
   }
 
-  Future<EmbeddedSolanaWallet> _walletAt(String address) async {
-    for (final wallet in (await _user()).embeddedSolanaWallets) {
+  Future<EmbeddedSolanaWallet> _walletAt(String account, String address) async {
+    for (final wallet in (await _user(account)).embeddedSolanaWallets) {
       if (wallet.address == address) return wallet;
     }
     throw ChumbucketWalletException.signedOut;
@@ -79,7 +80,7 @@ class PrivyChumbucketWalletBackend implements ChumbucketWalletBackend {
 
   @override
   Future<void> signIn(String account) async {
-    _account = null;
+    final generation = _gate.begin();
     final AuthState state;
     try {
       state = await _privy.getAuthState();
@@ -87,7 +88,9 @@ class PrivyChumbucketWalletBackend implements ChumbucketWalletBackend {
       throw ChumbucketWalletException.unavailable;
     }
     if (state is Authenticated && _isFor(state.user, account)) {
-      _account = account;
+      if (!_gate.settle(generation, account)) {
+        throw ChumbucketWalletException.signedOut;
+      }
       return;
     }
     if (state is Authenticated || state is AuthenticatedUnverified) {
@@ -105,21 +108,24 @@ class PrivyChumbucketWalletBackend implements ChumbucketWalletBackend {
           await _privy.logout();
           throw ChumbucketWalletException.signedOut;
         }
-        _account = account;
+        // A sign-out or another sign-in that began meanwhile wins.
+        if (!_gate.settle(generation, account)) {
+          throw ChumbucketWalletException.signedOut;
+        }
       case Failure<PrivyUser>():
         throw ChumbucketWalletException.unavailable;
     }
   }
 
   @override
-  Future<String?> wallet() async {
-    final wallets = (await _user()).embeddedSolanaWallets;
+  Future<String?> wallet(String account) async {
+    final wallets = (await _user(account)).embeddedSolanaWallets;
     return wallets.isEmpty ? null : wallets.first.address;
   }
 
   @override
-  Future<String> createWallet() async {
-    final result = await (await _user()).createSolanaWallet();
+  Future<String> createWallet(String account) async {
+    final result = await (await _user(account)).createSolanaWallet();
     return switch (result) {
       Success<EmbeddedSolanaWallet>(:final value) => value.address,
       Failure<EmbeddedSolanaWallet>() =>
@@ -128,22 +134,30 @@ class PrivyChumbucketWalletBackend implements ChumbucketWalletBackend {
   }
 
   @override
-  Future<Uint8List> signMessage(String address, Uint8List message) async {
-    final wallet = await _walletAt(address);
+  Future<Uint8List> signMessage(
+    String account,
+    String address,
+    Uint8List message,
+  ) async {
+    final wallet = await _walletAt(account, address);
     // Privy takes the message and answers the signature, both base64.
     final result = await wallet.provider.signMessage(base64Encode(message));
     return _bytes(result);
   }
 
   @override
-  Future<Uint8List> signTransaction(String address, Uint8List unsigned) async {
-    final wallet = await _walletAt(address);
+  Future<Uint8List> signTransaction(
+    String account,
+    String address,
+    Uint8List unsigned,
+  ) async {
+    final wallet = await _walletAt(account, address);
     return _bytes(await wallet.provider.signTransaction(unsigned));
   }
 
   @override
   Future<void> signOut() async {
-    _account = null;
+    _gate.begin();
     try {
       await _privy.logout();
     } catch (_) {

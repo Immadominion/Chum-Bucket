@@ -7,6 +7,7 @@
 /// standing in for Privy's enclave. The transactions are real v0 Panta buys.
 library;
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:chumbucket/features/authentication/session/session_bff_client.dart';
@@ -49,61 +50,79 @@ enum _Answer { whole, bare, rewritten }
 
 /// A provider double that keeps a session the way Privy does: it can outlive
 /// the app (a persisted session for another account), it ends on logout, and
-/// every operation refuses once it is not the account [signIn] named.
+/// every operation refuses unless the provider is signed in as exactly the
+/// account it names. It uses the real [ProviderAccountGate], so a sign-in
+/// that finishes late can never settle; [holdSignIn] lets a test decide when
+/// a sign-in's native half finishes.
 class _KeyBackend implements ChumbucketWalletBackend {
   _KeyBackend(this.key, {this.hasWallet = false, this.session});
   final EmbeddedWalletKey key;
   bool hasWallet;
   _Answer answer = _Answer.whole;
   final calls = <String>[];
+  final gate = ProviderAccountGate();
 
-  /// Whose provider session exists right now (persists across "restarts").
+  /// Whose provider session exists natively (persists across "restarts").
   String? session;
-  String? _account;
   int signInDelayMs = 0;
+  final holdSignIn = <String, Completer<void>>{};
 
   @override
   Future<void> signIn(String account) async {
+    final generation = gate.begin();
     calls.add('signIn:$account');
     if (signInDelayMs > 0) {
       await Future<void>.delayed(Duration(milliseconds: signInDelayMs));
     }
+    final held = holdSignIn[account];
+    if (held != null) await held.future;
     if (session != null && session != account) calls.add('logout');
     session = account;
-    _account = account;
+    if (!gate.settle(generation, account)) {
+      calls.add('late:$account');
+      throw ChumbucketWalletException.signedOut;
+    }
   }
 
-  void _requireSession() {
-    if (_account == null || session != _account) {
-      _account = null;
+  void _require(String account) {
+    if (!gate.holds(account) || session != account) {
+      gate.forget();
       throw ChumbucketWalletException.signedOut;
     }
   }
 
   @override
-  Future<String?> wallet() async {
-    _requireSession();
+  Future<String?> wallet(String account) async {
+    _require(account);
     return hasWallet ? key.address : null;
   }
 
   @override
-  Future<String> createWallet() async {
-    _requireSession();
+  Future<String> createWallet(String account) async {
+    _require(account);
     calls.add('createWallet');
     hasWallet = true;
     return key.address;
   }
 
   @override
-  Future<Uint8List> signMessage(String address, Uint8List message) async {
-    _requireSession();
+  Future<Uint8List> signMessage(
+    String account,
+    String address,
+    Uint8List message,
+  ) async {
+    _require(account);
     calls.add('signMessage:$session');
     return Uint8List.fromList(await key.sign(message));
   }
 
   @override
-  Future<Uint8List> signTransaction(String address, Uint8List unsigned) async {
-    _requireSession();
+  Future<Uint8List> signTransaction(
+    String account,
+    String address,
+    Uint8List unsigned,
+  ) async {
+    _require(account);
     calls.add('signTransaction:$session');
     final signature = await key.sign(signatureMessage(unsigned));
     switch (answer) {
@@ -121,9 +140,9 @@ class _KeyBackend implements ChumbucketWalletBackend {
 
   @override
   Future<void> signOut() async {
+    gate.begin();
     calls.add('signOut');
     session = null;
-    _account = null;
   }
 }
 
@@ -417,6 +436,89 @@ void main() {
       expect(backend.calls.where((c) => c.startsWith('signIn')), hasLength(1));
       wallet.dispose();
     });
+
+    test(
+      'a sign-in that finishes after a sign-out and the next account never settles',
+      () async {
+        // The gate alone: A's sign-in began, then a sign-out, then B's.
+        final gate = ProviderAccountGate();
+        final a = gate.begin();
+        gate.begin(); // sign-out
+        final b = gate.begin();
+        expect(gate.settle(b, 'usr_b'), isTrue);
+        expect(gate.settle(a, 'usr_a'), isFalse); // A's native reply, late
+        expect(gate.holds('usr_b'), isTrue);
+        expect(gate.holds('usr_a'), isFalse);
+        gate.forget();
+        expect(gate.holds('usr_b'), isFalse);
+      },
+    );
+
+    test(
+      'signing out waits for a sign-in in flight; the next account never signs as the old one',
+      () async {
+        final server = _Server(linkedWallet: key.address);
+        final backend = _KeyBackend(key, hasWallet: true);
+        final hold = Completer<void>();
+        backend.holdSignIn[kCanonicalUserId] = hold;
+        final wallet = controller(server, backend);
+        await wallet.bind(kCanonicalUserId);
+        final signer = wallet.signer!;
+        // A starts signing: its sign-in is in flight (native half held).
+        final first = signer.signMessage(Uint8List.fromList([1]));
+        await Future<void>.delayed(Duration.zero);
+        expect(backend.calls, ['signIn:$kCanonicalUserId']);
+        // Signed out meanwhile, then B signs in.
+        await wallet.bind(null);
+        expect(backend.calls, ['signIn:$kCanonicalUserId']); // sign-out waits
+        hold.complete();
+        await expectLater(first, throwsA(isA<ChumbucketWalletException>()));
+        await Future<void>.delayed(Duration.zero);
+        expect(backend.calls.last, 'signOut');
+        expect(backend.session, isNull);
+        await wallet.bind('usr_other');
+        await wallet.signer!.signMessage(Uint8List.fromList([2]));
+        expect(backend.session, 'usr_other');
+        expect(backend.gate.holds(kCanonicalUserId), isFalse);
+        expect(
+          backend.calls.where(
+            (c) => c.startsWith('sign') && c.endsWith(kCanonicalUserId),
+          ),
+          ['signIn:$kCanonicalUserId'],
+        );
+        expect(backend.calls.last, 'signMessage:usr_other');
+        wallet.dispose();
+      },
+    );
+
+    test(
+      'a late native reply for the old account cannot become the session',
+      () async {
+        final backend = _KeyBackend(key, hasWallet: true);
+        final hold = Completer<void>();
+        backend.holdSignIn['usr_a'] = hold;
+        final a = backend.signIn('usr_a');
+        await backend.signOut();
+        await backend.signIn('usr_b');
+        hold.complete();
+        await expectLater(a, throwsA(isA<ChumbucketWalletException>()));
+        expect(backend.calls, contains('late:usr_a'));
+        // The gate never took A. The native session did, so B's next call is
+        // refused too (the real backend reads Privy's user the same way),
+        // and B simply signs in again.
+        await expectLater(
+          backend.signMessage('usr_a', key.address, Uint8List(1)),
+          throwsA(isA<ChumbucketWalletException>()),
+        );
+        await expectLater(
+          backend.signMessage('usr_b', key.address, Uint8List(1)),
+          throwsA(isA<ChumbucketWalletException>()),
+        );
+        await backend.signIn('usr_b');
+        await backend.signMessage('usr_b', key.address, Uint8List(1));
+        expect(backend.calls.last, 'signMessage:usr_b');
+      },
+    );
 
     test('Privy users are matched to the account by the custom-auth id', () {
       expect(
