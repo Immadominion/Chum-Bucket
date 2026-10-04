@@ -44,6 +44,59 @@ Future<void> showSignInMethodsSheet(BuildContext context) {
   );
 }
 
+/// Settings' Sign-in methods row, only when the server says linking is on
+/// for THIS account (`auth.signInMethods`' `linking`; it may be on for admins
+/// only). Off, or not known: nothing at all, exactly the app before linking.
+class SignInMethodsEntry extends StatefulWidget {
+  const SignInMethodsEntry({super.key, required this.child, this.load});
+
+  /// The row itself.
+  final Widget child;
+
+  /// Reads the account's sign-in methods; tests replace it.
+  final Future<SignInMethods?> Function()? load;
+
+  @override
+  State<SignInMethodsEntry> createState() => _SignInMethodsEntryState();
+}
+
+class _SignInMethodsEntryState extends State<SignInMethodsEntry> {
+  bool _linking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final load = widget.load ?? _read(context.read<ChumbucketSession?>());
+    load().then(
+      (methods) {
+        if (mounted && methods?.linking == true) {
+          setState(() => _linking = true);
+        }
+      },
+      onError: (_) {
+        // Not known is off.
+      },
+    );
+  }
+
+  static Future<SignInMethods?> Function() _read(ChumbucketSession? session) =>
+      () async {
+        if (session == null || !session.isReady) return null;
+        final token = await session.bffAuthToken();
+        if (token == null) return null;
+        final bff = SessionBffClient();
+        try {
+          return await bff.signInMethods(token);
+        } finally {
+          bff.close();
+        }
+      };
+
+  @override
+  Widget build(BuildContext context) =>
+      _linking ? widget.child : const SizedBox.shrink();
+}
+
 class SignInMethodsSheet extends StatelessWidget {
   const SignInMethodsSheet({super.key});
 

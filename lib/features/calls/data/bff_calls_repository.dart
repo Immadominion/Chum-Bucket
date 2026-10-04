@@ -54,6 +54,8 @@
 /// trade (contract §0 invariant 1).
 library;
 
+import 'dart:async';
+
 import 'dart:developer' as developer;
 
 import 'package:http/http.dart' as http;
@@ -113,7 +115,16 @@ class BffCallsRepository
   String? _snapshotViewer;
 
   @override
-  void bindSnapshotViewer(String? userId) => _snapshotViewer = userId;
+  void bindSnapshotViewer(String? userId) {
+    final previous = _snapshotViewer;
+    _snapshotViewer = userId;
+    // Another account on this phone: what the last one saw (its feed, and
+    // its own pending money calls in it) leaves with it, as on sign-out
+    // (AppSignOutEffects wipes the store then).
+    if (previous != null && userId != null && previous != userId) {
+      unawaited(_snapshots?.clear());
+    }
+  }
 
   /// Who was bound, and the store's generation, when a read started.
   ({String? viewer, int? generation}) _begin() => (

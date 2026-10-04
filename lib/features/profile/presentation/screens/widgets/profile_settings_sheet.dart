@@ -55,13 +55,17 @@ class ProfileSettingsSheet extends StatelessWidget {
             ),
             // Every way into this account (wallet, X, Google): signed in
             // with, link, unlink, and moving another account in.
+            // Only when linking is on for this account (it may be on for
+            // admins only); otherwise nothing, as before linking existed.
             if (context.watch<ChumbucketSession?>()?.isReady == true)
-              ProfileMenuItem(
-                basilIcon: 'key-outline',
-                title: 'Sign-in methods',
-                subtitle: 'Wallet, X and Google',
-                iconColor: AppColors.primary,
-                onTap: () => _showSignInMethods(context),
+              SignInMethodsEntry(
+                child: ProfileMenuItem(
+                  basilIcon: 'key-outline',
+                  title: 'Sign-in methods',
+                  subtitle: 'Wallet, X and Google',
+                  iconColor: AppColors.primary,
+                  onTap: () => _showSignInMethods(context),
+                ),
               )
             // Linking Google carries a connected wallet's existing profile;
             // with no wallet connected (a Google or X account) there is

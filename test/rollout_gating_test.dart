@@ -7,7 +7,14 @@ library;
 
 import 'dart:typed_data';
 
+import 'package:chumbucket/core/cache/snapshot_store.dart';
+import 'package:chumbucket/features/authentication/session/app_sign_out.dart';
 import 'package:chumbucket/features/authentication/session/session_bff_client.dart';
+import 'package:chumbucket/features/authentication/session/sign_in_methods.dart';
+import 'package:chumbucket/features/calls/data/bff_calls_repository.dart';
+import 'package:chumbucket/features/calls/data/calls_repository.dart' show CallFeedMode;
+import 'package:chumbucket/features/calls/providers/calls_provider.dart';
+import 'package:chumbucket/features/profile/presentation/screens/widgets/sign_in_methods_sheet.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_payloads.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_composer_sheet.dart';
@@ -23,7 +30,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
-import 'bff_calls_fixtures.dart' show FakeBffServer, okResponse;
+import 'bff_calls_fixtures.dart' show FakeBffServer, feedPageJson, okResponse;
 import 'money_fakes.dart';
 import 'money_widgets_test.dart' show Opener, harness, tradable, usePhone;
 import 'session_fakes.dart' show kAccessToken, kCanonicalUserId, kSessionBase;
@@ -237,6 +244,101 @@ void main() {
       // Nothing money-shaped was even read for this account.
       expect(server.count('money.wallet'), 0);
       expect(server.count('money.winnings'), 0);
+    });
+  });
+
+  group('Sign-in methods follow the linking status for this account', () {
+    Future<void> pump(
+      WidgetTester tester,
+      Future<SignInMethods?> Function() load,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SignInMethodsEntry(load: load, child: const Text('Sign-in methods')),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('linking off: the whole section is hidden, read-only row too', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        () async => const SignInMethods(rows: [], linking: false, fold: false),
+      );
+      expect(find.text('Sign-in methods'), findsNothing);
+    });
+
+    testWidgets('not known is off', (tester) async {
+      await pump(tester, () async => throw Exception('offline'));
+      expect(find.text('Sign-in methods'), findsNothing);
+      await pump(tester, () async => null);
+      expect(find.text('Sign-in methods'), findsNothing);
+    });
+
+    testWidgets('linking on: the row shows', (tester) async {
+      await pump(
+        tester,
+        () async => const SignInMethods(rows: [], linking: true, fold: false),
+      );
+      expect(find.text('Sign-in methods'), findsOneWidget);
+    });
+  });
+
+  group('the owner\'s pending money call in the saved feed', () {
+    final withPending = feedPageJson(
+      entries: [
+        pantaEntryJson(
+          money: {
+            'state': 'PENDING',
+            'amountBaseUnits': '5000000',
+            'side': 'YES',
+            'expiresAt': moneyNow,
+          },
+        ),
+      ],
+      nextCursor: null,
+    );
+
+    BffCallsRepository repo(SnapshotStore store) => BffCallsRepository(
+      baseUrl: 'https://bff.test.invalid',
+      httpClient: FakeBffServer.routes({'calls.feed': withPending}).client,
+      authToken: () => 'session-token',
+      verbose: false,
+      snapshots: store,
+    );
+
+    test('another account on this phone: cleared', () async {
+      final store = MemorySnapshotStore();
+      final calls = CallsProvider(repository: repo(store))..setViewer(viewerId);
+      addTearDown(calls.dispose);
+      await calls.loadFeed();
+      final source = calls.repository as BffCallsRepository;
+      final saved = await source.savedFeed(mode: CallFeedMode.global);
+      expect(saved!.entries.single.money!.pending, isTrue);
+
+      calls.setViewer('user_other');
+      await Future<void>.delayed(Duration.zero);
+      expect(store.keys, isEmpty);
+      calls.setViewer(viewerId);
+      expect(await source.savedFeed(mode: CallFeedMode.global), isNull);
+    });
+
+    test('sign-out wipes the saved reads, pending money with them', () async {
+      final store = MemorySnapshotStore();
+      final source = repo(store)..bindSnapshotViewer(viewerId);
+      await source.fetchFeed(mode: CallFeedMode.global, viewerUserId: viewerId);
+      expect(store.keys, isNotEmpty);
+      await store.clear(); // what AppSignOutEffects does to the device store
+      expect(await source.savedFeed(mode: CallFeedMode.global), isNull);
+
+      // And the app's sign-out does wipe the device store.
+      final before = SnapshotStore.device.generation;
+      AppSignOutEffects().clearSharedState();
+      expect(SnapshotStore.device.generation, before + 1);
     });
   });
 }
