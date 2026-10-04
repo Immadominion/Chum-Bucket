@@ -74,8 +74,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await scrollTo(tester, find.text('Read the full market rules'));
-      await tester.tap(find.text('Read the full market rules'));
+      await scrollTo(tester, find.text('Rules & details'));
+      await tester.tap(find.text('Rules & details'));
       await tester.pumpAndSettle();
       final rules = tester.widget<SelectableText>(find.byType(SelectableText));
       expect(rules.data, market.rulesText);
@@ -86,7 +86,7 @@ void main() {
       );
     });
 
-    testWidgets('shows close time, data age, YES/NO price and venue', (
+    testWidgets('shows close time, YES/NO price and venue, no data age', (
       tester,
     ) async {
       usePhoneSurface(tester);
@@ -99,14 +99,16 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining('Closes '), findsWidgets);
-      expect(find.textContaining('Price 2m old'), findsOneWidget);
+      // Kept current in the background, never captioned with its age.
+      expect(find.textContaining(' old'), findsNothing);
+      expect(find.textContaining('updated'), findsNothing);
       expect(find.text('YES 38% · NO 62%'), findsOneWidget);
       // Demo catalog, because every market the mock serves is invented.
       expect(find.text('Demo catalog'), findsOneWidget);
       expect(find.text('Open'), findsOneWidget);
     });
 
-    testWidgets('a stale price is flagged as stale', (tester) async {
+    testWidgets('an old demo price is never labelled stale', (tester) async {
       usePhoneSurface(tester);
       await tester.pumpWidget(
         harness(
@@ -116,8 +118,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Stale'), findsOneWidget);
-      expect(find.textContaining('Price 5h old'), findsOneWidget);
+      expect(find.text('Stale'), findsNothing);
+      expect(find.textContaining('Price 5h old'), findsNothing);
+      expect(find.textContaining('Demo data'), findsOneWidget);
     });
 
     testWidgets('a fixture market is labelled DEMO DATA', (tester) async {
@@ -131,7 +134,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.text('DEMO DATA · Sample market, not a live venue or trade.'),
+        find.text('Demo data · not a live venue or trade'),
         findsOneWidget,
       );
       expect(find.text('Demo catalog'), findsOneWidget);
@@ -194,7 +197,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Community opinion'), findsNothing);
+      expect(find.text('How people called'), findsNothing);
       expect(find.text('Make a call'), findsOneWidget);
     });
 
@@ -214,13 +217,12 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await scrollTo(tester, find.text('Community opinion'));
+      await scrollTo(tester, find.text('How people called'));
 
-      expect(find.text('Community opinion'), findsOneWidget);
+      expect(find.text('How people called'), findsOneWidget);
+      final total = provider.marketDetail('market_btc_150k')!.crowdSplit!.total;
       expect(
-        find.text(
-          '${provider.marketDetail('market_btc_150k')!.crowdSplit!.total} calls returned for this market · not venue odds',
-        ),
+        find.text('$total ${total == 1 ? 'call' : 'calls'}'),
         findsOneWidget,
       );
       // Already on record, so the composer entry point is gone.

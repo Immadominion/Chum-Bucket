@@ -6,27 +6,32 @@ import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 
 /// Presentation windows only. Server eligibility still governs every write.
 enum MarketDiscoveryWindow {
-  all('All dates', null),
-  endingSoon('Ending soon', Duration(hours: 48)),
-  thisWeek('This week', Duration(days: 7));
+  all('Any time', null, 'clock-outline'),
+  endingSoon('Ending soon', Duration(hours: 48), 'sand-watch-outline'),
+  thisWeek('This week', Duration(days: 7), 'calendar-outline');
 
-  const MarketDiscoveryWindow(this.label, this.horizon);
+  const MarketDiscoveryWindow(this.label, this.horizon, this.icon);
   final String label;
   final Duration? horizon;
+
+  /// The Basil icon drawn beside [label] in the filter sheet and its pill.
+  final String icon;
 }
 
 /// Discovery order. "Most active" uses only the venue's own reported volume
 /// ([VenueMarket.volumeUsdc]); a market without one sorts after those with
 /// one, soonest-closing first, rather than being treated as zero.
 enum MarketDiscoverySort {
-  closingSoon('Closing soon'),
-  mostActive('Most active');
+  closingSoon('Closing soon', 'timer-outline'),
+  mostActive('Most active', 'pulse-outline');
 
-  const MarketDiscoverySort(this.label);
+  const MarketDiscoverySort(this.label, this.icon);
   final String label;
+  final String icon;
 }
 
 const _farFuture = 9223372036854775807;
@@ -107,8 +112,8 @@ bool discoveryHasActivity(Iterable<VenueMarket> markets, {DateTime? now}) {
 /// One category the venue actually has open, with how many markets it holds.
 typedef MarketCategoryCount = ({String category, int count});
 
-/// Category chips come from the open markets themselves — never a fixed
-/// list — so every chip leads somewhere and no live category is missing.
+/// Topic choices come from the open markets themselves — never a fixed
+/// list — so every choice leads somewhere and no live category is missing.
 List<MarketCategoryCount> discoveryCategories(
   Iterable<VenueMarket> markets, {
   DateTime? now,
@@ -129,21 +134,36 @@ List<MarketCategoryCount> discoveryCategories(
   });
 }
 
-/// "6 open markets · soonest to close first", or "2 of 6 …" while a filter or
-/// search narrows them. Counts only what discovery holds — never a venue total
-/// the app has not actually loaded.
-String discoveryCountLabel({
-  required int shown,
-  required int open,
-  MarketDiscoverySort sort = MarketDiscoverySort.closingSoon,
-}) {
-  final noun = open == 1 ? 'open market' : 'open markets';
-  final count = shown == open ? '$open $noun' : '$shown of $open $noun';
-  return '$count · ${switch (sort) {
-    MarketDiscoverySort.closingSoon => 'soonest to close first',
-    MarketDiscoverySort.mostActive => 'most active first',
-  }}';
+/// How long a market has left, as a row shows it: "45m left", "6h left",
+/// "3d left", then the date once it is more than two weeks out. Null without
+/// a published close. The exact UTC time is the row's spoken label and
+/// market detail's fact.
+String? marketTimeLeft(DateTime? closesAt, {DateTime? now}) {
+  if (closesAt == null) return null;
+  final reference = (now ?? DateTime.now()).toUtc();
+  final left = closesAt.toUtc().difference(reference);
+  if (left <= Duration.zero) return 'Closed';
+  if (left.inMinutes < 60) {
+    return '${left.inMinutes < 1 ? 1 : left.inMinutes}m left';
+  }
+  if (left.inHours < 48) return '${left.inHours}h left';
+  if (left.inDays <= 14) return '${left.inDays}d left';
+  return 'Ends ${DateFormat('d MMM').format(closesAt.toUtc())}';
 }
+
+/// Under a day to go: the row's time reads in the brand's ink.
+bool marketEndingSoon(DateTime? closesAt, {DateTime? now}) {
+  if (closesAt == null) return false;
+  final left = closesAt.toUtc().difference((now ?? DateTime.now()).toUtc());
+  return left > Duration.zero && left < const Duration(hours: 24);
+}
+
+/// How long a list keeps showing a market's last good price while newer ones
+/// are fetched in the background. Older than this it reads "—": a quiet
+/// absence, never a warning, and never an old number passed off as current.
+/// Anything that acts on a price (the composer, a trade) still checks its own
+/// ten-minute validity.
+const marketPriceShownFor = Duration(hours: 1);
 
 /// "pop-culture" → "Pop culture". The venue's slug, made readable; never a
 /// renamed or merged category.
@@ -153,102 +173,10 @@ String marketCategoryLabel(String category) {
   return words[0].toUpperCase() + words.substring(1).toLowerCase();
 }
 
-class MarketWindowFilters extends StatelessWidget {
-  const MarketWindowFilters({
-    super.key,
-    required this.selected,
-    required this.onChanged,
-  });
-  final MarketDiscoveryWindow selected;
-  final ValueChanged<MarketDiscoveryWindow> onChanged;
-
-  @override
-  Widget build(BuildContext context) => Wrap(
-    spacing: 6,
-    runSpacing: 6,
-    children: [
-      for (final window in MarketDiscoveryWindow.values)
-        Semantics(
-          selected: selected == window,
-          child: MarketFilterChip(
-            label: window.label,
-            selected: selected == window,
-            onPressed: () => onChanged(window),
-          ),
-        ),
-    ],
-  );
-}
-
-/// "All" plus one chip per category the open catalog actually has, with its
-/// market count. One scrolling row: it never wraps the list down the screen,
-/// and at 2x text the row simply grows taller and scrolls further.
-class MarketCategoryFilters extends StatelessWidget {
-  const MarketCategoryFilters({
-    super.key,
-    required this.categories,
-    required this.selected,
-    required this.onChanged,
-    this.padding = EdgeInsets.zero,
-    this.forYouSelected,
-    this.onForYou,
-  });
-
-  final List<MarketCategoryCount> categories;
-
-  /// The selected category slug, or null for every category.
-  final String? selected;
-  final ValueChanged<String?> onChanged;
-
-  /// "For you" (the person's chosen topics first) leads the row when given.
-  /// While it is on, no other chip is selected.
-  final bool? forYouSelected;
-  final VoidCallback? onForYou;
-
-  /// Lets the row scroll edge to edge while its first chip aligns with the
-  /// page gutter.
-  final EdgeInsets padding;
-
-  Widget _chip(String label, bool isSelected, VoidCallback onPressed) =>
-      Padding(
-        padding: const EdgeInsets.only(right: 6),
-        child: Semantics(
-          selected: isSelected,
-          child: MarketFilterChip(
-            label: label,
-            selected: isSelected,
-            onPressed: onPressed,
-          ),
-        ),
-      );
-
-  @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-    scrollDirection: Axis.horizontal,
-    padding: padding,
-    child: Row(
-      children: [
-        if (forYouSelected != null && onForYou != null)
-          _chip('For you', forYouSelected!, onForYou!),
-        _chip(
-          'All categories',
-          selected == null && forYouSelected != true,
-          () => onChanged(null),
-        ),
-        for (final entry in categories)
-          _chip(
-            '${marketCategoryLabel(entry.category)} · ${entry.count}',
-            selected == entry.category && forYouSelected != true,
-            () => onChanged(selected == entry.category ? null : entry.category),
-          ),
-      ],
-    ),
-  );
-}
-
-/// The prototype's filter chip: an outline on the page, 40dp drawn, a 48dp
-/// touch target. Its label is 12sp — one up from the prototype's 11px, the
-/// smallest size Android recommends for a control.
+/// The app's filter chip: an outline on the page, 40dp drawn, a 48dp touch
+/// target, dark when selected. Its label is 12sp — the smallest size Android
+/// recommends for a control. [icon] leads the label and [count] trails it, so
+/// a choice reads at a glance without a sentence around it.
 class MarketFilterChip extends StatelessWidget {
   const MarketFilterChip({
     super.key,
@@ -256,6 +184,8 @@ class MarketFilterChip extends StatelessWidget {
     required this.selected,
     required this.onPressed,
     this.dense = false,
+    this.icon,
+    this.count,
   });
   final String label;
   final bool selected;
@@ -265,52 +195,78 @@ class MarketFilterChip extends StatelessWidget {
   /// chip row. Same 48dp touch target.
   final bool dense;
 
-  @override
-  Widget build(BuildContext context) => OutlinedButton(
-    onPressed: onPressed,
-    style: OutlinedButton.styleFrom(
-      minimumSize: Size(48, dense ? 32 : 40),
-      // Drawn smaller; the padded tap target keeps it at 48dp to touch.
-      tapTargetSize: MaterialTapTargetSize.padded,
-      padding:
-          dense
-              ? const EdgeInsets.symmetric(horizontal: 10, vertical: 6)
-              : const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      backgroundColor: selected ? AppColors.textPrimary : Colors.transparent,
-      foregroundColor: selected ? AppColors.surface : AppColors.textPrimary,
-      side: BorderSide(
-        color: selected ? AppColors.textPrimary : const Color(0xFFD8DADD),
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(dense ? 10 : 12),
-      ),
-      textStyle: GoogleFonts.montserrat(
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
-      ),
-    ),
-    child: Text(label),
-  );
-}
+  /// A Basil icon slug drawn before the label.
+  final String? icon;
 
-/// One attribution/unit legend for the catalog, rather than one per row.
-/// Panta's API terms §6 allow attribution on the relevant market module.
-class MarketCatalogLegend extends StatelessWidget {
-  const MarketCatalogLegend({super.key});
+  /// A quiet figure after the label: how many markets the choice holds.
+  final int? count;
 
   @override
-  Widget build(BuildContext context) => Text(
-    '${SharePriceSnapshot.attribution} · Prices in USDC/share',
-    style: AppTextStyles.textTheme.bodySmall?.copyWith(
-      color: AppColors.textSecondary,
-    ),
-  );
+  Widget build(BuildContext context) {
+    final ink = selected ? AppColors.surface : AppColors.textPrimary;
+    return Semantics(
+      selected: selected,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          minimumSize: Size(48, dense ? 32 : 40),
+          // Drawn smaller; the padded tap target keeps it at 48dp to touch.
+          tapTargetSize: MaterialTapTargetSize.padded,
+          padding:
+              dense
+                  ? const EdgeInsets.symmetric(horizontal: 10, vertical: 6)
+                  : const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          backgroundColor:
+              selected ? AppColors.textPrimary : Colors.transparent,
+          foregroundColor: ink,
+          side: BorderSide(
+            color: selected ? AppColors.textPrimary : const Color(0xFFD8DADD),
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(dense ? 10 : 12),
+          ),
+          textStyle: GoogleFonts.montserrat(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        child:
+            icon == null && count == null
+                ? Text(label)
+                : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (icon != null) ...[
+                      BasilIcon(icon!, size: 16, color: ink),
+                      const SizedBox(width: 6),
+                    ],
+                    Flexible(child: Text(label)),
+                    if (count != null) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        '$count',
+                        style: GoogleFonts.montserrat(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color:
+                              selected
+                                  ? AppColors.surface.withValues(alpha: .7)
+                                  : AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+      ),
+    );
+  }
 }
 
-/// A flat catalog row, laid out as Codex's prototype draws it: a tinted glyph
-/// beside the complete question and its close time, then the venue's two
-/// prices as aligned cells. Only an actual Panta snapshot supplies prices; the
-/// parent catalog supplies [MarketCatalogLegend]; detail keeps full units.
+/// A flat catalog row: a tinted glyph beside the complete question and the
+/// time it has left, then the venue's two prices as aligned cells. No
+/// attribution, units or freshness text per row — the list carries none, and
+/// market detail names the venue once. A missing or long-outdated price reads
+/// "—"; prices refresh in the background ([CallsProvider.refreshPriceIfStale]).
 class CallMarketCard extends StatelessWidget {
   const CallMarketCard({
     super.key,
@@ -324,63 +280,127 @@ class CallMarketCard extends StatelessWidget {
   final SharePriceSnapshot? sharePrice;
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: AppColors.surface,
-    child: InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 18),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                MarketGlyph(market: market),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        market.question,
-                        style: AppTextStyles.marketRowQuestion,
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        market.closesAtUtc == null
-                            ? 'Close time unavailable'
-                            : 'Closes ${CallsFormat.timestampShortUtc(market.closesAtUtc!)}',
-                        // 12, not the prototype's 11px: the metadata floor
-                        // in docs/design-audit-2026-10-01.md.
-                        style: GoogleFonts.montserrat(
-                          fontSize: 12,
-                          height: 1.45,
-                          color: AppColors.textSecondary,
+  Widget build(BuildContext context) {
+    final close = market.closesAtUtc;
+    final left = marketTimeLeft(close);
+    final soon = marketEndingSoon(close);
+    final timeInk = soon ? AppColors.pinkInk : AppColors.textSecondary;
+    return Material(
+      color: AppColors.surface,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(15, 16, 15, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  MarketGlyph(market: market),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          market.question,
+                          style: AppTextStyles.marketRowQuestion,
                         ),
-                      ),
-                    ],
+                        if (left != null) ...[
+                          const SizedBox(height: 6),
+                          Semantics(
+                            label:
+                                'Closes ${CallsFormat.timestampShortUtc(close!)}',
+                            excludeSemantics: true,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                BasilIcon(
+                                  'clock-outline',
+                                  size: 14,
+                                  color: timeInk,
+                                ),
+                                const SizedBox(width: 4),
+                                Flexible(
+                                  child: Text(
+                                    left,
+                                    style: GoogleFonts.montserrat(
+                                      fontSize: 12,
+                                      height: 1.3,
+                                      fontWeight:
+                                          soon
+                                              ? FontWeight.w500
+                                              : FontWeight.w400,
+                                      color: timeInk,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            if (market.venue == MarketVenue.panta)
-              MarketSharePrices(
-                snapshot: sharePrice?.marketId == market.id ? sharePrice : null,
-              )
-            else
-              Text(
-                market.venue.isDemo
-                    ? 'DEMO DATA · ${market.status.label} · No live share prices'
-                    : '${market.venue.label} · ${market.status.label}',
-                style: AppTextStyles.textTheme.bodySmall?.copyWith(
-                  color: AppColors.onWarningContainer,
-                ),
+                ],
               ),
-          ],
+              const SizedBox(height: 12),
+              if (market.venue == MarketVenue.panta)
+                MarketSharePrices(
+                  snapshot:
+                      sharePrice?.marketId == market.id ? sharePrice : null,
+                )
+              else
+                MarketDemoTag(
+                  label:
+                      market.venue.isDemo
+                          ? 'Demo data · no live prices'
+                          : market.venue.label,
+                ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+/// A small tag that keeps sample data visibly sample — never a live market.
+class MarketDemoTag extends StatelessWidget {
+  const MarketDemoTag({super.key, required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Align(
+    alignment: Alignment.centerLeft,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.warningContainer,
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const BasilIcon(
+            'info-circle-outline',
+            size: 14,
+            color: AppColors.onWarningContainer,
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              style: GoogleFonts.montserrat(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: AppColors.onWarningContainer,
+              ),
+            ),
+          ),
+        ],
       ),
     ),
   );
@@ -484,32 +504,38 @@ class MarketGlyph extends StatelessWidget {
 }
 
 /// The venue's two independent prices. Each side is its own decimal string —
-/// NO is never derived from YES, and a missing side reads "Price unavailable",
-/// never zero. Rows show them rounded to two decimals for reading
-/// ([CallsFormat.displayPrice]); the expanded detail also states the exact
-/// venue figures whenever rounding changed them. Catalog prices are
-/// indicative, never executable quotes.
+/// NO is never derived from YES, and a side the venue did not publish (or a
+/// price older than [marketPriceShownFor]) reads "—", never zero and never a
+/// warning. Prices read rounded to two decimals ([CallsFormat.displayPrice]);
+/// market detail keeps the venue's exact figures behind its details.
+/// Catalog prices are indicative, never executable quotes.
 class MarketSharePrices extends StatelessWidget {
   const MarketSharePrices({super.key, this.snapshot, this.expanded = false});
   final SharePriceSnapshot? snapshot;
   final bool expanded;
 
-  // Codex's prototype: a quiet tinted cell per side, the side's ink on both
-  // its label and its figure. Both inks clear 6:1 on their fills.
-  static const _yesFill = Color(0xFFF4F6F5);
+  // A quiet tinted cell per side, the side's ink on both its label and its
+  // figure. Both inks clear 6:1 on their fills.
+  static const _yesFill = Color(0xFFE6F6EF);
   static const _yesInk = Color(0xFF07644C);
-  static const _noFill = Color(0xFFF0F1F4);
-  static const _noInk = Color(0xFF34404F);
+  static const _noFill = Color(0xFFEEF0F4);
+  static const _noInk = Color(0xFF334155);
 
-  String? _shown(Side side) {
-    final value = snapshot?.priceFor(side);
-    return value == null ? null : CallsFormat.displayPrice(value);
+  String? _shown(Side side, DateTime now) {
+    final snap = snapshot;
+    final value = snap?.priceFor(side);
+    if (snap == null || value == null) return null;
+    // Stamped a little ahead of this device's clock still counts as new.
+    if (now.toUtc().difference(snap.observedAtUtc) > marketPriceShownFor) {
+      return null;
+    }
+    return CallsFormat.displayPrice(value);
   }
 
-  Widget _cell(Side side, {required bool large}) {
+  Widget _cell(Side side, DateTime now, {required bool large}) {
     final yes = side == Side.yes;
     final ink = yes ? _yesInk : _noInk;
-    final shown = _shown(side);
+    final shown = _shown(side, now);
     final label = Text(
       side.wire,
       style: GoogleFonts.montserrat(
@@ -519,24 +545,19 @@ class MarketSharePrices extends StatelessWidget {
       ),
     );
     final figure = Text(
-      shown ?? 'Price unavailable',
+      shown ?? '—',
       textAlign: large ? TextAlign.start : TextAlign.end,
       semanticsLabel:
           shown == null
               ? 'Price unavailable'
               : '$shown USDC per share, indicative',
-      style:
-          shown == null
-              ? AppTextStyles.textTheme.bodySmall?.copyWith(
-                color: AppColors.textSecondary,
-              )
-              : TextStyle(
-                fontFamily: 'PPNeueMachina',
-                fontSize: large ? 26 : 14,
-                fontWeight: FontWeight.w800,
-                height: large ? 1.15 : 1.2,
-                color: ink,
-              ),
+      style: TextStyle(
+        fontFamily: 'PPNeueMachina',
+        fontSize: large ? 26 : 14,
+        fontWeight: FontWeight.w800,
+        height: large ? 1.15 : 1.2,
+        color: shown == null ? ink.withValues(alpha: .45) : ink,
+      ),
     );
     return Container(
       padding: EdgeInsets.all(large ? 12 : 10),
@@ -562,95 +583,48 @@ class MarketSharePrices extends StatelessWidget {
     );
   }
 
-  Widget _pair(BuildContext context, {required bool large}) => LayoutBuilder(
-    builder: (context, constraints) {
-      // Side by side until large text or a narrow column would squeeze a
-      // figure; then stacked, never ellipsised.
-      final stack =
-          MediaQuery.textScalerOf(context).scale(large ? 18 : 14) >
-              (large ? 27 : 21) ||
-          constraints.maxWidth < 250;
-      return stack
-          ? Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _cell(Side.yes, large: large),
-              const SizedBox(height: 8),
-              _cell(Side.no, large: large),
-            ],
-          )
-          : Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: _cell(Side.yes, large: large)),
-              const SizedBox(width: 8),
-              Expanded(child: _cell(Side.no, large: large)),
-            ],
-          );
-    },
-  );
-
   @override
   Widget build(BuildContext context) {
-    final observed = snapshot?.observedAtUtc;
-    final fresh = snapshot?.isUsableAt(DateTime.now()) ?? false;
-    if (!expanded) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _pair(context, large: false),
-          if (snapshot != null && !fresh) ...[
-            const SizedBox(height: 6),
-            Text(
-              'Last updated ${CallsFormat.timestampShortUtc(snapshot!.observedAtUtc)} · stale or incomplete',
-              style: AppTextStyles.textTheme.bodySmall?.copyWith(
-                color: AppColors.onWarningContainer,
-              ),
-            ),
-          ],
-        ],
-      );
-    }
-    final yes = snapshot?.yesPrice;
-    final no = snapshot?.noPrice;
-    final rounded =
-        (yes != null && CallsFormat.priceWasRounded(yes)) ||
-        (no != null && CallsFormat.priceWasRounded(no));
+    final now = DateTime.now();
+    final large = expanded;
+    final pair = LayoutBuilder(
+      builder: (context, constraints) {
+        // Side by side until large text or a narrow column would squeeze a
+        // figure; then stacked, never ellipsised.
+        final stack =
+            MediaQuery.textScalerOf(context).scale(large ? 18 : 14) >
+                (large ? 27 : 21) ||
+            constraints.maxWidth < 250;
+        return stack
+            ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _cell(Side.yes, now, large: large),
+                const SizedBox(height: 8),
+                _cell(Side.no, now, large: large),
+              ],
+            )
+            : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: _cell(Side.yes, now, large: large)),
+                const SizedBox(width: 8),
+                Expanded(child: _cell(Side.no, now, large: large)),
+              ],
+            );
+      },
+    );
+    if (!expanded) return pair;
+    // Detail names the venue once — Panta's API terms (§6) ask for the
+    // attribution on the market module — and nothing more: the unit is in
+    // each figure's spoken label and in Rules & details, not a caption.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _pair(context, large: true),
+        pair,
         const SizedBox(height: 8),
-        // One caption, as the prototype has it: who, the unit, how fresh.
         Text(
-          '${SharePriceSnapshot.attribution} · USDC per share'
-          '${observed != null && fresh ? ' · updated ${CallsFormat.relative(observed)}' : ''}',
-          style: AppTextStyles.textTheme.bodySmall?.copyWith(
-            color: AppColors.textSecondary,
-          ),
-        ),
-        if (rounded)
-          // The figures above are rounded for reading; the venue's own values
-          // stay one glance away, unaltered.
-          Text(
-            'Exact: YES ${yes ?? 'unavailable'} · NO ${no ?? 'unavailable'}',
-            style: AppTextStyles.textTheme.bodySmall?.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-        if (observed != null && !fresh)
-          Text(
-            'Last updated ${CallsFormat.timestampUtc(observed)} · stale or incomplete',
-            style: AppTextStyles.textTheme.bodySmall?.copyWith(
-              color: AppColors.onWarningContainer,
-            ),
-          ),
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 14),
-          child: Divider(height: 1, color: AppColors.outlineVariant),
-        ),
-        Text(
-          'Independent venue prices. Indicative, not a trade quote.',
+          SharePriceSnapshot.attribution,
           style: AppTextStyles.textTheme.bodySmall?.copyWith(
             color: AppColors.textSecondary,
           ),

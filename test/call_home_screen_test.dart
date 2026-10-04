@@ -392,7 +392,8 @@ void main() {
     await select(tester, 1);
     expect(arena.matchdayLoads, 0);
     expect(find.text("Today's matches"), findsNothing);
-    expect(find.textContaining('Powered by Panta'), findsOneWidget);
+    // The list names no venue per row or per screen; detail does, once.
+    expect(find.textContaining('Powered by Panta'), findsNothing);
     expect(find.byType(CallMarketCard), findsOneWidget);
     expect(server.requestFor('predictions.catalog').input, {
       'limit': 100,
@@ -450,20 +451,20 @@ void main() {
       usePantaCatalog(fail: () => failing);
       await mount(tester);
       await select(tester, 1);
-      expect(find.text('Markets are temporarily unavailable.'), findsOneWidget);
+      expect(find.text("Markets didn't load"), findsOneWidget);
       expect(arena.matchdayLoads, 0);
       failing = false;
       await tester.tap(find.text('Try again'));
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
-      expect(find.textContaining('Powered by Panta'), findsOneWidget);
+      expect(find.byType(CallMarketCard), findsOneWidget);
       expect(arena.matchdayLoads, 0);
       expect(tester.takeException(), isNull);
     },
   );
 
   testWidgets(
-    'Markets keeps last catalog visible with a failed refresh notice',
+    'Markets keeps last catalog visible when a refresh fails, silently',
     (tester) async {
       var failing = false;
       usePantaCatalog(fail: () => failing);
@@ -473,7 +474,8 @@ void main() {
       await calls.loadOpenMarkets(force: true);
       await tester.pump();
       expect(find.byType(CallMarketCard), findsOneWidget);
-      expect(find.text('Markets are temporarily unavailable.'), findsOneWidget);
+      expect(find.text('Markets are temporarily unavailable.'), findsNothing);
+      expect(find.text('Retry'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
@@ -484,7 +486,7 @@ void main() {
       usePantaCatalog(empty: true);
       await mount(tester);
       await select(tester, 1);
-      expect(find.text('No open markets match these filters'), findsOneWidget);
+      expect(find.text('No open markets right now'), findsOneWidget);
       expect(find.byType(CallMarketCard), findsNothing);
       await select(tester, 0);
       await tester.pump(const Duration(milliseconds: 400));
@@ -585,43 +587,44 @@ void main() {
     expect(find.byType(ProfileScreen), findsOneWidget);
   });
 
-  testWidgets('both earlier history routes remain reachable from Settings → History', (
-    tester,
-  ) async {
-    await mount(tester);
-    await select(tester, 3);
-    // Escrow challenges and Arena predictions left the profile tabs; they
-    // live, read-only, in Settings → History.
-    expect(find.text('Challenges'), findsNothing);
-    await tester.tap(find.byTooltip('Settings'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('History'));
-    await tester.tap(find.text('History'));
-    await tester.pumpAndSettle();
-    expect(find.byType(LegacyHistoryScreen), findsOneWidget);
+  testWidgets(
+    'both earlier history routes remain reachable from Settings → History',
+    (tester) async {
+      await mount(tester);
+      await select(tester, 3);
+      // Escrow challenges and Arena predictions left the profile tabs; they
+      // live, read-only, in Settings → History.
+      expect(find.text('Challenges'), findsNothing);
+      await tester.tap(find.byTooltip('Settings'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('History'));
+      await tester.tap(find.text('History'));
+      await tester.pumpAndSettle();
+      expect(find.byType(LegacyHistoryScreen), findsOneWidget);
 
-    await tester.tap(find.text('Arena predictions'));
-    await tester.pumpAndSettle();
-    expect(find.byType(MyPotsScreen), findsOneWidget);
-    Navigator.of(tester.element(find.byType(MyPotsScreen))).pop();
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Arena predictions'));
+      await tester.pumpAndSettle();
+      expect(find.byType(MyPotsScreen), findsOneWidget);
+      Navigator.of(tester.element(find.byType(MyPotsScreen))).pop();
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Escrow challenges'));
-    await tester.pumpAndSettle();
-    expect(find.byType(ChallengeHistoryScreen), findsOneWidget);
-    Navigator.of(tester.element(find.byType(ChallengeHistoryScreen))).pop();
-    await tester.pumpAndSettle();
-    Navigator.of(tester.element(find.byType(LegacyHistoryScreen))).pop();
-    await tester.pumpAndSettle();
-    expect(
-      tester
-          .widget<ChumbucketBottomNavigation>(
-            find.byType(ChumbucketBottomNavigation),
-          )
-          .selectedIndex,
-      3,
-    );
-  });
+      await tester.tap(find.text('Escrow challenges'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ChallengeHistoryScreen), findsOneWidget);
+      Navigator.of(tester.element(find.byType(ChallengeHistoryScreen))).pop();
+      await tester.pumpAndSettle();
+      Navigator.of(tester.element(find.byType(LegacyHistoryScreen))).pop();
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<ChumbucketBottomNavigation>(
+              find.byType(ChumbucketBottomNavigation),
+            )
+            .selectedIndex,
+        3,
+      );
+    },
+  );
 
   testWidgets('preview feed stays inside the existing shell', (tester) async {
     await mount(tester);
@@ -640,7 +643,11 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     expect(find.byType(TextField), findsOneWidget);
     expect(calls.openMarkets, isNotEmpty);
+    await tester.tap(find.byKey(const ValueKey('market-filters-button')));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('This week'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Show markets'));
     await tester.pumpAndSettle();
     final question =
         calls.openMarkets

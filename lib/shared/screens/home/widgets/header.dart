@@ -56,7 +56,7 @@ class ChumbucketAppHeader extends StatelessWidget {
           if (title != null) ...[
             if (showAccountActions) SizedBox(width: 12.w),
             // One word, one line: at large text the title shrinks to fit
-            // rather than breaking mid-word beside the icons.
+            // rather than breaking mid-word beside the icons ("Market / s").
             Expanded(
               child: Semantics(
                 header: true,
@@ -66,6 +66,7 @@ class ChumbucketAppHeader extends StatelessWidget {
                   child: Text(
                     title!,
                     maxLines: 1,
+                    softWrap: false,
                     style: AppTextStyles.pageTitle,
                   ),
                 ),

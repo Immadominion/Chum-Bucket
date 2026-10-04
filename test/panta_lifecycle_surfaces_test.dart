@@ -254,14 +254,9 @@ void main() {
         ),
       );
       expect(find.byKey(const ValueKey('market-call-window')), findsOneWidget);
+      expect(find.text('Calls closed'), findsOneWidget);
       expect(
-        find.text('Calls closed 30 min before the market closes.'),
-        findsOneWidget,
-      );
-      expect(
-        find.text(
-          'Calls are closed: they close 30 min before the market does.',
-        ),
+        find.text('Calls close 30 min before the market does.'),
         findsOneWidget,
       );
     });
@@ -278,11 +273,9 @@ void main() {
           callCutoffMs: 30 * 60000,
         ),
       );
-      expect(
-        find.textContaining('min before the market closes'),
-        findsOneWidget,
-      );
+      expect(find.byKey(const ValueKey('market-call-window')), findsOneWidget);
       expect(find.textContaining('Calls close '), findsOneWidget);
+      expect(find.text('Calls closed'), findsNothing);
     });
 
     testWidgets(
@@ -292,23 +285,13 @@ void main() {
           tester,
           MarketDetail(market: pantaMarket(), snapshot: null, servedAt: _now),
         );
-        await tester.ensureVisible(find.text('Read the full market rules'));
-        await tester.tap(find.text('Read the full market rules'));
+        expect(find.text(_venueMarketId), findsNothing);
+        await tester.ensureVisible(find.text('Rules & details'));
+        await tester.tap(find.text('Rules & details'));
         await tester.pumpAndSettle();
         expect(find.text('Resolved by '), findsOneWidget);
         expect(find.textContaining('live-api'), findsNothing);
         expect(find.textContaining('Resolution source'), findsNothing);
-        await tester.scrollUntilVisible(
-          find.text('Market IDs'),
-          200,
-          scrollable: find.byType(Scrollable).first,
-        );
-        // Clear the bottom action bar before tapping.
-        await tester.drag(find.byType(Scrollable).first, const Offset(0, -400));
-        await tester.pumpAndSettle();
-        expect(find.text(_venueMarketId), findsNothing);
-        await tester.tap(find.text('Market IDs'));
-        await tester.pumpAndSettle();
         await tester.scrollUntilVisible(
           find.text(_venueMarketId),
           200,

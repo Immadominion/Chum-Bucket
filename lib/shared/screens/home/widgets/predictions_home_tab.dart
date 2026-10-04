@@ -16,7 +16,7 @@ import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/features/calls/presentation/screens/market_detail_screen.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_market_card.dart';
-import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/market_state_view.dart';
 import 'package:chumbucket/shared/providers/challenge_state_provider.dart';
 import 'package:chumbucket/shared/screens/home/widgets/challenges_preview.dart';
 import 'package:chumbucket/shared/screens/home/widgets/header.dart';
@@ -356,19 +356,6 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
                         action: 'See calls',
                         onAction: widget.onViewCalls,
                       ),
-                      Text(
-                        'Pick a question. Put your call on record.',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 13.sp,
-                        ),
-                      ),
-                      if (markets.any(
-                        (market) => market.venue == MarketVenue.panta,
-                      )) ...[
-                        SizedBox(height: 8.h),
-                        const MarketCatalogLegend(),
-                      ],
                     ],
                   ),
                 ),
@@ -386,18 +373,18 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
                 )
               else if (calls.openMarketsError != null && markets.isEmpty)
                 SliverToBoxAdapter(
-                  child: CallsErrorView(
-                    message: calls.openMarketsError!,
-                    onRetry: () => _load(force: true),
+                  child: MarketStateView(
+                    artwork: ChumbucketStateArtwork.error,
+                    line: 'Markets didn\'t load',
+                    actionLabel: 'Try again',
+                    onAction: () => _load(force: true),
                   ),
                 )
               else if (markets.isEmpty)
-                SliverToBoxAdapter(
-                  child: CallsEmptyView(
+                const SliverToBoxAdapter(
+                  child: MarketStateView(
                     artwork: ChumbucketStateArtwork.search,
-                    title: 'No markets ready for calls',
-                    message:
-                        'Calls need an open market with current venue prices.',
+                    line: 'No open markets right now',
                   ),
                 )
               else
@@ -406,11 +393,21 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
                   sliver: SliverList.separated(
                     itemCount: markets.length,
                     separatorBuilder: (_, __) => SizedBox(height: 12.h),
-                    itemBuilder:
-                        (_, index) => CallMarketCard(
-                          market: markets[index],
-                          onTap: () => _openVenueMarket(markets[index]),
+                    itemBuilder: (_, index) {
+                      final market = markets[index];
+                      // Prices stay current silently: re-read only when due.
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) calls.refreshPriceIfStale(market.id);
+                      });
+                      return ClipRRect(
+                        borderRadius: BorderRadius.circular(22),
+                        child: CallMarketCard(
+                          market: market,
+                          sharePrice: calls.marketDetail(market.id)?.sharePrice,
+                          onTap: () => _openVenueMarket(market),
                         ),
+                      );
+                    },
                   ),
                 ),
               SliverPadding(

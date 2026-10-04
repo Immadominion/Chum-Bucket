@@ -15,7 +15,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../../data/market_creation_client.dart';
 import '../../data/market_creation_models.dart';
 
-/// "Can't find your question? Create a market."
+/// One compact row: a plus, "Create a market", and "Yours". No sentence
+/// explaining it — the plus and the title say it.
 class CreateMarketEntryCard extends StatelessWidget {
   const CreateMarketEntryCard({
     super.key,
@@ -29,17 +30,17 @@ class CreateMarketEntryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Material(
     color: AppColors.surface,
-    borderRadius: BorderRadius.circular(22),
+    borderRadius: BorderRadius.circular(15),
     child: InkWell(
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(15),
       onTap: onCreate,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
+        padding: const EdgeInsets.fromLTRB(12, 4, 6, 4),
         child: Row(
           children: [
             Container(
-              width: 40,
-              height: 40,
+              width: 32,
+              height: 32,
               decoration: const BoxDecoration(
                 color: AppColors.primaryContainer,
                 shape: BoxShape.circle,
@@ -47,27 +48,15 @@ class CreateMarketEntryCard extends StatelessWidget {
               alignment: Alignment.center,
               child: const BasilIcon(
                 'add-outline',
-                size: 22,
+                size: 20,
                 color: AppColors.primary,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Create a market',
-                    style: AppTextStyles.textTheme.titleSmall,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Can’t find your question? Propose it, free.',
-                    style: AppTextStyles.textTheme.bodySmall?.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
+              child: Text(
+                'Create a market',
+                style: AppTextStyles.textTheme.titleSmall,
               ),
             ),
             TextButton(
