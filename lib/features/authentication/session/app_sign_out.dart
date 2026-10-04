@@ -1,3 +1,4 @@
+import 'package:chumbucket/core/cache/snapshot_store.dart';
 import 'package:chumbucket/core/services/app_lifecycle_service.dart';
 import 'package:chumbucket/core/services/fcm_token_service.dart';
 import 'package:chumbucket/core/services/realtime_service.dart';
@@ -28,6 +29,8 @@ class AppSignOutEffects {
   final VoidCallback clearSharedState;
 
   static void _clearSharedState() {
+    // What this account last saw (feed, profile, inbox) leaves with it.
+    SnapshotStore.device.clear();
     AppLifecycleService.onNavigateToChallenge = null;
     AppLifecycleService.instance.dispose();
     ChallengeStateProvider.instance.clear();

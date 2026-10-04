@@ -76,7 +76,8 @@ class CallsProvider extends ChangeNotifier {
   /// in this provider, so a test that controls time controls them too.
   int get _analyticsNowMs => _clock().toUtc().millisecondsSinceEpoch;
 
-  /// How old served data may be before the UI must say so.
+  /// How old served data may be before a plain [loadFeed] reads it again.
+  /// The UI never shows the age; it refreshes silently.
   final Duration staleAfter;
 
   bool _disposed = false;
@@ -122,6 +123,8 @@ class CallsProvider extends ChangeNotifier {
   void setViewer(String? userId) {
     if (_viewerUserId == userId) return;
     _viewerUserId = userId;
+    _snapshots?.bindSnapshotViewer(userId);
+    _feedByMode.clear();
     // Invalidates successes AND errors already in flight. Clearing a cache
     // alone lets a response authorized for the previous viewer refill it.
     // The open catalog is the exception: it is the same for every viewer, and
@@ -174,6 +177,17 @@ class CallsProvider extends ChangeNotifier {
   bool _isOffline = false;
   bool _feedFromCache = false;
 
+  /// The other tab's feed, kept while you look at this one, so switching
+  /// Global / Following shows what was there at once and refreshes it
+  /// silently instead of dropping to a skeleton.
+  final Map<CallFeedMode, _FeedMemory> _feedByMode = {};
+
+  /// Saved reads on this phone, when the repository keeps them.
+  CallsSnapshotSource? get _snapshots =>
+      _repository is CallsSnapshotSource
+          ? _repository as CallsSnapshotSource
+          : null;
+
   CallFeedMode get feedMode => _feedMode;
   List<CallFeedEntry> get feed => List.unmodifiable(_feedEntries);
   bool get isLoadingFeed => _isLoadingFeed;
@@ -200,8 +214,8 @@ class CallsProvider extends ChangeNotifier {
     return age.isNegative ? Duration.zero : age;
   }
 
-  /// Data is on screen but older than [staleAfter]. Not an error — the UI says
-  /// "last updated N ago" and offers a refresh.
+  /// Data is on screen but older than [staleAfter]. Not an error, and never
+  /// narrated to the person: the next [loadFeed] refreshes it silently.
   bool get isFeedStale {
     final age = feedAge;
     return age != null && age > staleAfter;
@@ -221,16 +235,47 @@ class CallsProvider extends ChangeNotifier {
   /// Switching the tab is one branch, exactly as `ArenaFeedMode` is.
   Future<void> setFeedMode(CallFeedMode mode) async {
     if (_feedMode == mode) return;
+    if (_feedServedAt != null) {
+      _feedByMode[_feedMode] = _FeedMemory(
+        entries: _feedEntries,
+        servedAt: _feedServedAt!,
+        nextCursor: _feedNextCursor,
+        fromCache: _feedFromCache,
+      );
+    }
     _feedMode = mode;
     _requests.remove('feed');
     _requests.remove('more');
     _isLoadingFeed = false;
     _isLoadingMore = false;
-    _feedEntries = const [];
-    _feedServedAt = null;
-    _feedNextCursor = null;
+    final kept = _feedByMode.remove(mode);
+    _feedEntries = kept?.entries ?? const [];
+    _feedServedAt = kept?.servedAt;
+    _feedNextCursor = kept?.nextCursor;
+    _feedFromCache = kept?.fromCache ?? false;
+    _feedError = null;
     _notify();
     await loadFeed(force: true);
+  }
+
+  /// Draws the saved first page while the live one loads, on a cold start.
+  /// Skipped once the live read has answered or anything is on screen.
+  Future<void> _paintSavedFeed(Object request, CallFeedMode mode) async {
+    final snapshots = _snapshots;
+    if (snapshots == null) return;
+    final saved = await snapshots.savedFeed(mode: mode);
+    if (saved == null || saved.entries.isEmpty) return;
+    if (!_isCurrent('feed', request) ||
+        _feedMode != mode ||
+        _feedServedAt != null ||
+        _feedEntries.isNotEmpty) {
+      return;
+    }
+    _feedEntries = saved.entries;
+    _feedServedAt = saved.servedAt;
+    _feedNextCursor = saved.nextCursor;
+    _feedFromCache = true;
+    _notify();
   }
 
   Future<void> loadFeed({bool force = false}) async {
@@ -241,6 +286,9 @@ class CallsProvider extends ChangeNotifier {
     _isLoadingFeed = true;
     _feedError = null;
     _notify();
+    if (_feedEntries.isEmpty && _feedServedAt == null) {
+      unawaited(_paintSavedFeed(request, _feedMode));
+    }
     try {
       final page = await _repository.fetchFeed(
         mode: _feedMode,
@@ -316,6 +364,7 @@ class CallsProvider extends ChangeNotifier {
   final Map<String, String> _marketErrors = {};
 
   List<VenueMarket> _openMarkets = const [];
+  bool _catalogServed = false;
   bool _isLoadingOpenMarkets = false;
   String? _openMarketsError;
 
@@ -347,6 +396,9 @@ class CallsProvider extends ChangeNotifier {
     _isLoadingOpenMarkets = true;
     _openMarketsError = null;
     _notify();
+    if (_openMarkets.isEmpty && !_catalogServed) {
+      unawaited(_paintSavedCatalog(request));
+    }
     try {
       final repository = _repository;
       final markets =
@@ -356,6 +408,7 @@ class CallsProvider extends ChangeNotifier {
               : await repository.fetchOpenMarkets();
       if (!_isCurrent('catalog', request)) return;
       _openMarkets = markets;
+      _catalogServed = true;
       _isOffline = false;
     } on CallVocabularyException {
       if (!_isCurrent('catalog', request)) return;
@@ -375,6 +428,14 @@ class CallsProvider extends ChangeNotifier {
         _notify();
       }
     }
+  }
+
+  Future<void> _paintSavedCatalog(Object request) async {
+    final saved = await _snapshots?.savedMarketCatalog();
+    if (saved == null || saved.isEmpty) return;
+    if (!_isCurrent('catalog', request) || _openMarkets.isNotEmpty) return;
+    _openMarkets = saved;
+    _notify();
   }
 
   Future<MarketDetail?> loadMarketDetail(
@@ -531,6 +592,9 @@ class CallsProvider extends ChangeNotifier {
     _peopleInFlight.add(ref);
     _personErrors.remove(ref);
     _notify();
+    if (!_personDetails.containsKey(ref) && ref == _viewerUserId) {
+      unawaited(_paintSavedPerson(key, request, ref));
+    }
     try {
       final detail = await _repository.fetchPerson(
         personRef: ref,
@@ -557,6 +621,15 @@ class CallsProvider extends ChangeNotifier {
         _notify();
       }
     }
+  }
+
+  /// Your own profile and record, as last seen, while the live one loads.
+  Future<void> _paintSavedPerson(String key, Object request, String ref) async {
+    final saved = await _snapshots?.savedPerson(ref);
+    if (saved == null) return;
+    if (!_isCurrent(key, request) || _personDetails.containsKey(ref)) return;
+    _personDetails[ref] = saved;
+    _notify();
   }
 
   bool isFollowBusy(String personId) => _followsInFlight.contains(personId);
@@ -1062,6 +1135,7 @@ class CallsProvider extends ChangeNotifier {
     _isLoadingFollowing = true;
     _followingError = null;
     _notify();
+    if (_following == null) unawaited(_paintSavedFollowing(request));
     try {
       final list = await people.fetchFollowing();
       if (!_isCurrent(key, request)) return;
@@ -1077,6 +1151,14 @@ class CallsProvider extends ChangeNotifier {
         _notify();
       }
     }
+  }
+
+  Future<void> _paintSavedFollowing(Object request) async {
+    final saved = await _snapshots?.savedFollowing();
+    if (saved == null) return;
+    if (!_isCurrent('following', request) || _following != null) return;
+    _following = saved;
+    _notify();
   }
 
   /// One search, returned directly: results belong to the screen asking, not
@@ -1161,4 +1243,19 @@ class CallsProvider extends ChangeNotifier {
   /// Exposed so the deep-link resolver can reach the same repository without a
   /// second source of truth.
   CallsRepository get repository => _repository;
+}
+
+/// One feed tab as it was last shown.
+class _FeedMemory {
+  const _FeedMemory({
+    required this.entries,
+    required this.servedAt,
+    required this.nextCursor,
+    required this.fromCache,
+  });
+
+  final List<CallFeedEntry> entries;
+  final int servedAt;
+  final String? nextCursor;
+  final bool fromCache;
 }

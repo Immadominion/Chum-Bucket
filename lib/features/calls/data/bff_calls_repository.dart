@@ -54,8 +54,11 @@
 /// trade (contract §0 invariant 1).
 library;
 
+import 'dart:developer' as developer;
+
 import 'package:http/http.dart' as http;
 
+import 'package:chumbucket/core/cache/snapshot_store.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_payloads.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_transport.dart';
@@ -71,9 +74,11 @@ class BffCallsRepository
         CallsCatalogRepository,
         PeopleRepository,
         PeopleSuggestionsRepository,
-        PersonFinderRepository {
+        PersonFinderRepository,
+        CallsSnapshotSource {
   /// [httpClient] is the test seam: inject one and no socket is ever opened.
   /// [authToken] supplies the session; returning null simply means signed out.
+  /// [snapshots] keeps the last good reads on this phone (null keeps none).
   BffCallsRepository({
     CallsBffTransport? transport,
     String? baseUrl,
@@ -82,7 +87,9 @@ class BffCallsRepository
     Duration timeout = const Duration(seconds: 15),
     String? linkHost,
     bool verbose = true,
-  }) : _transport =
+    SnapshotStore? snapshots,
+  }) : _snapshots = snapshots,
+       _transport =
            transport ??
            CallsBffTransport(
              baseUrl: baseUrl,
@@ -95,6 +102,84 @@ class BffCallsRepository
 
   final CallsBffTransport _transport;
   final String _linkHost;
+  final SnapshotStore? _snapshots;
+
+  // --- Snapshots -----------------------------------------------------------
+  //
+  // The server's own JSON for a read, saved after it parsed, and parsed again
+  // by the same functions when drawn. Keyed by the bound viewer, captured when
+  // a request starts so a late response can never land under someone else.
+
+  String? _snapshotViewer;
+
+  @override
+  void bindSnapshotViewer(String? userId) => _snapshotViewer = userId;
+
+  /// Saves [json] under [key] — unless the session changed while the read
+  /// was in flight ([viewer] is who was bound when it started), so a sign-out
+  /// never leaves the previous account's rows behind.
+  void _save(String key, Object? json, {String? viewer, bool scoped = true}) {
+    final store = _snapshots;
+    if (store == null) return;
+    if (scoped && viewer != _snapshotViewer) return;
+    store.write(key, json);
+  }
+
+  Future<T?> _saved<T>(String key, T Function(Object? json) parse) async {
+    final store = _snapshots;
+    if (store == null) return null;
+    final json = await store.read(key);
+    if (json == null) return null;
+    try {
+      return parse(json);
+    } catch (e) {
+      // A snapshot from an older app version that no longer parses: ignore.
+      developer.log('BffCallsRepository: unreadable snapshot $key: $e');
+      return null;
+    }
+  }
+
+  String _feedKey(CallFeedMode mode, String? viewer) =>
+      snapshotKey('feed', variant: mode.name, viewer: viewer);
+  static const String _catalogKey = 'catalog.open';
+  String _personKey(String ref, String? viewer) =>
+      snapshotKey('person', variant: ref, viewer: viewer);
+  String _followingKey(String? viewer) =>
+      snapshotKey('following', viewer: viewer);
+
+  @override
+  Future<CallFeedPage?> savedFeed({required CallFeedMode mode}) =>
+      _saved(_feedKey(mode, _snapshotViewer), (json) {
+        final page = callFeedPageFromJson(requireJsonMap(json, 'saved feed'));
+        return CallFeedPage(
+          entries: page.entries,
+          servedAt: page.servedAt,
+          nextCursor: page.nextCursor,
+          fromCache: true,
+        );
+      });
+
+  @override
+  Future<List<VenueMarket>?> savedMarketCatalog() =>
+      _saved(_catalogKey, (json) {
+        final byId = <String, VenueMarket>{
+          for (final market in venueMarketsFromJson(json, 'saved catalog'))
+            market.id: market,
+        };
+        return byId.values.toList(growable: false);
+      });
+
+  @override
+  Future<PersonDetail?> savedPerson(String personRef) => _saved(
+    _personKey(personRef, _snapshotViewer),
+    (json) => personDetailFromJson(requireJsonMap(json, 'saved person')),
+  );
+
+  @override
+  Future<List<PersonCard>?> savedFollowing() => _saved(
+    _followingKey(_snapshotViewer),
+    (json) => personCardsFromJson(json, 'saved following'),
+  );
 
   // --- Procedure paths, §5 -------------------------------------------------
 
@@ -134,12 +219,18 @@ class BffCallsRepository
     // `viewerUserId` is intentionally absent from the input: the server reads
     // the viewer from the session, so `viewerHasCalled` and the `following`
     // mode cannot be spoofed by a client that simply names someone else.
+    final viewer = _snapshotViewer;
     final data = await _transport.query(feedProcedure, {
       'mode': mode.name,
       if (cursor != null) 'cursor': cursor,
       'limit': limit,
     });
-    return callFeedPageFromJson(requireJsonMap(data, '$feedProcedure result'));
+    final page = callFeedPageFromJson(
+      requireJsonMap(data, '$feedProcedure result'),
+    );
+    // Only the first page: it is what a cold start draws.
+    if (cursor == null) _save(_feedKey(mode, viewer), data, viewer: viewer);
+    return page;
   }
 
   @override
@@ -156,17 +247,28 @@ class BffCallsRepository
   /// no price is required here, and call eligibility stays a server decision.
   @override
   Future<List<VenueMarket>> fetchMarketCatalog() async {
+    final raw = <Object?>[];
+    List<VenueMarket> markets;
     try {
-      return await _walkCatalog(const {'scope': 'open', 'sort': 'closing'});
+      markets = await _walkCatalog(const {
+        'scope': 'open',
+        'sort': 'closing',
+      }, raw);
     } on CallsRejectedException {
       // A BFF older than the open-scope catalog refuses unknown input keys
       // (its schema is strict). Its legacy walk returns every mirrored row,
       // which the provider still narrows to markets open right now.
-      return _walkCatalog(const {});
+      raw.clear();
+      markets = await _walkCatalog(const {}, raw);
     }
+    _save(_catalogKey, raw, scoped: false);
+    return markets;
   }
 
-  Future<List<VenueMarket>> _walkCatalog(Map<String, Object> options) async {
+  Future<List<VenueMarket>> _walkCatalog(
+    Map<String, Object> options,
+    List<Object?> raw,
+  ) async {
     final markets = <String, VenueMarket>{};
     final seen = <String>{};
     String? cursor;
@@ -194,6 +296,7 @@ class BffCallsRepository
         }
         markets[market.id] = market;
       }
+      raw.addAll(data['markets'] as List);
       final next = data['nextCursor'];
       if (next == null) return markets.values.toList(growable: false);
       if (next is! String || next.isEmpty || !seen.add(next)) {
@@ -236,12 +339,18 @@ class BffCallsRepository
     required String personRef,
     String? viewerUserId,
   }) async {
+    final viewer = _snapshotViewer;
     final data = await _transport.query(personProcedure, {
       'personRef': _normalizePersonRef(personRef),
     });
-    return personDetailFromJson(
+    final detail = personDetailFromJson(
       requireJsonMap(data, '$personProcedure result'),
     );
+    // Your own profile and record only: it is what Profile draws on open.
+    if (viewer != null && personRef == viewer) {
+      _save(_personKey(personRef, viewer), data, viewer: viewer);
+    }
+    return detail;
   }
 
   @override
@@ -399,11 +508,12 @@ class BffCallsRepository
 
   @override
   Future<List<PersonCard>> fetchFollowing() => _people(() async {
+    final viewer = _snapshotViewer;
     final data = await _transport.query(followingProcedure, const {});
-    return personCardsFromJson(
-      requireJsonMap(data, '$followingProcedure result')['people'],
-      '$followingProcedure.people',
-    );
+    final people = requireJsonMap(data, '$followingProcedure result')['people'];
+    final cards = personCardsFromJson(people, '$followingProcedure.people');
+    if (viewer != null) _save(_followingKey(viewer), people, viewer: viewer);
+    return cards;
   });
 
   @override

@@ -9,6 +9,10 @@ import 'package:chumbucket/features/challenges/presentation/screens/challenge_hi
 import 'package:chumbucket/features/onboarding/domain/onboarding_steps.dart';
 import 'package:chumbucket/features/onboarding/presentation/onboarding_home.dart';
 import 'package:chumbucket/features/profile/presentation/screens/profile_screen.dart';
+import 'dart:async';
+
+import 'package:chumbucket/features/calls/providers/calls_provider.dart';
+import 'package:chumbucket/features/notifications/providers/notifications_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -125,6 +129,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           'App resumed after ${backgroundDuration.inSeconds}s - refreshing',
         );
         _onLifecycleRefresh();
+        _refreshSilently();
 
         // Also do a soft database refresh
         final authProvider = Provider.of<MwaAuthProvider>(
@@ -136,6 +141,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ChallengeStateProvider.instance.softRefresh(walletAddress);
         }
       }
+    }
+  }
+
+  /// Back from the background: read again what the tabs show, quietly. What
+  /// is on screen stays there until the fresh read lands; a failed read keeps
+  /// it, with no banner and no "last updated".
+  void _refreshSilently() {
+    final calls = context.read<CallsProvider?>();
+    if (calls != null) {
+      unawaited(calls.loadFeed(force: true));
+      if (calls.openMarkets.isNotEmpty) {
+        unawaited(calls.loadOpenMarkets(force: true));
+      }
+      if (calls.isSignedIn && calls.following != null) {
+        unawaited(calls.loadFollowing(force: true));
+      }
+    }
+    final inbox = context.read<NotificationsProvider?>();
+    if (inbox != null && inbox.isSignedIn && inbox.servedAtUtc != null) {
+      unawaited(inbox.load(force: true));
     }
   }
 

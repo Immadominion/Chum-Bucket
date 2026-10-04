@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -17,6 +19,8 @@ const _goodFill = Color(0xFFE6F6EF);
 
 /// The wallet's real mainnet balance, exactly as the server read it.
 /// Never a cached guess: loading, failure and "not available" all say so.
+/// It reads again on its own while shown ([onRefresh]); there is no refresh
+/// button and no "updated N min ago".
 class DepositBalanceCard extends StatelessWidget {
   const DepositBalanceCard({
     super.key,
@@ -42,80 +46,59 @@ class DepositBalanceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final b = balance;
-    return Semantics(
-      container: true,
-      label: 'Your wallet balance',
-      child: Container(
-        key: const ValueKey('deposit-balance-card'),
-        padding: const EdgeInsets.fromLTRB(16, 12, 8, 14),
-        decoration: BoxDecoration(
-          color: _cardFill,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: _rule),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const BasilIcon(
-                  'wallet-outline',
-                  size: 18,
-                  color: AppColors.textSecondary,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    address == null
-                        ? 'Your wallet'
-                        : 'Your wallet · ${shortAddress(address!)}',
-                    style: callJourneyBody(12),
-                    overflow: TextOverflow.ellipsis,
+    return _QuietBalanceRefresh(
+      onRefresh: available && !loading ? onRefresh : null,
+      child: Semantics(
+        container: true,
+        label: 'Your wallet balance',
+        child: Container(
+          key: const ValueKey('deposit-balance-card'),
+          padding: const EdgeInsets.fromLTRB(16, 12, 8, 14),
+          decoration: BoxDecoration(
+            color: _cardFill,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: _rule),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const BasilIcon(
+                    'wallet-outline',
+                    size: 18,
+                    color: AppColors.textSecondary,
                   ),
-                ),
-                if (onRefresh != null && available)
-                  SizedBox.square(
-                    dimension: 40,
-                    child: IconButton(
-                      key: const ValueKey('deposit-balance-refresh'),
-                      tooltip: 'Refresh balance',
-                      padding: EdgeInsets.zero,
-                      onPressed: loading ? null : onRefresh,
-                      icon:
-                          loading
-                              ? const SizedBox.square(
-                                dimension: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppColors.textSecondary,
-                                ),
-                              )
-                              : const BasilIcon(
-                                'refresh-outline',
-                                size: 18,
-                                color: AppColors.textSecondary,
-                              ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      address == null
+                          ? 'Your wallet'
+                          : 'Your wallet · ${shortAddress(address!)}',
+                      style: callJourneyBody(12),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            if (!available)
-              Text(
-                'Balances aren\'t available right now.',
-                style: callJourneyBody(13),
-              )
-            else if (b != null)
-              _figures(context, b)
-            else if (error != null && !loading)
-              Text(
-                'We couldn\'t read your balance just now.',
-                key: const ValueKey('deposit-balance-error'),
-                style: callJourneyBody(13),
-              )
-            else
-              const _BalanceSkeleton(),
-          ],
+                ],
+              ),
+              const SizedBox(height: 6),
+              if (!available)
+                Text(
+                  'Balances aren\'t available right now.',
+                  style: callJourneyBody(13),
+                )
+              else if (b != null)
+                _figures(context, b)
+              else if (error != null && !loading)
+                Text(
+                  'We couldn\'t read your balance just now.',
+                  key: const ValueKey('deposit-balance-error'),
+                  style: callJourneyBody(13),
+                )
+              else
+                const _BalanceSkeleton(),
+            ],
+          ),
         ),
       ),
     );
@@ -151,7 +134,7 @@ class DepositBalanceCard extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'Solana mainnet · ${_age(b.readAt)}',
+          'Solana mainnet',
           style: callJourneyBody(11).copyWith(color: AppColors.textTertiary),
         ),
       ],
@@ -187,13 +170,57 @@ class DepositBalanceCard extends StatelessWidget {
       Text(caption, style: callJourneyBody(11)),
     ],
   );
+}
 
-  String _age(DateTime readAt) {
-    final seconds = (now ?? DateTime.now)().difference(readAt).inSeconds;
-    if (seconds < 60) return 'updated just now';
-    final minutes = seconds ~/ 60;
-    return minutes == 1 ? 'updated 1 min ago' : 'updated $minutes min ago';
+/// Reads the balance again every [interval] while it is on screen, so it is
+/// current without a refresh button or an "updated N min ago" line.
+class _QuietBalanceRefresh extends StatefulWidget {
+  const _QuietBalanceRefresh({required this.onRefresh, required this.child});
+
+  static const Duration interval = Duration(seconds: 30);
+
+  final VoidCallback? onRefresh;
+  final Widget child;
+
+  @override
+  State<_QuietBalanceRefresh> createState() => _QuietBalanceRefreshState();
+}
+
+class _QuietBalanceRefreshState extends State<_QuietBalanceRefresh> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _schedule();
   }
+
+  @override
+  void didUpdateWidget(covariant _QuietBalanceRefresh oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if ((oldWidget.onRefresh == null) != (widget.onRefresh == null)) {
+      _schedule();
+    }
+  }
+
+  void _schedule() {
+    _timer?.cancel();
+    _timer = null;
+    if (widget.onRefresh == null) return;
+    _timer = Timer.periodic(
+      _QuietBalanceRefresh.interval,
+      (_) => widget.onRefresh?.call(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 class _BalanceSkeleton extends StatelessWidget {

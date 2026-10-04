@@ -26,7 +26,6 @@ import 'package:provider/provider.dart';
 
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart';
-import 'package:chumbucket/features/calls/presentation/widgets/calls_format.dart';
 import 'package:chumbucket/features/notifications/data/notification_models.dart';
 import 'package:chumbucket/features/notifications/data/notifications_repository.dart';
 import 'package:chumbucket/features/notifications/presentation/notification_target_router.dart';
@@ -157,23 +156,12 @@ class _NotificationsInboxScreenState extends State<NotificationsInboxScreen> {
   }
 
   List<Widget> _notices(NotificationsProvider provider) {
-    final notices = <Widget>[];
-    // Offline with rows underneath: say they are cached rather than passing
-    // them off as live.
+    // Saved rows stay on screen and refresh on their own. Offline is a small
+    // pill; staleness is never narrated.
     if (provider.isOffline && provider.notifications.isNotEmpty) {
-      notices.add(CallsNotice.offline(onRetry: _refresh));
-    } else if (provider.isStale && provider.notifications.isNotEmpty) {
-      final servedAt = provider.servedAtUtc;
-      notices.add(
-        CallsNotice.stale(
-          message:
-              'Last updated '
-              '${servedAt == null ? 'a while ago' : CallsFormat.relative(servedAt)}.',
-          onRefresh: _refresh,
-        ),
-      );
+      return [CallsNotice.offline()];
     }
-    return notices;
+    return const [];
   }
 
   Widget _content(NotificationsProvider provider) {
@@ -184,6 +172,7 @@ class _NotificationsInboxScreenState extends State<NotificationsInboxScreen> {
 
       case NotificationsLoadState.signedOut:
         return CallsSignedOutView(
+          title: 'Sign in to see who backs your calls',
           message:
               'Sign in to see who backed you, who faded you, and when the '
               'venue settles your calls. No wallet needed.',

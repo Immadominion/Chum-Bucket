@@ -191,10 +191,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(CallCard), findsWidgets);
-    expect(find.text('Offline — showing what we already had.'), findsOneWidget);
+    // A small pill, not a banner, and no retry button.
+    expect(find.byType(ChumbucketOfflinePill), findsOneWidget);
+    expect(find.text('Retry'), findsNothing);
   });
 
-  testWidgets('a stale feed says so and offers a refresh', (tester) async {
+  testWidgets('a stale feed stays as it is: no age, no refresh button', (
+    tester,
+  ) async {
     usePhoneSurface(tester);
     var now = DateTime.utc(2026, 9, 13, 12);
     final provider = CallsProvider(
@@ -213,7 +217,11 @@ void main() {
     await provider.loadMarketDetail('market_btc_150k');
     await tester.pumpAndSettle();
 
-    expect(find.text('Refresh'), findsOneWidget);
+    // The app refreshes on its own (open, resume, pull); it never narrates
+    // how old the feed is or asks the person to refresh it.
+    expect(find.text('Refresh'), findsNothing);
+    expect(find.textContaining('Last updated'), findsNothing);
+    expect(find.textContaining('ago'), findsNothing);
     expect(find.byType(CallCard), findsWidgets);
   });
 
@@ -264,6 +272,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('open dare'), findsOneWidget);
-    expect(find.textContaining('No money involved'), findsOneWidget);
+    expect(find.textContaining(RegExp(r'\b(bet|stake|win money)\b')), findsNothing);
   });
 }

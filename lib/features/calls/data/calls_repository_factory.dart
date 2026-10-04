@@ -1,3 +1,4 @@
+import 'package:chumbucket/core/cache/snapshot_store.dart';
 import 'package:chumbucket/core/config/app_config.dart';
 import 'package:chumbucket/features/calls/data/bff_calls_repository.dart';
 import 'package:chumbucket/features/calls/data/calls_bff_transport.dart';
@@ -81,12 +82,17 @@ CallsRepository buildCallsRepository({
   CallsBackend? backend,
   Duration mockLatency = const Duration(milliseconds: 350),
   CallsBffAuthTokenProvider? authToken,
+  SnapshotStore? snapshots,
 }) {
   final resolved = backend ?? resolveCallsBackend();
   switch (resolved) {
     case CallsBackend.mock:
       return MockCallsRepository(latency: mockLatency);
     case CallsBackend.bff:
-      return BffCallsRepository(authToken: authToken);
+      // The last good reads stay on the phone so screens open on them.
+      return BffCallsRepository(
+        authToken: authToken,
+        snapshots: snapshots ?? SnapshotStore.device,
+      );
   }
 }

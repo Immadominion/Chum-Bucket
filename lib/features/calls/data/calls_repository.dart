@@ -486,6 +486,21 @@ abstract interface class CallsCatalogRepository {
   Future<List<VenueMarket>> fetchMarketCatalog();
 }
 
+/// Optional: the last good reads, saved on this phone, so a screen draws at
+/// once on a cold start and then refreshes silently. Every method returns
+/// null when nothing is saved; none of them touches the network. A saved feed
+/// page comes back with `fromCache: true`.
+abstract interface class CallsSnapshotSource {
+  /// Whose snapshots to read and write. Set by the provider on every session
+  /// change, so one account never draws another's.
+  void bindSnapshotViewer(String? userId);
+
+  Future<CallFeedPage?> savedFeed({required CallFeedMode mode});
+  Future<List<VenueMarket>?> savedMarketCatalog();
+  Future<PersonDetail?> savedPerson(String personRef);
+  Future<List<PersonCard>?> savedFollowing();
+}
+
 abstract class CallsRepository {
   /// Feed of public calls. [viewerUserId] is optional; when null the
   /// [CallFeedMode.following] mode is unavailable and rows come back with

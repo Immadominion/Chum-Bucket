@@ -369,15 +369,6 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
                         SizedBox(height: 8.h),
                         const MarketCatalogLegend(),
                       ],
-                      if (calls.openMarketsError != null &&
-                          markets.isNotEmpty) ...[
-                        SizedBox(height: 12.h),
-                        CallsNotice.stale(
-                          message:
-                              'Couldn’t refresh markets. Showing the last catalog.',
-                          onRefresh: () => _load(force: true),
-                        ),
-                      ],
                     ],
                   ),
                 ),
@@ -387,14 +378,6 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
                   padding: EdgeInsets.symmetric(horizontal: 20.w),
                   sliver: SliverList.list(
                     children: [
-                      Text(
-                        'Loading markets…',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 12.sp,
-                        ),
-                      ),
-                      SizedBox(height: 12.h),
                       const _MarketSkeleton(),
                       SizedBox(height: 12.h),
                       const _MarketSkeleton(),
@@ -414,10 +397,7 @@ class _PredictionsHomeTabState extends State<PredictionsHomeTab>
                     artwork: ChumbucketStateArtwork.search,
                     title: 'No markets ready for calls',
                     message:
-                        'Calls need an open market with current venue prices. '
-                        'Refresh to check again.',
-                    actionLabel: 'Refresh',
-                    onAction: () => _load(force: true),
+                        'Calls need an open market with current venue prices.',
                   ),
                 )
               else
