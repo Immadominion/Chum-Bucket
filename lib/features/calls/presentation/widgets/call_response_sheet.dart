@@ -370,7 +370,13 @@ class _CallResponseSheetState extends State<CallResponseSheet> {
     final price = provider.marketDetail(_entry.market.id)?.sharePrice;
     if (price == null || !price.isUsableAt(DateTime.now())) return null;
     final side = price.priceFor(_side);
-    return side == null ? null : CallsFormat.displayPrice(side);
+    // In the market's own unit: 0.67 SOL is not 0.67 USDC.
+    return side == null
+        ? null
+        : CallsFormat.sharePrice(
+          CallsFormat.displayPrice(side),
+          currency: price.currency,
+        );
   }
 }
 

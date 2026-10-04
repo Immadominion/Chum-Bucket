@@ -536,8 +536,10 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
                     onTap: () => _openCall(parent.call.id),
                   ),
                 ],
-                // Only the owner sees the established private Panta trade entry.
-                if (own && entry.market.venue == MarketVenue.panta) ...[
+                // Only the owner sees the established private Panta trade
+                // entry, and only on a market Chumbucket can trade (a
+                // SOL-quoted Panta market takes calls, never trades).
+                if (own && entry.market.tradable) ...[
                   const SizedBox(height: 12),
                   _TradeCard(
                     side: entry.call.side,
@@ -597,8 +599,13 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
   /// cost then, when the market closes, and where the result stands.
   List<_Fact> _facts(CallFeedEntry entry) {
     final call = entry.call;
+    // A Panta price reads in its market's own unit (USDC or SOL per share),
+    // never converted and never a percent.
     final price = switch (call.entryPrice?.priceFor(call.side)) {
-      final value? => CallsFormat.displayPrice(value),
+      final value? => CallsFormat.sharePrice(
+        CallsFormat.displayPrice(value),
+        currency: call.entryPrice!.currency,
+      ),
       null =>
         entry.market.venue != MarketVenue.panta && call.entryProbability != null
             ? CallsFormat.probability(call.entryProbability)

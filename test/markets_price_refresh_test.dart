@@ -30,6 +30,18 @@ class _ClockedRepository extends CatalogRepository {
   /// validity, a price is still shown but cannot be locked.
   Duration priceAge = Duration.zero;
 
+  /// How many times Lock reached the server.
+  int locks = 0;
+
+  @override
+  Future<CallFeedEntry> createCall({
+    required CreateCallInput input,
+    required String? viewerUserId,
+  }) {
+    locks++;
+    return super.createCall(input: input, viewerUserId: viewerUserId);
+  }
+
   @override
   Future<List<VenueMarket>> fetchOpenMarkets({String? category}) {
     catalogReads++;
@@ -301,7 +313,15 @@ void main() {
 
   const deadEnd =
       'Panta prices are missing or stale. Refresh this market before calling.';
-  const fresh = 'Panta sent a fresh price. Check it, then lock.';
+
+  /// Lock re-read the lapsed price itself and then went on to lock: the
+  /// composer (fleet/ux-calls) never stops to ask the person to check a
+  /// fresh price — the server stamps, and re-reads, Panta's price itself.
+  void expectLocked(WidgetTester tester, _ClockedRepository repo) {
+    expect(repo.locks, 1);
+    expect(find.text(deadEnd), findsNothing);
+    expect(tester.takeException(), isNull);
+  }
 
   testWidgets(
     'from market detail, Lock re-reads a lapsed price itself (no refresh '
@@ -327,8 +347,7 @@ void main() {
       screenRepo.priceAge = Duration.zero;
       await lockYes(tester);
       expect(screenRepo.reads, 2);
-      expect(find.text(fresh), findsOneWidget);
-      expect(find.text(deadEnd), findsNothing);
+      expectLocked(tester, screenRepo);
       await tester.pumpWidget(const SizedBox());
     },
   );
@@ -352,8 +371,7 @@ void main() {
     screenRepo.priceAge = Duration.zero;
     await lockYes(tester);
     expect(screenRepo.reads, before + 2);
-    expect(find.text(fresh), findsOneWidget);
-    expect(find.text(deadEnd), findsNothing);
+    expectLocked(tester, screenRepo);
     await tester.pumpWidget(const SizedBox());
   });
 }

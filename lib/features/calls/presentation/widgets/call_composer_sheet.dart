@@ -171,7 +171,7 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
     final at =
         price == null
             ? ''
-            : ' at ${CallsFormat.displayPrice(price)} USDC/share';
+            : ' at ${CallsFormat.sharePrice(CallsFormat.displayPrice(price), currency: _sharePrice!.currency)}';
     return 'You’re calling ${side.wire}$at. Free, and it goes on your record.';
   }
 
@@ -293,8 +293,9 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
         ),
   );
 
-  /// What each side costs now, on its button: Panta's share price, or a
-  /// legacy venue's probability.
+  /// What each side costs now, on its button: Panta's share price in the
+  /// market's own unit (USDC or SOL per share, never converted), or a legacy
+  /// venue's probability.
   Map<Side, String>? _sideSubs() {
     final market = widget.market;
     if (market.venue == MarketVenue.panta) {
@@ -303,7 +304,10 @@ class _CallComposerSheetState extends State<CallComposerSheet> {
       return {
         for (final side in Side.values)
           if (price.priceFor(side) case final value?)
-            side: CallsFormat.displayPrice(value),
+            side: CallsFormat.sharePrice(
+              CallsFormat.displayPrice(value),
+              currency: price.currency,
+            ),
       };
     }
     final snapshot = widget.snapshot;

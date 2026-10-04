@@ -199,6 +199,29 @@ enum MarketVenue {
   };
 }
 
+/// The asset a Panta market is quoted in. Panta's partner API serves USDC
+/// markets; SOL-quoted ones are read from Panta's program by the server. A
+/// price is always shown in its own unit, never converted to USD.
+enum ShareCurrency {
+  usdc('USDC'),
+  sol('SOL');
+
+  const ShareCurrency(this.wire);
+  final String wire;
+
+  /// "USDC/share", "SOL/share".
+  String get perShare => '$wire/share';
+
+  /// "USDC per share", for screen readers.
+  String get perShareWords => '$wire per share';
+
+  static ShareCurrency? tryWire(Object? value) => switch (value) {
+    'USDC' => ShareCurrency.usdc,
+    'SOL' => ShareCurrency.sol,
+    _ => null,
+  };
+}
+
 /// `MarketSnapshot.source: 'venue' | 'fixture'`.
 enum SnapshotSource {
   venue('venue'),
@@ -357,6 +380,14 @@ class VenueMarket {
   /// it or an older server omits it — never estimated, never zero-filled.
   final String? volumeUsdc;
 
+  /// The market's quote asset, as the server reports it. Null from an older
+  /// server (which only served USDC markets) and for non-Panta rows.
+  final ShareCurrency? quoteCurrency;
+
+  /// The server's `tradable`: whether Chumbucket can place a trade here.
+  /// Null from an older server. Read [tradable], never this directly.
+  final bool? tradableFlag;
+
   const VenueMarket({
     required this.id,
     required this.venue,
@@ -375,7 +406,16 @@ class VenueMarket {
     required this.lastSyncedAt,
     required this.payloadVersion,
     this.volumeUsdc,
+    this.quoteCurrency,
+    this.tradableFlag,
   });
+
+  /// A trade can be offered only on a Panta market the server says it can
+  /// trade. Calls never depend on this. An older server that sends no flag
+  /// only ever served tradable USDC markets.
+  bool get tradable =>
+      venue == MarketVenue.panta &&
+      (tradableFlag ?? quoteCurrency != ShareCurrency.sol);
 
   DateTime? get closesAtUtc =>
       closesAt == null
@@ -425,6 +465,8 @@ class VenueMarket {
     ),
     payloadVersion: (json['payloadVersion'] as num?)?.toInt() ?? 1,
     volumeUsdc: _optionalDecimal(json['volumeUsdc']),
+    quoteCurrency: ShareCurrency.tryWire(json['quoteCurrency']),
+    tradableFlag: json['tradable'] is bool ? json['tradable'] as bool : null,
   );
 
   Map<String, dynamic> toJson() => {
@@ -445,6 +487,8 @@ class VenueMarket {
     'lastSyncedAt': lastSyncedAt,
     'payloadVersion': payloadVersion,
     if (volumeUsdc != null) 'volumeUsdc': volumeUsdc,
+    if (quoteCurrency != null) 'quoteCurrency': quoteCurrency!.wire,
+    if (tradableFlag != null) 'tradable': tradableFlag,
   };
 
   VenueMarket copyWith({
@@ -469,6 +513,8 @@ class VenueMarket {
     lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
     payloadVersion: payloadVersion,
     volumeUsdc: volumeUsdc,
+    quoteCurrency: quoteCurrency,
+    tradableFlag: tradableFlag,
   );
 }
 
@@ -536,18 +582,22 @@ class MarketSnapshot {
 
 /// Independent, non-executable unit prices. Never convert to percent or infer
 /// one side from the other; strings preserve provider precision exactly.
+/// [currency] is the market's own quote asset (USDC, or SOL for a SOL-quoted
+/// Panta market), never converted to USD.
 class SharePriceSnapshot {
   final String id;
   final String marketId;
   final String? yesPrice;
   final String? noPrice;
   final int observedAt;
+  final ShareCurrency currency;
   const SharePriceSnapshot({
     required this.id,
     required this.marketId,
     required this.yesPrice,
     required this.noPrice,
     required this.observedAt,
+    this.currency = ShareCurrency.usdc,
   });
 
   static const attribution = 'Powered by Panta';
@@ -581,7 +631,7 @@ class SharePriceSnapshot {
     if (json.length != keys.length ||
         !json.keys.every(keys.contains) ||
         json['venue'] != 'panta' ||
-        json['currency'] != 'USDC' ||
+        ShareCurrency.tryWire(json['currency']) == null ||
         json['unit'] != 'per_share' ||
         json['source'] != 'venue' ||
         json['attribution'] != attribution ||
@@ -621,13 +671,14 @@ class SharePriceSnapshot {
       yesPrice: price(json['yesPrice']),
       noPrice: price(json['noPrice']),
       observedAt: time,
+      currency: ShareCurrency.tryWire(json['currency'])!,
     );
   }
   Map<String, dynamic> toJson() => {
     'id': id,
     'marketId': marketId,
     'venue': 'panta',
-    'currency': 'USDC',
+    'currency': currency.wire,
     'unit': 'per_share',
     'yesPrice': yesPrice,
     'noPrice': noPrice,

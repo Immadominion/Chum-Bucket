@@ -199,7 +199,9 @@ class _MarketDetailScreenState extends State<MarketDetailScreen>
     final ownCall = detail.viewerCall;
     final isOwnCall =
         ownCall != null && ownCall.call.userId == provider.viewerUserId;
-    final canTrade = market.venue == MarketVenue.panta && isOwnCall;
+    // A SOL-quoted Panta market takes calls but is never offered a trade:
+    // no Trade button at all, not a disabled one, even beside your own call.
+    final canTrade = market.tradable && isOwnCall;
     final status =
         closedByTime && market.status == MarketStatus.open
             ? 'Closed · awaiting result'
@@ -709,13 +711,14 @@ class _DetailsBlock extends StatelessWidget {
                     ),
                   ),
             ),
-            // What the figures above are, once: indicative venue prices in
-            // USDC per share — the venue's own values, unrounded.
-            if (yes != null || no != null)
+            // What the figures above are: indicative venue prices in the
+            // market's own unit (USDC or SOL per share) — the venue's own
+            // values, unrounded.
+            if (sharePrice case final price? when yes != null || no != null)
               fact(
                 rounded
-                    ? 'Exact venue prices (USDC per share, indicative)'
-                    : 'Venue prices (USDC per share, indicative)',
+                    ? 'Exact venue prices (${price.currency.perShareWords}, indicative)'
+                    : 'Venue prices (${price.currency.perShareWords}, indicative)',
                 'YES ${yes ?? 'unavailable'} · NO ${no ?? 'unavailable'}',
               ),
             fact('Venue market ID', market.venueMarketId),

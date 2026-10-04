@@ -11,8 +11,13 @@ import 'package:chumbucket/features/calls/data/call_models.dart';
 
 class CallsFormat {
   CallsFormat._();
-  static String sharePrice(String? value) =>
-      value == null ? 'Unavailable' : '$value USDC/share';
+
+  /// A share price in its market's own unit: `0.52 USDC/share`,
+  /// `0.67 SOL/share`. Never converted to USD.
+  static String sharePrice(
+    String? value, {
+    ShareCurrency currency = ShareCurrency.usdc,
+  }) => value == null ? 'Unavailable' : '$value ${currency.perShare}';
 
   /// A venue share price for reading, at two decimals: `0.500096044` reads
   /// `0.50`. Rounded half-up on the DECIMAL STRING, never through a double, so
@@ -61,7 +66,16 @@ class CallsFormat {
   static String nativePrices(SharePriceSnapshot? value) =>
       value == null
           ? 'Panta prices unavailable. Refresh before calling.'
-          : 'YES ${sharePrice(value.yesPrice)} · NO ${sharePrice(value.noPrice)}';
+          : 'YES ${sharePrice(value.yesPrice, currency: value.currency)} · '
+              'NO ${sharePrice(value.noPrice, currency: value.currency)}';
+
+  /// Both sides at reading precision, named once in the market's own unit:
+  /// `YES 0.67 · NO 0.33 SOL/share`. A side Panta did not publish reads `—`.
+  static String quietPrices(SharePriceSnapshot value) {
+    String side(String? price) => price == null ? '—' : displayPrice(price);
+    return 'YES ${side(value.yesPrice)} · NO ${side(value.noPrice)} '
+        '${value.currency.perShare}';
+  }
 
   static final DateFormat _absolute = DateFormat('d MMM yyyy, HH:mm');
   static final DateFormat _absoluteShort = DateFormat('d MMM, HH:mm');

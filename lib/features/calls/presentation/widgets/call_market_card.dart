@@ -550,7 +550,7 @@ class MarketSharePrices extends StatelessWidget {
       semanticsLabel:
           shown == null
               ? 'Price unavailable'
-              : '$shown USDC per share, indicative',
+              : '$shown ${(snapshot?.currency ?? ShareCurrency.usdc).perShareWords}, indicative',
       style: TextStyle(
         fontFamily: 'PPNeueMachina',
         fontSize: large ? 26 : 14,
@@ -616,15 +616,19 @@ class MarketSharePrices extends StatelessWidget {
     );
     if (!expanded) return pair;
     // Detail names the venue once — Panta's API terms (§6) ask for the
-    // attribution on the market module — and nothing more: the unit is in
-    // each figure's spoken label and in Rules & details, not a caption.
+    // attribution on the market module — and the unit beside it: markets are
+    // quoted in USDC or SOL, and 0.67 SOL is not 0.67 USDC, so a figure is
+    // never left to be read in the wrong one. No unit when no price came.
+    final unit = snapshot?.currency.perShareWords;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         pair,
         const SizedBox(height: 8),
         Text(
-          SharePriceSnapshot.attribution,
+          unit == null
+              ? SharePriceSnapshot.attribution
+              : '${SharePriceSnapshot.attribution} · $unit',
           style: AppTextStyles.textTheme.bodySmall?.copyWith(
             color: AppColors.textSecondary,
           ),

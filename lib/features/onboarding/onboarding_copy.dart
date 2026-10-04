@@ -12,6 +12,9 @@
 /// Strings marked (identity) are fleet/identity's own, reused verbatim.
 library;
 
+import 'package:chumbucket/features/calls/data/call_models.dart'
+    show ShareCurrency;
+
 abstract final class OnboardingCopy {
   // ── S0 / B2 ──────────────────────────────────────────────────────────────
   static const splashRestoring = 'Restoring your account…';
@@ -244,7 +247,10 @@ abstract final class OnboardingCopy {
       'No problem. You can turn notifications on in Settings.';
   static const recordDone = 'Done';
   static const recordShare = 'Share your call';
-  static String recordLockedAt(String price) => 'Locked at $price USDC/share';
+  static String recordLockedAt(
+    String price, {
+    ShareCurrency currency = ShareCurrency.usdc,
+  }) => 'Locked at $price ${currency.perShare}';
   static const recordPriceNotCaptured = 'Price not captured';
 
   // ── U1 What's new ────────────────────────────────────────────────────────
