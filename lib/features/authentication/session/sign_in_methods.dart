@@ -193,7 +193,10 @@ class LinkPreview {
   const LinkPreview({
     required this.outcome,
     required this.into,
+    required this.proofKind,
+    this.proofLabel,
     this.from,
+    this.otherUserId,
     this.refusal,
   });
 
@@ -201,8 +204,30 @@ class LinkPreview {
   final LinkedAccount into;
   final LinkedAccount? from;
 
-  /// ACCOUNT_HAS_MONEY or ACCOUNT_FOLD_DISABLED: why it can't happen.
+  /// What the other side's sign-in proved, shown before Link/Move.
+  final SignInMethodKind proofKind;
+  final String? proofLabel;
+
+  /// The account the proof reaches; sent back with the confirm.
+  final String? otherUserId;
+
+  /// Why it can't happen (ACCOUNT_HAS_MONEY, FOLD_NEEDS_PRIMARY_SIGN_IN, …).
   final String? refusal;
+
+  /// "@handle", the email, or a short wallet.
+  String get proofDisplay =>
+      SignInMethodRow(
+        id: 'proof',
+        kind: proofKind,
+        label: proofLabel,
+        current: false,
+      ).display;
+
+  /// What the person confirms: exactly what this preview showed.
+  Map<String, Object?> get expectation => {
+    'outcome': outcome.name,
+    'otherUserId': otherUserId,
+  };
 
   static LinkPreview? parse(Object? value) {
     if (value is! Map) return null;
@@ -213,12 +238,19 @@ class LinkPreview {
       _ => null,
     };
     final into = LinkedAccount.parse(value['into']);
-    if (outcome == null || into == null) return null;
+    final proof = value['proof'];
+    final proofKind = proof is Map ? signInMethodKindOf(proof['kind']) : null;
+    if (outcome == null || into == null || proofKind == null) return null;
+    final label = proof is Map ? proof['label'] : null;
+    final other = value['otherUserId'];
     final refusal = value['refusal'];
     return LinkPreview(
       outcome: outcome,
       into: into,
+      proofKind: proofKind,
+      proofLabel: label is String && label.isNotEmpty ? label : null,
       from: LinkedAccount.parse(value['from']),
+      otherUserId: other is String && other.isNotEmpty ? other : null,
       refusal: refusal is String && refusal.isNotEmpty ? refusal : null,
     );
   }
@@ -232,6 +264,11 @@ String signInLinkCopy(String code) => switch (code) {
   'ACCOUNT_HAS_MONEY' =>
     'It has trades, so it stays separate. Sign in to it and link from there.',
   'ACCOUNT_NOT_FOLDABLE' => 'That account can’t be moved.',
+  'FOLD_NEEDS_PRIMARY_SIGN_IN' =>
+    'Sign in with the way that account started to move it.',
+  'FOLD_WALLET_CONFLICT' =>
+    'Both accounts have a wallet, so they stay separate.',
+  'LINK_PREVIEW_CHANGED' => 'Something changed. Try again.',
   'LINK_TICKET_INVALID' => 'That took too long. Try again.',
   'LINK_METHOD_MISMATCH' => 'That was a different sign-in. Try again.',
   'LINK_RATE_LIMITED' => 'Too many tries. Wait a minute.',

@@ -135,11 +135,14 @@ class SignInMethodsController extends ChangeNotifier {
         _set(busy: null, move: SignInMove._(MoveStage.conflict, kind));
         return;
       }
-      _set(
-        busy: null,
-        line: code == null ? '${kind.title} linked' : signInLinkCopy(code),
-      );
-      if (code == null) await load();
+      if (code != null) {
+        _set(busy: null, line: signInLinkCopy(code));
+        return;
+      }
+      // A callback says nothing on its own: the account's own sign-ins do.
+      await load();
+      final linked = _methods?.rows.any((r) => r.kind == kind) == true;
+      _set(busy: null, line: linked ? '${kind.title} linked' : null);
     } catch (e) {
       _set(busy: null, line: _copyOf(e));
     }
@@ -248,10 +251,12 @@ class SignInMethodsController extends ChangeNotifier {
     );
     try {
       final token = await _requireToken();
+      // Exactly what the person was shown: if it changed, nothing happens.
       final outcome = await _bff.completeSignInLink(
         token,
         otherAccessToken: proof,
         ticket: ticket,
+        preview: preview,
       );
       _set(
         move: null,

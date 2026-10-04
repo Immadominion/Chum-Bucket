@@ -5,13 +5,20 @@
 ///   * linking X or Google onto THIS app's session — Supabase's own manual
 ///     identity linking (`linkIdentity`), on the app's client. Needs "Allow
 ///     manual linking" in Supabase Auth. The answer comes back on the
-///     `login-callback` deep link: a code (linked) or an error code
-///     (`identity_already_exists` is where a move starts).
+///     `login-callback` deep link: a code (Settings then re-reads the
+///     account to see it) or an error code (`identity_already_exists` is
+///     where a move starts — which itself needs a proof).
 ///   * proving the OTHER side of a link Supabase can't make — a sign-in made
-///     only for that, which never touches the app's session: X/Google through
-///     Supabase's implicit grant in the browser (the app's PKCE client ignores
-///     a callback that carries tokens), a wallet through the Web3 grant over
-///     HTTP. Only the access token is kept, in memory, and it is released
+///     only for that, which never touches the app's session:
+///       - X/Google: PKCE in an auth session that returns to this caller
+///         (ASWebAuthenticationSession on iOS, Custom Tabs / Auth Tab on
+///         Android, via flutter_web_auth_2). The code verifier exists only in
+///         this object's memory; the return address carries a fresh nonce
+///         per attempt; nothing is accepted from a callback that is not this
+///         attempt's (wrong or missing nonce, wrong host, no code). The app's
+///         deep-link handlers never see it (its own `link-callback` host).
+///       - a wallet: the Web3 grant over HTTP, signed by the wallet.
+///     Only the access token is kept, in memory, and it is released
 ///     (`logout?scope=local`) as soon as the link is done or abandoned.
 ///
 /// Tests inject a fake; the app uses [SupabaseSignInLinkPort].
@@ -20,14 +27,17 @@ library;
 import 'dart:async';
 import 'dart:convert';
 
+import 'dart:math';
+
 import 'package:app_links/app_links.dart';
 import 'package:chumbucket/core/config/app_config.dart';
+import 'package:crypto/crypto.dart' show sha256;
+import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:chumbucket/features/authentication/session/sign_in_methods.dart';
 import 'package:chumbucket/features/authentication/session/solana_sign_in.dart';
 import 'package:chumbucket/features/authentication/session/supabase_auth_port.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// Where a link stopped: a Supabase/BFF code, `cancelled` or `network`.
 class SignInLinkStopped implements Exception {
@@ -60,17 +70,98 @@ abstract class SignInLinkPort {
   Future<void> release(String accessToken);
 }
 
+/// Where a proof's auth session returns: the app's scheme on a host of its
+/// own, so the app's deep-link handlers (Supabase's `login-callback`, the
+/// share links) never see it. Must be on Supabase Auth's redirect allow-list
+/// (`dev.cleva.chumbucket://link-callback**`).
+const String kSignInProofCallback = 'dev.cleva.chumbucket://link-callback';
+
+/// Opens [url] in an auth session and returns the URL it came back to.
+typedef AuthSessionLauncher =
+    Future<String> Function({
+      required String url,
+      required String callbackUrlScheme,
+    });
+
+Future<String> _flutterWebAuth({
+  required String url,
+  required String callbackUrlScheme,
+}) => FlutterWebAuth2.authenticate(
+  url: url,
+  callbackUrlScheme: callbackUrlScheme,
+);
+
+/// One PKCE attempt: a verifier and a nonce that exist only in memory.
+class ProofAttempt {
+  ProofAttempt._(this.verifier, this.nonce);
+
+  factory ProofAttempt.fresh([Random? random]) {
+    final rng = random ?? Random.secure();
+    String token(int bytes) => base64UrlEncode(
+      List<int>.generate(bytes, (_) => rng.nextInt(256)),
+    ).replaceAll('=', '');
+    return ProofAttempt._(token(48), token(24));
+  }
+
+  final String verifier;
+  final String nonce;
+
+  /// S256: base64url(sha256(verifier)), no padding.
+  String get challenge => base64UrlEncode(
+    sha256.convert(ascii.encode(verifier)).bytes,
+  ).replaceAll('=', '');
+
+  String get redirectTo =>
+      Uri.parse(
+        kSignInProofCallback,
+      ).replace(queryParameters: {'n': nonce}).toString();
+
+  /// The code from a callback that is THIS attempt's, or null. Anything else
+  /// — another scheme or host, no nonce, another nonce, no code — is refused.
+  String? codeFrom(String returned) {
+    final uri = Uri.tryParse(returned);
+    final expected = Uri.parse(kSignInProofCallback);
+    if (uri == null ||
+        uri.scheme != expected.scheme ||
+        uri.host != expected.host ||
+        uri.queryParameters['n'] != nonce) {
+      return null;
+    }
+    final code = uri.queryParameters['code'];
+    return code != null && RegExp(r'^[A-Za-z0-9-]{8,128}$').hasMatch(code)
+        ? code
+        : null;
+  }
+
+  @override
+  String toString() => 'ProofAttempt(<redacted>)';
+}
+
 class SupabaseSignInLinkPort implements SignInLinkPort {
-  SupabaseSignInLinkPort({AppLinks? links, http.Client? client})
-    : _links = links ?? AppLinks(),
-      _client = client ?? http.Client();
+  SupabaseSignInLinkPort({
+    AppLinks? links,
+    http.Client? client,
+    AuthSessionLauncher? launcher,
+    String? baseUrl,
+    String? anonKey,
+  }) : _links = links,
+       _client = client ?? http.Client(),
+       _launch = launcher ?? _flutterWebAuth,
+       _baseOverride = baseUrl,
+       _keyOverride = anonKey;
 
-  final AppLinks _links;
+  AppLinks? _links;
   final http.Client _client;
+  final AuthSessionLauncher _launch;
+  final String? _baseOverride;
+  final String? _keyOverride;
 
-  static String get _base =>
-      (AppConfig.values['SUPABASE_URL'] ?? '').replaceAll(RegExp(r'/+$'), '');
-  static String get _anonKey => AppConfig.values['SUPABASE_ANON_KEY'] ?? '';
+  AppLinks get _appLinks => _links ??= AppLinks();
+
+  String get _base => (_baseOverride ?? AppConfig.values['SUPABASE_URL'] ?? '')
+      .replaceAll(RegExp(r'/+$'), '');
+  String get _anonKey =>
+      _keyOverride ?? AppConfig.values['SUPABASE_ANON_KEY'] ?? '';
 
   GoTrueClient get _auth => Supabase.instance.client.auth;
 
@@ -108,7 +199,7 @@ class SupabaseSignInLinkPort implements SignInLinkPort {
   Future<String?> providerLinkResult({
     Duration timeout = const Duration(minutes: 3),
   }) async {
-    final params = await _links.uriLinkStream
+    final params = await _appLinks.uriLinkStream
         .map(_callback)
         .where(
           (p) => p != null && (p.containsKey('code') || _errorOf(p) != null),
@@ -136,32 +227,57 @@ class SupabaseSignInLinkPort implements SignInLinkPort {
     SignInMethodKind kind, {
     Duration timeout = const Duration(minutes: 3),
   }) async {
-    // The implicit grant (no code challenge): the tokens come back in the
-    // fragment, which the app's PKCE client leaves alone.
+    final attempt = ProofAttempt.fresh();
     final authorize = Uri.parse('$_base/auth/v1/authorize').replace(
       queryParameters: {
         'provider': kind == SignInMethodKind.google ? 'google' : 'x',
-        'redirect_to': kChumbucketOAuthRedirect,
+        'redirect_to': attempt.redirectTo,
+        'code_challenge': attempt.challenge,
+        'code_challenge_method': 's256',
       },
     );
-    final answer = _links.uriLinkStream
-        .map(_callback)
-        .where(
-          (p) =>
-              p != null &&
-              (p.containsKey('access_token') || _errorOf(p) != null),
-        )
-        .first
-        .timeout(timeout, onTimeout: () => const {'error': 'cancelled'});
-    final opened = await launchUrl(
-      authorize,
-      mode: LaunchMode.externalApplication,
-    );
-    if (!opened) throw const SignInLinkStopped('network');
-    final params = (await answer)!;
-    final token = params['access_token'];
-    if (token == null || token.isEmpty) {
-      throw SignInLinkStopped(_errorOf(params) ?? 'cancelled');
+    final String returned;
+    try {
+      returned = await _launch(
+        url: authorize.toString(),
+        callbackUrlScheme: Uri.parse(kSignInProofCallback).scheme,
+      ).timeout(timeout);
+    } catch (_) {
+      // Closed, cancelled, timed out: nothing was proven.
+      throw const SignInLinkStopped('cancelled');
+    }
+    final code = attempt.codeFrom(returned);
+    if (code == null) {
+      final error = Uri.tryParse(returned)?.queryParameters['error_code'];
+      throw SignInLinkStopped(
+        error != null && _sameAttempt(returned, attempt) ? error : 'cancelled',
+      );
+    }
+    return _exchange(code, attempt.verifier);
+  }
+
+  static bool _sameAttempt(String returned, ProofAttempt attempt) =>
+      Uri.tryParse(returned)?.queryParameters['n'] == attempt.nonce;
+
+  /// The one-time code + this attempt's verifier -> an access token. The
+  /// refresh token in the answer is never kept.
+  Future<String> _exchange(String code, String verifier) async {
+    final http.Response response;
+    try {
+      response = await _client
+          .post(
+            Uri.parse('$_base/auth/v1/token?grant_type=pkce'),
+            headers: {'apikey': _anonKey, 'content-type': 'application/json'},
+            body: jsonEncode({'auth_code': code, 'code_verifier': verifier}),
+          )
+          .timeout(const Duration(seconds: 20));
+    } catch (_) {
+      throw const SignInLinkStopped('network');
+    }
+    final body = response.statusCode == 200 ? jsonDecode(response.body) : null;
+    final token = body is Map ? body['access_token'] : null;
+    if (token is! String || token.isEmpty) {
+      throw const SignInLinkStopped('cancelled');
     }
     return token;
   }

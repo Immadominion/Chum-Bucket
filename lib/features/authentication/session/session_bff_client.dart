@@ -332,18 +332,24 @@ class SessionBffClient {
     return parsed;
   }
 
-  /// Completes [ticket] with the other side's session: "already", "linked"
-  /// or "folded".
+  /// Completes [ticket] with the other side's session, naming what the
+  /// person was shown ([preview]): the server refuses if it changed.
+  /// Answers "already", "linked" or "folded".
   Future<String> completeSignInLink(
     String bearer, {
     required String otherAccessToken,
     required String ticket,
+    required LinkPreview preview,
   }) async {
     final data = await _send(
       'auth.completeSignInLink',
       method: 'POST',
       bearer: bearer,
-      input: {'supabaseAccessToken': otherAccessToken, 'ticket': ticket},
+      input: {
+        'supabaseAccessToken': otherAccessToken,
+        'ticket': ticket,
+        'expect': preview.expectation,
+      },
     );
     final outcome = data is Map ? data['outcome'] : null;
     if (outcome != 'already' && outcome != 'linked' && outcome != 'folded') {
@@ -674,6 +680,9 @@ SessionError sessionErrorForTrpcError({
     case 'LINK_RATE_LIMITED':
     case 'SIGN_IN_IN_USE':
     case 'SIGN_IN_NOT_FOUND':
+    case 'FOLD_NEEDS_PRIMARY_SIGN_IN':
+    case 'FOLD_WALLET_CONFLICT':
+    case 'LINK_PREVIEW_CHANGED':
       return SessionError.refused(signInLinkCopy(detail), code: detail);
     case 'WALLET_LINK_FAILED':
       return const SessionError.network(

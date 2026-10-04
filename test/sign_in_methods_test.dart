@@ -20,6 +20,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:crypto/crypto.dart' show sha256;
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 import 'bff_calls_fixtures.dart';
 import 'session_fakes.dart';
@@ -56,6 +59,8 @@ Map<String, Object?> ownerMethods({bool linking = true}) => {
 
 Map<String, Object?> foldPreview({String? refusal}) => {
   'outcome': 'fold',
+  'proof': {'kind': 'x', 'label': 'ownerx'},
+  'otherUserId': 'user-dominion',
   'into': {'userId': 'user-dev', 'handle': 'dev', 'displayName': 'Dev'},
   'from': {'userId': 'user-dominion', 'handle': 'dominion'},
   'refusal': refusal,
@@ -273,6 +278,7 @@ void main() {
           kAccessToken,
           otherAccessToken: 'other-token',
           ticket: _ticket,
+          preview: LinkPreview.parse(foldPreview())!,
         );
         fail('expected a refusal');
       } on SessionException catch (e) {
@@ -305,9 +311,11 @@ void main() {
       });
 
       await c.confirm();
+      // The confirm names exactly what the person was shown.
       expect(server.requestFor('auth.completeSignInLink').input, {
         'supabaseAccessToken': 'other-token',
         'ticket': _ticket,
+        'expect': {'outcome': 'fold', 'otherUserId': 'user-dominion'},
       });
       expect(c.move, isNull);
       expect(c.line, '@dominion moved here');
@@ -344,10 +352,15 @@ void main() {
     test(
       'linked without a conflict: says so; Supabase refusals as a line',
       () async {
+        // "Linked" only when the account's own sign-ins say so; a callback
+        // alone (here, X is on the account) proves nothing.
         final ok = controllerFor(linkServer(), FakeLinkPort());
-        await ok.linkProvider(SignInMethodKind.google);
+        await ok.linkProvider(SignInMethodKind.x);
         expect(ok.move, isNull);
-        expect(ok.line, 'Google linked');
+        expect(ok.line, 'X linked');
+        final unsolicited = controllerFor(linkServer(), FakeLinkPort());
+        await unsolicited.linkProvider(SignInMethodKind.google);
+        expect(unsolicited.line, isNull);
 
         final off = controllerFor(
           linkServer(),
@@ -474,9 +487,143 @@ void main() {
       await tester.runAsync(c.prove);
       await tester.pump();
       expect(find.byKey(const ValueKey('move-preview')), findsOneWidget);
+      // What was proven, then where it goes: "@ownerx → @dev", from @dominion.
+      final proof = find.byKey(const ValueKey('link-proof'));
+      expect(
+        find.descendant(of: proof, matching: find.text('@ownerx')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: proof, matching: find.text('@dev')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('link-from')), findsOneWidget);
       expect(find.text('@dominion'), findsOneWidget);
-      expect(find.text('@dev'), findsOneWidget);
       expect(find.text('Move here'), findsOneWidget);
+    });
+  });
+
+  group('the proof: PKCE in an auth session, this attempt only', () {
+    SupabaseSignInLinkPort portWith(
+      Future<String> Function(String url) launch,
+      List<http.Request> exchanged,
+    ) => SupabaseSignInLinkPort(
+      baseUrl: 'https://auth.test.invalid',
+      anonKey: 'anon-test',
+      launcher:
+          ({required String url, required String callbackUrlScheme}) =>
+              launch(url),
+      client: MockClient((request) async {
+        exchanged.add(request);
+        return http.Response(
+          jsonEncode({'access_token': 'proof-token', 'refresh_token': 'drop'}),
+          200,
+        );
+      }),
+    );
+
+    test(
+      'the right callback is exchanged with this attempt\'s verifier',
+      () async {
+        final exchanged = <http.Request>[];
+        late Uri authorize;
+        final port = portWith((url) async {
+          authorize = Uri.parse(url);
+          final back = Uri.parse(authorize.queryParameters['redirect_to']!);
+          return back
+              .replace(
+                queryParameters: {
+                  ...back.queryParameters,
+                  'code': 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+                },
+              )
+              .toString();
+        }, exchanged);
+        expect(await port.proveProvider(SignInMethodKind.x), 'proof-token');
+        expect(authorize.queryParameters['provider'], 'x');
+        expect(authorize.queryParameters['code_challenge_method'], 's256');
+        final back = Uri.parse(authorize.queryParameters['redirect_to']!);
+        expect('${back.scheme}://${back.host}', kSignInProofCallback);
+        expect(back.queryParameters['n'], isNotEmpty);
+        // The verifier never left memory until the exchange, and matches.
+        expect(authorize.toString(), isNot(contains('code_verifier')));
+        final body = jsonDecode(exchanged.single.body) as Map<String, dynamic>;
+        expect(body['auth_code'], 'f47ac10b-58cc-4372-a567-0e02b2c3d479');
+        final challenge = base64UrlEncode(
+          sha256.convert(ascii.encode(body['code_verifier'] as String)).bytes,
+        ).replaceAll('=', '');
+        expect(challenge, authorize.queryParameters['code_challenge']);
+      },
+    );
+
+    test('unsolicited, wrong-nonce and wrong-host callbacks are refused', () async {
+      for (final forge in <String Function(Uri back)>[
+        (_) =>
+            'dev.cleva.chumbucket://link-callback?code=f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        (_) =>
+            'dev.cleva.chumbucket://link-callback?n=someone-else&code=f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        (back) =>
+            back
+                .replace(
+                  host: 'login-callback',
+                  queryParameters: {
+                    ...back.queryParameters,
+                    'code': 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+                  },
+                )
+                .toString(),
+        (back) => back.toString(), // this attempt, but no code
+        (back) => '$back#access_token=forged.token.here',
+      ]) {
+        final exchanged = <http.Request>[];
+        final port = portWith((url) async {
+          final back = Uri.parse(
+            Uri.parse(url).queryParameters['redirect_to']!,
+          );
+          return forge(back);
+        }, exchanged);
+        await expectLater(
+          port.proveProvider(SignInMethodKind.google),
+          throwsA(isA<SignInLinkStopped>()),
+        );
+        expect(exchanged, isEmpty);
+      }
+    });
+
+    test('a cancelled session or a refusal proves nothing', () async {
+      final exchanged = <http.Request>[];
+      final cancelled = portWith(
+        (_) async => throw Exception('CANCELED'),
+        exchanged,
+      );
+      await expectLater(
+        cancelled.proveProvider(SignInMethodKind.x),
+        throwsA(
+          isA<SignInLinkStopped>().having((e) => e.code, 'code', 'cancelled'),
+        ),
+      );
+      final refused = portWith((url) async {
+        final back = Uri.parse(Uri.parse(url).queryParameters['redirect_to']!);
+        return back
+            .replace(
+              queryParameters: {
+                ...back.queryParameters,
+                'error_code': 'access_denied',
+              },
+            )
+            .toString();
+      }, exchanged);
+      await expectLater(
+        refused.proveProvider(SignInMethodKind.x),
+        throwsA(
+          isA<SignInLinkStopped>().having(
+            (e) => e.code,
+            'code',
+            'access_denied',
+          ),
+        ),
+      );
+      expect(exchanged, isEmpty);
     });
   });
 }
