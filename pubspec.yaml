@@ -54,6 +54,9 @@ dependencies:
   path_provider: ^2.1.5
   pdf: ^3.11.3
   url_launcher: ^6.2.2 # For opening URLs in browser
+  flutter_web_auth_2: ^5.0.2 # Sign-in link proofs: ASWebAuthenticationSession / Custom Tabs that return to the app
+  # Already resolved transitively (gotrue). Promoted for the sign-in proof's PKCE challenge (SHA-256).
+  crypto: ^3.0.6
   webview_flutter: ^4.13.0 # For in-app web browser
   # Already resolved transitively (pubspec.lock pins both). Promoted so the
   # Crossmint checkout can enable Android's Payment Request API (Google Pay)

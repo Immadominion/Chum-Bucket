@@ -380,18 +380,19 @@ class _MovePanel extends StatelessWidget {
       key: const ValueKey('move-preview'),
       mainAxisSize: MainAxisSize.min,
       children: [
+        // What was proven, then where it goes: "@handle → @account".
         Row(
+          key: const ValueKey('link-proof'),
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            _KindMark(preview.proofKind),
+            SizedBox(width: 8.w),
             Flexible(
-              child:
-                  preview.from != null
-                      ? Text(
-                        preview.from!.display,
-                        style: title,
-                        overflow: TextOverflow.ellipsis,
-                      )
-                      : _KindMark(kind),
+              child: Text(
+                preview.proofDisplay,
+                style: title,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 10.w),
@@ -406,6 +407,14 @@ class _MovePanel extends StatelessWidget {
             ),
           ],
         ),
+        if (preview.from != null) ...[
+          SizedBox(height: 6.h),
+          Text(
+            preview.from!.display,
+            key: const ValueKey('link-from'),
+            style: line,
+          ),
+        ],
         SizedBox(height: 12.h),
         Text(
           refusal != null

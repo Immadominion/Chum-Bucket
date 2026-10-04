@@ -113,6 +113,20 @@
         <meta-data
             android:name="io.flutter.network-policy"
             android:resource="@xml/network_security_config" />
+        <!-- Sign-in link proofs (flutter_web_auth_2): the auth session returns
+             here, on a host of its own, so it never reaches MainActivity's
+             login-callback or share-link filters. -->
+        <activity
+            android:name="com.linusu.flutter_web_auth_2.CallbackActivity"
+            android:exported="true"
+            android:taskAffinity="">
+            <intent-filter android:label="flutter_web_auth_2">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="dev.cleva.chumbucket" android:host="link-callback" />
+            </intent-filter>
+        </activity>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
