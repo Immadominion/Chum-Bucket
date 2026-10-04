@@ -298,20 +298,17 @@ class NotificationService {
   // Challenge Notifications
   // ─────────────────────────────────────────────────────────────
 
-  /// Notify when user is challenged by someone
+  /// Notify when user is challenged by someone. Says nothing about money:
+  /// the push carries no amount, and no new challenge stakes anything.
   static Future<void> notifyChallengeReceived({
     required String challengerName,
     required String challengeTitle,
-    double? amountSol,
     String? challengeId,
   }) async {
-    final amountStr =
-        amountSol != null ? '${amountSol.toStringAsFixed(2)} SOL' : 'SOL';
-
     await _show(
       DateTime.now().millisecondsSinceEpoch.remainder(100000),
       '$challengerName challenged you! 🎯',
-      '"$challengeTitle" - $amountStr at stake',
+      '"$challengeTitle" · tap to see it',
       NotificationDetails(
         android: AndroidNotificationDetails(
           NotificationChannels.activity,
