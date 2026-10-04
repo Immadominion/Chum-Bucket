@@ -103,6 +103,30 @@ class CallsFormat {
     return 'Closes in ${delta.inDays}d';
   }
 
+  static final DateFormat _dayMonth = DateFormat('d MMM');
+
+  /// A day for a compact fact tile: "3h ago" within a week, then "22 Sep".
+  /// The exact UTC instant stays on the receipt and the "on record" banner.
+  static String shortWhen(DateTime value, {DateTime? now}) {
+    final reference = (now ?? DateTime.now()).toUtc();
+    final delta = reference.difference(value.toUtc());
+    if (!delta.isNegative && delta.inDays < 7) {
+      return relative(value, now: reference);
+    }
+    return _dayMonth.format(value.toUtc());
+  }
+
+  /// The time left before a market closes, as a short tag beside a clock
+  /// icon: "39d", "5h", "22m". Null once it has closed (or has no close).
+  static String? timeLeft(DateTime? closesAt, {DateTime? now}) {
+    if (closesAt == null) return null;
+    final delta = closesAt.toUtc().difference((now ?? DateTime.now()).toUtc());
+    if (delta.isNegative) return null;
+    if (delta.inMinutes < 60) return '${delta.inMinutes}m';
+    if (delta.inHours < 48) return '${delta.inHours}h';
+    return '${delta.inDays}d';
+  }
+
   /// How old a price is. The market detail must always show this next to the
   /// price so nobody mistakes a five-hour-old number for live.
   static String dataAge(Duration? age) {

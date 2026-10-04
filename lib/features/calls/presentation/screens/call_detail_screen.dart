@@ -8,6 +8,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
+import 'package:chumbucket/shared/widgets/chumbucket_sheet_actions.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:provider/provider.dart';
 import 'package:chumbucket/core/services/push_registration.dart';
@@ -399,444 +400,243 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
         entry.viewerHasCalled ||
         provider.marketDetail(entry.market.id)?.viewerHasCalled == true;
     final following = provider.personDetail(entry.author.id)?.viewerIsFollowing;
+    final followBusy = _followBusy || provider.isFollowBusy(entry.author.id);
+    final sideLabel = entry.market.labelFor(entry.call.side);
     return Column(
       children: [
         Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-            children: [
-              if (widget.sharedByHandle != null)
-                CallJourneyNote(
-                  'Shared with you by @${widget.sharedByHandle}.',
-                  icon: 'share-outline',
-                ),
-              if (provider.isOffline) ...[
-                const CallJourneyNote('Offline — showing what we already had.'),
-                CallJourneyButton(
-                  label: 'Retry',
-                  onPressed:
-                      () => provider.loadCall(widget.callId, force: true),
-                ),
-              ],
-              if (entry.market.venue.isDemo)
-                const CallJourneyNote(
-                  'DEMO DATA · Sample market, not a live call.',
-                ),
-              if (own) _LockedBanner(lockedAt: entry.call.lockedAtUtc),
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    CallJourneyPerson(
-                      person: entry.author,
-                      subtitle:
-                          '@${entry.author.handle} · ${CallsFormat.timestampShortUtc(entry.call.createdAtUtc)}',
-                      onTap:
-                          () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder:
-                                  (_) => CallPersonScreen(
-                                    personRef: entry.author.id,
-                                    onSignInRequested: widget.onSignInRequested,
-                                  ),
-                            ),
-                          ),
-                      trailing:
-                          own
-                              ? null
-                              : TextButton(
-                                style: TextButton.styleFrom(
-                                  minimumSize: const Size(48, 48),
-                                  foregroundColor: _pinkInk,
-                                ),
-                                onPressed:
-                                    _followBusy ||
-                                            provider.isFollowBusy(
-                                              entry.author.id,
-                                            )
-                                        ? null
-                                        : () => _follow(entry),
-                                child: Text(
-                                  _followBusy ||
-                                          provider.isFollowBusy(entry.author.id)
-                                      ? 'Updating…'
-                                      : following == true
-                                      ? 'Following'
-                                      : 'Follow',
-                                  style: callJourneyBody(13).copyWith(
-                                    color: _pinkInk,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                    ),
-                    if (_followError != null)
-                      Semantics(
-                        liveRegion: true,
-                        child: CallJourneyNote(_followError!, error: true),
-                      ),
-                    const SizedBox(height: 14),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        SidePill(side: entry.call.side),
-                        Text(
-                          '${entry.funding != null ? 'Funded on Panta' : 'Free call'} · locked'
-                          '${entry.call.visibility == CallVisibility.followers ? ' · Followers only' : ''}',
-                          style: callJourneyBody(12),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Semantics(
-                      header: true,
-                      child: Text(
-                        entry.market.question,
-                        style: callJourneyHeading(
-                          context,
-                          24,
-                        ).copyWith(letterSpacing: -.5),
-                      ),
-                    ),
-                    if (entry.market.labelFor(entry.call.side).toUpperCase() !=
-                        entry.call.side.wire) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        entry.market.labelFor(entry.call.side),
-                        style: callJourneyBody(),
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    Text(
-                      entry.call.thesis?.isNotEmpty == true
-                          ? entry.call.thesis!
-                          : 'No reason added.',
-                      style: callJourneyBody(
-                        14,
-                      ).copyWith(color: AppColors.textPrimary, height: 1.75),
-                    ),
-                    // The thread hangs under the original reason and never
-                    // replaces it. Only the author may add to it.
-                    ThesisThread(
-                      detail: detail,
-                      isAuthor: own,
-                      onAddUpdate:
-                          own && provider.supportsPeople
-                              ? () => _addUpdate(detail)
-                              : null,
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.only(top: 18, bottom: 14),
-                      child: Divider(
-                        height: 1,
-                        color: AppColors.outlineVariant,
-                      ),
-                    ),
-                    // Readable here; the receipt carries the exact ISO
-                    // timestamps and venue strings as its proof.
-                    CallJourneyFact(
-                      'Locked',
-                      CallsFormat.timestampUtc(entry.call.lockedAtUtc),
-                    ),
-                    if (entry.call.confidence != null)
-                      CallJourneyFact(
-                        'Their confidence',
-                        '${CallsFormat.probability(entry.call.confidence)} · self-reported',
-                      ),
-                    CallJourneyFact(
-                      '${entry.call.side.wire} when called',
-                      entry.call.entryPrice != null
-                          ? CallsFormat.sharePrice(switch (entry
-                              .call
-                              .entryPrice!
-                              .priceFor(entry.call.side)) {
-                            final price? => CallsFormat.displayPrice(price),
-                            null => null,
-                          })
-                          : entry.market.venue == MarketVenue.panta ||
-                              entry.call.entryProbability == null
-                          ? 'Price not captured'
-                          : CallsFormat.probability(
-                            entry.call.entryProbability,
-                          ),
-                    ),
-                    CallJourneyFact(
-                      'Source',
-                      CallsFormat.venueAttribution(entry.market),
-                    ),
-                    if (entry.call.entryPrice?.priceFor(entry.call.side)
-                        case final exact?
-                        when CallsFormat.priceWasRounded(exact))
-                      CallJourneyFact('Exact price', exact),
-                    if (entry.call.entryPrice case final price?)
-                      CallJourneyFact(
-                        'Price observed',
-                        CallsFormat.timestampUtc(price.observedAtUtc),
-                      ),
-                    CallJourneyFact(
-                      'Closes',
-                      entry.market.closesAtUtc == null
-                          ? 'No close time published'
-                          : CallsFormat.timestampUtc(entry.market.closesAtUtc!),
-                    ),
-                    CallJourneyFact('Market status', entry.market.status.label),
-                    CallJourneyFact(
-                      'Result',
-                      entry.outcome == CallOutcome.pending
-                          ? 'Awaiting ${entry.market.venue.isDemo ? 'the demo venue' : entry.market.venue.label}'
-                          : CallsFormat.outcomeSentence(entry.outcome),
-                    ),
-                    if (entry.outcome == CallOutcome.pending)
-                      Text(
-                        'Closing time alone does not settle this call.',
-                        style: callJourneyBody(12),
-                      ),
-                    const SizedBox(height: 6),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        style: TextButton.styleFrom(
-                          minimumSize: const Size(48, 48),
-                          padding: EdgeInsets.zero,
-                          foregroundColor: _pinkInk,
-                        ),
-                        iconAlignment: IconAlignment.end,
-                        onPressed: () => _openMarket(entry),
-                        icon: const BasilIcon(
-                          'arrow-right-outline',
-                          size: 16,
-                          color: _pinkInk,
-                        ),
-                        label: Text(
-                          'View market & rules',
-                          style: callJourneyHeading(
-                            context,
-                            13,
-                          ).copyWith(color: _pinkInk),
-                        ),
-                      ),
-                    ),
-                    if (entry.outcome.isSettled) ...[
-                      const SizedBox(height: 8),
-                      CallJourneyButton(
-                        label: 'View & share receipt',
-                        icon: 'share-outline',
-                        onPressed: () => _shareReceipt(entry),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (detail.parent case final parent?) ...[
-                Text('In response to', style: callJourneyHeading(context, 18)),
-                const SizedBox(height: 8),
+          child: RefreshIndicator(
+            color: AppColors.primary,
+            // Pull to refresh, quietly: nothing on screen says how old it is.
+            onRefresh: () => provider.loadCall(widget.callId, force: true),
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+              children: [
+                if (widget.sharedByHandle != null)
+                  _QuietLine(
+                    'Shared by @${widget.sharedByHandle}',
+                    icon: 'share-outline',
+                  ),
+                if (provider.isOffline)
+                  const _QuietLine('You’re offline', icon: 'cloud-off-outline'),
+                if (own) _LockedBanner(lockedAt: entry.call.lockedAtUtc),
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(18, 14, 18, 8),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(24),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       CallJourneyPerson(
-                        person: parent.author,
+                        person: entry.author,
                         subtitle:
-                            '${entry.call.side == parent.call.side ? 'Backed' : 'Faded'} @${parent.author.handle} · they called ${parent.call.side.wire}',
+                            '@${entry.author.handle} · ${CallsFormat.relative(entry.call.createdAtUtc)}',
                         onTap:
                             () => Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder:
                                     (_) => CallPersonScreen(
-                                      personRef: parent.author.id,
+                                      personRef: entry.author.id,
+                                      onSignInRequested:
+                                          widget.onSignInRequested,
                                     ),
                               ),
                             ),
+                        trailing:
+                            own
+                                ? null
+                                : _FollowPill(
+                                  following: following == true,
+                                  busy: followBusy,
+                                  onPressed:
+                                      followBusy ? null : () => _follow(entry),
+                                ),
                       ),
+                      if (_followError != null) CallInlineError(_followError!),
                       const SizedBox(height: 12),
-                      Text(
-                        parent.market.question,
-                        style: callJourneyHeading(context, 18),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          SidePill(side: entry.call.side),
+                          FundingStateBadge(
+                            state:
+                                entry.funding != null
+                                    ? FundingState.filled
+                                    : entry.call.fundingState,
+                            quiet: true,
+                          ),
+                          if (entry.call.visibility == CallVisibility.followers)
+                            const CallBadge(
+                              label: 'Followers only',
+                              color: AppColors.textSecondary,
+                              icon: 'eye-outline',
+                              quiet: true,
+                            ),
+                          DemoVenueBadge(venue: entry.market.venue),
+                        ],
                       ),
-                      const SizedBox(height: 12),
-                      CallJourneyButton(
-                        label: 'Open original call',
-                        onPressed: () => _openCall(parent.call.id),
+                      const SizedBox(height: 10),
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          entry.market.question,
+                          style: callJourneyHeading(
+                            context,
+                            24,
+                          ).copyWith(letterSpacing: -.5),
+                        ),
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-              CallJourneyNote(
-                hasCalled
-                    ? 'Your call is locked. Eligible community opinion is available on the market.'
-                    : 'Your opinion first. The community split appears after you lock a call.',
-                icon: 'lock-outline',
-                quiet: true,
-              ),
-              if (!provider.isSignedIn)
-                Text(
-                  'You can read this without an account. Sign in to answer it.',
-                  style: callJourneyBody(12),
-                ),
-              if (!own) ...[
-                const SizedBox(height: 12),
-                Text(
-                  'Disagree with a friend?',
-                  style: callJourneyHeading(context, 18),
-                ),
-                const SizedBox(height: 12),
-                CallJourneyButton(
-                  label: 'Dare them to call it',
-                  icon: 'arrow-right-outline',
-                  onPressed: () => _respond(entry, CallResponseKind.challenge),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'A free invitation to take a side. No pot or payment is created.',
-                  style: callJourneyBody(12),
-                ),
-              ],
-              // Only the owner sees the established private Panta trade entry.
-              if (own && entry.market.venue == MarketVenue.panta) ...[
-                const SizedBox(height: 20),
-                Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Want a position too?',
-                        style: callJourneyHeading(context, 20),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Your call is already made. A trade is optional and private: real USDC on Panta, from your own wallet, approved by you separately.',
-                        style: callJourneyBody(),
-                      ),
-                      // The latest order on this call, refreshing itself
-                      // until Panta and Solana confirm or fail it.
-                      if (_orderStatusClient() case final client?) ...[
+                      if (sideLabel.toUpperCase() != entry.call.side.wire) ...[
+                        const SizedBox(height: 6),
+                        Text(sideLabel, style: callJourneyBody()),
+                      ],
+                      if (entry.call.thesis?.isNotEmpty == true) ...[
                         const SizedBox(height: 12),
-                        PantaOrderStatusRow(
-                          // A new order from the sheet re-reads the row.
-                          key: ValueKey(
-                            'order-status-${_trade?.order?.orderId}-${_trade?.order?.fundingState.wire}',
-                          ),
-                          callId: entry.call.id,
-                          client: client,
+                        Text(
+                          entry.call.thesis!,
+                          style: callJourneyBody(
+                            14,
+                          ).copyWith(color: AppColors.textPrimary, height: 1.6),
                         ),
                       ],
-                      const SizedBox(height: 12),
-                      CallJourneyButton(
-                        label:
-                            _trade?.isFunded == true
-                                ? 'View your Panta funding'
-                                : 'Review a ${entry.call.side.wire} trade',
-                        onPressed: () => _fund(entry),
+                      // The thread hangs under the original reason and never
+                      // replaces it. Only the author may add to it.
+                      ThesisThread(
+                        detail: detail,
+                        isAuthor: own,
+                        onAddUpdate:
+                            own && provider.supportsPeople
+                                ? () => _addUpdate(detail)
+                                : null,
                       ),
-                      const SizedBox(height: 8),
-                      Text('Powered by Panta', style: callJourneyBody(12)),
+                      const SizedBox(height: 14),
+                      // Readable here; the receipt carries the exact ISO
+                      // timestamps and venue strings as its proof.
+                      _FactGrid(facts: _facts(entry)),
+                      const SizedBox(height: 4),
+                      _LinkRow(
+                        icon: 'book-check-outline',
+                        label: 'Market & rules',
+                        onTap: () => _openMarket(entry),
+                      ),
                     ],
                   ),
                 ),
-              ],
-              // Response kinds/counts disclose the split, so they stay gated too.
-              if (hasCalled && detail.responses.isNotEmpty) ...[
-                const SizedBox(height: 24),
-                Text('Responses', style: callJourneyHeading(context, 18)),
-                const SizedBox(height: 12),
-                for (final response in detail.responses)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          '${response.kind.label} · ${CallsFormat.relative(response.createdAtUtc)}',
-                          style: callJourneyBody(),
+                if (detail.parent case final parent?) ...[
+                  const SizedBox(height: 12),
+                  _ParentCall(
+                    parent: parent,
+                    backed: entry.call.side == parent.call.side,
+                    onTap: () => _openCall(parent.call.id),
+                  ),
+                ],
+                // Only the owner sees the established private Panta trade entry.
+                if (own && entry.market.venue == MarketVenue.panta) ...[
+                  const SizedBox(height: 12),
+                  _TradeCard(
+                    side: entry.call.side,
+                    funded: _trade?.isFunded == true,
+                    onPressed: () => _fund(entry),
+                    // The latest order on this call, refreshing itself
+                    // until Panta and Solana confirm or fail it.
+                    status: switch (_orderStatusClient()) {
+                      final client? => PantaOrderStatusRow(
+                        // A new order from the sheet re-reads the row.
+                        key: ValueKey(
+                          'order-status-${_trade?.order?.orderId}-${_trade?.order?.fundingState.wire}',
                         ),
-                        if (response.resultingCallId != null)
-                          CallJourneyButton(
-                            label: 'Open their call',
-                            onPressed:
-                                () => _openCall(response.resultingCallId!),
-                          )
-                        else
-                          Text(
-                            'Invitation sent · no call created',
-                            style: callJourneyBody(12),
-                          ),
-                      ],
+                        callId: entry.call.id,
+                        client: client,
+                      ),
+                      null => null,
+                    },
+                  ),
+                ],
+                // Response kinds/counts disclose the split, so they stay gated.
+                if (hasCalled && detail.responses.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  Semantics(
+                    header: true,
+                    child: Text(
+                      'Responses',
+                      style: callJourneyHeading(context, 16),
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  for (final response in detail.responses)
+                    _ResponseRow(
+                      response: response,
+                      onTap:
+                          response.resultingCallId == null
+                              ? null
+                              : () => _openCall(response.resultingCallId!),
+                    ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
         if (!own)
-          SafeArea(
-            top: false,
-            child: Container(
-              color: AppColors.surface,
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final back = CallJourneyButton(
-                        label: 'Back · ${entry.call.side.wire}',
-                        primary: true,
-                        onPressed:
-                            entry.market.status.acceptsNewCalls
-                                ? () => _respond(entry, CallResponseKind.back)
-                                : null,
-                      );
-                      final fade = CallJourneyButton(
-                        label: 'Fade · ${entry.call.side.opposite.wire}',
-                        onPressed:
-                            entry.market.status.acceptsNewCalls
-                                ? () => _respond(entry, CallResponseKind.fade)
-                                : null,
-                      );
-                      return Row(
-                        children: [
-                          Expanded(child: back),
-                          const SizedBox(width: 8),
-                          Expanded(child: fade),
-                        ],
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    entry.market.status.acceptsNewCalls
-                        ? 'Review your own free call. Neither button places a trade.'
-                        : '${entry.market.status.label} · no new calls.',
-                    textAlign: TextAlign.center,
-                    style: callJourneyBody(12),
-                  ),
-                ],
-              ),
-            ),
+          _AnswerBar(
+            entry: entry,
+            onBack: () => _respond(entry, CallResponseKind.back),
+            onFade: () => _respond(entry, CallResponseKind.fade),
+            onDare: () => _respond(entry, CallResponseKind.challenge),
           ),
       ],
     );
   }
+
+  /// The call's facts as label/value tiles: when it locked, what its side
+  /// cost then, when the market closes, and where the result stands.
+  List<_Fact> _facts(CallFeedEntry entry) {
+    final call = entry.call;
+    final price = switch (call.entryPrice?.priceFor(call.side)) {
+      final value? => CallsFormat.displayPrice(value),
+      null =>
+        entry.market.venue != MarketVenue.panta && call.entryProbability != null
+            ? CallsFormat.probability(call.entryProbability)
+            : null,
+    };
+    return [
+      _Fact('lock-outline', 'Locked', CallsFormat.shortWhen(call.lockedAtUtc)),
+      if (price != null)
+        _Fact('chart-pie-outline', '${call.side.wire} at', price),
+      if (entry.market.closesAtUtc case final closes?)
+        switch (CallsFormat.timeLeft(closes)) {
+          final left? => _Fact('clock-outline', 'Closes', 'in $left'),
+          null => _Fact(
+            'clock-outline',
+            'Closed',
+            CallsFormat.shortWhen(closes),
+          ),
+        },
+      _Fact(
+        entry.outcome.isSettled ? 'award-outline' : 'timer-outline',
+        'Result',
+        switch (entry.outcome) {
+          CallOutcome.pending => 'Pending',
+          CallOutcome.correct => 'Correct',
+          CallOutcome.incorrect => 'Incorrect',
+          CallOutcome.voided => 'Void',
+        },
+      ),
+      if (call.confidence != null)
+        _Fact(
+          'star-outline',
+          own(entry) ? 'Your confidence' : 'Their confidence',
+          CallsFormat.probability(call.confidence),
+        ),
+    ];
+  }
+
+  bool own(CallFeedEntry entry) =>
+      entry.author.id == context.read<CallsProvider>().viewerUserId;
 }
 
 /// The prototype's pink ink for text actions (#B8173B, 6.4:1 on white).
@@ -852,8 +652,8 @@ class _LockedBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(bottom: 14),
-    padding: const EdgeInsets.all(13),
+    margin: const EdgeInsets.only(bottom: 12),
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     decoration: BoxDecoration(
       color: const Color(0xFFE6F6EF),
       borderRadius: BorderRadius.circular(16),
@@ -870,9 +670,9 @@ class _LockedBanner extends StatelessWidget {
                 'You’re on record',
                 style: callJourneyHeading(context, 14).copyWith(color: _ink),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Text(
-                '${CallsFormat.timestampUtc(lockedAt)} · side, reason and time can’t be edited',
+                '${CallsFormat.timestampShortUtc(lockedAt)} · can’t be edited',
                 style: callJourneyBody(12).copyWith(color: _ink),
               ),
             ],
@@ -881,4 +681,501 @@ class _LockedBanner extends StatelessWidget {
       ],
     ),
   );
+}
+
+class _QuietLine extends StatelessWidget {
+  const _QuietLine(this.text, {required this.icon});
+  final String text;
+  final String icon;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 10, left: 4),
+    child: Row(
+      children: [
+        BasilIcon(icon, size: 16, color: AppColors.textMuted),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text, style: callJourneyBody(12))),
+      ],
+    ),
+  );
+}
+
+/// Follow as a small pill beside the name.
+class _FollowPill extends StatelessWidget {
+  const _FollowPill({
+    required this.following,
+    required this.busy,
+    required this.onPressed,
+  });
+  final bool following;
+  final bool busy;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final label =
+        busy
+            ? 'Updating…'
+            : following
+            ? 'Following'
+            : 'Follow';
+    final icon = BasilIcon(
+      following ? 'check-outline' : 'user-plus-outline',
+      size: following ? 16 : 18,
+      color: following ? AppColors.textMuted : _pinkInk,
+    );
+    final fill =
+        following ? const Color(0xFFF6F6F7) : AppColors.primaryContainer;
+    // On a narrow phone or at large text the name needs the room: the pill
+    // becomes its icon, and says its words to a screen reader.
+    final cramped =
+        MediaQuery.sizeOf(context).width < 360 ||
+        MediaQuery.textScalerOf(context).scale(13) > 18;
+    if (cramped) {
+      return Tooltip(
+        message: label,
+        child: IconButton(
+          onPressed: onPressed,
+          style: IconButton.styleFrom(backgroundColor: fill),
+          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+          icon: Semantics(label: label, excludeSemantics: true, child: icon),
+        ),
+      );
+    }
+    return TextButton.icon(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        minimumSize: const Size(48, 48),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        foregroundColor: _pinkInk,
+        backgroundColor: fill,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      ),
+      icon: icon,
+      label: Text(
+        label,
+        style: callJourneyBody(13).copyWith(
+          color: following ? AppColors.textMuted : _pinkInk,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+class _Fact {
+  const _Fact(this.icon, this.label, this.value);
+  final String icon;
+  final String label;
+  final String value;
+}
+
+/// Facts as compact tiles, two to a row when they fit.
+class _FactGrid extends StatelessWidget {
+  const _FactGrid({required this.facts});
+  final List<_Fact> facts;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      const gap = 8.0;
+      final two =
+          constraints.maxWidth >= 280 &&
+          MediaQuery.textScalerOf(context).scale(13) <= 18;
+      final width =
+          two ? (constraints.maxWidth - gap) / 2 : constraints.maxWidth;
+      return Wrap(
+        spacing: gap,
+        runSpacing: gap,
+        children: [
+          for (final fact in facts)
+            SizedBox(
+              width: width,
+              child: MergeSemantics(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF6F6F7),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    children: [
+                      BasilIcon(
+                        fact.icon,
+                        size: 18,
+                        color: AppColors.textMuted,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(fact.label, style: callJourneyBody(11)),
+                            Text(
+                              fact.value,
+                              style: callJourneyBody(13).copyWith(
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.w600,
+                                height: 1.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    },
+  );
+}
+
+/// A whole-row link with a chevron.
+class _LinkRow extends StatelessWidget {
+  const _LinkRow({required this.icon, required this.label, this.onTap});
+  final String icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 48),
+        child: Row(
+          children: [
+            BasilIcon(icon, size: 18, color: _pinkInk),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: callJourneyHeading(
+                  context,
+                  13,
+                ).copyWith(color: _pinkInk),
+              ),
+            ),
+            const BasilIcon('arrow-right-outline', size: 16, color: _pinkInk),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// The call this one answers, as one tappable row.
+class _ParentCall extends StatelessWidget {
+  const _ParentCall({
+    required this.parent,
+    required this.backed,
+    required this.onTap,
+  });
+  final CallFeedEntry parent;
+  final bool backed;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label:
+        '${backed ? 'Backed' : 'Faded'} @${parent.author.handle}, who called '
+        '${parent.call.side.wire} on ${parent.market.question}. Open their call.',
+    excludeSemantics: true,
+    child: Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: CallSideColors.fill(parent.call.side),
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: BasilIcon(
+                  backed ? CallResponseIcons.back : CallResponseIcons.fade,
+                  size: 20,
+                  color: CallSideColors.ink(parent.call.side),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${backed ? 'Backed' : 'Faded'} @${parent.author.handle} · ${parent.call.side.wire}',
+                      style: callJourneyBody(12),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      parent.market.question,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: callJourneyHeading(context, 14),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              const BasilIcon(
+                'arrow-right-outline',
+                size: 18,
+                color: AppColors.textMuted,
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// The optional, private Panta trade on your own call.
+class _TradeCard extends StatelessWidget {
+  const _TradeCard({
+    required this.side,
+    required this.funded,
+    required this.onPressed,
+    this.status,
+  });
+  final Side side;
+  final bool funded;
+  final VoidCallback onPressed;
+  final Widget? status;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: const BoxDecoration(
+                color: Color(0xFFF6F6F7),
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: const BasilIcon(
+                'wallet-outline',
+                size: 20,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Trade it on Panta',
+                    style: callJourneyHeading(context, 15),
+                  ),
+                  Text(
+                    'Optional · real USDC · you can lose it',
+                    style: callJourneyBody(12),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        if (status != null) ...[const SizedBox(height: 10), status!],
+        const SizedBox(height: 12),
+        CallJourneyButton(
+          label:
+              funded
+                  ? 'View your Panta funding'
+                  : 'Review a ${side.wire} trade',
+          onPressed: onPressed,
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Powered by Panta',
+          textAlign: TextAlign.center,
+          style: callJourneyBody(11).copyWith(color: AppColors.textMuted),
+        ),
+      ],
+    ),
+  );
+}
+
+/// One Back, Fade or Dare on this call.
+class _ResponseRow extends StatelessWidget {
+  const _ResponseRow({required this.response, this.onTap});
+  final CallResponse response;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final label =
+        response.resultingCallId == null
+            ? '${response.kind.label} sent'
+            : response.kind.label;
+    return Semantics(
+      button: onTap != null,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 52),
+          child: Row(
+            children: [
+              BasilIcon(
+                CallResponseIcons.of(response.kind),
+                size: 18,
+                color: AppColors.textPrimary,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '$label · ${CallsFormat.relative(response.createdAtUtc)}',
+                  style: callJourneyBody(
+                    13,
+                  ).copyWith(color: AppColors.textPrimary),
+                ),
+              ),
+              if (onTap != null)
+                const BasilIcon(
+                  'arrow-right-outline',
+                  size: 16,
+                  color: AppColors.textMuted,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Back, Fade and Dare on someone else's call, always in reach.
+class _AnswerBar extends StatelessWidget {
+  const _AnswerBar({
+    required this.entry,
+    required this.onBack,
+    required this.onFade,
+    required this.onDare,
+  });
+  final CallFeedEntry entry;
+  final VoidCallback onBack;
+  final VoidCallback onFade;
+  final VoidCallback onDare;
+
+  @override
+  Widget build(BuildContext context) {
+    final open = entry.market.status.acceptsNewCalls;
+    final dare = SizedBox(
+      width: ChumbucketPrimaryButton.height,
+      height: ChumbucketPrimaryButton.height,
+      child: Tooltip(
+        message: 'Dare @${entry.author.handle}',
+        child: OutlinedButton(
+          onPressed: onDare,
+          style: OutlinedButton.styleFrom(
+            padding: EdgeInsets.zero,
+            backgroundColor: AppColors.surface,
+            side: const BorderSide(color: AppColors.outlineVariant, width: 1.5),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(
+                ChumbucketPrimaryButton.radius,
+              ),
+            ),
+          ),
+          child: Semantics(
+            label: 'Dare @${entry.author.handle}',
+            excludeSemantics: true,
+            child: const BasilIcon(
+              CallResponseIcons.dare,
+              size: 22,
+              color: _pinkInk,
+            ),
+          ),
+        ),
+      ),
+    );
+    final back = CallJourneyButton(
+      label: 'Back · ${entry.call.side.wire}',
+      primary: true,
+      onPressed: onBack,
+    );
+    final fade = CallJourneyButton(
+      label: 'Fade · ${entry.call.side.opposite.wire}',
+      onPressed: onFade,
+    );
+    // At large text or on a narrow phone, Back takes its own row.
+    final stacked =
+        MediaQuery.sizeOf(context).width < 360 ||
+        MediaQuery.textScalerOf(context).scale(14) > 19;
+    return SafeArea(
+      top: false,
+      child: Container(
+        color: AppColors.surface,
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        child:
+            !open
+                ? Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${entry.market.status.label} · no new calls',
+                        style: callJourneyBody(13),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    dare,
+                  ],
+                )
+                : stacked
+                ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    back,
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(child: fade),
+                        const SizedBox(width: 8),
+                        dare,
+                      ],
+                    ),
+                  ],
+                )
+                : Row(
+                  children: [
+                    Expanded(child: back),
+                    const SizedBox(width: 8),
+                    Expanded(child: fade),
+                    const SizedBox(width: 8),
+                    dare,
+                  ],
+                ),
+      ),
+    );
+  }
 }
