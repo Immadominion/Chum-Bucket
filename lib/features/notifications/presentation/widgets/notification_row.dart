@@ -52,6 +52,18 @@ class NotificationRow extends StatelessWidget {
     final tone = _toneFor(notification);
     final unread = notification.isUnread;
     final radius = BorderRadius.circular(grouped ? 0 : 18.r);
+    // At large text a side column for the age would squeeze the title to a
+    // word per line, so the age moves under the body and the title gets the
+    // row's full width.
+    final large = MediaQuery.textScalerOf(context).scale(10) > 13;
+    final age = Text(
+      _ago(notification.createdAtUtc),
+      style: const TextStyle(
+        color: AppColors.textTertiary,
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+      ),
+    );
 
     return Semantics(
       button: true,
@@ -91,10 +103,7 @@ class NotificationRow extends StatelessWidget {
                         notification.title,
                         // Large text gets a third line rather than losing
                         // the end of "backed your call".
-                        maxLines:
-                            MediaQuery.textScalerOf(context).scale(10) > 13
-                                ? 3
-                                : 2,
+                        maxLines: large ? 3 : 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: AppColors.textPrimary,
@@ -115,6 +124,10 @@ class NotificationRow extends StatelessWidget {
                           height: 1.35,
                         ),
                       ),
+                      if (large && !opening) ...[
+                        SizedBox(height: 2.h),
+                        age,
+                      ],
                       if (notification.outcome != null) ...[
                         SizedBox(height: 6.h),
                         CallOutcomeBadge(outcome: notification.outcome!),
@@ -136,17 +149,10 @@ class NotificationRow extends StatelessWidget {
                           color: tone,
                         ),
                       )
-                    else
-                      Text(
-                        _ago(notification.createdAtUtc),
-                        style: const TextStyle(
-                          color: AppColors.textTertiary,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
+                    else if (!large)
+                      age,
                     if (unread && !opening) ...[
-                      SizedBox(height: 6.h),
+                      if (!large) SizedBox(height: 6.h),
                       Container(
                         width: 8,
                         height: 8,
