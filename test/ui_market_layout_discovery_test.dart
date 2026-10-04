@@ -850,10 +850,15 @@ void main() {
         reason: chip,
       );
     }
-    expect(
-      find.descendant(of: sheet, matching: find.text('All')),
-      findsOneWidget,
-    );
+    // Defaults have no chip of their own: nothing selected is every topic
+    // and any time, and a selected chip turns off when tapped again.
+    for (final none in ['All', 'Any time', 'All dates']) {
+      expect(
+        find.descendant(of: sheet, matching: find.text(none)),
+        findsNothing,
+        reason: none,
+      );
+    }
     // No volume reported: no sort to offer.
     expect(find.text('Most active'), findsNothing);
     await tester.tap(
@@ -880,6 +885,45 @@ void main() {
     await tester.pumpAndSettle();
     // Six open; the lazy list builds what fits the screen.
     expect(find.byType(CallMarketCard), findsAtLeastNWidgets(5));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a chosen time or topic turns off when tapped again', (
+    tester,
+  ) async {
+    final provider = CallsProvider(
+      repository: CatalogRepository(liveShapedCatalog()),
+    );
+    addTearDown(provider.dispose);
+    await mount(tester, provider, const CallMarketsScreen());
+    for (final choice in ['This week', 'Gaming']) {
+      await chooseFilter(tester, choice);
+      expect(badge('1'), findsOneWidget, reason: choice);
+      await chooseFilter(tester, choice);
+      expect(badge('1'), findsNothing, reason: choice);
+      expect(
+        find.byKey(const ValueKey('market-active-filters')),
+        findsNothing,
+        reason: choice,
+      );
+    }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a signed-out picker is one state: art, a line, Sign in', (
+    tester,
+  ) async {
+    final provider = CallsProvider(
+      repository: CatalogRepository(liveShapedCatalog()),
+    );
+    addTearDown(provider.dispose);
+    await mount(tester, provider, const MarketPickerSheet());
+    expect(find.text('Sign in to make a call'), findsOneWidget);
+    expect(find.byType(ChumbucketStateArt), findsOneWidget);
+    expect(find.text('Sign in'), findsOneWidget);
+    // Nothing to search while nothing can be picked.
+    expect(find.byType(TextField), findsNothing);
+    expect(find.textContaining('No wallet, no money'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

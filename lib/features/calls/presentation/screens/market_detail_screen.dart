@@ -105,6 +105,10 @@ class _MarketDetailScreenState extends State<MarketDetailScreen>
       market: detail.market,
       snapshot: detail.snapshot,
       sharePrice: detail.sharePrice,
+      // This screen has no refresh button: a price that lapsed is read again
+      // by Lock itself, once, rather than asking the person to refresh a
+      // screen that offers no way to.
+      refreshPrice: () => _freshPrice(provider),
     );
     if (entry != null && mounted) {
       await _openCall(entry.call.id);
@@ -112,6 +116,18 @@ class _MarketDetailScreenState extends State<MarketDetailScreen>
         await provider.loadMarketDetail(widget.marketId, force: true);
       }
     }
+  }
+
+  Future<SharePriceSnapshot?> _freshPrice(CallsProvider provider) async {
+    final detail = await provider.loadMarketDetail(
+      widget.marketId,
+      force: true,
+    );
+    // A read superseded by another returns null; the cache then holds the
+    // newest price either way.
+    final price =
+        (detail ?? provider.marketDetail(widget.marketId))?.sharePrice;
+    return price?.marketId == widget.marketId ? price : null;
   }
 
   Future<void> _openCall(String callId) => Navigator.of(context).push<void>(
@@ -693,11 +709,13 @@ class _DetailsBlock extends StatelessWidget {
                     ),
                   ),
             ),
-            // The figures above are rounded for reading; the venue's own
-            // values are here, unaltered.
-            if (rounded)
+            // What the figures above are, once: indicative venue prices in
+            // USDC per share — the venue's own values, unrounded.
+            if (yes != null || no != null)
               fact(
-                'Exact venue prices (USDC per share)',
+                rounded
+                    ? 'Exact venue prices (USDC per share, indicative)'
+                    : 'Venue prices (USDC per share, indicative)',
                 'YES ${yes ?? 'unavailable'} · NO ${no ?? 'unavailable'}',
               ),
             fact('Venue market ID', market.venueMarketId),

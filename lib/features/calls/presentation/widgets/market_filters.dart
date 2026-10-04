@@ -460,48 +460,54 @@ class _MarketFilterSheetState extends State<MarketFilterSheet> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Toggles: nothing selected is "any time", so the default needs
+            // no chip of its own. Tapping the selected one turns it off.
             _section('When', [
               for (final window in MarketDiscoveryWindow.values)
-                MarketFilterChip(
-                  label: window.label,
-                  icon: window.icon,
-                  selected: value.window == window,
-                  onPressed: () => _set(value.withWindow(window)),
-                ),
+                if (window != MarketDiscoveryWindow.all)
+                  MarketFilterChip(
+                    label: window.label,
+                    icon: window.icon,
+                    selected: value.window == window,
+                    onPressed:
+                        () => _set(
+                          value.withWindow(
+                            value.window == window
+                                ? MarketDiscoveryWindow.all
+                                : window,
+                          ),
+                        ),
+                  ),
             ]),
-            _section('Topic', [
-              if (widget.offerForYou)
-                MarketFilterChip(
-                  label: 'For you',
-                  icon: 'heart-outline',
-                  selected: value.forYou,
-                  onPressed:
-                      () => _set(
-                        value.forYou
-                            ? value.withTopic()
-                            : value.withTopic(forYou: true),
-                      ),
-                ),
-              MarketFilterChip(
-                label: 'All',
-                icon: 'apps-outline',
-                selected: !value.forYou && value.category == null,
-                onPressed: () => _set(value.withTopic()),
-              ),
-              for (final entry in widget.categories)
-                MarketFilterChip(
-                  label: marketCategoryLabel(entry.category),
-                  icon: MarketGlyph.categoryIcon(entry.category),
-                  count: entry.count,
-                  selected: !value.forYou && value.category == entry.category,
-                  onPressed:
-                      () => _set(
-                        value.category == entry.category && !value.forYou
-                            ? value.withTopic()
-                            : value.withTopic(category: entry.category),
-                      ),
-                ),
-            ]),
+            // The same: no topic selected is every topic.
+            if (widget.offerForYou || widget.categories.isNotEmpty)
+              _section('Topic', [
+                if (widget.offerForYou)
+                  MarketFilterChip(
+                    label: 'For you',
+                    icon: 'heart-outline',
+                    selected: value.forYou,
+                    onPressed:
+                        () => _set(
+                          value.forYou
+                              ? value.withTopic()
+                              : value.withTopic(forYou: true),
+                        ),
+                  ),
+                for (final entry in widget.categories)
+                  MarketFilterChip(
+                    label: marketCategoryLabel(entry.category),
+                    icon: MarketGlyph.categoryIcon(entry.category),
+                    count: entry.count,
+                    selected: !value.forYou && value.category == entry.category,
+                    onPressed:
+                        () => _set(
+                          value.category == entry.category && !value.forYou
+                              ? value.withTopic()
+                              : value.withTopic(category: entry.category),
+                        ),
+                  ),
+              ]),
             if (widget.offerMostActive)
               _section('Sort', [
                 for (final sort in MarketDiscoverySort.values)

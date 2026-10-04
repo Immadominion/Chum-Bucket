@@ -1,13 +1,18 @@
 // Market prices and the catalog stay current without a refresh button: the
 // provider re-reads what is due, silently, and never drops the last good
 // price while it does.
+import 'package:chumbucket/core/theme/app_theme.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_markets_screen.dart';
 import 'package:chumbucket/features/calls/presentation/screens/market_detail_screen.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/call_composer_sheet.dart';
+import 'package:chumbucket/features/calls/presentation/widgets/market_picker_sheet.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 
 import 'ui_market_layout_discovery_test.dart'
     show CatalogRepository, market, mount;
@@ -20,6 +25,10 @@ class _ClockedRepository extends CatalogRepository {
   bool failDetail = false;
   bool withholdPrice = false;
   int catalogReads = 0;
+
+  /// How old the next prices are when read: past the venue's ten-minute
+  /// validity, a price is still shown but cannot be locked.
+  Duration priceAge = Duration.zero;
 
   @override
   Future<List<VenueMarket>> fetchOpenMarkets({String? category}) {
@@ -45,7 +54,7 @@ class _ClockedRepository extends CatalogRepository {
                 marketId: marketId,
                 yesPrice: '0.6$reads',
                 noPrice: '0.4$reads',
-                observedAt: now().millisecondsSinceEpoch,
+                observedAt: now().subtract(priceAge).millisecondsSinceEpoch,
               ),
       servedAt: now().millisecondsSinceEpoch,
     );
@@ -248,6 +257,103 @@ void main() {
     await mount(tester, screenProvider, MarketDetailScreen(marketId: btc.id));
     expect(screenRepo.reads, 2);
     expect(find.text('0.62'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  /// The provider sits above the app, as in main.dart, so the composer and
+  /// the picker (their own routes) can read it.
+  Future<void> mountAbove(
+    WidgetTester tester,
+    CallsProvider provider,
+    Widget child,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      ChangeNotifierProvider<CallsProvider>.value(
+        value: provider,
+        child: ScreenUtilInit(
+          designSize: const Size(390, 844),
+          builder:
+              (_, _) => MaterialApp(
+                theme: AppTheme.lightTheme,
+                home: Scaffold(body: child),
+              ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> lockYes(WidgetTester tester) async {
+    await tester.tap(
+      find.descendant(
+        of: find.byType(CallJourneySides),
+        matching: find.text('YES'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Lock my YES call'));
+    await tester.pumpAndSettle();
+  }
+
+  const deadEnd =
+      'Panta prices are missing or stale. Refresh this market before calling.';
+  const fresh = 'Panta sent a fresh price. Check it, then lock.';
+
+  testWidgets(
+    'from market detail, Lock re-reads a lapsed price itself (no refresh '
+    'button to send anyone to)',
+    (tester) async {
+      final screenRepo = _ClockedRepository([btc], () => now)
+        ..priceAge = const Duration(minutes: 20);
+      final screenProvider = CallsProvider(
+        repository: screenRepo,
+        clock: () => now,
+      )..setViewer('viewer-1');
+      addTearDown(screenProvider.dispose);
+      await mountAbove(
+        tester,
+        screenProvider,
+        MarketDetailScreen(marketId: btc.id),
+      );
+      expect(screenRepo.reads, 1);
+      // Shown (inside the hour lists keep a last good price), not lockable.
+      expect(find.text('0.61'), findsOneWidget);
+      await tester.tap(find.text('Make a call'));
+      await tester.pumpAndSettle();
+      screenRepo.priceAge = Duration.zero;
+      await lockYes(tester);
+      expect(screenRepo.reads, 2);
+      expect(find.text(fresh), findsOneWidget);
+      expect(find.text(deadEnd), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets('from the picker, Lock re-reads a lapsed price itself', (
+    tester,
+  ) async {
+    final screenRepo = _ClockedRepository([btc], () => now)
+      ..priceAge = const Duration(minutes: 20);
+    final screenProvider = CallsProvider(
+      repository: screenRepo,
+      clock: () => now,
+    )..setViewer('viewer-1');
+    addTearDown(screenProvider.dispose);
+    await mountAbove(tester, screenProvider, const MarketPickerSheet());
+    final before = screenRepo.reads;
+    await tester.tap(find.text(btc.question));
+    await tester.pumpAndSettle();
+    // Picking reads the market once more before the composer opens.
+    expect(screenRepo.reads, before + 1);
+    screenRepo.priceAge = Duration.zero;
+    await lockYes(tester);
+    expect(screenRepo.reads, before + 2);
+    expect(find.text(fresh), findsOneWidget);
+    expect(find.text(deadEnd), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
 }

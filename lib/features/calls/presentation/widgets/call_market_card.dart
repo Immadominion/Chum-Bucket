@@ -615,16 +615,16 @@ class MarketSharePrices extends StatelessWidget {
       },
     );
     if (!expanded) return pair;
-    // Detail names the venue once, with what the figures are: indicative
-    // venue prices in USDC per share. Panta's API terms (§6) ask for the
-    // attribution on the market module.
+    // Detail names the venue once — Panta's API terms (§6) ask for the
+    // attribution on the market module — and nothing more: the unit is in
+    // each figure's spoken label and in Rules & details, not a caption.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         pair,
         const SizedBox(height: 8),
         Text(
-          '${SharePriceSnapshot.attribution} · indicative USDC per share',
+          SharePriceSnapshot.attribution,
           style: AppTextStyles.textTheme.bodySmall?.copyWith(
             color: AppColors.textSecondary,
           ),

@@ -638,6 +638,9 @@ void main() {
       await tester.tap(find.text('Create a market'));
       await tester.tap(find.text('Yours'));
       expect((created, mine), (1, 1));
+      // One compact row: no sentence explaining what the plus does.
+      expect(find.textContaining('Propose it'), findsNothing);
+      expect(find.textContaining('find your question'), findsNothing);
       expect(tester.takeException(), isNull);
     });
 

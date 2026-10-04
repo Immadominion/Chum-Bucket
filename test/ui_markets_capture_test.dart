@@ -13,6 +13,7 @@ import 'package:chumbucket/features/calls/presentation/screens/call_markets_scre
 import 'package:chumbucket/features/calls/presentation/screens/market_detail_screen.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/market_picker_sheet.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
+import 'package:chumbucket/features/market_creation/market_creation.dart';
 import 'package:chumbucket/shared/screens/home/widgets/chumbucket_bottom_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -165,6 +166,51 @@ void main() {
       await shot(tester, 'list-$size');
     }, skip: outDir.isEmpty);
 
+    testWidgets('list with create $size', (tester) async {
+      MarketCreationAvailability.instance
+        ..clear()
+        ..lookupOverride = () async => true;
+      addTearDown(
+        () =>
+            MarketCreationAvailability.instance
+              ..lookupOverride = null
+              ..clear(),
+      );
+      final provider = CallsProvider(
+        repository: CatalogRepository(catalog(), prices: prices()),
+      );
+      addTearDown(provider.dispose);
+      await pumpScene(tester, provider, tab(), width: width, scale: scale);
+      expect(tester.takeException(), isNull);
+      await shot(tester, 'list-create-$size');
+    }, skip: outDir.isEmpty);
+
+    testWidgets('picker signed out $size', (tester) async {
+      final provider = CallsProvider(
+        repository: CatalogRepository(catalog(), prices: prices()),
+      );
+      addTearDown(provider.dispose);
+      await pumpScene(
+        tester,
+        provider,
+        Builder(
+          builder:
+              (context) => Center(
+                child: TextButton(
+                  onPressed: () => showMarketPickerSheet(context: context),
+                  child: const Text('open'),
+                ),
+              ),
+        ),
+        width: width,
+        scale: scale,
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await shot(tester, 'picker-signed-out-$size');
+    }, skip: outDir.isEmpty);
+
     testWidgets('filters $size', (tester) async {
       final provider = CallsProvider(
         repository: CatalogRepository(catalog(), prices: prices()),
@@ -248,6 +294,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       await shot(tester, 'picker-$size');
+      // The search row stays put while the list scrolls under it.
+      await tester.drag(find.byType(ListView).last, const Offset(0, -400));
+      await tester.pumpAndSettle();
+      await shot(tester, 'picker-scrolled-$size');
     }, skip: outDir.isEmpty);
   }
 }

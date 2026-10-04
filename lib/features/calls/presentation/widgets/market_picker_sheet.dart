@@ -9,8 +9,9 @@ import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_composer_sheet.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_market_card.dart';
+import 'package:chumbucket/features/authentication/presentation/widgets/call_sign_in.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/call_state_views.dart'
-    show CallsLoadingView, CallsSignedOutView;
+    show CallsLoadingView;
 import 'package:chumbucket/features/calls/presentation/widgets/market_filters.dart';
 import 'package:chumbucket/features/calls/presentation/widgets/market_state_view.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
@@ -81,23 +82,33 @@ class _MarketPickerSheetState extends State<MarketPickerSheet> {
       Navigator.of(context).pop(market);
       return;
     }
+    final provider = context.read<CallsProvider>();
+    // The bar shows while the market is read, not under the composer.
     setState(() => _picking = market.id);
+    final MarketDetail? detail;
     try {
-      final provider = context.read<CallsProvider>();
-      final detail = await provider.loadMarketDetail(market.id, force: true);
-      if (!mounted) return;
-      // Preserve the existing composer eligibility/error contract, including
-      // a failed refresh or missing snapshot. Selection never places a trade.
-      final entry = await showCallComposer(
-        context: context,
-        market: detail?.market ?? market,
-        snapshot: detail?.snapshot,
-        sharePrice: detail?.sharePrice,
-      );
-      if (entry != null && mounted) Navigator.of(context).pop(entry);
+      detail = await provider.loadMarketDetail(market.id, force: true);
     } finally {
       if (mounted) setState(() => _picking = null);
     }
+    if (!mounted) return;
+    // Preserve the existing composer eligibility/error contract, including
+    // a failed refresh or missing snapshot. Selection never places a trade.
+    final entry = await showCallComposer(
+      context: context,
+      market: detail?.market ?? market,
+      snapshot: detail?.snapshot,
+      sharePrice: detail?.sharePrice,
+      // A price that lapsed while the composer was open is read again by
+      // Lock itself, once; this sheet has no refresh button to send anyone
+      // to.
+      refreshPrice: () async {
+        final fresh = await provider.loadMarketDetail(market.id, force: true);
+        final price = (fresh ?? provider.marketDetail(market.id))?.sharePrice;
+        return price?.marketId == market.id ? price : null;
+      },
+    );
+    if (entry != null && mounted) Navigator.of(context).pop(entry);
   }
 
   @override
@@ -124,9 +135,16 @@ class _MarketPickerSheetState extends State<MarketPickerSheet> {
           sort: filters.sort,
         );
         void retry() => provider.loadOpenMarkets(force: true);
+        final signedOut = !provider.isSignedIn && !widget.pickOnly;
         final Widget? state =
-            !provider.isSignedIn && !widget.pickOnly
-                ? const CallsSignedOutView()
+            signedOut
+                ? MarketStateView(
+                  artwork: ChumbucketStateArtwork.access,
+                  line: 'Sign in to make a call',
+                  actionLabel: 'Sign in',
+                  onAction: () => requestCallSignIn(context),
+                  compact: true,
+                )
                 : provider.isLoadingOpenMarkets && open.isEmpty
                 ? const SizedBox(height: 300, child: CallsLoadingView(rows: 2))
                 : open.isEmpty && provider.isOffline
@@ -159,60 +177,88 @@ class _MarketPickerSheetState extends State<MarketPickerSheet> {
                   compact: true,
                 )
                 : null;
-        final controls = Column(
+        // The search row stays put while the list scrolls under it.
+        final controls = Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              MarketSearchBar(
+                fill: AppColors.background,
+                activeFilters: filters.activeCount,
+                onQueryChanged: (value) => setState(() => _query = value),
+                onFilters:
+                    () => showMarketFilterSheet(
+                      context: context,
+                      value: filters,
+                      categories: categories,
+                      offerMostActive: hasActivity,
+                      onChanged: (next) {
+                        if (mounted) setState(() => _filters = next);
+                      },
+                    ),
+              ),
+              if (!filters.isEmpty)
+                MarketActiveFilters(
+                  filters: filters,
+                  onChanged: (next) => setState(() => _filters = next),
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+        if (state != null) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (!signedOut) controls,
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+                  child: state,
+                ),
+              ),
+            ],
+          );
+        }
+        return Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            MarketSearchBar(
-              fill: AppColors.background,
-              activeFilters: filters.activeCount,
-              onQueryChanged: (value) => setState(() => _query = value),
-              onFilters:
-                  () => showMarketFilterSheet(
-                    context: context,
-                    value: filters,
-                    categories: categories,
-                    offerMostActive: hasActivity,
-                    onChanged: (next) {
-                      if (mounted) setState(() => _filters = next);
-                    },
-                  ),
-            ),
-            if (!filters.isEmpty)
-              MarketActiveFilters(
-                filters: filters,
-                onChanged: (next) => setState(() => _filters = next),
+            controls,
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+                itemCount: rows.length,
+                itemBuilder: (context, index) {
+                  final market = rows[index];
+                  _notePriceShown(market.id);
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (_picking == market.id)
+                        const LinearProgressIndicator(
+                          semanticsLabel: 'Loading market',
+                        ),
+                      AbsorbPointer(
+                        absorbing: _picking != null,
+                        child: CallMarketCard(
+                          market: market,
+                          sharePrice:
+                              provider.marketDetail(market.id)?.sharePrice,
+                          onTap: () => _pick(market),
+                        ),
+                      ),
+                      if (index < rows.length - 1)
+                        const Divider(height: 1, color: AppColors.divider),
+                    ],
+                  );
+                },
               ),
-            const SizedBox(height: 12),
-            if (state != null) state,
+            ),
           ],
-        );
-        return ListView.builder(
-          shrinkWrap: true,
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-          itemCount: state != null ? 1 : rows.length + 1,
-          itemBuilder: (context, index) {
-            if (index == 0) return controls;
-            final market = rows[index - 1];
-            _notePriceShown(market.id);
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (_picking == market.id)
-                  const LinearProgressIndicator(
-                    semanticsLabel: 'Loading market',
-                  ),
-                AbsorbPointer(
-                  absorbing: _picking != null,
-                  child: CallMarketCard(
-                    market: market,
-                    sharePrice: provider.marketDetail(market.id)?.sharePrice,
-                    onTap: () => _pick(market),
-                  ),
-                ),
-                const Divider(height: 1, color: AppColors.divider),
-              ],
-            );
-          },
         );
       },
     ),
