@@ -68,13 +68,16 @@ pill and has no retry. Saved content stays on screen and refreshes on open, on
 pull-to-refresh and on app resume. The last good reads (Home's first page per
 tab, the open catalog, your own profile and record, your follow list, your
 inbox) are kept on the phone (`lib/core/cache/snapshot_store.dart`, keyed by
-account, wiped on sign-out) so a cold start opens on them.
+account, wiped on sign-out; a read still in flight at sign-out is never
+written back) so a cold start opens on them.
 
 Applied to: Activity (New / Earlier, compact rows, inbox art), Friends (one list
 of the people you follow plus wallet friends, an Add a friend row first, the
 people scene when nobody yet, the leaderboard behind the header's award icon),
 Profile (four-number record with its scope behind a tap, slim "Escrow still
-open" row only while one is, art-led Calls / Positions states), Search (idle
+open" row only while one is, art-led Calls / Positions states), other people's
+profiles (an accuracy headline over the same four tiles, drawn by
+`lib/features/record/presentation/widgets/record_stat_tiles.dart`), Search (idle
 search scene), Settings → History (slim rows), the escrow list, edit profile,
 and the generic error widgets.
 

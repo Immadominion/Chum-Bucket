@@ -157,6 +157,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (calls.isSignedIn && calls.following != null) {
         unawaited(calls.loadFollowing(force: true));
       }
+      // Your own record on Profile, once it has been read.
+      final me = calls.viewerUserId;
+      if (me != null && calls.personDetail(me) != null) {
+        unawaited(calls.loadPerson(me, force: true));
+      }
     }
     final inbox = context.read<NotificationsProvider?>();
     if (inbox != null && inbox.isSignedIn && inbox.servedAtUtc != null) {
