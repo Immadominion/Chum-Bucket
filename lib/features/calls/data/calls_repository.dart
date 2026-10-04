@@ -11,6 +11,8 @@
 library;
 
 import 'package:chumbucket/features/calls/data/call_models.dart';
+import 'package:chumbucket/features/panta_trading/data/panta_lifecycle_models.dart'
+    show PantaMoney;
 import 'package:chumbucket/features/people/data/people_models.dart';
 
 // ---------------------------------------------------------------------------
@@ -133,9 +135,15 @@ class CallFeedEntry {
   final bool viewerHasCalled;
 
   /// Set only when the author backed this call with a Panta position whose
-  /// fill was confirmed. Carries no amount. [Call.fundingState] stays the
-  /// call's own free/funded provenance.
+  /// fill was confirmed. With money calls on, it also carries the filled
+  /// amount and side ("$5 on YES"). [Call.fundingState] stays the call's own
+  /// free/funded provenance.
   final CallFunding? funding;
+
+  /// The OWNER's view of their own pending or expired money call. The server
+  /// never sends it to anyone else (they never see the call at all), and a
+  /// pending call is never stamped funded.
+  final CallMoneyIntent? money;
 
   const CallFeedEntry({
     required this.call,
@@ -146,6 +154,7 @@ class CallFeedEntry {
     this.fadeCount = 0,
     this.viewerHasCalled = false,
     this.funding,
+    this.money,
   });
 
   /// The author put money behind this call, and Panta confirmed the fill.
@@ -172,24 +181,96 @@ class CallFeedEntry {
     fadeCount: fadeCount ?? this.fadeCount,
     viewerHasCalled: viewerHasCalled ?? this.viewerHasCalled,
     funding: funding,
+    money: money,
   );
 }
 
-/// A confirmed Panta fill behind a call — conviction, never an amount.
+final _wireBaseUnits = RegExp(r'^[1-9][0-9]{0,19}$');
+
+Side? _wireSide(Object? value) => switch (value) {
+  'YES' => Side.yes,
+  'NO' => Side.no,
+  _ => null,
+};
+
+/// A confirmed Panta fill behind a call. With money calls on, the server
+/// adds the filled amount and side, for "$5 on YES" receipts and cards.
 class CallFunding {
   /// Unix ms the fill was confirmed.
   final int fundedAt;
-  const CallFunding({required this.fundedAt});
+
+  /// The sum of the confirmed fills, as USDC base units; null when the
+  /// server did not send it (then the card reads "Funded", no amount).
+  final BigInt? amountBaseUnits;
+  final Side? side;
+
+  const CallFunding({required this.fundedAt, this.amountBaseUnits, this.side});
+
+  /// The amount and its side are both known.
+  bool get hasAmount => amountBaseUnits != null && side != null;
+
+  /// "$5 on YES", as receipts and cards stamp it; null without an amount.
+  String? get amountLabel =>
+      hasAmount
+          ? '${PantaMoney.dollars(amountBaseUnits!)} on ${side!.wire}'
+          : null;
 
   /// Only `{state: FILLED, venue: panta}` is a funded call; anything else is
-  /// not shown as funded.
+  /// not shown as funded. A malformed amount is dropped, never guessed at.
   static CallFunding? fromJson(Object? value) {
     if (value is! Map<String, dynamic>) return null;
     final at = value['fundedAt'];
     if (value['state'] != 'FILLED' || value['venue'] != 'panta' || at is! int) {
       return null;
     }
-    return CallFunding(fundedAt: at);
+    final amount = value['amountBaseUnits'];
+    final side = _wireSide(value['side']);
+    final units =
+        amount is String && _wireBaseUnits.hasMatch(amount)
+            ? BigInt.parse(amount)
+            : null;
+    return CallFunding(
+      fundedAt: at,
+      amountBaseUnits: units != null && side != null ? units : null,
+      side: units != null && side != null ? side : null,
+    );
+  }
+}
+
+/// The owner's own money call that is not public: pending (until FILLED, or
+/// kept free) or expired. Never a funded stamp.
+class CallMoneyIntent {
+  final bool pending;
+  final BigInt amountBaseUnits;
+  final Side side;
+  final int expiresAt;
+
+  const CallMoneyIntent({
+    required this.pending,
+    required this.amountBaseUnits,
+    required this.side,
+    required this.expiresAt,
+  });
+
+  static CallMoneyIntent? fromJson(Object? value) {
+    if (value is! Map<String, dynamic>) return null;
+    final state = value['state'];
+    final amount = value['amountBaseUnits'];
+    final side = _wireSide(value['side']);
+    final expires = value['expiresAt'];
+    if ((state != 'PENDING' && state != 'EXPIRED') ||
+        amount is! String ||
+        !_wireBaseUnits.hasMatch(amount) ||
+        side == null ||
+        expires is! int) {
+      return null;
+    }
+    return CallMoneyIntent(
+      pending: state == 'PENDING',
+      amountBaseUnits: BigInt.parse(amount),
+      side: side,
+      expiresAt: expires,
+    );
   }
 }
 

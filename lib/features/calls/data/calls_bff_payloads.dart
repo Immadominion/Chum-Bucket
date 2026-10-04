@@ -142,6 +142,8 @@ CallFeedEntry callFeedEntryFromJson(Map<String, dynamic> json) {
     ),
     // Additive: absent means not funded, never an error.
     funding: CallFunding.fromJson(json['funding']),
+    // The owner's own pending/expired money call; never sent to others.
+    money: CallMoneyIntent.fromJson(json['money']),
   );
 }
 
