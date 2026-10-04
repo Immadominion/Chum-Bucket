@@ -10,7 +10,8 @@
 -- the reviewed unsigned transaction is stored before any wallet sees it; the
 -- exact signed bytes are stored before broadcast, once; CONFIRMED requires
 -- independent chain evidence that exactly this amount moved; FAILED and
--- CONFIRMED are final. Only the BFF (service_role) reads or writes it.
+-- CONFIRMED are final. At most one transfer per source wallet is in flight
+-- (BUILT or SUBMITTED). Only the BFF (service_role) reads or writes it.
 CREATE TABLE IF NOT EXISTS public.wallet_transfers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE RESTRICT,
@@ -68,6 +69,11 @@ CREATE TABLE IF NOT EXISTS public.wallet_transfers (
 );
 CREATE INDEX IF NOT EXISTS wallet_transfers_user_time ON public.wallet_transfers(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS wallet_transfers_submitted ON public.wallet_transfers(updated_at) WHERE state = 'SUBMITTED';
+-- At most one transfer in flight per source wallet: a reviewed (BUILT) or
+-- sent (SUBMITTED) one. The BFF retires an expired review (BUILT -> FAILED)
+-- before building the next.
+CREATE UNIQUE INDEX IF NOT EXISTS wallet_transfers_one_in_flight_per_wallet
+  ON public.wallet_transfers(from_wallet) WHERE state IN ('BUILT','SUBMITTED');
 ALTER TABLE public.wallet_transfers ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.wallet_transfers FROM PUBLIC, anon, authenticated;
 GRANT SELECT, INSERT ON public.wallet_transfers TO service_role;

@@ -17,8 +17,18 @@
 -- Funded means filled: FUNDED requires a FILLED panta_trade_sessions row for
 -- the same person and call (FILLED itself already needs Panta's confirmation
 -- plus an RPC-proven USDC debit). EXPIRED is refused while a trade for the call
--- is SUBMITTED or FILLED. Only the BFF (service_role) reads or writes it;
--- anon and authenticated have no rights. History is permanent.
+-- is SUBMITTED or FILLED. A closed money call (EXPIRED or FREE) is funded only
+-- by its own last quote (the current attempt's key) whose life ended before
+-- the call's did, and never once discarded. A money call is traded only while
+-- PENDING: panta_trade_sessions refuses a new or newly signed trade for any
+-- other (the direct pantaTrading route cannot resurrect one).
+--
+-- Private means private: while a money call is not FUNDED its call is its
+-- owner's alone, also through the anon/authenticated keys (a RESTRICTIVE
+-- SELECT policy on public.calls; money_call_private_v1 answers it).
+--
+-- Only the BFF (service_role) reads or writes money_calls; anon and
+-- authenticated have no rights. History is permanent.
 DO $$
 BEGIN
   IF to_regclass('public.panta_trade_sessions') IS NULL THEN
@@ -102,6 +112,14 @@ BEGIN
       WHERE s.user_id = NEW.user_id AND s.call_id = NEW.call_id AND s.state = 'FILLED') THEN
       RAISE EXCEPTION 'A money call is funded only by a confirmed fill';
     END IF;
+    -- A closed call comes back only for its own last quote, signed in time.
+    IF NEW.state = 'FUNDED' AND OLD.state IN ('EXPIRED','FREE') AND (OLD.ended_reason = 'discarded' OR NOT EXISTS (
+      SELECT 1 FROM public.panta_trade_sessions s
+       WHERE s.user_id = NEW.user_id AND s.call_id = NEW.call_id AND s.state = 'FILLED'
+         AND s.idempotency_key = OLD.idempotency_key || '.t' || OLD.attempts
+         AND (s.prepared#>>'{order,expiresAt}')::numeric <= extract(epoch FROM OLD.expires_at) * 1000)) THEN
+      RAISE EXCEPTION 'A closed money call is funded only by its own last quote, signed in time';
+    END IF;
     IF NEW.state = 'EXPIRED' AND EXISTS (SELECT 1 FROM public.panta_trade_sessions s
       WHERE s.user_id = NEW.user_id AND s.call_id = NEW.call_id AND s.state IN ('SUBMITTED','FILLED')) THEN
       RAISE EXCEPTION 'A money call with a trade going through cannot expire';
@@ -117,3 +135,43 @@ CREATE TRIGGER money_calls_guard BEFORE INSERT OR UPDATE OR DELETE ON public.mon
 DROP TRIGGER IF EXISTS money_calls_no_truncate ON public.money_calls;
 CREATE TRIGGER money_calls_no_truncate BEFORE TRUNCATE ON public.money_calls
   FOR EACH STATEMENT EXECUTE FUNCTION public.money_calls_guard_v1();
+
+-- A money call is traded only while PENDING, through the BFF's money flow:
+-- a new or newly signed Panta trade for a call whose money call has ended is
+-- refused (additive: a new trigger beside panta_trade_session_guard_v1).
+CREATE OR REPLACE FUNCTION public.money_call_trade_guard_v1() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  IF (TG_OP = 'INSERT' OR (NEW.state = 'SUBMITTED' AND OLD.state IS DISTINCT FROM 'SUBMITTED'))
+     AND EXISTS (SELECT 1 FROM public.money_calls m WHERE m.call_id = NEW.call_id AND m.state <> 'PENDING') THEN
+    RAISE EXCEPTION 'This money call has ended; it can no longer be traded';
+  END IF;
+  RETURN NEW;
+END $$;
+REVOKE ALL ON FUNCTION public.money_call_trade_guard_v1() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.money_call_trade_guard_v1() TO service_role;
+DROP TRIGGER IF EXISTS panta_trade_sessions_money_guard ON public.panta_trade_sessions;
+CREATE TRIGGER panta_trade_sessions_money_guard BEFORE INSERT OR UPDATE OF state ON public.panta_trade_sessions
+  FOR EACH ROW EXECUTE FUNCTION public.money_call_trade_guard_v1();
+
+-- Whether a call is still private because its money has not landed: true
+-- while its money call is anything but FUNDED (PENDING, EXPIRED, or FREE,
+-- whose public replacement is a separate free call). Read by RLS as the
+-- calling role, so anon and authenticated may execute it; it answers only
+-- this yes/no about one call.
+CREATE OR REPLACE FUNCTION public.money_call_private_v1(p_call_id uuid) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+  SELECT EXISTS (SELECT 1 FROM public.money_calls m WHERE m.call_id = p_call_id AND m.state <> 'FUNDED')
+$$;
+REVOKE ALL ON FUNCTION public.money_call_private_v1(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.money_call_private_v1(uuid) TO anon, authenticated, service_role;
+
+-- RESTRICTIVE: ANDed with every permissive SELECT policy on calls. The
+-- author still reads their own; nobody else reads a private money call. The
+-- service role bypasses RLS, so the BFF's reads are unchanged.
+DROP POLICY IF EXISTS calls_money_private_anon ON public.calls;
+CREATE POLICY calls_money_private_anon ON public.calls AS RESTRICTIVE FOR SELECT TO anon
+  USING (NOT public.money_call_private_v1(id));
+DROP POLICY IF EXISTS calls_money_private_authenticated ON public.calls;
+CREATE POLICY calls_money_private_authenticated ON public.calls AS RESTRICTIVE FOR SELECT TO authenticated
+  USING (user_id = public.current_app_user_id() OR NOT public.money_call_private_v1(id));
