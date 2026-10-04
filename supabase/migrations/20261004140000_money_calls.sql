@@ -136,15 +136,30 @@ DROP TRIGGER IF EXISTS money_calls_no_truncate ON public.money_calls;
 CREATE TRIGGER money_calls_no_truncate BEFORE TRUNCATE ON public.money_calls
   FOR EACH STATEMENT EXECUTE FUNCTION public.money_calls_guard_v1();
 
--- A money call is traded only while PENDING, through the BFF's money flow:
--- a new or newly signed Panta trade for a call whose money call has ended is
--- refused (additive: a new trigger beside panta_trade_session_guard_v1).
+-- A money call is traded only while PENDING, through the BFF's money flow,
+-- with its CURRENT attempt's quote (idempotency_key || '.t' || attempts), and
+-- signed only inside its window: a new trade, or one newly signed, for any
+-- other is refused (additive: a new trigger beside
+-- panta_trade_session_guard_v1). The money_calls row is locked FOR UPDATE
+-- here; a discard or expiry updates that same row (its own row lock), so a
+-- discard and a submit of one call serialize and the loser is refused.
 CREATE OR REPLACE FUNCTION public.money_call_trade_guard_v1() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE m public.money_calls;
 BEGIN
-  IF (TG_OP = 'INSERT' OR (NEW.state = 'SUBMITTED' AND OLD.state IS DISTINCT FROM 'SUBMITTED'))
-     AND EXISTS (SELECT 1 FROM public.money_calls m WHERE m.call_id = NEW.call_id AND m.state <> 'PENDING') THEN
-    RAISE EXCEPTION 'This money call has ended; it can no longer be traded';
+  IF TG_OP = 'INSERT' OR (NEW.state = 'SUBMITTED' AND OLD.state IS DISTINCT FROM 'SUBMITTED') THEN
+    SELECT * INTO m FROM public.money_calls WHERE call_id = NEW.call_id FOR UPDATE;
+    IF m.call_id IS NOT NULL THEN
+      IF m.state <> 'PENDING' THEN
+        RAISE EXCEPTION 'This money call has ended; it can no longer be traded';
+      END IF;
+      IF NEW.idempotency_key IS DISTINCT FROM m.idempotency_key || '.t' || m.attempts THEN
+        RAISE EXCEPTION 'Only the money call''s current quote can trade it';
+      END IF;
+      IF NEW.state = 'SUBMITTED' AND m.expires_at <= now() THEN
+        RAISE EXCEPTION 'This money call''s window has closed';
+      END IF;
+    END IF;
   END IF;
   RETURN NEW;
 END $$;
