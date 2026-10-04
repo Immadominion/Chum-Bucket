@@ -53,11 +53,13 @@
 --             funded call, a venue order or position, a Panta trade or claim
 --             session, a market it paid to create, a legacy prediction
 --             position or claim, a legacy SOL escrow challenge (as creator,
---             participant, witness or winner, by id or by any of its wallets),
---             or an app-held wallet (embedded, chumbucket, or any type but
---             mwa/imported). A table it cannot check refuses (fail closed).
---             The session creators lock the account row (FOR SHARE) and refuse
---             folded accounts, so none slips in between check and commit;
+--             participant, witness or winner, by id, wallet, legacy Privy id
+--             or email, while its escrow may still hold SOL), or an app-held
+--             wallet (embedded, chumbucket, or any type but mwa/imported). A
+--             table or column production has that it cannot find refuses
+--             (fail closed). The session creators lock the account row
+--             (FOR KEY SHARE) and refuse folded accounts, so none slips in
+--             between check and commit;
 --   * also refuses when F or K is deleted or folded, F is K, or what the
 --             person was shown changed (complete names the expected outcome
 --             and the other account).
@@ -206,6 +208,15 @@ CREATE TABLE IF NOT EXISTS public.account_link_audit (
     action IN ('sign_in_linked', 'sign_in_unlinked', 'wallet_unlinked', 'folded', 'account_deleted'))
 );
 CREATE INDEX IF NOT EXISTS idx_account_link_audit_user ON public.account_link_audit (user_id, created_at DESC);
+-- A database that ran an earlier draft of this file gets today's checks.
+ALTER TABLE public.account_link_audit DROP CONSTRAINT IF EXISTS account_link_audit_action_check;
+ALTER TABLE public.account_link_audit ADD CONSTRAINT account_link_audit_action_check CHECK (
+  action IN ('sign_in_linked', 'sign_in_unlinked', 'wallet_unlinked', 'folded', 'account_deleted'));
+ALTER TABLE public.account_sign_ins DROP CONSTRAINT IF EXISTS account_sign_ins_reason_check;
+ALTER TABLE public.account_sign_ins ADD CONSTRAINT account_sign_ins_reason_check CHECK (
+  revoked_reason IS NULL OR revoked_reason IN ('unlinked', 'folded', 'account_deleted'));
+-- The earlier draft's completion took no expectation; it must not linger.
+DROP FUNCTION IF EXISTS public.complete_account_link_v1(TEXT, UUID, BOOLEAN, BOOLEAN);
 ALTER TABLE public.account_link_audit ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.account_link_audit FROM PUBLIC, anon, authenticated;
 GRANT SELECT, INSERT ON public.account_link_audit TO service_role;
@@ -260,6 +271,9 @@ SECURITY DEFINER
 SET search_path = pg_catalog, public, pg_temp
 AS $$
 BEGIN
+  -- The same per-sign-in lock every linking function takes: a profile being
+  -- created for this sign-in and a link of it can never both commit.
+  PERFORM pg_advisory_xact_lock(hashtextextended('account-sign-in:' || NEW.auth_user_id::text, 0));
   IF NEW.revoked_at IS NULL
      AND EXISTS (SELECT 1 FROM public.users u WHERE u.auth_user_id = NEW.auth_user_id) THEN
     RAISE EXCEPTION 'this sign-in is already an account''s primary sign-in'
@@ -286,6 +300,10 @@ AS $$
 BEGIN
   IF NEW.auth_user_id IS NOT NULL
      AND (TG_OP = 'INSERT' OR NEW.auth_user_id IS DISTINCT FROM OLD.auth_user_id) THEN
+    -- Serialises create_social_person_v*, bind_wallet_session_v1 and claims
+    -- with complete_account_link_v1 / resolve_wallet_sign_in_v1 for this
+    -- sign-in: whichever commits second sees the first and is refused.
+    PERFORM pg_advisory_xact_lock(hashtextextended('account-sign-in:' || NEW.auth_user_id::text, 0));
     IF EXISTS (SELECT 1 FROM public.account_folds f WHERE f.folded_user_id = NEW.id) THEN
       RAISE EXCEPTION 'a folded account never signs in again'
         USING ERRCODE = 'unique_violation';
@@ -308,10 +326,11 @@ CREATE TRIGGER trg_users_primary_not_additional
 
 -- ── triggers: a money session starts only on a live account ───────────────
 --
--- The row lock (FOR SHARE) serialises with a fold's FOR UPDATE on the same
--- row: either the session commits first and the fold sees it (and refuses),
--- or the fold commits first and the session sees a folded account (and is
--- refused). Separately named; the tables' own guards are untouched.
+-- The row lock (FOR KEY SHARE) serialises with a fold's FOR UPDATE on the
+-- same row — either the session commits first and the fold sees it (and
+-- refuses), or the fold commits first and the session sees a folded account
+-- (and is refused) — without blocking ordinary profile updates. Separately
+-- named; the tables' own guards are untouched.
 CREATE OR REPLACE FUNCTION public.money_session_account_live_v1()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -321,7 +340,7 @@ AS $$
 DECLARE
   v_user UUID := (to_jsonb(NEW) ->> TG_ARGV[0])::uuid;
 BEGIN
-  PERFORM 1 FROM public.users u WHERE u.id = v_user FOR SHARE;
+  PERFORM 1 FROM public.users u WHERE u.id = v_user FOR KEY SHARE;
   IF NOT public.account_is_live_v1(v_user) THEN
     RAISE EXCEPTION 'this account was folded or deleted'
       USING ERRCODE = 'check_violation';
@@ -832,9 +851,80 @@ AS $$
 $$;
 REVOKE ALL ON FUNCTION public.account_wallets_v1(UUID) FROM PUBLIC, anon, authenticated;
 
+-- Every legacy Privy id and email an account is known by: its own columns,
+-- its old Privy claims, and the identities of every sign-in reaching it.
+-- Emails are lowercased. Internal.
+CREATE OR REPLACE FUNCTION public.account_privy_ids_v1(p_user_id UUID)
+RETURNS TEXT[]
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+DECLARE
+  v TEXT[];
+  v_more TEXT[];
+BEGIN
+  SELECT coalesce(array_agg(DISTINCT u.privy_id) FILTER (WHERE u.privy_id IS NOT NULL), ARRAY[]::TEXT[])
+    INTO v FROM public.users u WHERE u.id = p_user_id;
+  IF to_regclass('public.legacy_identity_claims') IS NOT NULL THEN
+    EXECUTE 'SELECT coalesce(array_agg(DISTINCT legacy_subject), ARRAY[]::TEXT[])
+               FROM public.legacy_identity_claims WHERE user_id = $1 AND legacy_provider = ''privy'''
+      INTO v_more USING p_user_id;
+    v := v || v_more;
+  END IF;
+  RETURN v;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.account_privy_ids_v1(UUID) FROM PUBLIC, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.account_emails_v1(p_user_id UUID)
+RETURNS TEXT[]
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+DECLARE
+  v TEXT[];
+  v_more TEXT[];
+BEGIN
+  SELECT coalesce(array_agg(DISTINCT lower(e)), ARRAY[]::TEXT[]) INTO v FROM (
+    SELECT u.email AS e FROM public.users u WHERE u.id = p_user_id
+    UNION ALL
+    SELECT i.identity_data ->> 'email'
+      FROM auth.identities i
+     WHERE i.user_id IN (SELECT u.auth_user_id FROM public.users u WHERE u.id = p_user_id
+                         UNION ALL
+                         SELECT s.auth_user_id FROM public.account_sign_ins s
+                          WHERE s.user_id = p_user_id AND s.revoked_at IS NULL)
+  ) x WHERE e IS NOT NULL AND btrim(e) <> '';
+  IF to_regclass('public.linked_identities') IS NOT NULL THEN
+    EXECUTE 'SELECT coalesce(array_agg(DISTINCT lower(provider_email)), ARRAY[]::TEXT[])
+               FROM public.linked_identities WHERE user_id = $1 AND provider_email IS NOT NULL'
+      INTO v_more USING p_user_id;
+    v := v || v_more;
+  END IF;
+  RETURN v;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.account_emails_v1(UUID) FROM PUBLIC, anon, authenticated;
+
 -- Funded activity or money on an account: the first kind found, or NULL.
--- Fail closed: a table this cannot check (missing, or none of the columns it
--- knows) answers 'unverifiable', which refuses a fold just the same.
+-- Each column is matched by what it holds: the account id, its wallets, its
+-- legacy Privy ids, or its emails (the legacy SOL escrow keyed people all
+-- four ways).
+--
+-- Fail closed on what production has (checked 4 Oct 2026): a missing table,
+-- or a missing column it is known to have, answers 'unverifiable', which
+-- refuses a fold just the same. Tables and columns production does not have
+-- (challenge_participants, challenge_transactions, challenges.witness_address)
+-- are checked when they exist and never refuse by being absent ('?').
+--
+-- A legacy escrow challenge counts while its money may still be held: every
+-- status but completed, failed and cancelled — the app's own definition of
+-- an open escrow (challenge_status_utils.dart openStatuses: pending, active,
+-- accepted, funded, expired), with any other or missing status counted.
 CREATE OR REPLACE FUNCTION public.account_money_activity_v1(p_user_id UUID)
 RETURNS TEXT
 LANGUAGE plpgsql
@@ -843,57 +933,85 @@ SECURITY DEFINER
 SET search_path = pg_catalog, public, pg_temp
 AS $$
 DECLARE
-  v_wallets TEXT[] := public.account_wallets_v1(p_user_id);
-  v_found   BOOLEAN;
-  v_check   RECORD;
-  v_col     TEXT;
-  v_name    TEXT;
-  v_preds   TEXT[];
+  v_wallets  TEXT[] := public.account_wallets_v1(p_user_id);
+  v_privy    TEXT[] := public.account_privy_ids_v1(p_user_id);
+  v_emails   TEXT[] := public.account_emails_v1(p_user_id);
+  v_found    BOOLEAN;
+  v_check    RECORD;
+  v_table    TEXT;
+  v_optional BOOLEAN;
+  v_col      TEXT;
+  v_name     TEXT;
+  v_preds    TEXT[];
 BEGIN
   FOR v_check IN
     SELECT * FROM (VALUES
-      ('funded_call',         'calls',                    ARRAY['user_id:id'],                         'funding_state <> ''NONE'''),
-      ('venue_order',         'venue_orders',             ARRAY['user_id:id'],                         NULL),
-      ('venue_position',      'venue_positions',          ARRAY['user_id:id'],                         NULL),
-      ('panta_trade',         'panta_trade_sessions',     ARRAY['user_id:id', 'wallet_address:wallet'], NULL),
-      ('panta_claim',         'panta_claim_sessions',     ARRAY['user_id:id', 'wallet_address:wallet'], NULL),
-      ('market_creation',     'market_creation_sessions', ARRAY['publisher_id:id', 'wallet_address:wallet'], NULL),
-      ('prediction_position', 'prediction_positions',     ARRAY['user_id:id', 'wallet_address:wallet'], NULL),
-      ('prediction_claim',    'claims',                   ARRAY['user_id:id', 'wallet_address:wallet'], NULL),
-      ('escrow_challenge',    'challenges',               ARRAY['creator_id:id', 'participant_id:id', 'witness_id:id',
-                                                                'winner_id:text', 'winner_id:wallet',
-                                                                'creator_wallet_address:wallet',
-                                                                'member1_address:wallet', 'member2_address:wallet'], NULL),
-      ('escrow_participant',  'challenge_participants',   ARRAY['wallet_address:wallet'],              NULL),
-      ('escrow_transaction',  'challenge_transactions',   ARRAY['from_address:wallet', 'to_address:wallet'], NULL),
+      ('funded_call',         'calls',                    ARRAY['user_id:id'],
+                              ARRAY['funding_state'], 'funding_state <> ''NONE'''),
+      ('venue_order',         'venue_orders',             ARRAY['user_id:id'], ARRAY[]::TEXT[], NULL),
+      ('venue_position',      'venue_positions',          ARRAY['user_id:id'], ARRAY[]::TEXT[], NULL),
+      ('panta_trade',         'panta_trade_sessions',     ARRAY['user_id:id', 'wallet_address:wallet'], ARRAY[]::TEXT[], NULL),
+      ('panta_claim',         'panta_claim_sessions',     ARRAY['user_id:id', 'wallet_address:wallet'], ARRAY[]::TEXT[], NULL),
+      ('market_creation',     'market_creation_sessions', ARRAY['publisher_id:id', 'wallet_address:wallet'], ARRAY[]::TEXT[], NULL),
+      ('prediction_position', 'prediction_positions',     ARRAY['user_id:id', 'wallet_address:wallet'], ARRAY[]::TEXT[], NULL),
+      ('prediction_claim',    'claims',                   ARRAY['user_id:id', 'wallet_address:wallet'], ARRAY[]::TEXT[], NULL),
+      ('escrow_challenge',    'challenges',               ARRAY[
+                                'creator_id:id', 'participant_id:id', 'witness_id:id',
+                                'winner_id:text', 'winner_id:wallet', 'winner_id:privy',
+                                'creator_privy_id:privy', 'participant_privy_id:privy', 'winner_privy_id:privy',
+                                'participant_email:email',
+                                'creator_wallet_address:wallet',
+                                'member1_address:wallet', 'member1_address:privy',
+                                'member2_address:wallet', 'member2_address:privy',
+                                'witness_address?:wallet', 'witness_address?:privy'],
+                              ARRAY['status'],
+                              'coalesce(lower(status), '''') NOT IN (''completed'', ''failed'', ''cancelled'')'),
+      ('escrow_participant',  '?challenge_participants',  ARRAY['wallet_address?:wallet', 'wallet_address?:privy',
+                                                                'user_privy_id?:privy'], ARRAY[]::TEXT[], NULL),
+      ('escrow_transaction',  '?challenge_transactions',  ARRAY['from_address?:wallet', 'to_address?:wallet'],
+                              ARRAY[]::TEXT[], NULL),
       -- An app-held wallet (embedded, chumbucket, anything but a wallet app
       -- or an import) may hold a balance only this account can reach.
-      ('app_wallet',          'linked_wallets',           ARRAY['user_id:id'],
+      ('app_wallet',          'linked_wallets',           ARRAY['user_id:id'], ARRAY['revoked_at', 'wallet_type'],
                               'revoked_at IS NULL AND wallet_type NOT IN (''mwa'', ''imported'')')
-    ) AS t(kind, tbl, cols, extra)
+    ) AS t(kind, tbl, cols, needs, extra)
   LOOP
-    IF to_regclass('public.' || v_check.tbl) IS NULL THEN
+    v_optional := left(v_check.tbl, 1) = '?';
+    v_table := ltrim(v_check.tbl, '?');
+    IF to_regclass('public.' || v_table) IS NULL THEN
+      IF v_optional THEN CONTINUE; END IF;
       RETURN 'unverifiable';
     END IF;
+    FOREACH v_name IN ARRAY v_check.needs LOOP
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                      WHERE table_schema = 'public' AND table_name = v_table AND column_name = v_name) THEN
+        RETURN 'unverifiable';
+      END IF;
+    END LOOP;
     v_preds := ARRAY[]::TEXT[];
     FOREACH v_col IN ARRAY v_check.cols LOOP
       v_name := split_part(v_col, ':', 1);
       IF NOT EXISTS (SELECT 1 FROM information_schema.columns
-                      WHERE table_schema = 'public' AND table_name = v_check.tbl AND column_name = v_name) THEN
-        CONTINUE;
+                      WHERE table_schema = 'public' AND table_name = v_table AND column_name = rtrim(v_name, '?')) THEN
+        IF right(v_name, 1) = '?' THEN CONTINUE; END IF;
+        RETURN 'unverifiable';
       END IF;
+      v_name := rtrim(v_name, '?');
       v_preds := v_preds || CASE split_part(v_col, ':', 2)
-        WHEN 'id'   THEN format('%I = $1', v_name)
-        WHEN 'text' THEN format('%I::text = $1::text', v_name)
-        ELSE format('%I::text = ANY ($2)', v_name) END;
+        WHEN 'id'     THEN format('%I = $1', v_name)
+        WHEN 'text'   THEN format('%I::text = $1::text', v_name)
+        WHEN 'wallet' THEN format('%I::text = ANY ($2)', v_name)
+        WHEN 'privy'  THEN format('%I::text = ANY ($3)', v_name)
+        ELSE format('lower(%I::text) = ANY ($4)', v_name) END;
     END LOOP;
     IF cardinality(v_preds) = 0 THEN
+      IF v_optional THEN CONTINUE; END IF;
       RETURN 'unverifiable';
     END IF;
     EXECUTE format('SELECT EXISTS (SELECT 1 FROM public.%I WHERE (%s)%s)',
-                   v_check.tbl, array_to_string(v_preds, ' OR '),
+                   v_table, array_to_string(v_preds, ' OR '),
                    CASE WHEN v_check.extra IS NULL THEN '' ELSE ' AND ' || v_check.extra END)
-      INTO v_found USING p_user_id, v_wallets;
+      INTO v_found USING p_user_id, v_wallets, v_privy, v_emails;
     IF v_found THEN RETURN v_check.kind; END IF;
   END LOOP;
   RETURN NULL;
@@ -1428,7 +1546,9 @@ BEGIN
     END IF;
     RETURN jsonb_build_object('ok', false, 'reason', 'session_mismatch');
   END IF;
-  IF p_user_id IS NOT NULL AND p_user_id <> v_account THEN
+  -- The caller must name the account this sign-in reaches: a caller that
+  -- could not resolve it (and so ran no checks on it) deletes nothing.
+  IF p_user_id IS DISTINCT FROM v_account THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'session_mismatch');
   END IF;
 
