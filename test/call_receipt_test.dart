@@ -29,6 +29,29 @@ Widget testApp(Widget child) => ScreenUtilInit(
 );
 
 void main() {
+  test('a receipt is never assumed free: only a free call proves it', () {
+    final bare = CallReceipt(
+      callId: 'c',
+      personDisplayName: 'Ada',
+      personHandle: 'ada',
+      lockedAt: DateTime.utc(2026, 10, 4),
+      side: Side.yes,
+      sideLabel: 'Yes',
+      entryProbability: null,
+      outcome: CallOutcome.pending,
+      resolution: null,
+      resolvedAt: null,
+      marketQuestion: 'Will it?',
+      venueLabel: 'Panta',
+      venueIsDemo: false,
+      resolutionSource: null,
+      marketResolutionId: null,
+      shareUrl: 'https://chumbucket.fun/c/c',
+    );
+    expect(bare.free, isFalse);
+    expect(bare.shareCaption, isNot(contains('Free')));
+  });
+
   group(
     'CallReceipt carries the five required facts and nothing money-shaped',
     () {
