@@ -321,39 +321,33 @@ class _PositionCard extends StatelessWidget {
     );
   }
 
+  /// One short, truthful line per status: what happened and, when it
+  /// matters, what comes next. Nothing reads as funded until it is.
   String _detailLine(PantaPosition p) {
     final shares =
-        p.shares == null
-            ? null
-            : '${PantaMoney.shares(p.shares!)} shares (Panta quote)';
+        p.shares == null ? null : '${PantaMoney.shares(p.shares!)} shares';
     return switch (p.status) {
       PantaPositionStatus.pending =>
-        'Order sent · Chumbucket is confirming it on Solana and with Panta. '
-            'Nothing is funded until that check passes.',
-      PantaPositionStatus.failed =>
-        'This order did not go through and nothing was funded. You can fund '
-            'this call again.',
+        'Confirming on Solana and Panta · not funded yet',
+      PantaPositionStatus.failed => 'Didn’t go through · nothing was funded',
       PantaPositionStatus.awaitingResult =>
-        '${shares ?? 'Shares unknown'} · market closed, waiting for Panta’s published result.',
+        '${shares ?? 'Shares unknown'} · waiting for Panta’s result',
       PantaPositionStatus.wonClaimable =>
-        '${shares ?? 'Winning shares'} · Panta pays about 1 USDC per winning share.',
+        '${shares ?? 'Winning shares'} · about 1 USDC per winning share',
       PantaPositionStatus.won =>
         claimStatusKnown
-            ? 'You won. Panta has not opened the claim for this wallet yet.'
-            : 'You won. Panta’s claim status is unavailable right now; it '
-                'refreshes shortly.',
-      PantaPositionStatus.claiming =>
-        'Claim sent · confirming the payout on Solana.',
+            ? 'Won · Panta hasn’t opened the claim yet'
+            : 'Won · claim status updating',
+      PantaPositionStatus.claiming => 'Claim sent · confirming on Solana',
       PantaPositionStatus.claimed =>
         p.claim?.payoutBaseUnits == null
-            ? 'Claimed on Panta.'
-            : 'Claimed ${PantaMoney.usdc(p.claim!.payoutBaseUnits!)} to your wallet.',
-      PantaPositionStatus.lost => 'This side lost. Losing shares settle at 0.',
-      PantaPositionStatus.voided =>
-        'Panta cancelled this market. Check Panta for how it settles.',
+            ? 'Claimed on Panta'
+            : 'Claimed ${PantaMoney.usdc(p.claim!.payoutBaseUnits!)}',
+      PantaPositionStatus.lost => 'This side lost · settles at 0',
+      PantaPositionStatus.voided => 'Market cancelled · see Panta',
       PantaPositionStatus.open =>
         '${shares ?? 'Shares unknown'}'
-            '${p.walletShares == null ? '' : ' · wallet holds ${PantaMoney.shares(p.walletShares!)} on this side'}',
+            '${p.walletShares == null ? '' : ' · wallet holds ${PantaMoney.shares(p.walletShares!)}'}',
     };
   }
 
