@@ -25,16 +25,29 @@ void usePhoneSurface(WidgetTester tester) {
   });
 }
 
-Widget harness(CallsProvider provider, {VoidCallback? onSignIn}) {
+Widget harness(
+  CallsProvider provider, {
+  VoidCallback? onSignIn,
+  VoidCallback? onOpenDares,
+  double textScale = 1,
+}) {
   return ScreenUtilInit(
     designSize: const Size(390, 844),
     builder:
         (context, _) => MaterialApp(
+          builder:
+              (context, child) => MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(textScaler: TextScaler.linear(textScale)),
+                child: child!,
+              ),
           home: ChangeNotifierProvider<CallsProvider>.value(
             value: provider,
             child: CallFeedScreen(
               showHeader: false,
               onSignInRequested: onSignIn,
+              onOpenDares: onOpenDares,
             ),
           ),
         ),
@@ -123,6 +136,78 @@ void main() {
       );
     }
   });
+
+  testWidgets('the open-dares notice opens your dares, or is not shown', (
+    tester,
+  ) async {
+    usePhoneSurface(tester);
+    final provider = providerFor(MockCallsRepository());
+    await tester.pumpWidget(harness(provider));
+    await tester.pumpAndSettle();
+    expect(provider.invitations, isNotEmpty);
+    // No destination, no notice: nothing on Home that cannot be acted on.
+    expect(find.textContaining('open dare'), findsNothing);
+
+    var opened = 0;
+    await tester.pumpWidget(harness(provider, onOpenDares: () => opened++));
+    await tester.pumpAndSettle();
+    final notice = find.byKey(const ValueKey('home-open-dares'));
+    expect(notice, findsOneWidget);
+    expect(tester.getSize(notice).height, greaterThanOrEqualTo(48));
+    expect(
+      find.bySemanticsLabel(RegExp(r'open dares? waiting\. Open your dares')),
+      findsOneWidget,
+    );
+    await tester.tap(notice);
+    expect(opened, 1);
+  });
+
+  for (final (width, scale) in [(390.0, 1.0), (320.0, 1.0), (320.0, 2.0)]) {
+    testWidgets('at ${width}dp and ${scale}x the Call action covers no tab', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 2.0;
+      tester.view.physicalSize = Size(width * 2, 844 * 2);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final provider = providerFor(MockCallsRepository());
+      await tester.pumpWidget(harness(provider, textScale: scale));
+      await tester.pumpAndSettle();
+      Rect call() =>
+          tester.getRect(find.bySemanticsLabel('Make a call').first);
+      expect(call().width, greaterThanOrEqualTo(48));
+      expect(call().height, greaterThanOrEqualTo(48));
+      expect(call().right, lessThanOrEqualTo(width));
+      for (final label in ['Following', 'Global']) {
+        expect(
+          tester.getRect(find.text(label)).overlaps(call()),
+          isFalse,
+          reason: '$label under Call',
+        );
+        // The test font draws every glyph a full em wide, so at 2x the
+        // labels can outgrow the phone and the strip scrolls; scrolled into
+        // view, a label is whole and still clear of the button.
+        await tester.ensureVisible(find.text(label));
+        await tester.pumpAndSettle();
+        final tab = tester.getRect(find.text(label));
+        expect(tab.overlaps(call()), isFalse, reason: '$label under Call');
+        expect(tab.left, greaterThanOrEqualTo(0), reason: label);
+        expect(tab.right, lessThanOrEqualTo(width), reason: label);
+      }
+      // Both destinations still work by a plain tap.
+      for (final (label, mode) in [
+        ('Following', CallFeedMode.following),
+        ('Global', CallFeedMode.global),
+      ]) {
+        await tester.ensureVisible(find.text(label));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(label));
+        await tester.pumpAndSettle();
+        expect(provider.feedMode, mode);
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('switching to Following narrows the feed', (tester) async {
     usePhoneSurface(tester);
@@ -268,7 +353,7 @@ void main() {
   ) async {
     usePhoneSurface(tester);
     final provider = providerFor(MockCallsRepository());
-    await tester.pumpWidget(harness(provider));
+    await tester.pumpWidget(harness(provider, onOpenDares: () {}));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('open dare'), findsOneWidget);

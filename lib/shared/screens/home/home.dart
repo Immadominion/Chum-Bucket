@@ -268,6 +268,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     onSignInRequested: () => requestCallSignIn(context),
                     onBrowseMarkets: _openCallMarkets,
                     topBanner: const HomeSetupCard(),
+                    // Friends' list starts with your dares.
+                    onOpenDares: () => _selectDestination(2),
                   )
                 else
                   PredictionsHomeTab(

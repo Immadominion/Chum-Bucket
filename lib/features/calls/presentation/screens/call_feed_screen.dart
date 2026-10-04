@@ -51,12 +51,18 @@ class CallFeedScreen extends StatefulWidget {
   /// it always did — no empty slot, no extra gap.
   final Widget? topBanner;
 
+  /// Opens where your dares are answered (the shell's Friends tab, whose list
+  /// starts with them). Without it Home shows no dare notice at all: nothing
+  /// is shown that cannot be acted on.
+  final VoidCallback? onOpenDares;
+
   const CallFeedScreen({
     super.key,
     this.showHeader = true,
     this.onSignInRequested,
     this.onBrowseMarkets,
     this.topBanner,
+    this.onOpenDares,
   });
 
   @override
@@ -231,15 +237,10 @@ class _CallFeedScreenState extends State<CallFeedScreen>
     if (provider.isOffline && provider.feed.isNotEmpty) {
       notices.add(CallsNotice.offline());
     }
-    if (provider.invitations.isNotEmpty) {
+    final openDares = widget.onOpenDares;
+    if (provider.invitations.isNotEmpty && openDares != null) {
       notices.add(
-        CallsNotice(
-          icon: 'fire-outline',
-          color: AppColors.primary,
-          message:
-              '${provider.invitations.length} open dare'
-              '${provider.invitations.length == 1 ? '' : 's'} waiting',
-        ),
+        _DaresNotice(count: provider.invitations.length, onTap: openDares),
       );
     }
     return notices;
@@ -394,71 +395,200 @@ class _ModeBar extends StatelessWidget {
 
   const _ModeBar({required this.provider, required this.onCompose});
 
+  static final _labels = [
+    CallFeedMode.following.label,
+    CallFeedMode.global.label,
+  ];
+
   @override
   Widget build(BuildContext context) {
+    final tabs = ChumbucketTabs(
+      labels: _labels,
+      selectedIndex: provider.feedMode == CallFeedMode.following ? 0 : 1,
+      onSelected:
+          (index) => provider.setFeedMode(
+            index == 0 ? CallFeedMode.following : CallFeedMode.global,
+          ),
+    );
     return Padding(
       padding: EdgeInsets.fromLTRB(12.w, 0, 12.w, 4.h),
-      child: Row(
-        children: [
-          // ChumbucketTabs sizes to its labels; at a large text scale the two
-          // labels plus the action can exceed a narrow phone, so the tabs
-          // scroll rather than clipping a destination out of reach.
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: ChumbucketTabs(
-                labels: const [
-                  CallFeedMode.following,
-                  CallFeedMode.global,
-                ].map((m) => m.label).toList(growable: false),
-                selectedIndex:
-                    provider.feedMode == CallFeedMode.following ? 0 : 1,
-                onSelected:
-                    (index) => provider.setFeedMode(
-                      index == 0 ? CallFeedMode.following : CallFeedMode.global,
-                    ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // The Call action never sits over a tab. Beside the tabs while both
+          // labels and the button fit; an icon-only button when only that
+          // fits; at large text on a narrow phone, on its own line under the
+          // tabs (320dp at 2x drew "Global" under the button).
+          const gap = 8.0;
+          final tabsWidth = ChumbucketTabs.naturalWidth(context, _labels);
+          final room = constraints.maxWidth - tabsWidth - gap;
+          final full = _ComposeButton(onCompose: onCompose);
+          if (room >= _ComposeButton.widthIn(context)) {
+            return Row(children: [tabs, const Spacer(), full]);
+          }
+          if (room >= 48) {
+            return Row(
+              children: [
+                tabs,
+                const Spacer(),
+                _ComposeButton(onCompose: onCompose, iconOnly: true),
+              ],
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Still scrolls if even the labels alone outgrow the phone.
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: tabs,
               ),
+              const SizedBox(height: 6),
+              Align(alignment: AlignmentDirectional.centerEnd, child: full),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Home's one compose action: "Call" with a plus, or the plus alone where
+/// the label would crowd the tabs. Always 48dp to touch and named "Make a
+/// call" to screen readers.
+class _ComposeButton extends StatelessWidget {
+  const _ComposeButton({required this.onCompose, this.iconOnly = false});
+  final VoidCallback onCompose;
+  final bool iconOnly;
+
+  static const _label = TextStyle(
+    color: AppColors.textPrimary,
+    fontSize: 14,
+    fontWeight: FontWeight.w800,
+  );
+
+  /// The labelled button's width at [context]'s text scale.
+  static double widthIn(BuildContext context) {
+    final painter = TextPainter(
+      text: const TextSpan(text: 'Call', style: _label),
+      textDirection: Directionality.maybeOf(context) ?? TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+    )..layout();
+    final width = painter.width + 16 + 5.w + 28;
+    painter.dispose();
+    return width;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final button = InkWell(
+      onTap: onCompose,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 48, minWidth: 48),
+        padding:
+            iconOnly
+                ? const EdgeInsets.all(14)
+                : const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.primary,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            BasilIcon(
+              'add-outline',
+              size: iconOnly ? 20 : 16,
+              color: AppColors.textPrimary,
             ),
+            if (!iconOnly) ...[
+              SizedBox(width: 5.w),
+              const Text('Call', style: _label),
+            ],
+          ],
+        ),
+      ),
+    );
+    return Semantics(
+      button: true,
+      label: 'Make a call',
+      excludeSemantics: true,
+      child:
+          iconOnly
+              ? Tooltip(
+                message: 'Make a call',
+                excludeFromSemantics: true,
+                child: button,
+              )
+              : button,
+    );
+  }
+}
+
+/// "1 open dare waiting", as one row you can tap: it opens your dares.
+class _DaresNotice extends StatelessWidget {
+  const _DaresNotice({required this.count, required this.onTap});
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final line = '$count open dare${count == 1 ? '' : 's'} waiting';
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 10.h),
+      child: Semantics(
+        button: true,
+        label: '$line. Open your dares',
+        excludeSemantics: true,
+        child: Material(
+          key: const ValueKey('home-open-dares'),
+          color: AppColors.primary.withValues(alpha: 0.10),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(color: AppColors.primary.withValues(alpha: 0.30)),
           ),
-          Semantics(
-            button: true,
-            label: 'Make a call',
-            child: InkWell(
-              onTap: onCompose,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                constraints: const BoxConstraints(minHeight: 48),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 48),
+              child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(12),
+                  horizontal: 12,
+                  vertical: 10,
                 ),
                 child: Row(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
                     const BasilIcon(
-                      'add-outline',
+                      'fire-outline',
                       size: 16,
-                      color: AppColors.textPrimary,
+                      color: AppColors.primary,
                     ),
-                    SizedBox(width: 5.w),
-                    Text(
-                      'Call',
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        line,
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 12.sp,
+                          height: 1.3,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
+                    ),
+                    const BasilIcon(
+                      'arrow-right-outline',
+                      size: 18,
+                      color: AppColors.textPrimary,
                     ),
                   ],
                 ),
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }

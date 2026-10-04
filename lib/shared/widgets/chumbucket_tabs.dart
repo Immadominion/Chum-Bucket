@@ -20,6 +20,35 @@ class ChumbucketTabs extends StatelessWidget {
   /// tab's touch target still reaches 48dp across and down.
   static const double _gap = 20;
 
+  static const TextStyle _labelStyle = TextStyle(
+    fontFamily: 'PPNeueMachina',
+    fontSize: 14,
+    height: 1.3,
+  );
+
+  /// How wide the strip lays out at [context]'s text scale, measured at the
+  /// selected (heaviest) weight so a selection never makes it grow. Lets a
+  /// parent decide whether an action still fits beside every label, instead
+  /// of letting the action sit over the last one.
+  static double naturalWidth(BuildContext context, List<String> labels) {
+    final scaler = MediaQuery.textScalerOf(context);
+    var width = _gap * (labels.length - 1);
+    for (final label in labels) {
+      final painter = TextPainter(
+        text: TextSpan(
+          text: label,
+          style: _labelStyle.copyWith(fontWeight: FontWeight.w800),
+        ),
+        textDirection: Directionality.maybeOf(context) ?? TextDirection.ltr,
+        textScaler: scaler,
+        maxLines: 1,
+      )..layout();
+      width += (painter.width + 2).clamp(48, double.infinity);
+      painter.dispose();
+    }
+    return width;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -51,10 +80,7 @@ class ChumbucketTabs extends StatelessWidget {
                   ),
                   child: Text(
                     labels[index],
-                    style: TextStyle(
-                      fontFamily: 'PPNeueMachina',
-                      fontSize: 14,
-                      height: 1.3,
+                    style: _labelStyle.copyWith(
                       fontWeight: selected ? FontWeight.w800 : FontWeight.w400,
                       color:
                           selected

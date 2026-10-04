@@ -45,6 +45,8 @@ import 'ui_people_layout_friends_test.dart' show QuietArena, friendsScreen;
 
 const _viewer = MockCallsRepository.demoViewerUserId;
 
+void _noop() {}
+
 /// Home's tabs sit on the app's grey canvas, not a white Scaffold: draw the
 /// capture the way the phone does, so white rows read as rows.
 Widget _onCanvas(Widget child) => Theme(
@@ -484,7 +486,7 @@ void main() {
             value: calls,
             child: const Scaffold(
               backgroundColor: AppColors.background,
-              body: CallFeedScreen(showHeader: false),
+              body: CallFeedScreen(showHeader: false, onOpenDares: _noop),
             ),
           );
         },
