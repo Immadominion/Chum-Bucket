@@ -22,6 +22,10 @@ import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 
 const String kDeleteConfirmationWord = 'DELETE';
 
+/// The BFF's exact refusal while the account's Chumbucket wallet still holds
+/// money (`CASH_OUT_FIRST` in src/trust/TrustService.ts).
+const kCashOutFirst = 'Cash out first';
+
 class DeleteAccountScreen extends StatefulWidget {
   const DeleteAccountScreen({super.key, this.repository, this.onDeleted});
 
@@ -224,10 +228,31 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
         const SizedBox(height: 12),
         Semantics(
           liveRegion: true,
-          child: Text(
-            _error!,
-            style: styles.bodyMedium?.copyWith(color: AppColors.error),
-          ),
+          // The BFF's refusal while the Chumbucket wallet holds money: icon
+          // first, three words.
+          child:
+              _error == kCashOutFirst
+                  ? Row(
+                    key: const ValueKey('delete-account-cash-out-first'),
+                    children: [
+                      const BasilIcon(
+                        'wallet-outline',
+                        size: 22,
+                        color: AppColors.error,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        _error!,
+                        style: styles.bodyMedium?.copyWith(
+                          color: AppColors.error,
+                        ),
+                      ),
+                    ],
+                  )
+                  : Text(
+                    _error!,
+                    style: styles.bodyMedium?.copyWith(color: AppColors.error),
+                  ),
         ),
       ],
       const SizedBox(height: 16),
