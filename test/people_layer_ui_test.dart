@@ -495,7 +495,31 @@ void main() {
         scale: 1,
       );
       expect(find.text('12 followers · 3 following'), findsOneWidget);
-      expect(find.text('3/4'), findsOneWidget);
+      // The same four numbers as your own Profile, misses and voids beside
+      // the hits; what the record counts is behind a tap, not printed.
+      for (final label in [
+        '3 correct of 4 decided',
+        '1 Incorrect',
+        '2 Pending',
+        '0 void, not scored',
+      ]) {
+        // One readout for the record, its scope read with it.
+        expect(
+          find.bySemanticsLabel(RegExp(RegExp.escape(label))),
+          findsWidgets,
+          reason: label,
+        );
+      }
+      expect(
+        tester
+            .widget<Tooltip>(find.byKey(const ValueKey('person-record-scope')))
+            .message,
+        allOf(
+          contains('Followers-only calls and trades are not counted'),
+          contains('Void is never scored'),
+        ),
+      );
+      expect(find.textContaining('not scored'), findsNothing);
       // Four decided is below the sample: no percentage, and it says why.
       expect(find.text('—'), findsOneWidget);
       expect(find.text('accuracy after 10 decided'), findsOneWidget);

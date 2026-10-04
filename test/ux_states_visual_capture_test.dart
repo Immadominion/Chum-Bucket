@@ -18,6 +18,7 @@ import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.d
 import 'package:chumbucket/core/theme/app_colors.dart';
 import 'package:chumbucket/features/calls/data/mock_calls_repository.dart';
 import 'package:chumbucket/features/calls/presentation/screens/call_feed_screen.dart';
+import 'package:chumbucket/features/calls/presentation/screens/call_person_screen.dart';
 import 'package:chumbucket/features/panta_trading/panta_trading.dart';
 import 'package:http/testing.dart';
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
@@ -535,5 +536,57 @@ void main() {
     for (final dispose in disposeAtEnd) {
       dispose();
     }
+  }, skip: outDir.isEmpty);
+
+  testWidgets('captures: someone else\'s profile with the server record', (
+    tester,
+  ) async {
+    // The live build: the server sends a public record. It is drawn as the
+    // same compact numbers as your own Profile, its scope behind a tap.
+    Widget person(PublicRecord record) {
+      final repo =
+          PeopleFake()
+            ..personRecord = record
+            ..followers = 128
+            ..followingCount = 12;
+      final calls = CallsProvider(repository: repo)..setViewer(_viewer);
+      addTearDown(calls.dispose);
+      return ChangeNotifierProvider<CallsProvider>.value(
+        value: calls,
+        child: const CallPersonScreen(personRef: 'user_ada'),
+      );
+    }
+
+    await both(
+      tester,
+      'person-record',
+      () => person(
+        const PublicRecord(
+          correct: 47,
+          incorrect: 3,
+          voided: 1,
+          decided: 50,
+          pending: 2,
+          minimumDecided: 10,
+          accuracy: 0.94,
+        ),
+      ),
+      height: 1100,
+    );
+    await both(
+      tester,
+      'person-record-building',
+      () => person(
+        const PublicRecord(
+          correct: 3,
+          incorrect: 1,
+          voided: 0,
+          decided: 4,
+          pending: 2,
+          minimumDecided: 10,
+        ),
+      ),
+      height: 1100,
+    );
   }, skip: outDir.isEmpty);
 }

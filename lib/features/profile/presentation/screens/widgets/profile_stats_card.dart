@@ -4,7 +4,7 @@ import 'package:chumbucket/core/theme/app_text_styles.dart';
 import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/calls/data/calls_repository.dart';
 import 'package:chumbucket/features/record/data/category_record.dart';
-import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
+import 'package:chumbucket/features/record/presentation/widgets/record_stat_tiles.dart';
 
 /// What the record counts, said once behind the info icon instead of under
 /// every profile.
@@ -33,58 +33,45 @@ class ProfileStatsCard extends StatelessWidget {
     // Not read yet (or not readable): the same four tiles with a quiet "—",
     // so nothing jumps when it lands and no internal state is narrated.
     String count(int? n) => n == null ? '\u2014' : '$n';
-    final tiles = LayoutBuilder(
-      builder: (context, constraints) {
-        // Four across; two by two at large text.
-        final columns = MediaQuery.textScalerOf(context).scale(12) > 18 ? 2 : 4;
-        final width = (constraints.maxWidth - 8 * (columns - 1)) / columns;
-        final correct = record?.tallies[0].count;
-        final voided = record?.tallies[2].count;
-        return Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _Stat(
-              key: const ValueKey('record-correct'),
-              width: width,
-              icon: 'check-outline',
-              color: const Color(0xFF07644C),
-              value: count(correct),
-              label: 'Correct',
-              semantics:
-                  record == null
-                      ? null
-                      : '$correct correct of ${record.decided} decided',
-            ),
-            _Stat(
-              key: const ValueKey('record-incorrect'),
-              width: width,
-              icon: 'cross-outline',
-              color: const Color(0xFF334155),
-              value: count(record?.tallies[1].count),
-              label: 'Incorrect',
-            ),
-            _Stat(
-              key: const ValueKey('record-pending'),
-              width: width,
-              icon: 'sand-watch-outline',
-              color: AppColors.onWarningContainer,
-              value: count(record?.pending),
-              label: 'Pending',
-            ),
-            _Stat(
-              key: const ValueKey('record-void'),
-              width: width,
-              icon: 'cancel-outline',
-              color: AppColors.textSecondary,
-              value: count(voided),
-              label: 'Void',
-              semantics: record == null ? null : '$voided void, not scored',
-              info: record != null,
-            ),
-          ],
-        );
-      },
+    final correct = record?.tallies[0].count;
+    final voided = record?.tallies[2].count;
+    final tiles = RecordStatRow(
+      tiles: [
+        RecordStatTile(
+          key: const ValueKey('record-correct'),
+          icon: 'check-outline',
+          color: RecordInk.correct,
+          value: count(correct),
+          label: 'Correct',
+          semantics:
+              record == null
+                  ? null
+                  : '$correct correct of ${record.decided} decided',
+        ),
+        RecordStatTile(
+          key: const ValueKey('record-incorrect'),
+          icon: 'cross-outline',
+          color: RecordInk.incorrect,
+          value: count(record?.tallies[1].count),
+          label: 'Incorrect',
+        ),
+        RecordStatTile(
+          key: const ValueKey('record-pending'),
+          icon: 'sand-watch-outline',
+          color: RecordInk.pending,
+          value: count(record?.pending),
+          label: 'Pending',
+        ),
+        RecordStatTile(
+          key: const ValueKey('record-void'),
+          icon: 'cancel-outline',
+          color: RecordInk.voided,
+          value: count(voided),
+          label: 'Void',
+          semantics: record == null ? null : '$voided void, not scored',
+          info: record != null,
+        ),
+      ],
     );
     return Container(
       width: double.infinity,
@@ -127,88 +114,4 @@ class ProfileStatsCard extends StatelessWidget {
               ),
     );
   }
-}
-
-class _Stat extends StatelessWidget {
-  const _Stat({
-    super.key,
-    required this.width,
-    required this.icon,
-    required this.color,
-    required this.value,
-    required this.label,
-    this.semantics,
-    this.info = false,
-  });
-
-  /// Draws the small info glyph that says the record can be tapped.
-  final bool info;
-
-  final double width;
-  final String icon;
-  final Color color;
-  final String value;
-  final String label;
-  final String? semantics;
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    width: width,
-    child: Semantics(
-      label: semantics ?? '$value $label',
-      excludeSemantics: true,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                BasilIcon(icon, size: 14, color: color),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    value,
-                    maxLines: 1,
-                    style: const TextStyle(
-                      fontFamily: 'PPNeueMachina',
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      height: 1.2,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ),
-                if (info)
-                  const BasilIcon(
-                    'info-circle-outline',
-                    size: 13,
-                    color: AppColors.textTertiary,
-                  ),
-              ],
-            ),
-            const SizedBox(height: 2),
-            // Scaled down, never cut off, when large text meets a narrow tile.
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: AlignmentDirectional.centerStart,
-              child: Text(
-                label,
-                maxLines: 1,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
 }
