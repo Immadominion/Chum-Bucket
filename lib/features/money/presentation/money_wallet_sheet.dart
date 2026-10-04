@@ -60,7 +60,7 @@ class _MoneyWalletSheetState extends State<MoneyWalletSheet> {
     signerFor: widget.dependencies.transferSigner,
     topUp: widget.dependencies.gasTopUp,
     pollEvery: widget.dependencies.pollEvery,
-  )..addListener(_changed);
+  )..addListener(_transferChanged);
   final _address = TextEditingController();
   final _amount = TextEditingController();
 
@@ -83,7 +83,7 @@ class _MoneyWalletSheetState extends State<MoneyWalletSheet> {
   void dispose() {
     money.removeListener(_changed);
     _cashOut
-      ..removeListener(_changed)
+      ..removeListener(_transferChanged)
       ..dispose();
     _client.close();
     _address.dispose();
@@ -92,11 +92,21 @@ class _MoneyWalletSheetState extends State<MoneyWalletSheet> {
   }
 
   void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  MoneyTransferStep? _lastStep;
+
+  /// Once the chain confirms a cash out, the balance is read again — once.
+  void _transferChanged() {
     if (!mounted) return;
-    setState(() {});
-    if (_cashOut.step == MoneyTransferStep.confirmed) {
+    final step = _cashOut.step;
+    if (step == MoneyTransferStep.confirmed && _lastStep != step) {
       unawaited(money.refreshWallet());
+      unawaited(_loadActivity());
     }
+    _lastStep = step;
+    setState(() {});
   }
 
   Future<void> _loadActivity() async {

@@ -114,11 +114,17 @@ class _MoneyDepositSheetState extends State<MoneyDepositSheet> {
     super.dispose();
   }
 
+  MoneyTransferStep? _lastStep;
+
   void _changed() {
     if (!mounted) return;
+    final step = _transfer.step;
+    // The chain confirmed it: read the balance now (once), not on the tick.
+    if (step == MoneyTransferStep.confirmed && _lastStep != step) {
+      unawaited(_check());
+    }
+    _lastStep = step;
     setState(() {});
-    // The chain confirmed it: read the balance now, not on the next tick.
-    if (_transfer.step == MoneyTransferStep.confirmed) unawaited(_check());
   }
 
   /// The shortfall to the cent above, at least a dollar; else $10.

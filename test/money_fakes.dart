@@ -7,6 +7,10 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:chumbucket/features/money/data/money_client.dart';
+import 'package:chumbucket/features/money/domain/money_transfer_signer.dart';
+import 'package:chumbucket/features/money/domain/usdc_transfer_check.dart';
+import 'package:chumbucket/features/money/money_call_controller.dart';
+import 'package:chumbucket/features/money/presentation/money_dependencies.dart';
 import 'package:chumbucket/features/money/money_controller.dart';
 import 'package:chumbucket/features/panta_trading/panta_trading.dart';
 import 'package:http/http.dart' as http;
@@ -23,6 +27,9 @@ const transferId = '66666666-6666-4666-8666-666666666666';
 const claimId = '77777777-7777-4777-8777-777777777777';
 const orderId = 'money-order-1';
 const moneyNow = 1790686800000;
+
+/// Quotes and claims that are still live whenever the suite runs.
+final farFuture = DateTime.utc(2100).millisecondsSinceEpoch;
 
 /// The signer's wallet: the fee payer key of [moneyUnsigned].
 final signerWallet = base58encode(List.filled(32, 1));
@@ -130,8 +137,16 @@ Map<String, dynamic> preparedTradeJson({
   String side = 'YES',
   String? owner,
   String? market,
-  int expiresAt = moneyNow + 60000,
-}) => {
+  int? expiresAt,
+}) => _prepared(amount, side, owner, market, expiresAt ?? farFuture);
+
+Map<String, dynamic> _prepared(
+  String amount,
+  String side,
+  String? owner,
+  String? market,
+  int expiresAt,
+) => {
   'order': {
     'orderId': orderId,
     'venue': 'panta',
@@ -177,7 +192,7 @@ Map<String, dynamic> readyJson({
   String amount = '5000000',
   String? owner,
   String? market,
-  int expiresAt = moneyNow + 60000,
+  int? expiresAt,
 }) => {
   'status': 'READY',
   'moneyCall': moneyCallJson(kind: kind, side: side, amount: amount),
@@ -418,3 +433,108 @@ Future<MoneyController> boundMoney(
   await money.bind(viewerId);
   return money;
 }
+
+Map<String, dynamic> depositOptionsJson({
+  bool card = false,
+  bool testMode = false,
+  bool fromWallet = true,
+}) => {
+  'tradingWallet': {'address': signerWallet, 'walletType': 'chumbucket'},
+  'sendUsdc': {
+    'address': signerWallet,
+    'mint': 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+    'network': 'solana-mainnet',
+    'uri':
+        'solana:$signerWallet?amount=4&spl-token='
+        'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+  },
+  'card': {
+    'available': card,
+    'testMode': testMode,
+    'reason': card ? null : 'Not live yet',
+    'presetsUsd': card ? ['10', '25'] : <String>[],
+    'limits': card ? {'minUsd': '5', 'maxUsd': '500'} : null,
+  },
+  'fromWallet': {
+    'wallets': [
+      if (fromWallet) {'address': otherWallet, 'walletType': 'mwa'},
+    ],
+  },
+};
+
+Map<String, dynamic> claimViewJson({String state = 'BUILT'}) => {
+  'claimId': claimId,
+  'orderId': orderId,
+  'venueMarketId': venueMarket,
+  'owner': signerWallet,
+  'state': state,
+  'signature': state == 'CONFIRMED' ? fillSignature : null,
+  'payoutBaseUnits': state == 'CONFIRMED' ? '9200000' : null,
+  'expiresAt': farFuture,
+  'attribution': 'Powered by Panta',
+};
+
+Map<String, dynamic> claimPreparedJson() => {
+  'claim': claimViewJson(),
+  'transaction': {
+    'venue': 'panta',
+    'encoding': 'solana-tx-base64',
+    'payload': base64Encode(moneyUnsigned()),
+    'expiresAt': farFuture,
+    'demo': false,
+  },
+  'review': {
+    'outcome': 'YES',
+    'winningShares': '9.2',
+    'estimatedPayoutUsdc': '9.2',
+    'attribution': 'Powered by Panta',
+  },
+};
+
+Future<Uint8List> _passThroughCheck(
+  Uint8List bytes,
+  ExpectedUsdcTransfer expected,
+) async => Uint8List.fromList(bytes.sublist(65));
+
+/// Test doubles for every money seam: the fake BFF, a filling signer, and a
+/// transfer signer that runs the real check before "signing".
+MoneyDependencies fakeMoneyDeps(
+  FakeMoneyServer server, {
+  FakeBuyPort? port,
+  FakeBuyPort? claimPort,
+  RawTransferSign? transferSign,
+  String? walletApp,
+  Future<bool> Function()? openCard,
+  Duration pollEvery = const Duration(seconds: 5),
+  Future<Uint8List> Function(Uint8List, ExpectedUsdcTransfer)? checkTransfer,
+}) => MoneyDependencies(
+  createClient: server.moneyClient,
+  createTradingClient: server.tradingClient,
+  buySigner:
+      (reviewed) => MoneyBuySigner(
+        address: signerWallet,
+        port: port ?? FakeBuyPort(),
+        selectedWallet: () => signerWallet,
+      ),
+  transferSigner:
+      (wallet) =>
+          wallet == signerWallet || wallet == walletApp
+              ? MoneyTransferSigner(
+                address: wallet,
+                // The real check derives USDC accounts with async crypto that
+                // a widget test's fake clock can't run; its own unit test
+                // (money_transfer_check_test) covers it byte by byte.
+                check: checkTransfer ?? _passThroughCheck,
+                sign:
+                    transferSign ??
+                    (_, _) async => Uint8List.fromList(List.filled(64, 4)),
+              )
+              : null,
+  claimSigners: (wallet, intent) => claimPort ?? FakeBuyPort(),
+  walletApp: () => walletApp,
+  openCard:
+      openCard == null
+          ? null
+          : (context, {shortfall, wallet}) => openCard(),
+  pollEvery: pollEvery,
+);
