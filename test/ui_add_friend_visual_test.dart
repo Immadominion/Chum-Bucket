@@ -97,8 +97,15 @@ void main() {
   };
 
   for (final scene in scenes.entries) {
-    for (final (width, scale) in [(390.0, 1.0), (320.0, 2.0)]) {
-      testWidgets('capture add-friend ${scene.key} $width/$scale', (
+    // At 320dp and 2x text the sheet scrolls: capture its top and its
+    // bottom, so the actions under the card are seen as well.
+    for (final (width, scale, bottom) in [
+      (390.0, 1.0, false),
+      (320.0, 2.0, false),
+      (320.0, 2.0, true),
+    ]) {
+      final tail = bottom ? '-bottom' : '';
+      testWidgets('capture add-friend ${scene.key} $width/$scale$tail', (
         tester,
       ) async {
         final (service, query, action) = scene.value;
@@ -127,12 +134,12 @@ void main() {
           await enter(tester, query);
           await submit(tester);
           if (action != null) await submit(tester, action);
-          await tester.drag(
-            find.byType(Scrollable).first,
-            const Offset(0, 2000),
-          );
-          await tester.pumpAndSettle();
         }
+        await tester.drag(
+          find.byType(Scrollable).first,
+          Offset(0, bottom ? -2000 : 2000),
+        );
+        await tester.pumpAndSettle();
         await tester.runAsync(() async {
           final context = tester.element(
             find.byKey(const ValueKey('sheet-capture')),
@@ -153,7 +160,7 @@ void main() {
           find.byKey(const ValueKey('sheet-capture')),
           matchesGoldenFile(
             Uri.file(
-              '$dir/chum-add-friend-${scene.key}-${width.toInt()}-${scale.toInt()}x.png',
+              '$dir/chum-add-friend-${scene.key}-${width.toInt()}-${scale.toInt()}x$tail.png',
             ),
           ),
         );

@@ -9,6 +9,7 @@ import 'package:chumbucket/features/calls/presentation/widgets/call_composer_she
 import 'package:chumbucket/features/calls/providers/calls_provider.dart';
 import 'package:chumbucket/features/onboarding/domain/onboarding_data.dart'
     show visibleDisplayName, visibleHandle;
+import 'package:chumbucket/features/people/data/people_models.dart';
 import 'package:chumbucket/features/people/data/person_finder.dart';
 import 'package:chumbucket/features/people/presentation/widgets/people_format.dart';
 import 'package:chumbucket/shared/models/friend_identifier.dart';
@@ -327,17 +328,17 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
         ),
       ),
       const SizedBox(height: 8),
-      Semantics(
-        liveRegion: true,
-        child: Text(
-          hint,
-          key: const Key('friend-identifier-hint'),
-          style: callJourneyBody(12).copyWith(
-            color:
-                typed == null && !empty
-                    ? AppColors.pinkInk
-                    : AppColors.textSecondary,
-          ),
+      // Not a live region: it changes on every keystroke, and announcing each
+      // change would talk over someone typing. It is read in order after the
+      // field; the result of Find is what gets announced.
+      Text(
+        hint,
+        key: const Key('friend-identifier-hint'),
+        style: callJourneyBody(12).copyWith(
+          color:
+              typed == null && !empty
+                  ? AppColors.pinkInk
+                  : AppColors.textSecondary,
         ),
       ),
       ..._errorLine(),
@@ -384,7 +385,7 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
       for (final match in matches) ...[
         FriendMatchCard(match: match),
         const SizedBox(height: 12),
-        ..._matchActions(match, single: false),
+        ..._matchActions(match, single: false, name: _actionName(match)),
         const SizedBox(height: 16),
       ],
       ..._errorLine(),
@@ -410,9 +411,26 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
     return Text(text, style: callJourneyBody());
   }
 
-  List<Widget> _matchActions(PersonMatch match, {required bool single}) {
-    final busyHere = _busy && _busyPersonId == match.person.id;
+  /// What an action button calls a match when several are listed: their
+  /// name, or — when another match shares it ("Irfan" on X and "Irfan" by
+  /// @username) — the handle that tells them apart, so no two buttons (and
+  /// no two screen-reader labels) say the same thing.
+  String _actionName(PersonMatch match) {
     final name = friendName(match);
+    final shared = _lookup!.matches.where((m) => friendName(m) == name).length;
+    if (shared < 2) return name;
+    final handle = visibleHandle(match.person.handle);
+    if (handle != null) return '@$handle';
+    return match.xHandle != null ? '@${match.xHandle} on X' : name;
+  }
+
+  List<Widget> _matchActions(
+    PersonMatch match, {
+    required bool single,
+    String? name,
+  }) {
+    final busyHere = _busy && _busyPersonId == match.person.id;
+    name ??= friendName(match);
     if (match.isViewer) {
       return [
         if (single)
@@ -538,14 +556,39 @@ class _AddFriendSheetState extends State<AddFriendSheet> {
   }
 }
 
+/// Their own display name, or null. The server falls back to the handle when
+/// an account has no name (`full_name ?? handle`), and a "name" that only
+/// repeats the @username is not a name: the card says "@name" once instead.
+String? _ownName(PersonCard p) {
+  final name = visibleDisplayName(p.displayName);
+  final handle = visibleHandle(p.handle);
+  if (name == null) return null;
+  // Exactly the handle, as the fallback writes it. "Irfan" beside @irfan is
+  // a name someone chose, and stays.
+  if (handle != null && (name == handle || name == '@$handle')) return null;
+  return name;
+}
+
 /// The name a card leads with: their display name, else their @username,
 /// else their X handle. A placeholder is never shown as a name.
 String friendName(PersonMatch match) {
   final p = match.person;
   final handle = visibleHandle(p.handle);
-  return visibleDisplayName(p.displayName) ??
+  return _ownName(p) ??
       (handle != null ? '@$handle' : null) ??
       (match.xHandle != null ? '@${match.xHandle}' : 'this person');
+}
+
+/// The initials a card draws when no picture loads: from the same name the
+/// card leads with, so a placeholder (`user-1a2b3c4d`) never becomes "U".
+String friendInitials(PersonMatch match) {
+  final p = match.person;
+  final name = _ownName(p) ?? visibleHandle(p.handle) ?? match.xHandle;
+  if (name == null) return '?';
+  final parts = name.trim().split(RegExp(r'\s+'));
+  final first = parts.first.characters.take(1).toString();
+  if (parts.length < 2) return first.isEmpty ? '?' : first;
+  return '$first${parts.last.characters.take(1)}';
 }
 
 /// Who a match is: their real picture, name, @username, X handle and record.
@@ -605,7 +648,7 @@ class FriendMatchCard extends StatelessWidget {
       container: true,
       label: [
         name,
-        if (handle != null) '@$handle on Chumbucket',
+        if (handle != null && '@$handle' != name) '@$handle on Chumbucket',
         if (match.xHandle != null) '@${match.xHandle} on X',
         record,
         if (match.isViewer) 'This is you',
@@ -616,7 +659,7 @@ class FriendMatchCard extends StatelessWidget {
         stacked: stacked,
         picture: FriendPicture(
           sources: match.pictures,
-          initials: p.initials,
+          initials: friendInitials(match),
           size: 64,
         ),
         details: details,

@@ -401,6 +401,37 @@ void main() {
     expect(find.text('Add a friend'), findsOneWidget);
   });
 
+  testWidgets('two matches with one name: each button names its handle', (
+    tester,
+  ) async {
+    final service =
+        FakeFriends()
+          ..answer =
+              (_) async => found([
+                matchOf(),
+                matchOf(
+                  id: 'u-name',
+                  handle: 'irfan',
+                  xHandle: null,
+                  matchedBy: PersonMatchedBy.username,
+                ),
+              ]);
+    await mount(tester, service);
+    await enter(tester, '@irfan');
+    await submit(tester);
+    // Never two buttons that both say "Add Irfan".
+    expect(
+      find.widgetWithText(ChumbucketPrimaryButton, 'Add Irfan'),
+      findsNothing,
+    );
+    expect(
+      find.widgetWithText(ChumbucketPrimaryButton, 'Add @irfan_calls'),
+      findsOneWidget,
+    );
+    await submit(tester, 'Add @irfan');
+    expect(service.follows, ['u-name:true']);
+  });
+
   testWidgets('a refusal is shown as the server words it, and can be retried', (
     tester,
   ) async {
@@ -529,6 +560,16 @@ void main() {
     final service = FakeFriends();
     await mount(tester, service);
     await enter(tester, '@irfan');
+    // The hint changes on every keystroke, so it is not a live region that
+    // would talk over someone typing.
+    expect(
+      tester
+          .getSemantics(find.byKey(const Key('friend-identifier-hint')))
+          .getSemanticsData()
+          .flagsCollection
+          .isLiveRegion,
+      isFalse,
+    );
     await submit(tester);
     expect(
       find.bySemanticsLabel(
@@ -547,6 +588,21 @@ void main() {
         isEnabled: true,
         hasTapAction: true,
       ),
+    );
+
+    // A person with no display name is named by their @username once, not
+    // twice.
+    final unnamed =
+        FakeFriends()
+          ..answer =
+              (_) async =>
+                  found([matchOf(name: 'irfan_calls', handle: 'irfan_calls')]);
+    await mount(tester, unnamed);
+    await enter(tester, '@irfan');
+    await submit(tester);
+    expect(
+      find.bySemanticsLabel('@irfan_calls, @Irfan on X, No public calls yet'),
+      findsOneWidget,
     );
     semantics.dispose();
   });
@@ -581,6 +637,44 @@ void main() {
       expect(find.text('I'), findsOneWidget);
     },
   );
+
+  test('a name that only repeats the @username is shown as @username', () {
+    // The server's fallback when there is no name: displayName = handle.
+    expect(
+      friendName(matchOf(name: 'irfan_calls', handle: 'irfan_calls')),
+      '@irfan_calls',
+    );
+    // A name someone chose stays, even when it reads like their handle.
+    expect(friendName(matchOf(name: 'Irfan', handle: 'irfan')), 'Irfan');
+    expect(friendName(matchOf(name: 'Ada Lovelace')), 'Ada Lovelace');
+  });
+
+  test('initials come from the name the card shows, never a placeholder', () {
+    // No name yet: the server's fallback is the placeholder handle.
+    expect(
+      friendInitials(
+        matchOf(
+          name: 'user-1a2b3c4d',
+          handle: 'user-1a2b3c4d',
+          xHandle: 'ada_x',
+        ),
+      ),
+      'a',
+    );
+    expect(
+      friendInitials(
+        matchOf(name: 'user-1a2b3c4d', handle: 'ada_calls', xHandle: null),
+      ),
+      'a',
+    );
+    expect(friendInitials(matchOf(name: 'Ada Lovelace')), 'AL');
+    expect(
+      friendInitials(
+        matchOf(name: 'user-1a2b3c4d', handle: 'user-1a2b3c4d', xHandle: null),
+      ),
+      '?',
+    );
+  });
 
   testWidgets(
     'pictures: an X photo that will not load falls back to the next real one',
