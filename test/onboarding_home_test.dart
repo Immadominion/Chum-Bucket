@@ -45,6 +45,29 @@ Future<OnboardingRig> _home(
   return rig;
 }
 
+/// [market] with its open/close moved from kNow to [now].
+VenueMarket _rebased(VenueMarket market, DateTime now) {
+  final shift = now.millisecondsSinceEpoch - kNowMs;
+  return VenueMarket(
+    id: market.id,
+    venue: market.venue,
+    venueEventId: market.venueEventId,
+    venueMarketId: market.venueMarketId,
+    question: market.question,
+    rulesText: market.rulesText,
+    category: market.category,
+    outcomes: market.outcomes,
+    status: market.status,
+    rawStatus: market.rawStatus,
+    opensAt: market.opensAt == null ? null : market.opensAt! + shift,
+    closesAt: market.closesAt == null ? null : market.closesAt! + shift,
+    resolvesAt: market.resolvesAt,
+    resolutionSource: market.resolutionSource,
+    lastSyncedAt: market.lastSyncedAt,
+    payloadVersion: market.payloadVersion,
+  );
+}
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
@@ -225,8 +248,17 @@ void main() {
   testWidgets(
     'Markets opens on "For you" once: chosen topics first, the rest after',
     (tester) async {
+      // Markets lists what is open on the wall clock, so the scene is moved
+      // from kNow (2 Oct 2026) to the real now. Left on kNow, the one sports
+      // market (Lakers, kNow + 3d5h) has closed by now and there is nothing
+      // to put under "For you".
+      final now = DateTime.now().toUtc();
       final scene = OnboardingScene();
-      final rig = OnboardingRig(repo: scene.repository());
+      final repo =
+          scene.repository()
+            ..clock = (() => now)
+            ..catalog = [for (final m in scene.catalog) _rebased(m, now)];
+      final rig = OnboardingRig(repo: repo)..clockNow = now;
       await tester.runAsync(() async {
         await rig.start();
         await rig.app.setTopics({'sports'});
