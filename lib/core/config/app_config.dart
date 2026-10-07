@@ -73,6 +73,10 @@ class AppConfig {
     'CALLS_BFF_URL',
     'CALLS_LINK_HOST',
     'CALL_RECEIPT_EXPERIENCE',
+    // Build-time switches (read with bool.fromEnvironment above). Each one
+    // only lets the build ask; the BFF still decides per account.
+    'CHUMBUCKET_WALLET_ENABLED',
+    'MONEY_CALLS_ENABLED',
     // Legacy Privy export bridge only. The app *secret* is server-side.
     'PRIVY_APP_ID',
     'PRIVY_API_URL',
