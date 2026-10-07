@@ -19,6 +19,7 @@ import 'package:chumbucket/features/onboarding/onboarding_flow_controller.dart';
 import 'package:chumbucket/features/onboarding/presentation/screens/first_call_screen.dart';
 import 'package:chumbucket/features/onboarding/presentation/screens/on_record_screen.dart';
 import 'package:chumbucket/features/onboarding/presentation/screens/sign_in_screen.dart';
+import 'package:chumbucket/features/people/data/people_models.dart';
 import 'package:chumbucket/shared/widgets/icons/basil_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -64,6 +65,20 @@ OnboardingFlowController _flow(WidgetTester tester) =>
         category: m.category,
         closesIn: Duration(milliseconds: m.closesAt! - kNowMs),
       ).rebasedTo(now),
+  ];
+  // The top calls' markets too: left on kNow (2 Oct 2026), a call whose
+  // market closed before the real now is correctly not answerable, and the
+  // scene loses its callers one by one as the calendar moves on.
+  repo.top = [
+    for (final t in repo.top)
+      TopCall(
+        call: t.call,
+        author: t.author,
+        market: t.market.rebasedTo(now),
+        responses: t.responses,
+        split: t.split,
+        viewerHasCalled: t.viewerHasCalled,
+      ),
   ];
   return (scene: scene, repo: repo, now: now);
 }
