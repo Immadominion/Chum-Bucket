@@ -6,6 +6,7 @@ import 'package:chumbucket/core/services/push_registration.dart';
 import 'package:chumbucket/features/authentication/continuity/session_continuity.dart';
 import 'package:chumbucket/features/authentication/session/supabase_auth_port.dart';
 import 'package:chumbucket/features/authentication/session/last_sign_in.dart';
+import 'package:chumbucket/features/calls/data/call_models.dart';
 import 'package:chumbucket/features/onboarding/data/onboarding_store.dart';
 import 'package:chumbucket/features/onboarding/domain/entry_decision.dart';
 import 'package:chumbucket/features/onboarding/domain/onboarding_steps.dart';
@@ -68,6 +69,38 @@ Future<OnboardingRig> _splash(
   }
   await settle(tester, const Duration(milliseconds: 500));
   return r;
+}
+
+/// The scene with every market's close moved on by the time since kNow
+/// (2 Oct 2026). The flow opened from the splash or Home's "Set up" reads
+/// topics on the wall clock, so on kNow's closes the scene runs out of open
+/// categories as the calendar moves on and Topics is (correctly) skipped.
+/// Opens stay in the past, so the rig's kNow clock still sees them open.
+FakeOnboardingRepository _wallClockRepo() {
+  final scene = OnboardingScene();
+  final elapsed = DateTime.now().toUtc().millisecondsSinceEpoch - kNowMs;
+  return scene.repository()
+    ..catalog = [
+      for (final m in scene.catalog)
+        VenueMarket(
+          id: m.id,
+          venue: m.venue,
+          venueEventId: m.venueEventId,
+          venueMarketId: m.venueMarketId,
+          question: m.question,
+          rulesText: m.rulesText,
+          category: m.category,
+          outcomes: m.outcomes,
+          status: m.status,
+          rawStatus: m.rawStatus,
+          opensAt: m.opensAt,
+          closesAt: m.closesAt == null ? null : m.closesAt! + elapsed,
+          resolvesAt: m.resolvesAt,
+          resolutionSource: m.resolutionSource,
+          lastSyncedAt: m.lastSyncedAt,
+          payloadVersion: m.payloadVersion,
+        ),
+    ];
 }
 
 void main() {
@@ -255,7 +288,7 @@ void main() {
       tester,
     ) async {
       final rig = OnboardingRig(
-        repo: OnboardingScene().repository(),
+        repo: _wallClockRepo(),
         signedIn: true,
         bff: OnboardingBff(handle: 'ada'),
       );
@@ -296,7 +329,7 @@ void main() {
       SharedPreferences.setMockInitialValues({
         OnboardingStore.recordKey: '{"v":2,"status":"lookedAround"}',
       });
-      final rig = OnboardingRig(repo: OnboardingScene().repository());
+      final rig = OnboardingRig(repo: _wallClockRepo());
       await tester.runAsync(rig.start);
       addTearDown(rig.dispose);
       await mountAt(

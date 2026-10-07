@@ -543,7 +543,7 @@ void main() {
       // the server refused ("You can't respond to your own call").
       final live = _live();
       final mine = topCall(
-        live.scene.gta,
+        live.scene.gta.rebasedTo(live.now),
         personCard(kCanonicalUserId, name: 'Dominion', handle: 'dev'),
         side: Side.no,
         responses: 1,
