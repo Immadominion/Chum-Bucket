@@ -242,7 +242,7 @@ class PantaUnsignedOrder {
     final owner = _string(json, 'owner');
     validatePantaWallet(owner);
     final key = _string(json, 'idempotencyKey');
-    _uuid(key);
+    _orderKey(key);
     final createdAt = _timestamp(json, 'createdAt');
     final expiresAt = _timestamp(json, 'expiresAt');
     _expect(expiresAt > createdAt && transaction.expiresAt > createdAt);
@@ -413,7 +413,7 @@ class PantaVenueOrder {
       _expect(filled == '0' && signature == null);
     }
     final key = _nullableString(json, 'idempotencyKey');
-    if (key != null) _uuid(key);
+    if (key != null) _orderKey(key);
     final createdAt = _timestamp(json, 'createdAt');
     final updatedAt = _timestamp(json, 'updatedAt');
     _expect(updatedAt >= createdAt);
@@ -553,6 +553,15 @@ void _panta(Map<String, dynamic> json, {bool executable = false}) {
 void _uuid(String value) => _expect(
   RegExp(
     r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  ).hasMatch(value),
+);
+
+/// An order's key as the server returns it: the trade intent's UUID, or a
+/// money call's per-attempt key `<uuid>.t<attempt>` (API
+/// money/MoneyCallsService.ts `tradeKey`). Keys this app sends stay [_uuid].
+void _orderKey(String value) => _expect(
+  RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}(\.t[1-9][0-9]{0,5})?$',
   ).hasMatch(value),
 );
 void _base58Length(String value, int length) {

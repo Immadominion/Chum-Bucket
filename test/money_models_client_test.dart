@@ -8,6 +8,7 @@ import 'package:chumbucket/features/calls/data/calls_bff_payloads.dart';
 import 'package:chumbucket/features/money/data/money_client.dart';
 import 'package:chumbucket/features/money/data/money_models.dart';
 import 'package:chumbucket/features/money/money_controller.dart';
+import 'package:chumbucket/features/panta_trading/data/panta_trading_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'money_fakes.dart';
@@ -26,6 +27,19 @@ void main() {
       expect(moneyBalance(BigInt.from(12000000)), r'$12');
       expect(moneyBalance(BigInt.from(9999)), r'$0');
       expect(moneyOnSide(BigInt.from(5000000), Side.yes), r'$5 on YES');
+    });
+
+    test('an order carries the server\'s per-attempt trade key', () {
+      Map<String, dynamic> order(String key) =>
+          (preparedTradeJson()['order'] as Map<String, dynamic>)
+            ..['idempotencyKey'] = key;
+      const uuid = '11111111-1111-4111-8111-111111111111';
+      for (final key in [uuid, '$uuid.t1', '$uuid.t12']) {
+        expect(PantaUnsignedOrder.fromJson(order(key)).idempotencyKey, key);
+      }
+      for (final key in ['$uuid.t0', '$uuid.x1', '$uuid.t', 'not-a-key.t1']) {
+        expect(() => PantaUnsignedOrder.fromJson(order(key)), throwsA(anything));
+      }
     });
 
     test('a funded money call carries its fill; nothing else does', () {

@@ -166,7 +166,8 @@ Map<String, dynamic> _prepared(
       'expiresAt': expiresAt,
       'demo': false,
     },
-    'idempotencyKey': '11111111-1111-4111-8111-111111111111',
+    // The server's per-attempt trade key (MoneyCallsService.ts tradeKey).
+    'idempotencyKey': '11111111-1111-4111-8111-111111111111.t1',
     'createdAt': moneyNow,
     'expiresAt': expiresAt,
     'demo': false,
@@ -257,7 +258,7 @@ Map<String, dynamic> venueOrderJson({String state = 'SUBMITTED'}) => {
   'fillTxSignature': state == 'FILLED' ? fillSignature : null,
   'createdAt': moneyNow,
   'updatedAt': moneyNow + 1000,
-  'idempotencyKey': null,
+  'idempotencyKey': '11111111-1111-4111-8111-111111111111.t1',
   'demo': false,
 };
 
