@@ -9,7 +9,7 @@ import '../data/money_models.dart';
 import 'money_amount_row.dart' show moneyOf;
 import 'money_wallet_sheet.dart';
 
-/// The one balance in the header: `$12.19`. Tap opens the wallet sheet.
+/// The one balance in the header: `$12.18`. Tap opens the wallet sheet.
 /// Nothing at all while money is off, or before the balance has been read.
 class MoneyBalancePill extends StatelessWidget {
   const MoneyBalancePill({super.key});
@@ -19,7 +19,7 @@ class MoneyBalancePill extends StatelessWidget {
     final money = moneyOf(context);
     final info = money?.wallet;
     if (money == null || info == null) return const SizedBox.shrink();
-    final label = moneyDollars(info.usdcBaseUnits ?? BigInt.zero);
+    final label = moneyBalance(info.usdcBaseUnits ?? BigInt.zero);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Semantics(

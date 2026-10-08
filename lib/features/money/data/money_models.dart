@@ -178,6 +178,12 @@ CallFeedEntry _entry(Object? value) {
 String moneyDollars(BigInt baseUnits, {bool signed = false}) =>
     PantaMoney.dollars(baseUnits, signed: signed);
 
+/// A balance in dollars and cents: 12.188621 USDC reads `$12.18`. Rounded
+/// down, so it never shows more than is there; amounts sent or paid keep
+/// every base unit ([moneyDollars]).
+String moneyBalance(BigInt baseUnits) =>
+    moneyDollars(baseUnits - baseUnits % BigInt.from(10000));
+
 /// Whole dollars and cents for a person's own entry ("12", "12.5", "12.50"):
 /// base units, or null when it is not a positive amount in whole cents.
 BigInt? parseDollarAmount(String text) {

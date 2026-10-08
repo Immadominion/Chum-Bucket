@@ -123,6 +123,14 @@ void main() {
     await tester.pumpWidget(harness(money: on, child: const MoneyBalancePill()));
     expect(find.text(r'$12.19'), findsOneWidget);
     expect(find.textContaining('updated'), findsNothing);
+
+    // A real balance carries six places; the pill shows cents, rounded down.
+    final exact = await boundMoney(moneyServer(usdc: '12188621'));
+    addTearDown(exact.dispose);
+    await tester.pumpWidget(
+      harness(money: exact, child: const MoneyBalancePill()),
+    );
+    expect(find.text(r'$12.18'), findsOneWidget);
   });
 
   testWidgets('the wallet sheet: balance, add, cash out, activity rows', (

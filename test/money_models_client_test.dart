@@ -22,6 +22,9 @@ void main() {
       expect(parseDollarAmount('1.005'), isNull);
       expect(parseDollarAmount('1e3'), isNull);
       expect(moneyDollars(BigInt.from(12190000)), r'$12.19');
+      expect(moneyBalance(BigInt.from(12188621)), r'$12.18');
+      expect(moneyBalance(BigInt.from(12000000)), r'$12');
+      expect(moneyBalance(BigInt.from(9999)), r'$0');
       expect(moneyOnSide(BigInt.from(5000000), Side.yes), r'$5 on YES');
     });
 

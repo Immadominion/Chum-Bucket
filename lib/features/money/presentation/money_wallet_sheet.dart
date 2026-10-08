@@ -153,7 +153,7 @@ class _MoneyWalletSheetState extends State<MoneyWalletSheet> {
     final balance = money.balance;
     return ChumbucketWavySheet(
       title: _stage == _Stage.cashOut ? 'Cash out' : 'Balance',
-      value: balance == null ? null : moneyDollars(balance),
+      value: balance == null ? null : moneyBalance(balance),
       canDismiss: _cashOut.canDismiss,
       onClose: _close,
       body: SingleChildScrollView(
