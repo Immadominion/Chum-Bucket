@@ -444,7 +444,7 @@ void main() {
           isA<PantaException>().having(
             (e) => e.code,
             'code',
-            PantaErrorCode.signingFailed,
+            PantaErrorCode.walletAltered,
           ),
         ),
       );

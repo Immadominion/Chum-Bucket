@@ -609,6 +609,8 @@ class MoneyCallController extends ChangeNotifier {
   static String _pantaCopy(PantaErrorCode code) => switch (code) {
     PantaErrorCode.walletCancelled => 'Cancelled. Nothing was signed.',
     PantaErrorCode.signingFailed => 'Your wallet didn’t sign. Nothing was sent.',
+    PantaErrorCode.walletAltered =>
+      'Your wallet changed the transaction, so nothing was sent.',
     PantaErrorCode.expired => 'That price moved. Check the new one.',
     PantaErrorCode.walletChanged => 'Your wallet changed. Nothing was signed.',
     PantaErrorCode.sessionChanged => 'Your account changed. Nothing was signed.',

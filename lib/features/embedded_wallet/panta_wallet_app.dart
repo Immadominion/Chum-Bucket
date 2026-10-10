@@ -16,6 +16,7 @@ import 'dart:typed_data';
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/authentication/session/panta_mwa_wallet.dart';
 import 'package:chumbucket/features/chumbucket_wallet/signed_transaction.dart';
+import 'package:chumbucket/features/panta_trading/domain/wallet_amendment.dart';
 import 'package:chumbucket/features/panta_trading/panta_trading.dart';
 
 import 'panta_embedded_claim.dart' show checkPantaClaimForEmbeddedSigning;
@@ -42,7 +43,11 @@ class CheckedPantaWalletPort implements PantaWalletPort {
     try {
       return adoptSignerAnswer(copy, answer);
     } on SignedTransactionMismatch {
-      throw const PantaException(PantaErrorCode.signingFailed);
+      // Solflare and Phantom add their own priority fee and Lighthouse checks
+      // to what they sign. That, and only that, is still the reviewed buy.
+      final amended = adoptWalletAmendment(copy, answer);
+      if (amended != null) return amended;
+      throw const PantaException(PantaErrorCode.walletAltered);
     }
   }
 }

@@ -20,6 +20,9 @@ enum PantaErrorCode {
   walletCancelled,
   signingFailed,
 
+  /// The wallet app signed a different transaction than the one reviewed.
+  walletAltered,
+
   /// The server knows the signing wallet as none of this account's.
   walletNotLinked,
 }
@@ -49,6 +52,8 @@ class PantaException implements Exception {
       'The server could not accept this request. Check the order status.',
     PantaErrorCode.walletCancelled => 'Wallet approval was cancelled.',
     PantaErrorCode.signingFailed => 'Wallet approval could not be completed.',
+    PantaErrorCode.walletAltered =>
+      'Your wallet changed the transaction, so nothing was sent.',
     PantaErrorCode.walletNotLinked => 'Link this wallet first.',
   };
 

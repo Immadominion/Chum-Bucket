@@ -3,7 +3,7 @@ description: "See what people call on real prediction markets, back or fade them
 
 publish_to: "none"
 
-version: 1.0.36+36
+version: 1.0.37+37
 
 environment:
   sdk: ^3.7.0

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:solana/encoder.dart' as encoder;
 
 import '../data/panta_trading_models.dart';
+import 'wallet_amendment.dart';
 
 /// Local structural/message checks, not an on-chain or cryptographic approval.
 /// The server must still verify every signature and the exact reviewed message.
@@ -19,11 +20,17 @@ class PantaTransactionValidator {
     final original = _parse(unsigned);
     final result = _parse(signed);
     final index = _walletIndex(original, wallet);
+    final sameMessage = _equal(
+      original.compiledMessage.toByteArray(),
+      result.compiledMessage.toByteArray(),
+    );
+    // Otherwise only a wallet app's own priority fee and Lighthouse checks
+    // (wallet_amendment.dart), still signed by the reviewed fee payer.
     _require(
-      _equal(
-        original.compiledMessage.toByteArray(),
-        result.compiledMessage.toByteArray(),
-      ),
+      sameMessage ||
+          (index == 0 &&
+              _walletIndex(result, wallet) == 0 &&
+              walletAmendmentRefusal(unsigned, signed) == null),
     );
     for (var i = 0; i < result.signatures.length; i++) {
       final signature = result.signatures[i].bytes;
