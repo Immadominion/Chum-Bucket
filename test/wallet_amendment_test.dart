@@ -93,6 +93,21 @@ void main() {
     });
   }
 
+  test('the device log names what the wallet added, nothing secret', () {
+    final solflare =
+        cases.firstWhere((c) => c.name.startsWith('Solflare')).signed;
+    final line = describeWalletAnswer(reviewed, solflare);
+    expect(line, startsWith('wallet amendment; answer v0'));
+    expect(line, contains('ComputeB:3/0 ComputeB:2/0'));
+    expect(line, contains('L2TExMFK:6/1 L2TExMFK:10/1'));
+    final memoDropped =
+        cases.firstWhere((c) => c.name == 'Memo dropped').signed;
+    expect(
+      describeWalletAnswer(reviewed, memoDropped),
+      startsWith('reviewed instructions changed; answer v0'),
+    );
+  });
+
   test('a bare signature is never an amendment', () {
     expect(adoptWalletAmendment(reviewed, Uint8List(64)..[0] = 1), isNull);
   });

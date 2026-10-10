@@ -87,10 +87,9 @@ bool _hasLookups(encoder.CompiledMessage message) => message.map(
   v0: (v0) => v0.addressTableLookups.isNotEmpty,
 );
 
-int _u32(List<int> data, int offset) =>
-    ByteData.sublistView(
-      Uint8List.fromList(data),
-    ).getUint32(offset, Endian.little);
+int _u32(List<int> data, int offset) => ByteData.sublistView(
+  Uint8List.fromList(data),
+).getUint32(offset, Endian.little);
 
 BigInt _u64(List<int> data, int offset) {
   var value = BigInt.zero;
@@ -133,7 +132,8 @@ String? walletAmendmentRefusal(Uint8List reviewed, Uint8List signed) {
     }
 
     final signedInstructions = _decompile(after);
-    final kept = signedInstructions.where((ix) => !ix.isWalletAddition).toList();
+    final kept =
+        signedInstructions.where((ix) => !ix.isWalletAddition).toList();
     final core =
         _decompile(before).where((ix) => !ix.isWalletAddition).toList();
     if (kept.length != core.length) return 'reviewed instructions changed';
@@ -181,8 +181,7 @@ String? walletAmendmentRefusal(Uint8List reviewed, Uint8List signed) {
         units ??
             math.min(_maxComputeUnits, _defaultUnitsPerInstruction * nonBudget),
       );
-      final fee =
-          (limit * price + BigInt.from(999999)) ~/ BigInt.from(1000000);
+      final fee = (limit * price + BigInt.from(999999)) ~/ BigInt.from(1000000);
       if (fee > maxWalletPriorityFeeLamports) {
         return 'wallet priority fee above the ceiling';
       }
@@ -210,5 +209,29 @@ Uint8List? adoptWalletAmendment(Uint8List unsigned, Uint8List answer) {
     return Uint8List.fromList(answer);
   } catch (_) {
     return null;
+  }
+}
+
+/// For the device log: why an answer was kept or refused, and the shape of
+/// what the wallet returned (program, first data byte, account count per
+/// instruction). Public transaction structure only, never keys or bytes.
+String describeWalletAnswer(Uint8List unsigned, Uint8List answer) {
+  final reason =
+      answer.length == 64
+          ? 'bare signature'
+          : walletAmendmentRefusal(unsigned, answer) ?? 'wallet amendment';
+  try {
+    final message = encoder.SignedTx.fromBytes(answer).compiledMessage;
+    final shape = _decompile(message)
+        .map(
+          (ix) =>
+              '${ix.program.substring(0, 8)}:'
+              '${ix.data.isEmpty ? '-' : ix.data[0]}/${ix.accounts.length}',
+        )
+        .join(' ');
+    return '$reason; answer ${message.version.name}, '
+        '${message.accountKeys.length} keys: $shape';
+  } catch (_) {
+    return reason;
   }
 }

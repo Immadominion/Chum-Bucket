@@ -13,6 +13,8 @@ library;
 
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show debugPrint;
+
 import 'package:chumbucket/features/authentication/providers/mwa_auth_provider.dart';
 import 'package:chumbucket/features/authentication/session/panta_mwa_wallet.dart';
 import 'package:chumbucket/features/chumbucket_wallet/signed_transaction.dart';
@@ -46,6 +48,11 @@ class CheckedPantaWalletPort implements PantaWalletPort {
       // Solflare and Phantom add their own priority fee and Lighthouse checks
       // to what they sign. That, and only that, is still the reviewed buy.
       final amended = adoptWalletAmendment(copy, answer);
+      // The answer is gone after this; the device log keeps its shape.
+      debugPrint(
+        'Chumbucket: wallet answer ${amended != null ? 'kept' : 'refused'}: '
+        '${describeWalletAnswer(copy, answer)}',
+      );
       if (amended != null) return amended;
       throw const PantaException(PantaErrorCode.walletAltered);
     }
